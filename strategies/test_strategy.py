@@ -82,11 +82,40 @@ def before_trading_start(context, data):
     
     # 测试基本面数据查询
     if g.stocks_to_test:
-        fundamentals = get_fundamentals(g.stocks_to_test, 'valuation', 
-                                      fields=['market_cap', 'pe_ratio'], 
+        fundamentals = get_fundamentals(g.stocks_to_test, 'valuation',
+                                      fields=['market_cap', 'pe_ratio'],
                                       date=context.current_dt.date())
         log.info(f"基本面数据: {fundamentals}")
-    
+
+    # 测试新的财务报表接口
+    if g.stocks_to_test:
+        log.info("=== 测试新的财务接口 ===")
+
+        # 测试损益表数据
+        income_data = get_income_statement(g.stocks_to_test,
+                                         fields=['revenue', 'net_income', 'eps_basic'])
+        log.info(f"损益表数据: {income_data}")
+
+        # 测试资产负债表数据
+        balance_data = get_balance_sheet(g.stocks_to_test,
+                                       fields=['total_assets', 'total_liabilities', 'total_equity'])
+        log.info(f"资产负债表数据: {balance_data}")
+
+        # 测试现金流量表数据
+        cashflow_data = get_cash_flow(g.stocks_to_test,
+                                    fields=['operating_cash_flow', 'free_cash_flow'])
+        log.info(f"现金流量表数据: {cashflow_data}")
+
+        # 测试财务比率数据
+        ratios_data = get_financial_ratios(g.stocks_to_test,
+                                         fields=['current_ratio', 'roe', 'debt_to_equity'])
+        log.info(f"财务比率数据: {ratios_data}")
+
+        # 测试扩展的基本面数据（更多字段）
+        extended_fundamentals = get_fundamentals(g.stocks_to_test, 'income',
+                                               fields=['revenue', 'net_income', 'roe', 'roa'])
+        log.info(f"扩展基本面数据: {extended_fundamentals}")
+
     log.info("=== 交易开始前准备完成 ===")
 
 
