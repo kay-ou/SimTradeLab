@@ -1,0 +1,18 @@
+[project]
+name = "ptradesim"
+version = "0.1.0"
+description = "A Python simulator for the PTrade strategy framework."
+authors = [
+    {name = "Roo"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas (>=2.3.0,<3.0.0)",
+    "matplotlib (>=3.10.3,<4.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
