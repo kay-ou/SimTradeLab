@@ -196,11 +196,3 @@ def after_trading_end(context, data):
         log.info(f"总收益率: {total_return:.2f}%")
     
     log.info("=== 交易结束后处理完成 ===")
-
-
-# 全局变量容器
-class GlobalVars:
-    def __init__(self):
-        pass
-
-g = GlobalVars()
