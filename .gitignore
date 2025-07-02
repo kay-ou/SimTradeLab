@@ -27,3 +27,4 @@ share/python-wheels/
 MANIFEST
 pickles_test/
 pickles_trade/
+*.lock
