@@ -4,6 +4,10 @@
 测试新实现的财务数据接口功能
 """
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from ptradeSim.engine import BacktestEngine
 import pandas as pd
 
