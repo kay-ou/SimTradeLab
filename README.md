@@ -16,14 +16,6 @@
 
 ptradeSim 是一个专为量化交易策略开发设计的轻量级Python回测框架。它精确模拟PTrade的策略框架与事件驱动机制，让用户能够在本地环境中高效地编写、测试和验证交易策略。当前返回模拟数据，可逐步接入真实数据源。
 
-### 🌟 v2.0.0 重大更新亮点
-
-- 📊 **30+财务指标**：完整的基本面数据支持，包含估值、盈利、资产负债等指标
-- 📈 **15+价格字段**：从基础OHLCV到专业市场数据的全覆盖
-- 🔧 **6类技术指标**：MA、MACD、RSI、BOLL、KDJ等专业技术分析工具
-- ⏱️ **8种时间频率**：从1分钟到1月的完整时间周期支持
-- 🎯 **100%测试覆盖**：全面的功能验证，确保代码质量和稳定性
-
 ### ✨ 核心特性
 
 | 特性 | 描述 | 优势 |
@@ -35,15 +27,6 @@ ptradeSim 是一个专为量化交易策略开发设计的轻量级Python回测�
 | 🛠️ **标准API** | 提供与主流平台一致的API接口 | 无缝迁移现有策略 |
 | 🏠 **本地运行** | 无需外部服务依赖，完全本地化 | 快速开发和调试 |
 
-### 🆕 新增功能特性
-
-| 特性 | 描述 | 数据规模 |
-|------|------|---------|
-| 📊 **丰富财务数据** | 30+财务指标，完整财务报表数据 | 损益表、资产负债表、现金流量表 |
-| 📈 **专业市场数据** | 15+价格字段，实时报价，五档买卖盘 | OHLCV + 扩展市场数据 |
-| 🔧 **技术指标计算** | 6类专业技术指标，标准算法实现 | MA、MACD、RSI、BOLL、KDJ等 |
-| ⏱️ **多时间频率** | 分钟到月线的完整时间周期支持 | 1m、5m、15m、30m、1h、1d、1w、1M |
-| 🎯 **高质量模拟** | 智能数据生成，确保数据一致性 | 基于哈希的确定性随机算法 |
 
 ## 🚀 快速开始
 
@@ -109,33 +92,33 @@ def initialize(context):
     log.info("=== 策略初始化开始 ===")
 
     # 设置股票池
-    context.securities = ['STOCK_A', 'STOCK_B']
+    g.securities = ['STOCK_A', 'STOCK_B']
 
     # 设置双均线参数
-    context.short_ma = 5   # 短期均线
-    context.long_ma = 20   # 长期均线
+    g.short_ma = 5   # 短期均线
+    g.long_ma = 20   # 长期均线
 
-    log.info(f"股票池: {context.securities}")
-    log.info(f"双均线参数: 短期{context.short_ma}日, 长期{context.long_ma}日")
+    log.info(f"股票池: {g.securities}")
+    log.info(f"双均线参数: 短期{g.short_ma}日, 长期{g.long_ma}日")
 
 def handle_data(context, data):
     """核心交易逻辑 - 每个交易日执行"""
 
-    for stock in context.securities:
+    for stock in g.securities:
         if stock not in data:
             continue
 
         # 获取历史数据
-        hist = get_history(stock, ['close'], context.long_ma, '1d')
+        hist = get_history(stock, ['close'], g.long_ma, '1d')
 
-        if len(hist) < context.long_ma:
+        if len(hist) < g.long_ma:
             continue
 
         # 计算双均线
-        ma_short = hist['close'][-context.short_ma:].mean()
+        ma_short = hist['close'][-g.short_ma:].mean()
         ma_long = hist['close'].mean()
 
-        current_position = context.portfolio.positions[stock].amount
+        current_position = g.portfolio.positions[stock].amount
         current_price = data[stock]['close']
 
         # 金叉买入信号
@@ -181,70 +164,6 @@ engine.run()
 "
 ```
 
-## 📚 API参考
-
-### 🔧 核心交易函数
-
-| 函数 | 参数 | 描述 | 示例 |
-|------|------|------|------|
-| `order(security, amount)` | 股票代码, 股数 | 按指定股数下单 | `order('STOCK_A', 100)` |
-| `order_target(security, amount)` | 股票代码, 目标股数 | 调整持仓至目标股数 | `order_target('STOCK_A', 0)` |
-| `order_value(security, value)` | 股票代码, 金额 | 按指定金额下单 | `order_value('STOCK_A', 10000)` |
-
-### 📊 基础数据获取函数
-
-| 函数 | 参数 | 描述 | 示例 |
-|------|------|------|------|
-| `get_history(count, frequency, field, security_list)` | 数量, 频率, 字段, 股票列表 | 获取历史数据 | `get_history(20, '1d', ['close'], ['STOCK_A'])` |
-| `get_price(security, fields)` | 股票代码, 字段列表 | 获取价格数据 | `get_price(['STOCK_A'], ['close', 'volume'])` |
-| `get_Ashares()` | 无 | 获取所有A股列表 | `stocks = get_Ashares()` |
-
-### 💰 财务数据接口 🆕
-
-| 函数 | 参数 | 描述 | 示例 |
-|------|------|------|------|
-| `get_fundamentals(stocks, table, fields)` | 股票, 表类型, 字段 | 获取基本面数据 | `get_fundamentals(['STOCK_A'], 'valuation', ['pe_ratio'])` |
-| `get_income_statement(stocks, fields)` | 股票, 字段 | 获取损益表数据 | `get_income_statement(['STOCK_A'], ['revenue', 'net_income'])` |
-| `get_balance_sheet(stocks, fields)` | 股票, 字段 | 获取资产负债表 | `get_balance_sheet(['STOCK_A'], ['total_assets'])` |
-| `get_cash_flow(stocks, fields)` | 股票, 字段 | 获取现金流量表 | `get_cash_flow(['STOCK_A'], ['operating_cash_flow'])` |
-| `get_financial_ratios(stocks, fields)` | 股票, 字段 | 获取财务比率 | `get_financial_ratios(['STOCK_A'], ['roe', 'current_ratio'])` |
-
-### 📈 市场数据接口 🆕
-
-| 函数 | 参数 | 描述 | 示例 |
-|------|------|------|------|
-| `get_current_data(security)` | 股票代码 | 获取实时市场数据 | `data = get_current_data(['STOCK_A'])` |
-| `get_market_snapshot(security, fields)` | 股票, 字段 | 获取市场快照 | `get_market_snapshot(['STOCK_A'], ['close', 'bid1'])` |
-| `get_technical_indicators(security, indicators)` | 股票, 指标 | 计算技术指标 | `get_technical_indicators(['STOCK_A'], 'MACD')` |
-
-### 💰 账户信息
-
-| 属性 | 描述 | 示例 |
-|------|------|------|
-| `context.portfolio.cash` | 可用现金 | `cash = context.portfolio.cash` |
-| `context.portfolio.total_value` | 总资产价值 | `total = context.portfolio.total_value` |
-| `context.portfolio.positions` | 持仓信息 | `pos = context.portfolio.positions['STOCK_A']` |
-
-### 📝 日志函数
-
-| 函数 | 描述 | 示例 |
-|------|------|------|
-| `log.info(message)` | 记录信息日志 | `log.info("买入成功")` |
-| `log.warning(message)` | 记录警告日志 | `log.warning("资金不足")` |
-| `log.set_log_level(level)` | 设置日志级别 | `log.set_log_level(log.LEVEL_INFO)` |
-
-### 🔍 支持的数据字段 🆕
-
-#### 价格数据字段
-- **基础字段**: `open`, `high`, `low`, `close`, `volume`
-- **扩展字段**: `pre_close`, `change`, `pct_change`, `amplitude`, `turnover_rate`, `vwap`, `amount`, `high_limit`, `low_limit`
-
-#### 财务数据字段
-- **估值指标**: `market_cap`, `pe_ratio`, `pb_ratio`, `ps_ratio`, `turnover_rate`
-- **盈利能力**: `revenue`, `net_income`, `roe`, `roa`, `gross_margin`, `net_margin`
-- **资产负债**: `total_assets`, `total_liabilities`, `total_equity`, `current_ratio`, `debt_to_equity`
-- **现金流**: `operating_cash_flow`, `investing_cash_flow`, `financing_cash_flow`, `free_cash_flow`
-
 #### 技术指标
 - **趋势指标**: `MA`, `EMA`
 - **动量指标**: `MACD`, `RSI`
@@ -252,10 +171,8 @@ engine.run()
 - **摆动指标**: `KDJ`
 
 #### 时间频率
-- **分钟级**: `1m`, `5m`, `15m`, `30m`
-- **小时级**: `1h`
+- **分钟级**: `1m`
 - **日线级**: `1d`
-- **周月级**: `1w`, `1M`
 
 ## 🧪 测试
 
@@ -264,9 +181,6 @@ engine.run()
 ### 运行测试
 ```bash
 # 一键运行所有测试（推荐）
-poetry run python run_all_tests.py
-
-# 运行核心功能测试
 poetry run python run_tests.py
 
 # 单独运行测试
@@ -289,8 +203,6 @@ poetry run python tests/test_market_data_apis.py   # 市场数据测试 🆕
 - **完整测试套件**: < 2分钟
 - **测试通过率**: 100%
 
-详细测试文档请查看 [tests/TEST_STATUS_REPORT.md](tests/TEST_STATUS_REPORT.md)
-
 ## 📁 项目结构
 
 ```
@@ -307,9 +219,7 @@ ptradeSim/
 │   ├── test_strategy_execution.py # 策略执行测试
 │   ├── test_financial_apis.py     # 财务接口测试 🆕
 │   ├── test_market_data_apis.py   # 市场数据测试 🆕
-│   ├── FINANCIAL_APIS_ENHANCEMENT.md  # 财务功能文档 🆕
-│   ├── MARKET_DATA_ENHANCEMENT.md     # 市场数据文档 🆕
-│   └── TEST_STATUS_REPORT.md          # 测试状态报告 🆕
+│   ├── REAMDE.md                  # 测试套件文档
 ├── 📁 data/               # 数据文件
 │   └── sample_data.csv    # 示例数据
 ├── main.py                # 主程序入口
@@ -361,29 +271,29 @@ def after_trading_end(context, data):
 ```python
 def initialize(context):
     """使用新增功能的策略示例"""
-    context.securities = ['STOCK_A', 'STOCK_B']
-    context.rebalance_period = 20  # 20天调仓一次
+    g.securities = ['STOCK_A', 'STOCK_B']
+    g.rebalance_period = 20  # 20天调仓一次
 
 def before_trading_start(context, data):
     """使用财务数据进行股票筛选"""
     # 获取财务比率数据
-    ratios = get_financial_ratios(context.securities,
+    ratios = get_financial_ratios(g.securities,
                                  ['roe', 'current_ratio', 'debt_to_equity'])
 
     # 筛选优质股票：ROE > 15%, 流动比率 > 1.5, 资产负债率 < 0.5
     good_stocks = []
-    for stock in context.securities:
+    for stock in g.securities:
         if (ratios.loc[stock, 'roe'] > 15 and
             ratios.loc[stock, 'current_ratio'] > 1.5 and
             ratios.loc[stock, 'debt_to_equity'] < 0.5):
             good_stocks.append(stock)
 
-    context.target_stocks = good_stocks
+    g.target_stocks = good_stocks
     log.info(f"筛选出优质股票: {good_stocks}")
 
 def handle_data(context, data):
     """使用技术指标进行交易决策"""
-    for stock in context.target_stocks:
+    for stock in g.target_stocks:
         # 计算技术指标
         macd_data = get_technical_indicators([stock], 'MACD')
         rsi_data = get_technical_indicators([stock], 'RSI', period=14)
