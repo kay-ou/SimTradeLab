@@ -15,7 +15,8 @@ def get_research_path(engine):
 
 def set_commission(engine, commission_ratio, min_commission):
     """模拟set_commission函数"""
-    pass
+    engine.commission_ratio = commission_ratio
+    engine.min_commission = min_commission
 
 def set_limit_mode(engine, mode):
     """模拟set_limit_mode函数"""

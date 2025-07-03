@@ -21,6 +21,8 @@ def order(engine, security, amount):
         return None
 
     cost = amount * price
+    commission = max(abs(cost) * engine.commission_ratio, engine.min_commission if amount != 0 else 0)
+    cost += commission
 
     if amount > 0 and context.portfolio.cash < cost:
         log.warning(f"现金不足，无法买入 {amount} 股 {security}，订单被拒绝")

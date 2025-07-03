@@ -30,6 +30,9 @@ class BacktestEngine:
         self.frequency = frequency
         self.portfolio = Portfolio(initial_cash)
         self.context = Context(self.portfolio)
+        self.commission_ratio = 0.0003  # 默认佣金
+        self.min_commission = 5      # 默认最低佣金
+        self.slippage = 0.001  # 默认滑点
         self.data = self._load_data()
         self.current_data = {}
         self.portfolio_history = []
