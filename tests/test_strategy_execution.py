@@ -135,7 +135,7 @@ def test_full_backtest():
         if position.amount > 0:
             print(f"   - 持仓 {stock}: {position.amount} 股，成本价 {position.cost_basis:.2f}，市值 {position.market_value:.2f}")
     
-    print(f"   - 投资组合历史长度: {len(engine.daily_portfolio_history)}")
+    print(f"   - 投资组合历史长度: {len(engine.portfolio_history)}")
 
 if __name__ == "__main__":
     test_strategy_execution()

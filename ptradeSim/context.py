@@ -21,6 +21,18 @@ class Position:
         """市场价值"""
         return self.last_sale_price * self.amount
 
+    @property
+    def value(self):
+        """持仓价值（market_value的别名）"""
+        return self.market_value
+
+    @property
+    def pnl_ratio(self):
+        """盈亏比例"""
+        if self.amount == 0 or self.cost_basis == 0:
+            return 0.0
+        return (self.last_sale_price - self.cost_basis) / self.cost_basis
+
 
 class Portfolio:
     """

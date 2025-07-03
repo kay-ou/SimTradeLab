@@ -54,10 +54,12 @@ def main():
         "data/sample_data.csv",
         "strategies/buy_and_hold.py",
         "strategies/test_strategy.py",
+        "strategies/minute_trading_strategy.py",
         "tests/test_api_injection.py",
         "tests/test_strategy_execution.py",
         "tests/test_financial_apis.py",
-        "tests/test_market_data_apis.py"
+        "tests/test_market_data_apis.py",
+        "tests/test_minute_trading.py"
     ]
     
     print("📋 检查前置条件...")
@@ -81,6 +83,7 @@ def main():
         ("策略执行测试", "poetry run python tests/test_strategy_execution.py"),
         ("财务接口测试", "poetry run python tests/test_financial_apis.py"),
         ("市场数据接口测试", "poetry run python tests/test_market_data_apis.py"),
+        ("分钟级交易综合测试", "poetry run python tests/test_minute_trading.py"),
     ]
     
     # 运行所有测试
@@ -118,6 +121,8 @@ def main():
         print("  ✅ 市场数据接口正常")
         print("  ✅ 技术指标计算正常")
         print("  ✅ 实时数据模拟正常")
+        print("  ✅ 分钟级交易功能正常")
+        print("  ✅ 多频率交易支持正常")
         return 0
     else:
         print(f"\n💥 有 {failed_tests} 个测试失败，请检查上述错误信息")
