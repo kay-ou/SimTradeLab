@@ -15,6 +15,9 @@ dependencies = [
 [tool.poetry]
 packages = [{ include = "ptradeSim" }]
 
+[tool.poetry.group.dev.dependencies]
+pylint = "^3.3.7"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"

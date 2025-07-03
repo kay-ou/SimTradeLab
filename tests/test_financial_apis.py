@@ -5,7 +5,16 @@
 """
 
 import pandas as pd
-from ptradeSim import BacktestEngine
+import pandas as pd
+from functools import partial
+from ptradeSim import (
+    BacktestEngine,
+    get_fundamentals,
+    get_income_statement,
+    get_balance_sheet,
+    get_cash_flow,
+    get_financial_ratios
+)
 
 def test_financial_apis():
     """测试所有新的财务接口"""
@@ -27,31 +36,27 @@ def test_financial_apis():
     print("📊 测试股票:", test_stocks)
     print()
     
-    # 导入API函数
-    from ptradeSim import api as ptrade_api
-    from functools import partial
-    
     # 绑定引擎实例到API函数
-    get_fundamentals = partial(ptrade_api.get_fundamentals, engine)
-    get_income_statement = partial(ptrade_api.get_income_statement, engine)
-    get_balance_sheet = partial(ptrade_api.get_balance_sheet, engine)
-    get_cash_flow = partial(ptrade_api.get_cash_flow, engine)
-    get_financial_ratios = partial(ptrade_api.get_financial_ratios, engine)
+    _get_fundamentals = partial(get_fundamentals, engine)
+    _get_income_statement = partial(get_income_statement, engine)
+    _get_balance_sheet = partial(get_balance_sheet, engine)
+    _get_cash_flow = partial(get_cash_flow, engine)
+    _get_financial_ratios = partial(get_financial_ratios, engine)
     
     # 1. 测试扩展的get_fundamentals接口
     print("1️⃣ 测试扩展的get_fundamentals接口")
     print("-" * 40)
     
     # 测试估值指标
-    valuation_data = get_fundamentals(test_stocks, 'valuation', 
-                                    fields=['market_cap', 'pe_ratio', 'pb_ratio'])
+    valuation_data = _get_fundamentals(test_stocks, 'valuation',
+                                     fields=['market_cap', 'pe_ratio', 'pb_ratio'])
     print("估值指标:")
     print(valuation_data)
     print()
     
     # 测试盈利能力指标
-    income_data = get_fundamentals(test_stocks, 'income', 
-                                 fields=['revenue', 'net_income', 'roe', 'roa'])
+    income_data = _get_fundamentals(test_stocks, 'income',
+                                  fields=['revenue', 'net_income', 'roe', 'roa'])
     print("盈利能力指标:")
     print(income_data)
     print()
@@ -60,8 +65,8 @@ def test_financial_apis():
     print("2️⃣ 测试损益表接口")
     print("-" * 40)
     
-    income_statement = get_income_statement(test_stocks, 
-                                          fields=['revenue', 'gross_profit', 'net_income', 'eps_basic'])
+    income_statement = _get_income_statement(test_stocks,
+                                           fields=['revenue', 'gross_profit', 'net_income', 'eps_basic'])
     print("损益表数据:")
     print(income_statement)
     print()
@@ -70,8 +75,8 @@ def test_financial_apis():
     print("3️⃣ 测试资产负债表接口")
     print("-" * 40)
     
-    balance_sheet = get_balance_sheet(test_stocks, 
-                                    fields=['total_assets', 'total_liabilities', 'total_equity', 'cash_and_equivalents'])
+    balance_sheet = _get_balance_sheet(test_stocks,
+                                     fields=['total_assets', 'total_liabilities', 'total_equity', 'cash_and_equivalents'])
     print("资产负债表数据:")
     print(balance_sheet)
     print()
@@ -80,8 +85,8 @@ def test_financial_apis():
     print("4️⃣ 测试现金流量表接口")
     print("-" * 40)
     
-    cash_flow = get_cash_flow(test_stocks, 
-                            fields=['operating_cash_flow', 'investing_cash_flow', 'financing_cash_flow', 'free_cash_flow'])
+    cash_flow = _get_cash_flow(test_stocks,
+                             fields=['operating_cash_flow', 'investing_cash_flow', 'financing_cash_flow', 'free_cash_flow'])
     print("现金流量表数据:")
     print(cash_flow)
     print()
@@ -90,8 +95,8 @@ def test_financial_apis():
     print("5️⃣ 测试财务比率接口")
     print("-" * 40)
     
-    financial_ratios = get_financial_ratios(test_stocks, 
-                                          fields=['current_ratio', 'debt_to_equity', 'roe', 'roa', 'gross_margin'])
+    financial_ratios = _get_financial_ratios(test_stocks,
+                                           fields=['current_ratio', 'debt_to_equity', 'roe', 'roa', 'gross_margin'])
     print("财务比率数据:")
     print(financial_ratios)
     print()
@@ -101,8 +106,8 @@ def test_financial_apis():
     print("-" * 40)
     
     # 同一股票多次调用应该返回相同数据
-    data1 = get_fundamentals(['STOCK_A'], 'valuation', fields=['pe_ratio'])
-    data2 = get_fundamentals(['STOCK_A'], 'valuation', fields=['pe_ratio'])
+    data1 = _get_fundamentals(['STOCK_A'], 'valuation', fields=['pe_ratio'])
+    data2 = _get_fundamentals(['STOCK_A'], 'valuation', fields=['pe_ratio'])
     
     is_consistent = data1.equals(data2)
     print(f"数据一致性测试: {'✅ 通过' if is_consistent else '❌ 失败'}")
@@ -116,7 +121,7 @@ def test_financial_apis():
     
     try:
         # 测试不存在的字段
-        error_data = get_fundamentals(test_stocks, 'valuation', fields=['non_existent_field'])
+        error_data = _get_fundamentals(test_stocks, 'valuation', fields=['non_existent_field'])
         print("错误字段处理: ✅ 正常返回None值")
         print(error_data)
     except Exception as e:

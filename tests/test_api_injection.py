@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from ptradeSim import BacktestEngine, api as ptrade_api
+from ptradeSim import (
+    BacktestEngine, log, get_Ashares, get_stock_status, get_stock_info, get_stock_name,
+    get_fundamentals, get_history, get_price,
+    order, order_target, order_value, set_universe,
+    is_trade, get_research_path, set_commission, set_limit_mode,
+    get_initial_cash, get_num_of_positions
+)
 
 def test_complete_injection():
     """测试完整的API和log注入机制"""
@@ -23,7 +29,7 @@ def test_complete_injection():
     print(f"   - 策略是否有log: {hasattr(strategy, 'log')}")
     if hasattr(strategy, 'log'):
         print(f"   - log对象类型: {type(strategy.log)}")
-        print(f"   - 与ptrade_api.log相同: {strategy.log is ptrade_api.log}")
+        print(f"   - 与log相同: {strategy.log is log}")
     
     print("\n2. 检查关键API函数注入:")
     api_functions = [
@@ -98,11 +104,10 @@ def test_log_injection():
     
     if hasattr(engine.strategy, 'log'):
         strategy_log = engine.strategy.log
-        ptrade_log = ptrade_api.log
         
         print(f"2. 策略log对象类型: {type(strategy_log)}")
-        print(f"3. ptrade_api log对象类型: {type(ptrade_log)}")
-        print(f"4. 两个log对象是否相同: {strategy_log is ptrade_log}")
+        print(f"3. ptrade log对象类型: {type(log)}")
+        print(f"4. 两个log对象是否相同: {strategy_log is log}")
         
         # 检查log对象的属性和方法
         print(f"5. 策略log是否有LEVEL_INFO: {hasattr(strategy_log, 'LEVEL_INFO')}")

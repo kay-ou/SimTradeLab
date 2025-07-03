@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+"""
+策略上下文、投资组合、持仓和订单的定义。
+"""
 
 class Blotter:
     """模拟的Blotter对象"""
