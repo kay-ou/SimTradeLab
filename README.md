@@ -371,24 +371,6 @@ def handle_data(context, data):
 - [ ] 机器学习因子库
 
 
-### 开发环境设置
-
-```bash
-# 克隆项目
-git clone https://github.com/kaykouo/ptradeSim.git
-cd ptradeSim
-
-# 安装开发依赖
-poetry install
-
-# 运行核心功能测试
-poetry run python run_tests.py
-
-# 测试新增的财务和市场数据功能
-poetry run python tests/test_financial_apis.py
-poetry run python tests/test_market_data_apis.py
-```
-
 ## 📄 许可证
 
 本项目采用 [MIT许可证](LICENSE)。
