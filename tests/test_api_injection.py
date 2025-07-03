@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from ptradeSim.engine import BacktestEngine
-from ptradeSim import api as ptrade_api
+from ptradeSim import BacktestEngine, api as ptrade_api
 
 def test_complete_injection():
     """测试完整的API和log注入机制"""

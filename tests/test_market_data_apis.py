@@ -4,13 +4,9 @@
 测试新实现的市场数据接口功能
 """
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from ptradeSim.engine import BacktestEngine
 import pandas as pd
 import numpy as np
+from ptradeSim import BacktestEngine
 
 def test_market_data_apis():
     """测试所有新的市场数据接口"""

@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from ptradeSim.engine import BacktestEngine
 import pandas as pd
+from ptradeSim import BacktestEngine
 
 def test_strategy_execution():
     """测试策略完整执行流程"""

@@ -5,12 +5,8 @@
 测试引擎对日线和分钟级交易周期的支持，包括策略测试和功能验证
 """
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from ptradeSim.engine import BacktestEngine
 import pandas as pd
+from ptradeSim import BacktestEngine
 
 def test_daily_trading():
     """测试日线交易"""

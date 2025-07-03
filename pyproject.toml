@@ -3,7 +3,7 @@ name = "ptradesim"
 version = "0.1.0"
 description = "A Python simulator for the PTrade strategy framework."
 authors = [
-    {name = "Roo"}
+    {name = "Kay"}
 ]
 readme = "README.md"
 requires-python = ">=3.12"
@@ -12,6 +12,8 @@ dependencies = [
     "matplotlib (>=3.10.3,<4.0.0)"
 ]
 
+[tool.poetry]
+packages = [{ include = "ptradeSim" }]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
