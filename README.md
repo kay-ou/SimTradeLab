@@ -495,4 +495,16 @@ poetry run python tests/test_market_data_apis.py
 
 [🐛 报告Bug](https://github.com/kaykouo/ptradeSim/issues) • [💡 功能建议](https://github.com/kaykouo/ptradeSim/issues) • [📖 文档](https://github.com/kaykouo/ptradeSim/wiki)
 
+<div align="center">
+  <img src="sponsor/WechatPay.png" alt="WechatPay" width="200" style="margin-right:20px;" />
+  <img src="sponsor/AliPay.png" alt="AliPay" width="200" />
+</div>
+
+### ☕ [去 Ko-fi 捐赠支持](https://ko-fi.com/kayou)  
+
+---
+
+感谢你的支持和鼓励！✨每一份助力都让创作更有温度。
+
+
 </div>
