@@ -55,8 +55,8 @@ def handle_data(context, data):
                 g.price_history[stock] = g.price_history[stock][-g.long_window:]
     
     # 只在有足够历史数据时进行交易决策
-    if len(g.price_history[g.stocks[0]]) >= g.long_window:
-        for stock in g.stocks:
+    for stock in g.stocks:
+        if stock in g.price_history and len(g.price_history[stock]) >= g.long_window:
             if stock in data:
                 make_trading_decision(context, data, stock)
     
@@ -147,8 +147,8 @@ def log_portfolio_status(context):
     log.info(f"[{current_time}] 资产: {total_value:.2f}, 现金: {cash:.2f}, 持仓比例: {position_ratio:.1f}%")
     
     # 显示当前价格和均线
-    if len(g.price_history[g.stocks[0]]) >= g.long_window:
-        for stock in g.stocks:
+    for stock in g.stocks:  # 修复这里，迭代单个股票
+        if stock in g.price_history and len(g.price_history[stock]) >= g.long_window:
             if stock in g.last_prices:
                 prices = g.price_history[stock]
                 current_price = g.last_prices[stock]

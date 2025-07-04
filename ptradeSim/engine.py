@@ -87,7 +87,7 @@ class BacktestEngine:
             df = self._generate_minute_data(df)
 
         # return dict(df.groupby('security')) 应该这个就可以了，但出错，怀疑python或者pandas的bug
-        return {k: v for k, v in df.groupby('security')}
+        return dict(iter(df.groupby('security')))
 
 
     def _is_daily_data(self, df):

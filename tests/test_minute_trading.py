@@ -41,11 +41,11 @@ def test_daily_trading():
         print(f"   - 投资组合历史记录: {len(engine.portfolio_history)} 条")
         print(f"   - 最终资产: {engine.portfolio.total_value:.2f}")
         
-        return True
+        assert True  # 替换 return 为 assert
         
     except Exception as e:
         print(f"❌ 日线交易测试失败: {e}")
-        return False
+        assert False  # 替换 return 为 assert
 
 def test_minute_trading():
     """测试分钟级交易"""
@@ -85,13 +85,13 @@ def test_minute_trading():
         print(f"   - 投资组合历史记录: {len(engine.portfolio_history)} 条")
         print(f"   - 最终资产: {engine.portfolio.total_value:.2f}")
         
-        return True
+        assert True  # 替换 return 为 assert
         
     except Exception as e:
         print(f"❌ 分钟级交易测试失败: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False  # 替换 return 为 assert
 
 def test_different_frequencies():
     """测试不同的交易频率"""
@@ -235,11 +235,11 @@ def test_minute_data_file():
         print(f"   - 投资组合记录: {len(engine.portfolio_history)} 条")
         print(f"   - 最终资产: {engine.portfolio.total_value:.2f}")
         
-        return True
+        assert True  # 替换 return 为 assert
         
     except Exception as e:
         print(f"❌ 分钟级数据文件测试失败: {e}")
-        return False
+        assert False  # 替换 return 为 assert
 
 def test_minute_strategy():
     """测试分钟级交易策略"""
@@ -287,13 +287,13 @@ def test_minute_strategy():
         else:
             print(f"   - 无持仓")
 
-        return True
+        assert True  # 替换 return 为 assert
 
     except Exception as e:
         print(f"❌ 分钟级策略测试失败: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False  # 替换 return 为 assert
 
 def test_strategy_comparison():
     """对比日线和分钟级策略效果"""
