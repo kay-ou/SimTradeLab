@@ -51,6 +51,9 @@ class BacktestEngine:
 
         strategy_module.log = log
 
+        from . import compatibility, performance
+
+        # 注入需要engine参数的API函数
         api_modules = [financials, market_data, trading, utils]
         for module in api_modules:
             for func_name in dir(module):
@@ -58,6 +61,18 @@ class BacktestEngine:
                     api_func = getattr(module, func_name)
                     if callable(api_func):
                         setattr(strategy_module, func_name, partial(api_func, self))
+
+        # 注入不需要engine参数的函数（兼容性和性能模块）
+        standalone_modules = [compatibility, performance]
+        for module in standalone_modules:
+            for func_name in dir(module):
+                if not func_name.startswith("__") and not func_name.startswith("_"):
+                    api_func = getattr(module, func_name)
+                    if callable(api_func):
+                        setattr(strategy_module, func_name, api_func)
+
+        # 设置当前引擎到性能模块
+        performance._set_current_engine(self)
 
         return strategy_module
 
@@ -175,6 +190,9 @@ class BacktestEngine:
         log.current_dt = None
         log.info("策略回测结束")
 
+        # 生成性能分析报告
+        self._generate_performance_report()
+
     def _run_daily_backtest(self, trading_days):
         """
         运行日线回测。
@@ -184,6 +202,10 @@ class BacktestEngine:
             self.context.current_dt = day
             self.context.previous_date = previous_day.date() if previous_day is not None else day.date()
             log.current_dt = day.replace(hour=9, minute=30)
+
+            # 重置当日订单和成交数据
+            self.context.blotter.reset_daily_data()
+
             self.current_data = {sec: df.loc[day] for sec, df in self.data.items() if day in df.index}
             self._update_position_prices()
             self._execute_trading_session()
@@ -249,3 +271,16 @@ class BacktestEngine:
         if hasattr(self.strategy, 'after_trading_end'):
             log.current_dt = self.context.current_dt.replace(hour=15, minute=30)
             self.strategy.after_trading_end(self.context, self.current_data)
+
+    def _generate_performance_report(self):
+        """生成性能分析报告"""
+        from .performance import print_performance_report
+        from .utils import get_benchmark_returns
+
+        # 获取基准收益率（如果设置了基准）
+        benchmark_returns = None
+        if hasattr(self, 'benchmark') and self.benchmark:
+            benchmark_returns = get_benchmark_returns(self, self.start_date, self.end_date)
+
+        # 打印性能报告
+        print_performance_report(self, benchmark_returns)

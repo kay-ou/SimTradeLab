@@ -340,6 +340,17 @@ def get_technical_indicators(engine, security, indicators, period=20, **kwargs):
                     result_data[sec]['KDJ_K'] = k_values.tolist()
                     result_data[sec]['KDJ_D'] = d_values.tolist()
                     result_data[sec]['KDJ_J'] = j_values.tolist()
+                elif indicator.upper() == 'CCI':
+                    # CCI (Commodity Channel Index) 顺势指标
+                    cci_period = kwargs.get('cci_period', period)
+                    typical_price = (pd.Series(high_prices) + pd.Series(low_prices) + pd.Series(close_prices)) / 3
+                    sma_tp = typical_price.rolling(window=cci_period).mean()
+                    # 计算平均绝对偏差 (MAD)
+                    def calculate_mad(x):
+                        return (x - x.mean()).abs().mean()
+                    mad = typical_price.rolling(window=cci_period).apply(calculate_mad, raw=False)
+                    cci = (typical_price - sma_tp) / (0.015 * mad)
+                    result_data[sec][f'CCI{cci_period}'] = cci.tolist()
             except Exception as e:
                 log.warning(f"计算技术指标 {indicator} 时出错: {e}")
 
@@ -358,3 +369,82 @@ def get_technical_indicators(engine, security, indicators, period=20, **kwargs):
                 result_df[(indicator_name, sec)] = pd.Series(values, index=time_index)
 
     return result_df
+
+
+# ==================== 独立技术指标函数接口 ====================
+# 符合ptradeAPI标准的独立技术指标函数
+
+def get_MACD(engine, security, fast_period=12, slow_period=26, signal_period=9):
+    """
+    计算MACD指标 (异同移动平均线)
+
+    Args:
+        engine: 回测引擎实例
+        security: 股票代码，支持单个股票或股票列表
+        fast_period: 快线周期，默认12
+        slow_period: 慢线周期，默认26
+        signal_period: 信号线周期，默认9
+
+    Returns:
+        DataFrame: 包含MACD_DIF, MACD_DEA, MACD_HIST的数据框
+    """
+    return get_technical_indicators(
+        engine, security, 'MACD',
+        fast_period=fast_period,
+        slow_period=slow_period,
+        signal_period=signal_period
+    )
+
+
+def get_KDJ(engine, security, k_period=9):
+    """
+    计算KDJ指标 (随机指标)
+
+    Args:
+        engine: 回测引擎实例
+        security: 股票代码，支持单个股票或股票列表
+        k_period: K值计算周期，默认9
+
+    Returns:
+        DataFrame: 包含KDJ_K, KDJ_D, KDJ_J的数据框
+    """
+    return get_technical_indicators(
+        engine, security, 'KDJ',
+        k_period=k_period
+    )
+
+
+def get_RSI(engine, security, period=14):
+    """
+    计算RSI指标 (相对强弱指标)
+
+    Args:
+        engine: 回测引擎实例
+        security: 股票代码，支持单个股票或股票列表
+        period: 计算周期，默认14
+
+    Returns:
+        DataFrame: 包含RSI值的数据框
+    """
+    return get_technical_indicators(
+        engine, security, 'RSI',
+        period=period
+    )
+
+
+def get_CCI(engine, security, period=20):
+    """
+    计算CCI指标 (顺势指标)
+
+    Args:
+        engine: 回测引擎实例
+        security: 股票代码，支持单个股票或股票列表
+        period: 计算周期，默认20
+
+    Returns:
+        DataFrame: 包含CCI值的数据框
+    """
+    return get_technical_indicators(
+        engine, security, 'CCI',
+        cci_period=period
+    )

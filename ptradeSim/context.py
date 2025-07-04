@@ -2,11 +2,207 @@
 """
 策略上下文、投资组合、持仓和订单的定义。
 """
+import uuid
+from datetime import datetime
+from enum import Enum
+
+
+class OrderStatus(Enum):
+    """订单状态枚举"""
+    NEW = "new"                    # 新建
+    OPEN = "open"                  # 未成交
+    FILLED = "filled"              # 已成交
+    CANCELLED = "cancelled"        # 已撤销
+    REJECTED = "rejected"          # 已拒绝
+
+
+class Order:
+    """订单对象"""
+    def __init__(self, security, amount, price=None, order_type="market", order_id=None):
+        self.order_id = order_id or str(uuid.uuid4()).replace('-', '')
+        self.security = security
+        self.amount = amount  # 正数买入，负数卖出
+        self.price = price
+        self.order_type = order_type  # market, limit
+        self.status = OrderStatus.NEW
+        self.filled_amount = 0
+        self.avg_fill_price = 0.0
+        self.commission = 0.0
+        self.add_time = datetime.now()
+        self.fill_time = None
+
+    @property
+    def is_buy(self):
+        """是否为买单"""
+        return self.amount > 0
+
+    @property
+    def is_sell(self):
+        """是否为卖单"""
+        return self.amount < 0
+
+    @property
+    def remaining_amount(self):
+        """剩余未成交数量"""
+        return abs(self.amount) - abs(self.filled_amount)
+
+    @property
+    def is_open(self):
+        """是否为未完成订单"""
+        return self.status in [OrderStatus.NEW, OrderStatus.OPEN]
+
+    def to_dict(self, use_compat=True):
+        """
+        转换为字典格式
+
+        Args:
+            use_compat: 是否使用兼容性状态转换
+        """
+        from .compatibility import convert_order_status
+
+        # 获取状态值
+        status_value = self.status.value
+        if use_compat:
+            status_value = convert_order_status(status_value, to_external=True)
+
+        return {
+            'order_id': self.order_id,
+            'security': self.security,
+            'amount': self.amount,
+            'price': self.price,
+            'order_type': self.order_type,
+            'status': status_value,
+            'filled_amount': self.filled_amount,
+            'avg_fill_price': self.avg_fill_price,
+            'commission': self.commission,
+            'add_time': self.add_time,
+            'fill_time': self.fill_time,
+            'remaining_amount': self.remaining_amount,
+            'is_buy': self.is_buy,
+            'is_sell': self.is_sell
+        }
+
+
+class Trade:
+    """成交记录对象"""
+    def __init__(self, order_id, security, amount, price, commission, trade_time=None):
+        self.trade_id = str(uuid.uuid4()).replace('-', '')
+        self.order_id = order_id
+        self.security = security
+        self.amount = amount
+        self.price = price
+        self.commission = commission
+        self.trade_time = trade_time or datetime.now()
+
+    @property
+    def is_buy(self):
+        """是否为买入成交"""
+        return self.amount > 0
+
+    @property
+    def is_sell(self):
+        """是否为卖出成交"""
+        return self.amount < 0
+
+    def to_dict(self):
+        """转换为字典格式"""
+        return {
+            'trade_id': self.trade_id,
+            'order_id': self.order_id,
+            'security': self.security,
+            'amount': self.amount,
+            'price': self.price,
+            'commission': self.commission,
+            'trade_time': self.trade_time,
+            'is_buy': self.is_buy,
+            'is_sell': self.is_sell
+        }
+
 
 class Blotter:
-    """模拟的Blotter对象"""
+    """模拟的Blotter对象，管理订单和成交"""
     def __init__(self):
-        self.open_orders = []
+        self.orders = {}  # 所有订单 {order_id: Order}
+        self.trades = []  # 所有成交记录
+        self.daily_orders = []  # 当日订单ID列表
+        self.daily_trades = []  # 当日成交ID列表
+
+    def add_order(self, order):
+        """添加订单"""
+        self.orders[order.order_id] = order
+        self.daily_orders.append(order.order_id)
+        return order.order_id
+
+    def get_order(self, order_id):
+        """获取指定订单"""
+        return self.orders.get(order_id)
+
+    def get_open_orders(self):
+        """获取未完成订单"""
+        return {oid: order for oid, order in self.orders.items() if order.is_open}
+
+    def get_all_orders(self):
+        """获取所有订单"""
+        return self.orders.copy()
+
+    def get_daily_orders(self):
+        """获取当日订单"""
+        return {oid: self.orders[oid] for oid in self.daily_orders if oid in self.orders}
+
+    def add_trade(self, trade):
+        """添加成交记录"""
+        self.trades.append(trade)
+        self.daily_trades.append(trade.trade_id)
+        return trade.trade_id
+
+    def get_trades(self):
+        """获取当日成交记录"""
+        return [trade for trade in self.trades if trade.trade_id in self.daily_trades]
+
+    def get_all_trades(self):
+        """获取所有成交记录"""
+        return self.trades.copy()
+
+    def cancel_order(self, order_id):
+        """撤销订单"""
+        if order_id in self.orders:
+            order = self.orders[order_id]
+            if order.is_open:
+                order.status = OrderStatus.CANCELLED
+                return True
+        return False
+
+    def fill_order(self, order_id, fill_amount, fill_price, commission=0.0):
+        """订单成交"""
+        if order_id not in self.orders:
+            return False
+
+        order = self.orders[order_id]
+        if not order.is_open:
+            return False
+
+        # 更新订单状态
+        order.filled_amount += fill_amount
+        order.avg_fill_price = ((order.avg_fill_price * (abs(order.filled_amount) - abs(fill_amount))) +
+                               (fill_price * abs(fill_amount))) / abs(order.filled_amount)
+        order.commission += commission
+
+        if abs(order.filled_amount) >= abs(order.amount):
+            order.status = OrderStatus.FILLED
+            order.fill_time = datetime.now()
+        else:
+            order.status = OrderStatus.OPEN
+
+        # 创建成交记录
+        trade = Trade(order_id, order.security, fill_amount, fill_price, commission)
+        self.add_trade(trade)
+
+        return True
+
+    def reset_daily_data(self):
+        """重置当日数据（用于新的交易日）"""
+        self.daily_orders = []
+        self.daily_trades = []
 
 class Position:
     """

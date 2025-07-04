@@ -106,7 +106,7 @@ def test_different_frequencies():
             print(f"测试频率: {freq}")
             
             engine = BacktestEngine(
-                strategy_file='strategies/buy_and_hold.py',
+                strategy_file='strategies/buy_and_hold_strategy.py',
                 data_path='data/sample_data.csv',
                 start_date='2022-11-01',
                 end_date='2022-11-01',  # 只测试一天
@@ -212,7 +212,7 @@ def test_minute_data_file():
     try:
         # 使用分钟级数据文件进行回测
         engine = BacktestEngine(
-            strategy_file='strategies/buy_and_hold.py',
+            strategy_file='strategies/buy_and_hold_strategy.py',
             data_path='data/minute_sample_data.csv',
             start_date='2022-11-01 10:00:00',
             end_date='2022-11-01 14:00:00',
@@ -306,7 +306,7 @@ def test_strategy_comparison():
     try:
         print("测试日线策略...")
         daily_engine = BacktestEngine(
-            strategy_file='strategies/buy_and_hold.py',
+            strategy_file='strategies/buy_and_hold_strategy.py',
             data_path='data/sample_data.csv',
             start_date='2022-11-01',
             end_date='2022-11-03',
