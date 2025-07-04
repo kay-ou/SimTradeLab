@@ -11,6 +11,7 @@
 ### 📖 开发指南
 - [策略开发指南](STRATEGY_GUIDE.md) - 完整的策略开发教程
 - [API参考文档](API_REFERENCE.md) - 详细的API接口说明
+- [数据格式规范](DATA_FORMAT.md) - CSV数据格式标准 ✅
 - [技术指标文档](TECHNICAL_INDICATORS.md) - 技术指标使用指南
 - [多频率交易](MULTI_FREQUENCY_TRADING.md) - 分钟级交易指南
 

@@ -253,14 +253,15 @@ def _create_large_dataset():
         prices.append(max(new_price, 1))  # 价格不能为负
     
     data = {
-        'datetime': dates.strftime('%Y-%m-%d').tolist(),
-        'STOCK_A_open': [p * np.random.uniform(0.99, 1.01) for p in prices],
-        'STOCK_A_high': [p * np.random.uniform(1.00, 1.05) for p in prices],
-        'STOCK_A_low': [p * np.random.uniform(0.95, 1.00) for p in prices],
-        'STOCK_A_close': prices,
-        'STOCK_A_volume': [np.random.randint(500000, 2000000) for _ in prices]
+        'date': dates.strftime('%Y-%m-%d').tolist(),
+        'open': [p * np.random.uniform(0.99, 1.01) for p in prices],
+        'high': [p * np.random.uniform(1.00, 1.05) for p in prices],
+        'low': [p * np.random.uniform(0.95, 1.00) for p in prices],
+        'close': prices,
+        'volume': [np.random.randint(500000, 2000000) for _ in prices],
+        'security': ['STOCK_A'] * len(prices)
     }
-    
+
     df = pd.DataFrame(data)
     os.makedirs('data', exist_ok=True)
     df.to_csv('data/large_test_data.csv', index=False)
@@ -270,26 +271,31 @@ def _create_multi_stock_dataset():
     """创建多股票数据集"""
     dates = pd.date_range('2023-01-01', '2023-03-31', freq='D')
     stocks = [f'STOCK_{chr(65+i)}' for i in range(10)]  # STOCK_A to STOCK_J
-    
-    data = {'datetime': dates.strftime('%Y-%m-%d').tolist()}
-    
+
+    all_data = []
+
     for stock in stocks:
         np.random.seed(hash(stock) % 1000)  # 每只股票不同的随机种子
         base_price = np.random.uniform(50, 200)
         prices = [base_price]
-        
+
         for _ in range(len(dates) - 1):
             change = np.random.normal(0, 0.015)
             new_price = prices[-1] * (1 + change)
             prices.append(max(new_price, 1))
-        
-        data[f'{stock}_open'] = [p * np.random.uniform(0.99, 1.01) for p in prices]
-        data[f'{stock}_high'] = [p * np.random.uniform(1.00, 1.03) for p in prices]
-        data[f'{stock}_low'] = [p * np.random.uniform(0.97, 1.00) for p in prices]
-        data[f'{stock}_close'] = prices
-        data[f'{stock}_volume'] = [np.random.randint(100000, 1000000) for _ in prices]
-    
-    df = pd.DataFrame(data)
+
+        for i, date in enumerate(dates):
+            all_data.append({
+                'date': date.strftime('%Y-%m-%d'),
+                'open': prices[i] * np.random.uniform(0.99, 1.01),
+                'high': prices[i] * np.random.uniform(1.00, 1.03),
+                'low': prices[i] * np.random.uniform(0.97, 1.00),
+                'close': prices[i],
+                'volume': np.random.randint(100000, 1000000),
+                'security': stock
+            })
+
+    df = pd.DataFrame(all_data)
     os.makedirs('data', exist_ok=True)
     df.to_csv('data/multi_stock_data.csv', index=False)
 
@@ -314,13 +320,14 @@ def _create_minute_data():
     
     data = {
         'datetime': dates.strftime('%Y-%m-%d %H:%M:%S').tolist(),
-        'STOCK_A_open': [p * np.random.uniform(0.999, 1.001) for p in prices],
-        'STOCK_A_high': [p * np.random.uniform(1.000, 1.002) for p in prices],
-        'STOCK_A_low': [p * np.random.uniform(0.998, 1.000) for p in prices],
-        'STOCK_A_close': prices,
-        'STOCK_A_volume': [np.random.randint(1000, 10000) for _ in prices]
+        'open': [p * np.random.uniform(0.999, 1.001) for p in prices],
+        'high': [p * np.random.uniform(1.000, 1.002) for p in prices],
+        'low': [p * np.random.uniform(0.998, 1.000) for p in prices],
+        'close': prices,
+        'volume': [np.random.randint(1000, 10000) for _ in prices],
+        'security': ['STOCK_A'] * len(prices)
     }
-    
+
     df = pd.DataFrame(data)
     os.makedirs('data', exist_ok=True)
     df.to_csv('data/minute_test_data.csv', index=False)

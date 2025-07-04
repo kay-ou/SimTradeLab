@@ -31,6 +31,7 @@ ptradeSim 是一个专为量化交易策略开发设计的轻量级Python回测�
 | 🏠 **本地运行** | 无需外部服务依赖，完全本地化 | 快速开发和调试 |
 | 📊 **丰富数据** | 30+财务指标、技术指标、实时报价 | 专业级数据支持 |
 | ⏱️ **多频率** | 支持日线、分钟级等多种交易频率 | 灵活的策略开发 |
+| 📋 **标准格式** | 支持标准CSV长格式数据 | 便于多股票数据处理 |
 
 
 ## 🚀 快速开始
@@ -67,7 +68,18 @@ poetry install
 
 ### 🎯 5分钟上手指南
 
-**1. 运行示例策略**
+**1. 了解数据格式**
+
+ptradeSim 使用标准的CSV长格式数据，包含以下必需列：
+```csv
+date,open,high,low,close,volume,security
+2023-01-01,100.00,102.50,99.50,101.20,1500000,STOCK_A
+2023-01-02,101.20,103.80,100.90,102.50,1600000,STOCK_A
+```
+
+📖 **详细格式说明**: [docs/DATA_FORMAT.md](docs/DATA_FORMAT.md)
+
+**2. 运行示例策略**
 ```bash
 # 运行内置的测试策略
 poetry run python main.py
@@ -86,7 +98,7 @@ engine.run()
 "
 ```
 
-**2. 创建你的第一个策略**
+**3. 创建你的第一个策略**
 
 创建文件 `my_strategy.py`：
 
@@ -273,9 +285,12 @@ ptradeSim/
 │   ├── test_minute_trading.py     # 分钟级交易测试
 │   └── README.md                  # 测试文档
 ├── 📁 docs/               # 文档目录
-│   └── STRATEGY_GUIDE.md  # 策略开发指南
+│   ├── STRATEGY_GUIDE.md  # 策略开发指南
+│   ├── DATA_FORMAT.md     # 数据格式规范
+│   ├── API_REFERENCE.md   # API参考文档
+│   └── TECHNICAL_INDICATORS.md # 技术指标文档
 ├── 📁 data/               # 数据文件
-│   ├── sample_data.csv    # 日线示例数据
+│   ├── sample_data.csv    # 日线示例数据（标准长格式）
 │   └── minute_sample_data.csv # 分钟级示例数据
 ├── main.py                # 主程序入口
 ├── run_tests.py           # 测试运行器
@@ -455,7 +470,7 @@ def handle_data(context, data):
 
 **⭐ 如果这个项目对你有帮助，请给我们一个Star！**
 
-[🐛 报告Bug](https://github.com/kaykouo/ptradeSim/issues) • [💡 功能建议](https://github.com/kaykouo/ptradeSim/issues) • [📖 文档中心](docs/README.md) • [🔧 API参考](docs/API_REFERENCE.md)
+[🐛 报告Bug](https://github.com/kaykouo/ptradeSim/issues) • [💡 功能建议](https://github.com/kaykouo/ptradeSim/issues) • [📖 文档中心](docs/README.md) • [🔧 API参考](docs/API_REFERENCE.md) • [📋 数据格式](docs/DATA_FORMAT.md)
 
 <div align="center">
   <img src="sponsor/WechatPay.png" alt="WechatPay" width="200" style="margin-right:20px;" />

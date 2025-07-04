@@ -214,14 +214,15 @@ def test_extreme_market_conditions():
 def _create_invalid_data_file():
     """创建包含无效数据的测试文件"""
     data = {
-        'datetime': ['2023-01-01', '2023-01-02', '2023-01-03'],
-        'STOCK_A_open': [100, 'invalid', 102],  # 包含无效数据
-        'STOCK_A_high': [101, 103, None],       # 包含空值
-        'STOCK_A_low': [99, 101, 101],
-        'STOCK_A_close': [100.5, 102, 101.5],
-        'STOCK_A_volume': [1000000, -500000, 1200000]  # 包含负值
+        'date': ['2023-01-01', '2023-01-02', '2023-01-03'],
+        'open': [100, 'invalid', 102],  # 包含无效数据
+        'high': [101, 103, None],       # 包含空值
+        'low': [99, 101, 101],
+        'close': [100.5, 102, 101.5],
+        'volume': [1000000, -500000, 1200000],  # 包含负值
+        'security': ['STOCK_A', 'STOCK_A', 'STOCK_A']
     }
-    
+
     df = pd.DataFrame(data)
     os.makedirs('data', exist_ok=True)
     df.to_csv('data/invalid_test_data.csv', index=False)
@@ -230,14 +231,15 @@ def _create_invalid_data_file():
 def _create_missing_data_file():
     """创建包含缺失数据的测试文件"""
     data = {
-        'datetime': ['2023-01-01', '2023-01-03', '2023-01-05'],  # 跳过某些日期
-        'STOCK_A_open': [100, 102, 104],
-        'STOCK_A_high': [101, 103, 105],
-        'STOCK_A_low': [99, 101, 103],
-        'STOCK_A_close': [100.5, 102.5, 104.5],
-        'STOCK_A_volume': [1000000, 1100000, 1200000]
+        'date': ['2023-01-01', '2023-01-03', '2023-01-05'],  # 跳过某些日期
+        'open': [100, 102, 104],
+        'high': [101, 103, 105],
+        'low': [99, 101, 103],
+        'close': [100.5, 102.5, 104.5],
+        'volume': [1000000, 1100000, 1200000],
+        'security': ['STOCK_A', 'STOCK_A', 'STOCK_A']
     }
-    
+
     df = pd.DataFrame(data)
     os.makedirs('data', exist_ok=True)
     df.to_csv('data/missing_test_data.csv', index=False)
@@ -264,14 +266,15 @@ def _create_extreme_market_data():
         prices.append(price)
     
     data = {
-        'datetime': dates.strftime('%Y-%m-%d').tolist(),
-        'STOCK_A_open': [p * 0.99 for p in prices],
-        'STOCK_A_high': [p * 1.05 for p in prices],
-        'STOCK_A_low': [p * 0.95 for p in prices],
-        'STOCK_A_close': prices,
-        'STOCK_A_volume': [np.random.randint(500000, 2000000) for _ in prices]
+        'date': dates.strftime('%Y-%m-%d').tolist(),
+        'open': [p * 0.99 for p in prices],
+        'high': [p * 1.05 for p in prices],
+        'low': [p * 0.95 for p in prices],
+        'close': prices,
+        'volume': [np.random.randint(500000, 2000000) for _ in prices],
+        'security': ['STOCK_A'] * len(prices)
     }
-    
+
     df = pd.DataFrame(data)
     os.makedirs('data', exist_ok=True)
     df.to_csv('data/extreme_test_data.csv', index=False)

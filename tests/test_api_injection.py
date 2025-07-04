@@ -16,7 +16,7 @@ def test_complete_injection():
     
     # 创建引擎
     engine = BacktestEngine(
-        strategy_file='strategies/buy_and_hold.py',
+        strategy_file='strategies/buy_and_hold_strategy.py',
         data_path='data/sample_data.csv',
         start_date='2023-01-13',
         end_date='2023-01-13',
@@ -92,7 +92,7 @@ def test_log_injection():
     
     # 创建引擎
     engine = BacktestEngine(
-        strategy_file='strategies/buy_and_hold.py',
+        strategy_file='strategies/buy_and_hold_strategy.py',
         data_path='data/sample_data.csv',
         start_date='2023-01-13',
         end_date='2023-01-13',

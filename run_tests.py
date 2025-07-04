@@ -52,14 +52,11 @@ def main():
     # 检查前置条件
     required_files = [
         "data/sample_data.csv",
-        "strategies/buy_and_hold.py",
+        "strategies/buy_and_hold_strategy.py",
         "strategies/test_strategy.py",
         "strategies/minute_trading_strategy.py",
-        "tests/test_api_injection.py",
-        "tests/test_strategy_execution.py",
-        "tests/test_financial_apis.py",
-        "tests/test_market_data_apis.py",
-        "tests/test_minute_trading.py"
+        "strategies/technical_indicator_strategy.py",
+        "strategies/trading_calendar_strategy.py"
     ]
     
     print("📋 检查前置条件...")
@@ -77,13 +74,36 @@ def main():
             print(f"   - {file_path}")
         return 1
     
-    # 定义所有测试
+    # 定义所有测试 - 按功能分组
     tests = [
+        # 核心功能测试
         ("API注入测试", "poetry run python tests/test_api_injection.py"),
         ("策略执行测试", "poetry run python tests/test_strategy_execution.py"),
+        ("错误处理测试", "poetry run python tests/test_error_handling.py"),
+
+        # 数据和接口测试
         ("财务接口测试", "poetry run python tests/test_financial_apis.py"),
         ("市场数据接口测试", "poetry run python tests/test_market_data_apis.py"),
-        ("分钟级交易综合测试", "poetry run python tests/test_minute_trading.py"),
+        ("交易查询测试", "poetry run python tests/test_trading_queries.py"),
+
+        # 交易功能测试
+        ("分钟级交易测试", "poetry run python tests/test_minute_trading.py"),
+        ("交易日历测试", "poetry run python tests/test_trading_calendar.py"),
+        ("交易日历演示测试", "poetry run python tests/test_calendar_demo.py"),
+
+        # 策略和技术指标测试
+        ("技术指标测试", "poetry run python tests/test_technical_indicators.py"),
+        ("技术策略测试", "poetry run python tests/test_technical_strategy.py"),
+        ("高级策略测试", "poetry run python tests/test_advanced_strategies.py"),
+
+        # 性能和兼容性测试
+        ("基准性能测试", "poetry run python tests/test_benchmark_performance.py"),
+        ("兼容性测试", "poetry run python tests/test_compatibility.py"),
+        ("兼容性演示测试", "poetry run python tests/test_compatibility_demo.py"),
+        ("性能压力测试", "poetry run python tests/test_performance_stress.py"),
+
+        # 综合测试
+        ("所有功能综合测试", "poetry run python tests/test_all_features.py"),
     ]
     
     # 运行所有测试
@@ -117,12 +137,19 @@ def main():
         print("  ✅ 核心引擎功能正常")
         print("  ✅ API注入机制正常")
         print("  ✅ 策略执行流程正常")
+        print("  ✅ 错误处理机制正常")
         print("  ✅ 财务数据接口正常")
         print("  ✅ 市场数据接口正常")
-        print("  ✅ 技术指标计算正常")
-        print("  ✅ 实时数据模拟正常")
+        print("  ✅ 交易查询功能正常")
         print("  ✅ 分钟级交易功能正常")
-        print("  ✅ 多频率交易支持正常")
+        print("  ✅ 交易日历功能正常")
+        print("  ✅ 技术指标计算正常")
+        print("  ✅ 技术策略执行正常")
+        print("  ✅ 高级策略功能正常")
+        print("  ✅ 基准性能测试正常")
+        print("  ✅ 兼容性支持正常")
+        print("  ✅ 性能压力测试正常")
+        print("  ✅ 综合功能测试正常")
         return 0
     else:
         print(f"\n💥 有 {failed_tests} 个测试失败，请检查上述错误信息")
