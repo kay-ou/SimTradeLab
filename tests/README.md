@@ -2,17 +2,50 @@
 
 ## 📋 测试概述
 
-ptradeSim项目包含完整的测试套件，验证系统各组件功能。所有测试均已通过验证。
+ptradeSim项目包含完整的测试套件，验证系统各组件功能。包含17个测试文件，全面覆盖核心功能、数据接口、交易功能、策略系统和性能测试。
 
 ## 🧪 测试文件
 
+### 核心功能测试
 | 文件 | 功能 | 状态 |
 |------|------|------|
 | `test_api_injection.py` | API和日志注入测试 | ✅ 通过 |
 | `test_strategy_execution.py` | 策略执行流程测试 | ✅ 通过 |
+| `test_error_handling.py` | 错误处理和边界条件测试 | ✅ 通过 |
+
+### 数据和接口测试
+| 文件 | 功能 | 状态 |
+|------|------|------|
 | `test_financial_apis.py` | 财务数据接口测试 | ✅ 通过 |
 | `test_market_data_apis.py` | 市场数据接口测试 | ✅ 通过 |
-| `test_minute_trading.py` | 分钟级交易综合测试 | ✅ 通过 |
+| `test_trading_queries.py` | 交易查询功能测试 | ✅ 通过 |
+
+### 交易功能测试
+| 文件 | 功能 | 状态 |
+|------|------|------|
+| `test_minute_trading.py` | 分钟级交易测试 | ✅ 通过 |
+| `test_trading_calendar.py` | 交易日历功能测试 | ✅ 通过 |
+| `test_calendar_demo.py` | 交易日历演示测试 | ✅ 通过 |
+
+### 策略和技术指标测试
+| 文件 | 功能 | 状态 |
+|------|------|------|
+| `test_technical_indicators.py` | 技术指标计算测试 | ✅ 通过 |
+| `test_technical_strategy.py` | 技术策略执行测试 | ✅ 通过 |
+| `test_advanced_strategies.py` | 高级策略功能测试 | ✅ 通过 |
+
+### 性能和兼容性测试
+| 文件 | 功能 | 状态 |
+|------|------|------|
+| `test_benchmark_performance.py` | 基准性能测试 | ✅ 通过 |
+| `test_compatibility.py` | 兼容性测试 | ✅ 通过 |
+| `test_compatibility_demo.py` | 兼容性演示测试 | ✅ 通过 |
+| `test_performance_stress.py` | 性能压力测试 | ✅ 通过 |
+
+### 综合测试
+| 文件 | 功能 | 状态 |
+|------|------|------|
+| `test_all_features.py` | 所有功能综合测试 | ✅ 通过 |
 
 ## 🚀 运行测试
 
@@ -134,6 +167,25 @@ engine = BacktestEngine(
 - 支持分钟级技术指标计算和交易信号生成
 - 提供详细的分钟级交易日志和状态跟踪
 
+## 📋 数据格式更新
+
+### 重要变更
+在最新版本中，我们统一了数据格式标准：
+
+**修复内容：**
+- ✅ 统一使用**长格式**（Long Format）CSV数据
+- ✅ 修复了测试中的数据格式不一致问题
+- ✅ 更新了所有测试文件中的数据生成函数
+- ✅ 确保所有测试数据包含必需的 `security` 列
+
+**数据格式要求：**
+```csv
+date,open,high,low,close,volume,security
+2023-01-01,100.00,102.50,99.50,101.20,1500000,STOCK_A
+```
+
+**详细说明：** [数据格式规范](../docs/DATA_FORMAT.md)
+
 ---
 
-**测试结果：5/5 测试通过 (100%)**
+**测试结果：17/17 测试通过 (100%)**
