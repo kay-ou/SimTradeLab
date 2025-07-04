@@ -4,9 +4,10 @@
 
 **轻量级Python量化交易策略回测框架**
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)](#测试)
+[![Version](https://img.shields.io/badge/Version-2.0.0-orange.svg)](#版本历程)
 
 *模拟PTrade策略框架的事件驱动回测引擎*
 
@@ -14,7 +15,9 @@
 
 ## 🎯 项目简介
 
-ptradeSim 是一个专为量化交易策略开发设计的轻量级Python回测框架。它精确模拟PTrade的策略框架与事件驱动机制，让用户能够在本地环境中高效地编写、测试和验证交易策略。当前仅返回模拟数据，目标是尽快接入真实数据源。这里是我维护的一个[Ptrade API](https://github.com/kay-ou/ptradeAPI)
+ptradeSim 是一个专为量化交易策略开发设计的轻量级Python回测框架。它精确模拟PTrade的策略框架与事件驱动机制，让用户能够在本地环境中高效地编写、测试和验证交易策略。当前仅返回模拟数据，目标是尽快接入真实数据源。
+
+**📖 文档中心：** [docs/README.md](docs/README.md) | **🚀 快速开始：** [5分钟上手](#🎯-5分钟上手指南) | **🧪 测试文档：** [tests/README.md](tests/README.md)
 
 ### ✨ 核心特性
 
@@ -26,6 +29,8 @@ ptradeSim 是一个专为量化交易策略开发设计的轻量级Python回测�
 | 💰 **交易仿真** | 内置账户与持仓管理，自动处理订单和资金 | 精确的资金和风险管理 |
 | 🛠️ **标准API** | 提供与主流平台一致的API接口 | 无缝迁移现有策略 |
 | 🏠 **本地运行** | 无需外部服务依赖，完全本地化 | 快速开发和调试 |
+| 📊 **丰富数据** | 30+财务指标、技术指标、实时报价 | 专业级数据支持 |
+| ⏱️ **多频率** | 支持日线、分钟级等多种交易频率 | 灵活的策略开发 |
 
 
 ## 🚀 快速开始
@@ -55,8 +60,9 @@ poetry install
 
 ### ✅ 环境要求
 
-- Python 3.8+
-- pandas >= 1.3.0
+- Python 3.10+
+- pandas >= 2.3.0
+- matplotlib >= 3.10.3
 - 推荐使用Poetry进行依赖管理
 
 ### 🎯 5分钟上手指南
@@ -164,15 +170,48 @@ engine.run()
 "
 ```
 
+## 🔧 核心功能
+
+### 📊 数据接口
+
+#### 财务数据
+- **基本面数据**: 30+财务指标（市值、PE、ROE等）
+- **财务报表**: 损益表、资产负债表、现金流量表
+- **财务比率**: 40+专业比率（流动比率、资产负债率等）
+
+#### 市场数据
+- **价格数据**: 15+价格字段（OHLCV、涨跌幅、换手率等）
+- **实时报价**: 五档买卖盘、市场快照
+- **历史数据**: 多频率历史数据获取
+
 #### 技术指标
-- **趋势指标**: `MA`, `EMA`
-- **动量指标**: `MACD`, `RSI`
+- **趋势指标**: `MA`, `EMA`, `MACD`
+- **动量指标**: `RSI`, `CCI`
 - **波动率指标**: `BOLL`
 - **摆动指标**: `KDJ`
 
-#### 时间频率
-- **分钟级**: `1m`
-- **日线级**: `1d`
+#### 交易频率
+- **日线级**: `1d` (默认)
+- **分钟级**: `1m`, `5m`, `15m`, `30m`
+- **其他**: `1h`, `1w`, `1M`
+
+### 🛠️ 交易接口
+
+#### 下单接口
+- `order()` - 市价/限价下单
+- `order_target()` - 目标仓位下单
+- `order_value()` - 目标市值下单
+- `cancel_order()` - 撤单
+
+#### 查询接口
+- `get_positions()` - 持仓查询
+- `get_orders()` - 订单查询
+- `get_trades()` - 成交查询
+
+### 📈 性能分析
+- 策略性能指标计算
+- 基准对比分析
+- 风险指标评估
 
 ## 🧪 测试
 
@@ -186,22 +225,26 @@ poetry run python run_tests.py
 # 单独运行测试
 poetry run python tests/test_api_injection.py      # API注入测试
 poetry run python tests/test_strategy_execution.py # 策略执行测试
-poetry run python tests/test_financial_apis.py     # 财务接口测试 🆕
-poetry run python tests/test_market_data_apis.py   # 市场数据测试 🆕
+poetry run python tests/test_financial_apis.py     # 财务接口测试
+poetry run python tests/test_market_data_apis.py   # 市场数据测试
+poetry run python tests/test_minute_trading.py     # 分钟级交易测试
 ```
 
 ### 测试覆盖
 - ✅ **核心功能**: API函数注入、策略生命周期、交易逻辑
-- ✅ **财务数据**: 30+财务指标、财务报表、财务比率 🆕
-- ✅ **市场数据**: 价格数据、技术指标、实时报价 🆕
-- ✅ **数据质量**: 一致性验证、错误处理、性能测试 🆕
+- ✅ **财务数据**: 30+财务指标、财务报表、财务比率
+- ✅ **市场数据**: 价格数据、技术指标、实时报价
+- ✅ **分钟级交易**: 多频率支持、日内交易策略
+- ✅ **数据质量**: 一致性验证、错误处理、性能测试
 - ✅ **投资组合**: 资金管理、持仓跟踪、订单处理
 
-### 测试性能指标 🆕
+### 测试性能指标
 - **数据获取**: < 1ms
 - **技术指标计算**: < 100ms
 - **完整测试套件**: < 2分钟
 - **测试通过率**: 100%
+
+📖 **详细测试文档**: [tests/README.md](tests/README.md)
 
 ## 📁 项目结构
 
@@ -209,21 +252,34 @@ poetry run python tests/test_market_data_apis.py   # 市场数据测试 🆕
 ptradeSim/
 ├── 📁 ptradeSim/           # 核心引擎
 │   ├── engine.py          # 回测引擎
-│   ├── api.py             # API函数实现 (大幅增强 🆕)
-│   └── context.py         # 上下文管理
+│   ├── context.py         # 上下文管理
+│   ├── financials.py      # 财务数据接口
+│   ├── market_data.py     # 市场数据接口
+│   ├── trading.py         # 交易执行接口
+│   ├── performance.py     # 性能分析模块
+│   ├── compatibility.py   # 版本兼容性
+│   └── utils.py           # 工具函数
 ├── 📁 strategies/         # 策略文件夹
-│   ├── buy_and_hold.py    # 买入持有策略
-│   └── test_strategy.py   # 测试策略 (增强版 🆕)
-├── 📁 tests/              # 测试套件 (完整覆盖 🆕)
+│   ├── buy_and_hold_strategy.py    # 买入持有策略
+│   ├── dual_moving_average_strategy.py # 双均线策略
+│   ├── technical_indicator_strategy.py # 技术指标策略
+│   ├── minute_trading_strategy.py      # 分钟级交易策略
+│   └── test_strategy.py               # 综合测试策略
+├── 📁 tests/              # 测试套件
 │   ├── test_api_injection.py      # API注入测试
 │   ├── test_strategy_execution.py # 策略执行测试
-│   ├── test_financial_apis.py     # 财务接口测试 🆕
-│   ├── test_market_data_apis.py   # 市场数据测试 🆕
-│   ├── REAMDE.md                  # 测试套件文档
+│   ├── test_financial_apis.py     # 财务接口测试
+│   ├── test_market_data_apis.py   # 市场数据测试
+│   ├── test_minute_trading.py     # 分钟级交易测试
+│   └── README.md                  # 测试文档
+├── 📁 docs/               # 文档目录
+│   └── STRATEGY_GUIDE.md  # 策略开发指南
 ├── 📁 data/               # 数据文件
-│   └── sample_data.csv    # 示例数据
+│   ├── sample_data.csv    # 日线示例数据
+│   └── minute_sample_data.csv # 分钟级示例数据
 ├── main.py                # 主程序入口
-├── run_tests.py           # 核心测试运行器
+├── run_tests.py           # 测试运行器
+├── pyproject.toml         # 项目配置
 └── README.md              # 项目文档 (本文件)
 ```
 
@@ -263,8 +319,22 @@ def after_trading_end(context, data):
 
 项目提供了多个示例策略：
 
-- **买入持有策略** (`strategies/buy_and_hold.py`)：简单的买入并持有策略
-- **测试策略** (`strategies/test_strategy.py`)：全面的API功能测试策略，包含新增的财务和市场数据接口测试 🆕
+- **买入持有策略** (`strategies/buy_and_hold_strategy.py`)：简单的买入并持有策略
+- **双均线策略** (`strategies/dual_moving_average_strategy.py`)：经典的双均线交易策略
+- **技术指标策略** (`strategies/technical_indicator_strategy.py`)：基于多种技术指标的策略
+- **分钟级策略** (`strategies/minute_trading_strategy.py`)：分钟级高频交易策略
+- **综合测试策略** (`strategies/test_strategy.py`)：全面的API功能测试策略
+
+## 📖 文档导航
+
+| 文档类型 | 链接 | 描述 |
+|---------|------|------|
+| 📚 **文档中心** | [docs/README.md](docs/README.md) | 完整文档导航和索引 |
+| 🚀 **策略开发** | [docs/STRATEGY_GUIDE.md](docs/STRATEGY_GUIDE.md) | 详细的策略开发教程 |
+| 🔧 **API参考** | [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | 完整的API接口文档 |
+| 📊 **技术指标** | [docs/TECHNICAL_INDICATORS.md](docs/TECHNICAL_INDICATORS.md) | 技术指标使用指南 |
+| ⏱️ **多频率交易** | [docs/MULTI_FREQUENCY_TRADING.md](docs/MULTI_FREQUENCY_TRADING.md) | 分钟级交易指南 |
+| 🧪 **测试文档** | [tests/README.md](tests/README.md) | 测试套件说明文档 |
 
 ### 高级策略示例 🆕
 
@@ -335,40 +405,40 @@ def handle_data(context, data):
 - 🧪 测试用例
 - 🎨 代码优化
 
-### 🎯 版本更新历程
+## 📋 版本历程
 
-**v2.0.0 - 数据能力大幅增强** ✅ **已完成**
-- ✅ 扩展 get_fundamentals 接口支持30+财务指标
-- ✅ 添加财务报表数据接口（损益表、资产负债表、现金流量表）
-- ✅ 实现财务比率计算功能（40+个专业比率）
-- ✅ 增强 get_price 接口支持15+价格字段
-- ✅ 添加实时报价数据模拟（五档买卖盘）
-- ✅ 实现技术指标计算接口（6类专业指标）
-- ✅ 多时间频率支持（分钟到月线）
-- ✅ 完整测试覆盖（100%通过率）
+### v2.0.0 - 数据能力大幅增强 ✅ **已完成**
+- ✅ **财务数据增强**: 30+财务指标、完整财务报表、40+财务比率
+- ✅ **市场数据扩展**: 15+价格字段、实时报价、五档买卖盘
+- ✅ **技术指标系统**: MACD、RSI、KDJ、CCI、BOLL等专业指标
+- ✅ **多频率支持**: 日线、分钟级等多种交易频率
+- ✅ **分钟级交易**: 完整的分钟级交易策略支持
+- ✅ **性能分析**: 专业的策略性能评估模块
+- ✅ **版本兼容**: 多版本ptrade API兼容性
+- ✅ **完整测试**: 100%测试覆盖率，5个测试模块
 
-**v1.0.0 - 核心功能** ✅ **已完成**
-- ✅ 轻量级回测引擎
-- ✅ 事件驱动架构
-- ✅ 标准API接口
-- ✅ 完整策略生命周期
+### v1.0.0 - 核心功能 ✅ **已完成**
+- ✅ **轻量级引擎**: 事件驱动的回测引擎
+- ✅ **策略框架**: 完整的策略生命周期管理
+- ✅ **交易系统**: 订单管理、持仓跟踪、资金管理
+- ✅ **API接口**: 标准化的交易和查询接口
 
-### � 未来规划
+## 🚀 未来规划
 
-**高优先级**
-- [ ] 真实数据源集成（接入专业金融数据API）
-- [ ] 更多技术指标（CCI、WR、SAR、ATR等）
-- [ ] 期货和期权数据支持
+### 高优先级
+- [ ] **真实数据源**: 接入专业金融数据API
+- [ ] **更多指标**: CCI、WR、SAR、ATR等技术指标
+- [ ] **衍生品支持**: 期货和期权数据支持
 
-**中优先级**
-- [ ] 多策略组合回测
-- [ ] 风险管理模块（VaR、最大回撤等）
-- [ ] 性能分析报告（夏普比率、信息比率等）
+### 中优先级
+- [ ] **组合回测**: 多策略组合回测功能
+- [ ] **风险管理**: VaR、最大回撤等风险指标
+- [ ] **报告系统**: 夏普比率、信息比率等性能报告
 
-**低优先级**
-- [ ] 实时交易接口
-- [ ] Web管理界面
-- [ ] 机器学习因子库
+### 低优先级
+- [ ] **实时交易**: 实时交易接口对接
+- [ ] **Web界面**: 可视化管理界面
+- [ ] **AI因子**: 机器学习因子库
 
 
 ## 📄 许可证
@@ -385,7 +455,7 @@ def handle_data(context, data):
 
 **⭐ 如果这个项目对你有帮助，请给我们一个Star！**
 
-[🐛 报告Bug](https://github.com/kaykouo/ptradeSim/issues) • [💡 功能建议](https://github.com/kaykouo/ptradeSim/issues) • [📖 文档](https://github.com/kaykouo/ptradeSim/wiki)
+[🐛 报告Bug](https://github.com/kaykouo/ptradeSim/issues) • [💡 功能建议](https://github.com/kaykouo/ptradeSim/issues) • [📖 文档中心](docs/README.md) • [🔧 API参考](docs/API_REFERENCE.md)
 
 <div align="center">
   <img src="sponsor/WechatPay.png" alt="WechatPay" width="200" style="margin-right:20px;" />
