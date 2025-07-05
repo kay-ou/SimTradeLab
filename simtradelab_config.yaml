@@ -1,6 +1,6 @@
-# ptradeSim 数据源配置文件
+# simtradelab 数据源配置文件
 # 
-# 这个文件配置了ptradeSim的数据源设置
+# 这个文件配置了simtradelab的数据源设置
 # 支持多种数据源：CSV文件、Tushare、AkShare等
 
 # 数据源配置

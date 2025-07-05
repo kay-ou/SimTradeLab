@@ -168,12 +168,12 @@ def load_config(config_path: Optional[str] = None) -> DataSourceConfig:
     if config_path is None:
         # 尝试多个默认路径
         possible_paths = [
-            './ptrade_config.yaml',
-            './ptrade_config.yml', 
-            './ptrade_config.json',
-            './config/ptrade_config.yaml',
-            './config/ptrade_config.yml',
-            './config/ptrade_config.json'
+            './simtradelab_config.yaml',
+            './simtradelab_config.yml',
+            './simtradelab_config.json',
+            './config/simtradelab_config.yaml',
+            './config/simtradelab_config.yml',
+            './config/simtradelab_config.json'
         ]
         
         config_path = None
@@ -201,7 +201,7 @@ def load_config(config_path: Optional[str] = None) -> DataSourceConfig:
         return DataSourceConfig()
 
 
-def save_config(config: DataSourceConfig, config_path: str = './ptrade_config.yaml'):
+def save_config(config: DataSourceConfig, config_path: str = './simtradelab_config.yaml'):
     """
     保存配置文件
     
@@ -226,7 +226,7 @@ def save_config(config: DataSourceConfig, config_path: str = './ptrade_config.ya
         log.warning(f"保存配置文件失败: {e}")
 
 
-def create_sample_config(config_path: str = './ptrade_config.yaml'):
+def create_sample_config(config_path: str = './simtradelab_config.yaml'):
     """
     创建示例配置文件
     

@@ -138,7 +138,7 @@ def _analyze_order_status(order_id, order_description):
                 log.info(f"  外部格式: {ext_status}")
             
             # 状态判断
-            from ptradesim.compatibility import get_compat_handler
+            from simtradelab.compatibility import get_compat_handler
             handler = get_compat_handler()
             
             is_open = handler.is_open_status(status)

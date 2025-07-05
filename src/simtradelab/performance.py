@@ -290,7 +290,7 @@ def _generate_report_content(engine, metrics, benchmark_returns=None):
 
     # 报告头部
     lines.append("=" * 80)
-    lines.append("ptradeSim 策略回测报告")
+    lines.append("simtradelab 策略回测报告")
     lines.append("=" * 80)
     lines.append("")
 

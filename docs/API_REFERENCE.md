@@ -1,6 +1,6 @@
-# ptradeSim API 参考文档
+# SimTradeLab API 参考文档
 
-本文档详细介绍了 ptradeSim 提供的所有API接口。
+本文档详细介绍了 SimTradeLab 提供的所有API接口。
 
 ## 📊 数据接口
 

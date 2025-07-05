@@ -13,8 +13,8 @@ from unittest.mock import Mock, patch
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from ptradesim import BacktestEngine
-from ptradesim.data_sources import CSVDataSource, AkshareDataSource
+from simtradelab import BacktestEngine
+from simtradelab.data_sources import CSVDataSource, AkshareDataSource
 
 
 @pytest.fixture(scope="session")
@@ -132,7 +132,7 @@ def mock_akshare_data():
 @pytest.fixture
 def mock_akshare_source(mock_akshare_data):
     """模拟的AkShare数据源"""
-    with patch('ptradeSim.data_sources.akshare_source.ak') as mock_ak:
+    with patch('simtradelab.data_sources.akshare_source.ak') as mock_ak:
         # 模拟ak.stock_zh_a_hist函数
         def mock_stock_hist(symbol, period="daily", start_date=None, end_date=None, adjust=""):
             import pandas as pd
@@ -176,7 +176,7 @@ def capture_logs():
 
     log_capture = StringIO()
     handler = logging.StreamHandler(log_capture)
-    logger = logging.getLogger('ptradesim')
+    logger = logging.getLogger('simtradelab')
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
 

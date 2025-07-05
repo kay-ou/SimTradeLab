@@ -9,11 +9,11 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from ptradesim.engine import BacktestEngine
-from ptradesim.context import Portfolio, Position, Context, Order, Trade, Blotter
-from ptradesim.data_sources.csv_source import CSVDataSource
-from ptradesim.data_sources.akshare_source import AkshareDataSource
-from ptradesim.data_sources.manager import DataSourceManager
+from simtradelab.engine import BacktestEngine
+from simtradelab.context import Portfolio, Position, Context, Order, Trade, Blotter
+from simtradelab.data_sources.csv_source import CSVDataSource
+from simtradelab.data_sources.akshare_source import AkshareDataSource
+from simtradelab.data_sources.manager import DataSourceManager
 
 
 class TestBacktestEngine:
@@ -92,7 +92,7 @@ class TestPortfolio:
         portfolio = Portfolio(1000000)
         
         # 直接操作positions字典（实际的Portfolio类没有update_position方法）
-        from ptradesim.context import Position
+        from simtradelab.context import Position
         portfolio.positions['STOCK_A'] = Position('STOCK_A', 100, 10.0)
         assert 'STOCK_A' in portfolio.positions
         assert portfolio.positions['STOCK_A'].amount == 100
@@ -111,7 +111,7 @@ class TestPortfolio:
     def test_portfolio_value_calculation(self):
         """测试投资组合价值计算"""
         portfolio = Portfolio(1000000)
-        from ptradesim.context import Position
+        from simtradelab.context import Position
         portfolio.positions['STOCK_A'] = Position('STOCK_A', 100, 10.0)
         portfolio.positions['STOCK_B'] = Position('STOCK_B', 200, 5.0)
         

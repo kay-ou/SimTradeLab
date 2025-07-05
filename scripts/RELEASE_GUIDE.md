@@ -1,6 +1,6 @@
-# ptradeSim 发布指南
+# simtradelab 发布指南
 
-本指南详细说明如何发布 ptradeSim 的新版本到 GitHub 和 PyPI。
+本指南详细说明如何发布 simtradelab 的新版本到 GitHub 和 PyPI。
 
 ## 📋 发布前准备
 
@@ -11,8 +11,8 @@
 poetry run pytest tests/ -v
 
 # 检查代码格式（可选）
-poetry run black ptradeSim/
-poetry run flake8 ptradeSim/
+poetry run black simtradelab/
+poetry run flake8 simtradelab/
 ```
 
 ### 2. 更新版本信息
@@ -83,9 +83,9 @@ git push origin v2.1.0
 
 ### 1. 创建Release
 
-1. 访问 [GitHub Releases页面](https://github.com/kay-ou/ptradeSim/releases/new)
+1. 访问 [GitHub Releases页面](https://github.com/kay-ou/SimTradeLab/releases/new)
 2. 选择刚创建的标签 `v2.1.0`
-3. 填写Release标题: `ptradeSim v2.1.0 - 真实数据源集成与引擎优化`
+3. 填写Release标题: `simtradelab v2.1.0 - 真实数据源集成与引擎优化`
 
 ### 2. 发布说明
 
@@ -94,8 +94,8 @@ git push origin v2.1.0
 ### 3. 上传文件
 
 上传 `dist/` 目录中的所有文件：
-- `ptradesim-2.1.0-py3-none-any.whl`
-- `ptradesim-2.1.0.tar.gz`
+- `simtradelab-2.1.0-py3-none-any.whl`
+- `simtradelab-2.1.0.tar.gz`
 
 ### 4. 发布
 
@@ -128,10 +128,10 @@ poetry publish -r testpypi
 
 ```bash
 # 从PyPI安装并测试
-pip install ptradesim==2.1.0
+pip install simtradelab==2.1.0
 
 # 测试基本功能
-python -c "import ptradeSim; print('安装成功')"
+python -c "import simtradelab; print('安装成功')"
 ```
 
 ## 🔍 发布后验证
@@ -151,15 +151,15 @@ source test_env/bin/activate  # Linux/macOS
 # 或 test_env\Scripts\activate  # Windows
 
 # 安装并测试
-pip install ptradesim==2.1.0
-python -c "from ptradeSim import BacktestEngine; print('导入成功')"
+pip install simtradelab==2.1.0
+python -c "from simtradelab import BacktestEngine; print('导入成功')"
 ```
 
 ### 3. 命令行工具验证
 
 ```bash
 # 测试命令行工具
-ptradesim --help
+simtradelab --help
 ```
 
 ## 📋 发布检查清单
@@ -207,7 +207,7 @@ git push origin v2.1.0
 
 ```bash
 # 检查包名是否冲突
-pip search ptradesim
+pip search simtradelab
 
 # 使用不同的包名
 # 在pyproject.toml中修改name字段

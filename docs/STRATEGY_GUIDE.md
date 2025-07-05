@@ -1,8 +1,8 @@
-# ptradeSim 策略开发指南
+# SimTradeLab 策略开发指南
 
 ## 📖 概述
 
-本指南将帮助您了解如何在ptradeSim中开发和使用量化交易策略。ptradeSim提供了完整的策略开发框架，支持多种交易频率和丰富的API接口。
+本指南将帮助您了解如何在SimTradeLab中开发和使用量化交易策略。SimTradeLab提供了完整的策略开发框架，支持多种交易频率和丰富的API接口。
 
 ## 🏗️ 策略结构
 

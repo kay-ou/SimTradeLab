@@ -8,7 +8,7 @@ import tempfile
 import os
 from pathlib import Path
 
-from ptradesim.engine import BacktestEngine
+from simtradelab.engine import BacktestEngine
 
 
 class TestStrategyExecution:

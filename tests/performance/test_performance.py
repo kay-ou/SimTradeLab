@@ -10,7 +10,7 @@ import os
 import pandas as pd
 from pathlib import Path
 
-from ptradesim.engine import BacktestEngine
+from simtradelab.engine import BacktestEngine
 
 
 class TestPerformance:

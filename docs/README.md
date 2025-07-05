@@ -1,12 +1,12 @@
-# ptradeSim 文档中心
+# SimTradeLab 文档中心
 
-欢迎来到 ptradeSim 文档中心！这里包含了使用 ptradeSim 进行量化交易策略开发的完整指南。
+欢迎来到 SimTradeLab 文档中心！这里包含了使用 SimTradeLab 进行量化交易策略开发的完整指南。
 
 ## 📚 文档导航
 
 ### 🚀 快速开始
 - [项目主页](../README.md) - 项目概述和快速安装
-- [5分钟上手指南](../README.md#🎯-5分钟上手指南) - 快速体验 ptradeSim
+- [5分钟上手指南](../README.md#🎯-5分钟上手指南) - 快速体验 SimTradeLab
 
 ### 📖 开发指南
 - [策略开发指南](STRATEGY_GUIDE.md) - 完整的策略开发教程

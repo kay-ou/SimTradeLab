@@ -1,8 +1,8 @@
-# 📊 ptradeSim 真实数据源接入指南
+# 📊 SimTradeLab 真实数据源接入指南
 
 ## 概述
 
-ptradeSim 现在支持多种真实数据源，让您可以使用真实的股票数据进行回测和策略开发。支持的数据源包括：
+SimTradeLab 现在支持多种真实数据源，让您可以使用真实的股票数据进行回测和策略开发。支持的数据源包括：
 
 - **CSV文件**：离线数据，向后兼容
 - **Tushare**：专业的中国股市数据源
@@ -28,7 +28,7 @@ pip install akshare
 #### 使用CSV数据源（向后兼容）
 
 ```python
-from ptradesim import BacktestEngine
+from simtradelab import BacktestEngine
 
 # 传统方式，完全向后兼容
 engine = BacktestEngine(
@@ -45,7 +45,7 @@ engine.run()
 #### 使用Tushare数据源
 
 ```python
-from ptradesim import BacktestEngine
+from simtradelab import BacktestEngine
 
 # 设置环境变量
 import os
@@ -67,7 +67,7 @@ engine.run()
 #### 使用AkShare数据源
 
 ```python
-from ptradesim import BacktestEngine
+from simtradelab import BacktestEngine
 
 # 使用AkShare数据源（无需token）
 engine = BacktestEngine(
@@ -112,7 +112,7 @@ cache:
 ### 使用配置文件
 
 ```python
-from ptradesim import BacktestEngine, load_config
+from simtradelab import BacktestEngine, load_config
 
 # 加载配置
 config = load_config('ptrade_config.yaml')
@@ -132,8 +132,8 @@ engine = BacktestEngine(
 ### 自定义数据源
 
 ```python
-from ptradesim import BacktestEngine
-from ptradesim.data_sources import TushareDataSource
+from simtradelab import BacktestEngine
+from simtradelab.data_sources import TushareDataSource
 
 # 创建自定义数据源
 data_source = TushareDataSource(
@@ -156,7 +156,7 @@ engine = BacktestEngine(
 ### 数据源管理器
 
 ```python
-from ptradesim.data_sources import DataSourceManager, TushareDataSource, CSVDataSource
+from simtradelab.data_sources import DataSourceManager, TushareDataSource, CSVDataSource
 
 # 创建主数据源和备用数据源
 primary = TushareDataSource(token='your_token')

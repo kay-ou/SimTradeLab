@@ -1,23 +1,23 @@
-# 📈 ptradeSim
+# 📈 SimTradeLab
 
 <div align="center">
 
-**轻量级Python量化交易策略回测框架**
+**开源策略回测框架**
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)](#测试)
-[![Version](https://img.shields.io/badge/Version-2.1.0-orange.svg)](#版本历程)
+[![Version](https://img.shields.io/badge/Version-1.0.0-orange.svg)](#版本历程)
 
-*模拟PTrade策略框架的事件驱动回测引擎*
+*灵感来自PTrade的事件驱动模型，提供轻量、清晰、可插拔的策略验证环境*
 
 </div>
 
 ## 🎯 项目简介
 
-ptradeSim 是一个专为量化交易策略开发设计的轻量级Python回测框架。它精确模拟PTrade的策略框架与事件驱动机制，让用户能够在本地环境中高效地编写、测试和验证交易策略。**现已支持真实数据源接入**，包括Tushare、AkShare等主流数据源。
+SimTradeLab 是一个开源的策略回测框架，灵感来自PTrade的事件驱动模型，但拥有独立实现和扩展能力。它致力于为策略开发者提供轻量、清晰、可插拔的策略验证环境。无需依赖PTrade，也可兼容其语法习惯。**现已支持真实数据源接入**，包括Tushare、AkShare等主流数据源。
 
-### 🌟 v2.1.0 重大更新
+### 🌟 SimTradeLab 1.0 正式发布
 
 #### 📊 增强报告系统
 - **多格式报告生成**：支持TXT、JSON、CSV、HTML、摘要和图表等6种格式
@@ -67,8 +67,8 @@ ptradeSim 是一个专为量化交易策略开发设计的轻量级Python回测�
 **方式一：从源码安装（推荐）**
 ```bash
 # 克隆项目
-git clone https://github.com/kaykouo/ptradeSim.git
-cd ptradeSim
+git clone https://github.com/kaykouo/SimTradeLab.git
+cd SimTradeLab
 
 # 安装核心依赖
 poetry install
@@ -84,8 +84,8 @@ pip install akshare      # AkShare数据源
 **方式二：直接下载**
 ```bash
 # 下载并解压项目文件
-wget https://github.com/kaykouo/ptradesim/archive/main.zip
-unzip main.zip && cd ptradeSim-main
+wget https://github.com/kaykouo/SimTradeLab/archive/main.zip
+unzip main.zip && cd SimTradeLab-main
 poetry install
 ```
 
@@ -100,7 +100,7 @@ poetry install
 
 **1. 了解数据格式**
 
-ptradeSim 使用标准的CSV长格式数据，包含以下必需列：
+SimTradeLab 使用标准的CSV长格式数据，包含以下必需列：
 ```csv
 date,open,high,low,close,volume,security
 2023-01-01,100.00,102.50,99.50,101.20,1500000,STOCK_A
@@ -118,7 +118,7 @@ poetry run python main.py
 
 # 或运行买入持有策略
 poetry run python -c "
-from ptradesim.engine import BacktestEngine
+from simtradelab.engine import BacktestEngine
 engine = BacktestEngine(
     strategy_file='strategies/buy_and_hold.py',
     data_path='data/sample_data.csv',
@@ -134,8 +134,8 @@ engine.run()
 ```bash
 # 使用AkShare数据源获取真实A股数据
 poetry run python -c "
-from ptradesim import BacktestEngine
-from ptradesim.data_sources import AkshareDataSource
+from simtradelab import BacktestEngine
+from simtradelab.data_sources import AkshareDataSource
 
 # 创建AkShare数据源
 akshare_source = AkshareDataSource()
@@ -159,8 +159,8 @@ engine.run()
 export TUSHARE_TOKEN=your_token_here
 
 poetry run python -c "
-from ptradesim import BacktestEngine
-from ptradesim.data_sources import TushareDataSource
+from simtradelab import BacktestEngine
+from simtradelab.data_sources import TushareDataSource
 
 tushare_source = TushareDataSource()
 engine = BacktestEngine(
@@ -177,22 +177,22 @@ engine.run()
 
 ## ⚡ 命令行执行工具
 
-ptradeSim v2.1.0 新增了专业的命令行执行工具，让策略执行更加便捷和规范。
+SimTradeLab v2.1.0 新增了专业的命令行执行工具，让策略执行更加便捷和规范。
 
 ### 🔧 基本用法
 
 ```bash
 # 查看帮助信息
-poetry run python ptradeSim.py --help
+poetry run python simtradelab_cli.py --help
 
 # 使用CSV数据源
-poetry run python ptradeSim.py --strategy strategies/test_strategy.py --data data/sample_data.csv
+poetry run python simtradelab_cli.py --strategy strategies/test_strategy.py --data data/sample_data.csv
 
 # 使用AkShare真实数据源
-poetry run python ptradeSim.py --strategy strategies/real_data_strategy.py --data-source akshare --securities 000001.SZ,000002.SZ,600000.SH
+poetry run python simtradelab_cli.py --strategy strategies/real_data_strategy.py --data-source akshare --securities 000001.SZ,000002.SZ,600000.SH
 
 # 使用Tushare数据源（需要token）
-poetry run python ptradeSim.py --strategy strategies/real_data_strategy.py --data-source tushare --securities 000001.SZ,000002.SZ
+poetry run python simtradelab_cli.py --strategy strategies/real_data_strategy.py --data-source tushare --securities 000001.SZ,000002.SZ
 ```
 
 ### 📋 完整参数说明
@@ -217,7 +217,7 @@ poetry run python ptradeSim.py --strategy strategies/real_data_strategy.py --dat
 
 **示例1：CSV数据源回测**
 ```bash
-poetry run python ptradeSim.py \
+poetry run python simtradelab_cli.py \
   --strategy strategies/test_strategy.py \
   --data data/sample_data.csv \
   --start-date 2023-01-03 \
@@ -227,7 +227,7 @@ poetry run python ptradeSim.py \
 
 **示例2：真实数据源回测**
 ```bash
-poetry run python ptradeSim.py \
+poetry run python simtradelab_cli.py \
   --strategy strategies/real_data_strategy.py \
   --data-source akshare \
   --securities 000001.SZ,000002.SZ,600000.SH \
@@ -239,7 +239,7 @@ poetry run python ptradeSim.py \
 
 **示例3：静默模式执行**
 ```bash
-poetry run python ptradeSim.py \
+poetry run python simtradelab_cli.py \
   --strategy strategies/shadow_strategy.py \
   --data-source akshare \
   --securities 000001.SZ \
@@ -318,7 +318,7 @@ def after_trading_end(context, data):
 ```bash
 # 创建回测引擎并运行
 poetry run python -c "
-from ptradesim.engine import BacktestEngine
+from simtradelab.engine import BacktestEngine
 engine = BacktestEngine(
     strategy_file='my_strategy.py',
     data_path='data/sample_data.csv',
@@ -332,7 +332,7 @@ engine.run()
 
 ## 🌐 真实数据源使用
 
-ptradeSim v2.1.0 新增了真实数据源支持，让您可以使用真实的市场数据进行回测。
+SimTradeLab v2.1.0 新增了真实数据源支持，让您可以使用真实的市场数据进行回测。
 
 ### 📋 支持的数据源
 
@@ -359,8 +359,8 @@ data_sources:
 **方法2：直接在代码中使用**
 
 ```python
-from ptradesim import BacktestEngine
-from ptradesim.data_sources import AkshareDataSource
+from simtradelab import BacktestEngine
+from simtradelab.data_sources import AkshareDataSource
 
 # 创建数据源
 akshare_source = AkshareDataSource()
@@ -438,7 +438,7 @@ engine = BacktestEngine(
 
 ## 📊 增强报告系统
 
-ptradeSim v2.1.0 引入了全新的多格式报告系统，为策略分析提供专业级的可视化和数据输出。
+SimTradeLab v2.1.0 引入了全新的多格式报告系统，为策略分析提供专业级的可视化和数据输出。
 
 ### 🎯 报告格式
 
@@ -497,7 +497,7 @@ poetry run python scripts/report_manager_cli.py open --strategy buy_and_hold --t
 
 #### 程序化管理
 ```python
-from src.ptradesim.report_manager import ReportManager
+from src.simtradelab.report_manager import ReportManager
 
 # 创建报告管理器
 manager = ReportManager()
@@ -573,9 +573,9 @@ poetry run python tests/test_minute_trading.py     # 分钟级交易测试
 ## 📁 项目结构
 
 ```
-ptradeSim/                     # 项目根目录
+SimTradeLab/                     # 项目根目录
 ├── 📦 核心包结构
-│   └── src/ptradesim/         # 主要源代码包 (Poetry标准结构)
+│   └── src/simtradelab/         # 主要源代码包 (Poetry标准结构)
 │       ├── __init__.py        # 包初始化，导出主要API
 │       ├── engine.py          # 🚀 回测引擎核心 - BacktestEngine类
 │       ├── context.py         # 📊 上下文和投资组合管理
@@ -586,7 +586,7 @@ ptradeSim/                     # 项目根目录
 │       ├── performance.py     # 📊 性能分析模块 - 夏普比率、最大回撤等
 │       ├── logger.py          # 📝 日志管理系统
 │       ├── compatibility.py   # 🔄 版本兼容性处理
-│       ├── cli.py             # ⚡ 命令行接口 - ptradeSim命令
+│       ├── cli.py             # ⚡ 命令行接口 - SimTradeLab命令
 │       ├── config/            # ⚙️ 配置管理模块
 │       │   ├── __init__.py
 │       │   └── data_config.py # 数据源配置管理
@@ -646,7 +646,7 @@ ptradeSim/                     # 项目根目录
 │       └── RELEASE_GUIDE.md   # 发布指南
 ├── 🚀 入口文件
 │   ├── main.py                # 主程序入口（兼容性）
-│   ├── ptradeSim.py           # CLI入口脚本
+│   ├── simtradelab_cli.py     # CLI入口脚本
 │   └── run_tests.py           # 测试运行器
 ├── ⚙️ 配置文件
 │   ├── pyproject.toml         # Poetry项目配置和依赖管理
@@ -666,9 +666,9 @@ ptradeSim/                     # 项目根目录
 
 ### 📦 包结构说明
 
-ptradeSim采用现代Python包管理最佳实践：
+SimTradeLab采用现代Python包管理最佳实践：
 
-- **Poetry标准结构**: `src/ptradesim/` 布局，便于包管理和分发
+- **Poetry标准结构**: `src/simtradelab/` 布局，便于包管理和分发
 - **模块化设计**: 核心功能按职责分离，便于维护和扩展
 - **完整测试覆盖**: 单元测试、集成测试、端到端测试全覆盖
 - **文档驱动**: 每个模块都有对应的详细文档
@@ -677,7 +677,7 @@ ptradeSim采用现代Python包管理最佳实践：
 
 ### 策略生命周期
 
-ptradeSim中的策略遵循标准的生命周期：
+SimTradeLab中的策略遵循标准的生命周期：
 
 ```python
 def initialize(context):
@@ -777,27 +777,27 @@ def handle_data(context, data):
 
 ## 📦 作为Python包使用
 
-ptradeSim可以作为标准Python包安装和使用，支持多种安装和使用方式。
+SimTradeLab可以作为标准Python包安装和使用，支持多种安装和使用方式。
 
 ### 🔧 安装方式
 
 **方式一：从PyPI安装（推荐）**
 ```bash
 # 安装核心包
-pip install ptradesim
+pip install simtradelab
 
 # 或使用Poetry
-poetry add ptradesim
+poetry add simtradelab
 
 # 安装包含数据源的完整版本
-pip install ptradesim[data]  # 包含akshare和tushare
+pip install simtradelab[data]  # 包含akshare和tushare
 ```
 
 **方式二：从源码安装**
 ```bash
 # 克隆并安装
-git clone https://github.com/kay-ou/ptradeSim.git
-cd ptradeSim
+git clone https://github.com/kay-ou/SimTradeLab.git
+cd SimTradeLab
 pip install -e .  # 开发模式安装
 
 # 或使用Poetry
@@ -806,7 +806,7 @@ poetry install --with data
 
 **方式三：直接从GitHub安装**
 ```bash
-pip install git+https://github.com/kay-ou/ptradeSim.git
+pip install git+https://github.com/kay-ou/SimTradeLab.git
 ```
 
 ### 💻 在代码中使用
@@ -814,8 +814,8 @@ pip install git+https://github.com/kay-ou/ptradeSim.git
 **基本使用示例**
 ```python
 # 导入核心组件
-from ptradesim import BacktestEngine
-from ptradesim.data_sources import AkshareDataSource, CSVDataSource
+from simtradelab import BacktestEngine
+from simtradelab.data_sources import AkshareDataSource, CSVDataSource
 
 # 方式1：使用CSV数据源
 engine = BacktestEngine(
@@ -842,9 +842,9 @@ engine.run()
 
 **高级使用示例**
 ```python
-from ptradesim import BacktestEngine
-from ptradesim.data_sources import TushareDataSource
-from ptradesim.performance import PerformanceAnalyzer
+from simtradelab import BacktestEngine
+from simtradelab.data_sources import TushareDataSource
+from simtradelab.performance import PerformanceAnalyzer
 import os
 
 # 配置Tushare数据源
@@ -879,11 +879,11 @@ print(f"最大回撤: {performance_metrics['max_drawdown']:.2%}")
 安装后可直接使用命令行工具：
 
 ```bash
-# 使用ptradesim命令（推荐）
-ptradesim --strategy my_strategy.py --data-source akshare --securities 000001.SZ
+# 使用simtrade命令（推荐）
+simtradelab --strategy my_strategy.py --data-source akshare --securities 000001.SZ
 
 # 或使用python -m方式
-python -m ptradesim.cli --strategy my_strategy.py --data data.csv
+python -m simtradelab.cli --strategy my_strategy.py --data data.csv
 ```
 
 ### 📚 API参考
@@ -892,27 +892,27 @@ python -m ptradesim.cli --strategy my_strategy.py --data data.csv
 
 ```python
 # 核心引擎
-from ptradesim import BacktestEngine
+from simtradelab import BacktestEngine
 
 # 数据源
-from ptradesim.data_sources import (
+from simtradelab.data_sources import (
     AkshareDataSource,
     TushareDataSource,
     CSVDataSource
 )
 
 # 性能分析
-from ptradesim.performance import PerformanceAnalyzer
+from simtradelab.performance import PerformanceAnalyzer
 
 # 工具函数
-from ptradesim.utils import (
+from simtradelab.utils import (
     validate_data_format,
     calculate_returns,
     format_currency
 )
 
 # 配置管理
-from ptradesim.config import DataConfig
+from simtradelab.config import DataConfig
 ```
 
 ## 🤝 贡献指南
@@ -997,61 +997,56 @@ git commit -m "refactor(core): 重构性能分析模块结构"
 
 ## 📋 版本历程
 
-### v2.1.0 - 真实数据源集成与引擎优化 ✅ **已完成** (2025-07-05)
+### v1.0.0 - SimTradeLab 正式发布 🎉 **已完成** (2025-07-05)
 
-#### 🌐 真实数据源支持
-- **AkShare集成**：支持免费获取真实A股数据，包含价格、成交量等完整信息
-- **Tushare集成**：支持专业级金融数据接口（需要token配置）
-- **智能数据源管理**：主数据源失败时自动切换备用数据源
-- **配置化管理**：通过 `ptrade_config.yaml` 统一管理数据源设置
+**SimTradeLab** 正式发布！这是一个全新的开源策略回测框架，灵感来自PTrade的事件驱动模型，但拥有完全独立的实现。
 
-#### 🛠️ 引擎核心优化
-- **API注入机制修复**：解决了类对象被错误注入的问题，确保只注入函数对象
-- **性能分析增强**：改进性能指标计算，提供更友好的数据不足提示
+#### � 项目特色
+- **开源免费**：完全开源，避免商业软件的法律风险
+- **独立实现**：无需依赖PTrade，拥有自主知识产权
+- **兼容设计**：保持与PTrade语法习惯的兼容性
+- **现代架构**：采用现代Python包管理和开发实践
 
-#### 📊 策略功能改进
-- **真实数据策略**：新增 `real_data_strategy.py` 展示真实A股数据使用
-- **智能回退机制**：历史数据不足时自动切换到简单交易策略
-- **详细交易日志**：提供中文日志输出，便于策略调试和分析
-- **持仓管理优化**：修复了持仓数据格式问题，支持字典格式的持仓信息
+#### � 核心功能
+- **多格式报告**：支持TXT、JSON、CSV、HTML、摘要和图表等6种格式
+- **真实数据源**：集成AkShare、Tushare等主流数据源
+- **智能CLI**：提供 `simtradelab` 命令行工具
+- **策略兼容**：支持PTrade风格的策略编写
 
-#### 🔧 依赖管理优化
-- **模块化依赖**：将数据源依赖移至可选组，支持按需安装
-- **版本冲突修复**：解决了akshare重复定义的问题
+#### 🌐 数据源支持
+- **AkShare集成**：免费获取A股实时数据
+- **Tushare集成**：专业金融数据接口
+- **CSV支持**：传统本地数据文件
+- **智能管理**：自动数据源切换和缓存
+
+#### �️ 技术特性
+- **事件驱动**：完整的事件驱动回测引擎
+- **性能优化**：高效的数据处理和计算
+- **错误处理**：完善的异常处理和用户提示
+- **测试覆盖**：全面的单元测试和集成测试
 - **安装简化**：支持 `poetry install --with data` 安装数据源依赖
 
-### v2.0.0 - 数据能力大幅增强 ✅ **已完成** (2024-12)
-- ✅ **财务数据增强**: 30+财务指标、完整财务报表、40+财务比率
-- ✅ **市场数据扩展**: 15+价格字段、实时报价、五档买卖盘
-- ✅ **技术指标系统**: MACD、RSI、KDJ、CCI、BOLL等专业指标
-- ✅ **多频率支持**: 日线、分钟级等多种交易频率
-- ✅ **分钟级交易**: 完整的分钟级交易策略支持
-- ✅ **性能分析**: 专业的策略性能评估模块
-- ✅ **版本兼容**: 多版本ptrade API兼容性
-- ✅ **完整测试**: 100%测试覆盖率，5个测试模块
-
-### v1.0.0 - 核心功能 ✅ **已完成**
-- ✅ **轻量级引擎**: 事件驱动的回测引擎
-- ✅ **策略框架**: 完整的策略生命周期管理
-- ✅ **交易系统**: 订单管理、持仓跟踪、资金管理
-- ✅ **API接口**: 标准化的交易和查询接口
+---
 
 ## 🚀 未来规划
 
-### 高优先级
-- [ ] **真实数据源**: 接入专业金融数据API
-- [ ] **更多指标**: CCI、WR、SAR、ATR等技术指标
-- [ ] **衍生品支持**: 期货和期权数据支持
+### 近期计划
+- [ ] **更多技术指标**: 扩展技术分析指标库
+- [ ] **策略模板**: 提供更多策略模板和示例
+- [ ] **性能优化**: 进一步优化大数据量处理性能
+- [ ] **文档完善**: 完善API文档和使用教程
 
-### 中优先级
+### 中期目标
 - [ ] **组合回测**: 多策略组合回测功能
-- [ ] **风险管理**: VaR、最大回撤等风险指标
-- [ ] **报告系统**: 夏普比率、信息比率等性能报告
+- [ ] **风险管理**: 更多风险控制和评估工具
+- [ ] **实时监控**: 策略运行状态实时监控
+- [ ] **云端部署**: 支持云端部署和远程访问
 
-### 低优先级
-- [ ] **实时交易**: 实时交易接口对接
-- [ ] **Web界面**: 可视化管理界面
-- [ ] **AI因子**: 机器学习因子库
+### 长期愿景
+- [ ] **Web界面**: 可视化策略开发和管理界面
+- [ ] **社区生态**: 建立策略分享和交流社区
+- [ ] **AI集成**: 集成机器学习和AI因子
+- [ ] **多市场**: 支持更多金融市场和资产类型
 
 
 ## 📄 许可证
@@ -1060,7 +1055,7 @@ git commit -m "refactor(core): 重构性能分析模块结构"
 
 ## 🙏 致谢
 
-感谢所有为ptradeSim项目做出贡献的开发者！
+感谢所有为SimTradeLab项目做出贡献的开发者！
 
 ---
 
@@ -1068,7 +1063,7 @@ git commit -m "refactor(core): 重构性能分析模块结构"
 
 **⭐ 如果这个项目对你有帮助，请给我们一个Star！**
 
-[🐛 报告Bug](https://github.com/kaykouo/ptradesim/issues) • [💡 功能建议](https://github.com/kaykouo/ptradesim/issues) • [📖 文档中心](docs/README.md) • [🔧 API参考](docs/API_REFERENCE.md) • [📋 数据格式](docs/DATA_FORMAT.md)
+[🐛 报告Bug](https://github.com/kaykouo/SimTradeLab/issues) • [💡 功能建议](https://github.com/kaykouo/SimTradeLab/issues) • [📖 文档中心](docs/README.md) • [🔧 API参考](docs/API_REFERENCE.md) • [📋 数据格式](docs/DATA_FORMAT.md)
 
 <div align="center">
   <img src="sponsor/WechatPay.png" alt="WechatPay" width="200" style="margin-right:20px;" />

@@ -19,8 +19,8 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(__file__))
 
-from ptradesim import BacktestEngine
-from src.ptradesim.report_manager import ReportManager
+from simtradelab import BacktestEngine
+from src.simtradelab.report_manager import ReportManager
 
 
 def test_enhanced_report_generation():
@@ -278,7 +278,7 @@ def test_chart_generation():
 
 def main():
     """主函数"""
-    print("🎯 ptradeSim 增强报告功能测试")
+    print("🎯 simtradelab 增强报告功能测试")
     print("=" * 70)
     print("🚀 新增功能:")
     print("   📊 HTML交互式报告 - 包含图表和现代化界面")

@@ -16,7 +16,7 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(__file__))
 
-from ptradesim import BacktestEngine
+from simtradelab import BacktestEngine
 
 
 def test_simplified_reporting():
@@ -141,7 +141,7 @@ def test_filename_generation():
     print("=" * 50)
     
     try:
-        from ptradesim.report_generator import ReportGenerator
+        from simtradelab.report_generator import ReportGenerator
         
         # 创建一个简单的引擎用于测试
         engine = BacktestEngine(
@@ -185,7 +185,7 @@ def test_filename_generation():
 
 def main():
     """主函数"""
-    print("🎯 ptradeSim 简化报告生成功能测试")
+    print("🎯 simtradelab 简化报告生成功能测试")
     print("=" * 70)
     print("✨ 特点:")
     print("   📋 自动生成包含策略代码的报告文件")

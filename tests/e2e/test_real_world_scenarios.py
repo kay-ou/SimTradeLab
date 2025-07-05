@@ -9,8 +9,8 @@ import os
 import pandas as pd
 from pathlib import Path
 
-from ptradesim.engine import BacktestEngine
-from ptradesim.data_sources.akshare_source import AkshareDataSource
+from simtradelab.engine import BacktestEngine
+from simtradelab.data_sources.akshare_source import AkshareDataSource
 
 
 class TestRealWorldScenarios:

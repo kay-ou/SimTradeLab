@@ -3,7 +3,7 @@
 主程序入口，用于配置和运行回测。
 """
 
-from ptradesim.engine import BacktestEngine
+from simtradelab.engine import BacktestEngine
 
 def main():
     """

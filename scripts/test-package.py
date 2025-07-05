@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ptradeSim 包测试脚本
+simtradelab 包测试脚本
 
 测试构建的包是否正常工作
 """
@@ -63,12 +63,12 @@ def test_package_installation():
         run_command(f"{pip_path} install {wheel_file}")
         
         # 测试导入
-        test_import_cmd = f"{python_path} -c \"import ptradesim; print('✅ ptradeSim导入成功')\""
+        test_import_cmd = f"{python_path} -c \"import simtradelab; print('✅ simtrade导入成功')\""
         run_command(test_import_cmd)
         
         # 测试命令行工具
         try:
-            help_cmd = f"{python_path} -m ptradeSim.cli --help"
+            help_cmd = f"{python_path} -m simtradelab.cli --help"
             result = run_command(help_cmd, check=False)
             if result.returncode == 0:
                 print("✅ 命令行工具测试成功")
@@ -90,7 +90,7 @@ import os
 sys.path.insert(0, ".")
 
 try:
-    from ptradesim import BacktestEngine
+    from simtradelab import BacktestEngine
     print("✅ BacktestEngine导入成功")
     
     # 测试CSV数据源
@@ -108,7 +108,7 @@ try:
     
     # 测试真实数据源
     try:
-        from ptradesim.data_sources import AkshareDataSource
+        from simtradelab.data_sources import AkshareDataSource
         akshare_source = AkshareDataSource()
         print("✅ AkshareDataSource创建成功")
     except ImportError as e:
@@ -138,9 +138,9 @@ def check_package_structure():
     print("📋 检查包结构...")
     
     required_files = [
-        "ptradesim/__init__.py",
-        "ptradesim/engine.py",
-        "ptradesim/cli.py",
+        "simtradelab/__init__.py",
+        "simtradelab/engine.py",
+        "simtradelab/cli.py",
         "README.md",
         "CHANGELOG.md",
         "pyproject.toml",
@@ -190,7 +190,7 @@ def check_dist_files():
 
 def main():
     """主测试流程"""
-    print("🧪 ptradeSim 包测试")
+    print("🧪 simtradelab 包测试")
     print("=" * 40)
     
     try:

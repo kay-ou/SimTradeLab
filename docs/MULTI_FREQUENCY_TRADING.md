@@ -1,6 +1,6 @@
 # 多频率交易指南
 
-ptradeSim 支持多种交易频率，从分钟级到月线级别，满足不同策略的需求。
+SimTradeLab 支持多种交易频率，从分钟级到月线级别，满足不同策略的需求。
 
 ## 🕐 支持的交易频率
 
@@ -21,7 +21,7 @@ ptradeSim 支持多种交易频率，从分钟级到月线级别，满足不同�
 ### 创建分钟级策略
 
 ```python
-from ptradesim.engine import BacktestEngine
+from simtradelab.engine import BacktestEngine
 
 # 创建1分钟级回测引擎
 engine = BacktestEngine(
@@ -105,7 +105,7 @@ def after_trading_end(context, data):
 
 ### 从日线生成分钟级数据
 
-当使用分钟级频率但数据源是日线时，ptradeSim会自动生成分钟级数据：
+当使用分钟级频率但数据源是日线时，SimTradeLab会自动生成分钟级数据：
 
 ```python
 # 即使数据文件是日线数据，也可以进行分钟级回测

@@ -1,13 +1,13 @@
 [tool.poetry]
-name = "ptradesim"
-version = "2.1.0"
-description = "A comprehensive Python backtesting simulator for quantitative trading strategies with real data source integration"
+name = "simtradelab"
+version = "1.0.0"
+description = "开源策略回测框架，灵感来自PTrade的事件驱动模型，提供轻量、清晰、可插拔的策略验证环境"
 authors = ["Kay <kay@example.com>"]
 readme = "README.md"
 license = "MIT"
-homepage = "https://github.com/kay-ou/ptradeSim"
-repository = "https://github.com/kay-ou/ptradeSim"
-documentation = "https://github.com/kay-ou/ptradeSim/blob/main/README.md"
+homepage = "https://github.com/kay-ou/SimTradeLab"
+repository = "https://github.com/kay-ou/SimTradeLab"
+documentation = "https://github.com/kay-ou/SimTradeLab/blob/main/README.md"
 keywords = ["trading", "backtesting", "quantitative", "finance", "strategy", "akshare", "tushare"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -23,7 +23,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 packages = [
-  { include = "ptradesim", from = "src" }
+  { include = "simtradelab", from = "src" }
 ]
 include = [
     "README.md",
@@ -35,7 +35,7 @@ include = [
 ]
 
 [tool.poetry.scripts]
-ptradesim = "ptradesim.cli:main"
+simtradelab = "simtradelab.cli:main"
 
 [tool.poetry.dependencies]
 python = ">=3.10.0,<4.0.0"
@@ -60,7 +60,7 @@ minversion = "6.0"
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=ptradesim",
+    "--cov=simtradelab",
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
     "--cov-report=xml",
@@ -76,7 +76,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["ptradesim"]
+source = ["simtradelab"]
 omit = [
     "*/tests/*",
     "*/test_*.py",

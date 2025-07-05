@@ -48,7 +48,7 @@ poetry run pytest -m "not network"
 
 ```bash
 # 生成覆盖率报告
-poetry run pytest --cov=ptradesim --cov-report=html
+poetry run pytest --cov=simtradelab --cov-report=html
 
 # 查看覆盖率报告
 open htmlcov/index.html

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-ptradeSim - Python量化交易回测框架
+SimTradeLab - 开源策略回测框架
+
+灵感来自PTrade的事件驱动模型，提供轻量、清晰、可插拔的策略验证环境
 
 主要组件:
 - engine: 回测引擎
@@ -44,7 +46,7 @@ from .config import DataSourceConfig, load_config, save_config
 
 
 __version__ = "1.0.0"
-__author__ = "ptradeSim Team"
+__author__ = "SimTradeLab Team"
 
 __all__ = [
     'BacktestEngine',

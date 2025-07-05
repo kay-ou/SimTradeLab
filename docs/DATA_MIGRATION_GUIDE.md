@@ -2,7 +2,7 @@
 
 ## 概述
 
-如果您之前使用的是宽格式（Wide Format）数据，本指南将帮助您快速迁移到ptradeSim v2.0+要求的长格式（Long Format）数据。
+如果您之前使用的是宽格式（Wide Format）数据，本指南将帮助您快速迁移到SimTradeLab v2.0+要求的长格式（Long Format）数据。
 
 ## 🔄 格式对比
 

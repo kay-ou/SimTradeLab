@@ -1,8 +1,8 @@
-# 📊 ptradeSim 数据格式规范
+# 📊 SimTradeLab 数据格式规范
 
 ## 概述
 
-ptradeSim 支持标准的 CSV 格式数据输入，采用**长格式**（Long Format）数据结构，便于处理多股票、多时间频率的数据。
+SimTradeLab 支持标准的 CSV 格式数据输入，采用**长格式**（Long Format）数据结构，便于处理多股票、多时间频率的数据。
 
 ## 🔧 标准数据格式
 
@@ -116,7 +116,7 @@ long_df.to_csv('long_format_data.csv', index=False)
 
 ### 时间频率支持
 
-ptradeSim 支持以下时间频率：
+SimTradeLab 支持以下时间频率：
 - **日线**：1d
 - **分钟线**：1m, 5m, 15m, 30m
 - **小时线**：1h

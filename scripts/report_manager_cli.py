@@ -21,7 +21,7 @@ from datetime import datetime
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(__file__))
 
-from src.ptradesim.report_manager import ReportManager
+from src.simtradelab.report_manager import ReportManager
 
 
 def cmd_list(args):
@@ -161,7 +161,7 @@ def cmd_open(args):
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
-        description="ptradeSim 报告管理工具",
+        description="simtradelab 报告管理工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例用法:

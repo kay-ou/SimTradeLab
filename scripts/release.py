@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ptradeSim 发布脚本
+simtradelab 发布脚本
 
 自动化版本发布流程，包括：
 1. 版本检查和验证
@@ -167,7 +167,7 @@ def create_release_notes_file(version, notes):
 
 def main():
     """主发布流程"""
-    print("🚀 ptradeSim 发布流程开始")
+    print("🚀 simtradelab 发布流程开始")
     print("=" * 50)
     
     try:
@@ -201,7 +201,7 @@ def main():
         print("1. 推送标签到远程仓库:")
         print(f"   git push origin v{version}")
         print("\n2. 在GitHub上创建Release:")
-        print(f"   - 访问: https://github.com/kay-ou/ptradesim/releases/new")
+        print(f"   - 访问: https://github.com/kay-ou/simtradelab/releases/new")
         print(f"   - 选择标签: v{version}")
         print(f"   - 复制发布说明: {notes_file}")
         print(f"   - 上传分发文件: dist/*")

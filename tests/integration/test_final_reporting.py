@@ -18,7 +18,7 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(__file__))
 
-from ptradesim import BacktestEngine
+from simtradelab import BacktestEngine
 
 
 def test_standard_strategies():
@@ -138,7 +138,7 @@ def test_filename_format():
     print("=" * 50)
     
     try:
-        from ptradesim.report_generator import ReportGenerator
+        from simtradelab.report_generator import ReportGenerator
         
         engine = BacktestEngine(
             strategy_file='strategies/test_strategy.py',
@@ -179,7 +179,7 @@ def test_filename_format():
 
 def main():
     """主函数"""
-    print("🎯 ptradeSim 最终报告生成功能测试")
+    print("🎯 simtradelab 最终报告生成功能测试")
     print("=" * 70)
     print("🎉 功能特点:")
     print("   ✅ 移除了非标准API（on_strategy_end）")
@@ -198,7 +198,7 @@ def main():
     print("\n" + "=" * 70)
     if test1_result and test2_result and test3_result:
         print("✅ 所有测试通过!")
-        print("\n🎉 ptradeSim 报告生成功能已完成优化:")
+        print("\n🎉 simtradelab 报告生成功能已完成优化:")
         print("   📋 自动生成包含完整策略代码的报告文件")
         print("   📝 文件名格式: 策略名_日期范围_基本参数_时间戳.txt")
         print("   🔧 完全兼容ptrade标准API")

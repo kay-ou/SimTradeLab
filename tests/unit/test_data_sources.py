@@ -7,8 +7,8 @@ import pandas as pd
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
-from ptradesim.data_sources import CSVDataSource, AkshareDataSource, TushareDataSource
-from ptradesim.data_sources.manager import DataSourceManager
+from simtradelab.data_sources import CSVDataSource, AkshareDataSource, TushareDataSource
+from simtradelab.data_sources.manager import DataSourceManager
 
 
 class TestCSVDataSource:
@@ -87,7 +87,7 @@ class TestAkshareDataSource:
         assert hasattr(source, '_cache')
     
     @pytest.mark.unit
-    @patch('ptradeSim.data_sources.akshare_source.ak')
+    @patch('simtradelab.data_sources.akshare_source.ak')
     def test_akshare_get_history(self, mock_ak, mock_akshare_data):
         """测试AkShare历史数据获取"""
         # 设置mock返回值
@@ -118,7 +118,7 @@ class TestAkshareDataSource:
             assert len(history) == 0
     
     @pytest.mark.unit
-    @patch('ptradeSim.data_sources.akshare_source.ak')
+    @patch('simtradelab.data_sources.akshare_source.ak')
     def test_akshare_get_current_data(self, mock_ak, mock_akshare_data):
         """测试AkShare当前数据获取"""
         # 设置mock返回值
@@ -182,7 +182,7 @@ class TestTushareDataSource:
             pytest.skip("Tushare not installed")
     
     @pytest.mark.unit
-    @patch('ptradeSim.data_sources.tushare_source.ts')
+    @patch('simtradelab.data_sources.tushare_source.ts')
     def test_tushare_get_history(self, mock_ts):
         """测试Tushare历史数据获取"""
         # 创建mock数据

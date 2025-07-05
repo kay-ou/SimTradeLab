@@ -9,9 +9,9 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock
 
-from ptradesim import trading, market_data, financials, utils
-from ptradesim.engine import BacktestEngine
-from ptradesim.context import Order, OrderStatus
+from simtradelab import trading, market_data, financials, utils
+from simtradelab.engine import BacktestEngine
+from simtradelab.context import Order, OrderStatus
 
 
 class TestTradingAPIs:
@@ -263,7 +263,7 @@ class TestTechnicalIndicators:
             stock = list(engine.data.keys())[0]
             
             # 导入技术指标函数
-            from ptradesim import get_MACD, get_KDJ, get_RSI, get_CCI
+            from simtradelab import get_MACD, get_KDJ, get_RSI, get_CCI
             
             indicators = [
                 (get_MACD, 'MACD'),

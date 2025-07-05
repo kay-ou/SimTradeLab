@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-ptradeSim 测试包
+simtradelab 测试包
 
 包含所有测试模块:
 - test_api_injection: API注入测试

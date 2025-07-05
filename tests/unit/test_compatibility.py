@@ -8,12 +8,12 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from ptradesim.engine import BacktestEngine
-from ptradesim.compatibility import (
+from simtradelab.engine import BacktestEngine
+from simtradelab.compatibility import (
     set_ptrade_version, get_version_info, validate_order_status, 
     convert_order_status, PtradeVersion
 )
-from ptradesim.trading import order, get_order, get_orders
+from simtradelab.trading import order, get_order, get_orders
 
 
 def test_compatibility_functions():
