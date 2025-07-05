@@ -63,7 +63,7 @@ def test_package_installation():
         run_command(f"{pip_path} install {wheel_file}")
         
         # 测试导入
-        test_import_cmd = f"{python_path} -c \"import simtradelab; print('✅ simtrade导入成功')\""
+        test_import_cmd = f"{python_path} -c \"import simtradelab; print('✅ simtradelab导入成功')\""
         run_command(test_import_cmd)
         
         # 测试命令行工具

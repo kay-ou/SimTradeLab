@@ -25,7 +25,7 @@ poetry run flake8 simtradelab/
 
 ```bash
 git add .
-git commit -m "chore: prepare for v2.1.0 release"
+git commit -m "chore: prepare for v1.0.0 release"
 git push origin main
 ```
 
@@ -73,10 +73,10 @@ python scripts/test-package.py
 
 ```bash
 # 创建标签
-git tag -a v2.1.0 -m "Release v2.1.0"
+git tag -a v1.0.0 -m "Release v1.0.0"
 
 # 推送标签
-git push origin v2.1.0
+git push origin v1.0.0
 ```
 
 ## 🌐 GitHub Release
@@ -84,12 +84,12 @@ git push origin v2.1.0
 ### 1. 创建Release
 
 1. 访问 [GitHub Releases页面](https://github.com/kay-ou/SimTradeLab/releases/new)
-2. 选择刚创建的标签 `v2.1.0`
-3. 填写Release标题: `simtradelab v2.1.0 - 真实数据源集成与引擎优化`
+2. 选择刚创建的标签 `v1.0.0`
+3. 填写Release标题: `simtradelab v1.0.0 - 真实数据源集成与引擎优化`
 
 ### 2. 发布说明
 
-使用 `scripts/github-release-template.md` 作为发布说明模板，或者使用自动生成的 `release-notes-v2.1.0.md`。
+使用 `scripts/github-release-template.md` 作为发布说明模板，或者使用自动生成的 `release-notes-v1.0.0.md`。
 
 ### 3. 上传文件
 
@@ -193,14 +193,14 @@ poetry build
 
 ```bash
 # 删除本地标签
-git tag -d v2.1.0
+git tag -d v1.0.0
 
 # 删除远程标签
-git push origin :refs/tags/v2.1.0
+git push origin :refs/tags/v1.0.0
 
 # 重新创建标签
-git tag -a v2.1.0 -m "Release v2.1.0"
-git push origin v2.1.0
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
 ```
 
 ### PyPI发布失败

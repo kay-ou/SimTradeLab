@@ -201,7 +201,7 @@ def main():
         print("1. 推送标签到远程仓库:")
         print(f"   git push origin v{version}")
         print("\n2. 在GitHub上创建Release:")
-        print(f"   - 访问: https://github.com/kay-ou/simtradelab/releases/new")
+        print(f"   - 访问: https://github.com/kay-ou/SimTradeLab/releases/new")
         print(f"   - 选择标签: v{version}")
         print(f"   - 复制发布说明: {notes_file}")
         print(f"   - 上传分发文件: dist/*")

@@ -600,7 +600,7 @@ class ReportGenerator:
         """生成报告尾部"""
         lines = [
             "=" * 100,
-            f"报告生成完成 - simtradelab v2.1.0 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"报告生成完成 - simtradelab v1.0.0 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "=" * 100
         ]
         return "\n".join(lines)
@@ -857,7 +857,7 @@ class ReportGenerator:
         </div>
 
         <div class="footer">
-            <p>📊 由 simtradelab v2.1.0 生成 | 🚀 专业量化回测平台</p>
+            <p>📊 由 simtradelab v1.0.0 生成 | 🚀 专业量化回测平台</p>
         </div>
     </div>
 
@@ -996,7 +996,7 @@ class ReportGenerator:
 ⚠️ 一般: 收益率一般或风险较高
 ❌ 较差: 收益率低或风险过高
 
-📊 由 simtradelab v2.1.0 生成
+📊 由 simtradelab v1.0.0 生成
         """
 
         return summary.strip()
