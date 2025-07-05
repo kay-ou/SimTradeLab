@@ -213,7 +213,7 @@ class Position:
         self.amount = amount  # 持有数量
         self.cost_basis = cost_basis  # 成本价
         self.enable_amount = amount # 可用数量
-        self.last_sale_price = last_sale_price # 最新成交价
+        self.last_sale_price = last_sale_price if last_sale_price != 0 else cost_basis # 最新成交价
 
     @property
     def market_value(self):
@@ -226,11 +226,21 @@ class Position:
         return self.market_value
 
     @property
+    def pnl(self):
+        """盈亏金额"""
+        return (self.last_sale_price - self.cost_basis) * self.amount
+
+    @property
     def pnl_ratio(self):
         """盈亏比例"""
         if self.amount == 0 or self.cost_basis == 0:
             return 0.0
         return (self.last_sale_price - self.cost_basis) / self.cost_basis
+
+    @property
+    def pnl_percent(self):
+        """盈亏百分比（pnl_ratio的别名）"""
+        return self.pnl_ratio
 
 
 class Portfolio:
@@ -242,6 +252,25 @@ class Portfolio:
         self.cash = start_cash  # 可用现金
         self.positions = {}  # 持仓信息, dict a stock to a Position object
         self.total_value = start_cash  # 总资产
+
+    def calculate_total_value(self, current_prices=None):
+        """计算总资产价值"""
+        if current_prices:
+            # 更新持仓的最新价格
+            for security, position in self.positions.items():
+                if security in current_prices:
+                    price_data = current_prices[security]
+                    # 支持多种价格字段
+                    price = (price_data.get('close') or
+                            price_data.get('price') or
+                            price_data.get('last_price') or
+                            price_data.get('current_price') or
+                            position.last_sale_price)
+                    position.last_sale_price = price
+
+        positions_value = sum(position.market_value for position in self.positions.values())
+        self.total_value = self.cash + positions_value
+        return self.total_value
 
 
 class Context:

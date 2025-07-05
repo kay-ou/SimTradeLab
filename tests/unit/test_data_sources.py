@@ -11,6 +11,24 @@ from simtradelab.data_sources import CSVDataSource, AkshareDataSource, TushareDa
 from simtradelab.data_sources.manager import DataSourceManager
 
 
+def _akshare_available():
+    """检查AkShare是否可用"""
+    try:
+        import akshare
+        return True
+    except ImportError:
+        return False
+
+
+def _tushare_available():
+    """检查Tushare是否可用"""
+    try:
+        import tushare
+        return True
+    except ImportError:
+        return False
+
+
 class TestCSVDataSource:
     """CSV数据源测试"""
     
@@ -76,9 +94,13 @@ class TestCSVDataSource:
             assert any(field in stock_data for field in price_fields)
 
 
+@pytest.mark.skipif(
+    not _akshare_available(),
+    reason="AkShare未安装，跳过相关测试"
+)
 class TestAkshareDataSource:
     """AkShare数据源测试"""
-    
+
     @pytest.mark.unit
     def test_akshare_initialization(self):
         """测试AkShare数据源初始化"""
@@ -234,6 +256,10 @@ class TestDataSourceManager:
         assert len(manager.all_sources) == 1
     
     @pytest.mark.unit
+    @pytest.mark.skipif(
+        not _akshare_available(),
+        reason="AkShare未安装，跳过相关测试"
+    )
     def test_manager_with_fallback(self, temp_dir):
         """测试带备用数据源的管理器"""
         csv_path = Path(temp_dir) / "test.csv"

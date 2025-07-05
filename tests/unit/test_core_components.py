@@ -112,19 +112,25 @@ class TestPortfolio:
         """测试投资组合价值计算"""
         portfolio = Portfolio(1000000)
         from simtradelab.context import Position
+
+        # 模拟购买股票后的状态
+        purchase_cost = 100 * 10.0 + 200 * 5.0  # 2000
+        portfolio.cash -= purchase_cost  # 扣除购买成本
         portfolio.positions['STOCK_A'] = Position('STOCK_A', 100, 10.0)
         portfolio.positions['STOCK_B'] = Position('STOCK_B', 200, 5.0)
-        
+
         # 模拟当前价格
         current_prices = {
             'STOCK_A': {'close': 12.0},
             'STOCK_B': {'close': 6.0}
         }
-        
+
         total_value = portfolio.calculate_total_value(current_prices)
-        
+
         # 现金 + 持仓市值
-        expected_value = 1000000 - (100 * 10.0 + 200 * 5.0) + (100 * 12.0 + 200 * 6.0)
+        expected_cash = 1000000 - purchase_cost  # 998000
+        expected_positions_value = 100 * 12.0 + 200 * 6.0  # 2400
+        expected_value = expected_cash + expected_positions_value  # 1000400
         assert abs(total_value - expected_value) < 0.01
 
 
@@ -190,12 +196,15 @@ class TestDataSources:
     @pytest.mark.unit
     def test_akshare_data_source(self):
         """测试AkShare数据源"""
-        akshare_source = AkshareDataSource()
-        
-        # 测试代码转换
-        assert akshare_source._convert_security_code('000001.SZ') == '000001'
-        assert akshare_source._convert_security_code('600000.SH') == '600000'
-        assert akshare_source._convert_security_code('000001') == '000001'
+        try:
+            akshare_source = AkshareDataSource()
+
+            # 测试代码转换
+            assert akshare_source._convert_security_code('000001.SZ') == '000001'
+            assert akshare_source._convert_security_code('600000.SH') == '600000'
+            assert akshare_source._convert_security_code('000001') == '000001'
+        except ImportError:
+            pytest.skip("AkShare未安装，跳过测试")
     
     @pytest.mark.unit
     def test_data_source_manager(self, sample_data_file):
