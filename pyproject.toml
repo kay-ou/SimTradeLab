@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-packages = [{ include = "ptradeSim" }]
+packages = [{ include = "src" }]
 include = [
     "README.md",
     "CHANGELOG.md",
@@ -33,7 +33,7 @@ include = [
 ]
 
 [tool.poetry.scripts]
-ptradesim = "ptradeSim.cli:main"
+ptradesim = "src.cli:main"
 
 [tool.poetry.dependencies]
 python = ">=3.10.0,<4.0.0"
@@ -58,7 +58,7 @@ minversion = "6.0"
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=ptradeSim",
+    "--cov=src",
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
     "--cov-report=xml",
@@ -74,12 +74,11 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["ptradeSim"]
+source = ["src"]
 omit = [
     "*/tests/*",
     "*/test_*.py",
     "*/__pycache__/*",
-    "*/cli.py",  # CLI entry point
 ]
 
 [tool.coverage.report]

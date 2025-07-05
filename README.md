@@ -76,7 +76,7 @@ pip install akshare      # AkShare数据源
 **方式二：直接下载**
 ```bash
 # 下载并解压项目文件
-wget https://github.com/kaykouo/ptradeSim/archive/main.zip
+wget https://github.com/kaykouo/src/archive/main.zip
 unzip main.zip && cd ptradeSim-main
 poetry install
 ```
@@ -110,7 +110,7 @@ poetry run python main.py
 
 # 或运行买入持有策略
 poetry run python -c "
-from ptradeSim.engine import BacktestEngine
+from src.engine import BacktestEngine
 engine = BacktestEngine(
     strategy_file='strategies/buy_and_hold.py',
     data_path='data/sample_data.csv',
@@ -126,8 +126,8 @@ engine.run()
 ```bash
 # 使用AkShare数据源获取真实A股数据
 poetry run python -c "
-from ptradeSim import BacktestEngine
-from ptradeSim.data_sources import AkshareDataSource
+from src import BacktestEngine
+from src.data_sources import AkshareDataSource
 
 # 创建AkShare数据源
 akshare_source = AkshareDataSource()
@@ -151,8 +151,8 @@ engine.run()
 export TUSHARE_TOKEN=your_token_here
 
 poetry run python -c "
-from ptradeSim import BacktestEngine
-from ptradeSim.data_sources import TushareDataSource
+from src import BacktestEngine
+from src.data_sources import TushareDataSource
 
 tushare_source = TushareDataSource()
 engine = BacktestEngine(
@@ -310,7 +310,7 @@ def after_trading_end(context, data):
 ```bash
 # 创建回测引擎并运行
 poetry run python -c "
-from ptradeSim.engine import BacktestEngine
+from src.engine import BacktestEngine
 engine = BacktestEngine(
     strategy_file='my_strategy.py',
     data_path='data/sample_data.csv',
@@ -351,8 +351,8 @@ data_sources:
 **方法2：直接在代码中使用**
 
 ```python
-from ptradeSim import BacktestEngine
-from ptradeSim.data_sources import AkshareDataSource
+from src import BacktestEngine
+from src.data_sources import AkshareDataSource
 
 # 创建数据源
 akshare_source = AkshareDataSource()
@@ -465,40 +465,72 @@ poetry run python tests/test_minute_trading.py     # 分钟级交易测试
 
 ```
 ptradeSim/
-├── 📁 ptradeSim/           # 核心引擎
-│   ├── engine.py          # 回测引擎
-│   ├── context.py         # 上下文管理
-│   ├── financials.py      # 财务数据接口
-│   ├── market_data.py     # 市场数据接口
-│   ├── trading.py         # 交易执行接口
-│   ├── performance.py     # 性能分析模块
-│   ├── compatibility.py   # 版本兼容性
-│   └── utils.py           # 工具函数
-├── 📁 strategies/         # 策略文件夹
-│   ├── buy_and_hold_strategy.py    # 买入持有策略
+├── 📁 src/                # 核心源代码包
+│   ├── __init__.py            # 包初始化文件
+│   ├── engine.py              # 回测引擎核心
+│   ├── context.py             # 上下文和投资组合管理
+│   ├── trading.py             # 交易执行接口
+│   ├── market_data.py         # 市场数据接口
+│   ├── financials.py          # 财务数据接口
+│   ├── utils.py               # 工具函数集合
+│   ├── performance.py         # 性能分析模块
+│   ├── logger.py              # 日志管理
+│   ├── compatibility.py       # 版本兼容性
+│   ├── cli.py                 # 命令行接口
+│   ├── 📁 config/             # 配置管理
+│   │   ├── __init__.py
+│   │   └── data_config.py     # 数据配置
+│   └── 📁 data_sources/       # 数据源模块
+│       ├── __init__.py
+│       ├── base.py            # 数据源基类
+│       ├── csv_source.py      # CSV数据源
+│       ├── akshare_source.py  # AkShare数据源
+│       ├── tushare_source.py  # Tushare数据源
+│       └── manager.py         # 数据源管理器
+├── 📁 strategies/             # 策略文件夹
+│   ├── buy_and_hold_strategy.py        # 买入持有策略
 │   ├── dual_moving_average_strategy.py # 双均线策略
 │   ├── technical_indicator_strategy.py # 技术指标策略
 │   ├── minute_trading_strategy.py      # 分钟级交易策略
-│   └── test_strategy.py               # 综合测试策略
-├── 📁 tests/              # 测试套件
-│   ├── test_api_injection.py      # API注入测试
+│   ├── grid_trading_strategy.py        # 网格交易策略
+│   ├── momentum_strategy.py            # 动量策略
+│   ├── real_data_strategy.py           # 真实数据策略
+│   ├── shadow_strategy.py              # 影子策略
+│   └── test_strategy.py                # 综合测试策略
+├── 📁 tests/                  # 测试套件
+│   ├── conftest.py                # pytest配置和fixtures
+│   ├── test_engine.py             # 引擎核心测试
+│   ├── test_api_functions.py      # API功能测试
+│   ├── test_data_sources.py       # 数据源测试
+│   ├── test_integration.py        # 集成测试
 │   ├── test_strategy_execution.py # 策略执行测试
 │   ├── test_financial_apis.py     # 财务接口测试
 │   ├── test_market_data_apis.py   # 市场数据测试
 │   ├── test_minute_trading.py     # 分钟级交易测试
+│   ├── test_technical_indicators.py # 技术指标测试
 │   └── README.md                  # 测试文档
-├── 📁 docs/               # 文档目录
-│   ├── STRATEGY_GUIDE.md  # 策略开发指南
-│   ├── DATA_FORMAT.md     # 数据格式规范
-│   ├── API_REFERENCE.md   # API参考文档
-│   └── TECHNICAL_INDICATORS.md # 技术指标文档
-├── 📁 data/               # 数据文件
-│   ├── sample_data.csv    # 日线示例数据（标准长格式）
+├── 📁 docs/                   # 文档目录
+│   ├── STRATEGY_GUIDE.md      # 策略开发指南
+│   ├── DATA_FORMAT.md         # 数据格式规范
+│   ├── API_REFERENCE.md       # API参考文档
+│   ├── TECHNICAL_INDICATORS.md # 技术指标文档
+│   ├── REAL_DATA_SOURCES.md   # 真实数据源指南
+│   └── MULTI_FREQUENCY_TRADING.md # 多频率交易指南
+├── 📁 data/                   # 数据文件
+│   ├── sample_data.csv        # 日线示例数据（标准长格式）
 │   └── minute_sample_data.csv # 分钟级示例数据
-├── main.py                # 主程序入口
-├── run_tests.py           # 测试运行器
-├── pyproject.toml         # 项目配置
-└── README.md              # 项目文档 (本文件)
+├── 📁 scripts/                # 脚本工具
+│   ├── release.py             # 发布脚本
+│   ├── test-package.py        # 包测试脚本
+│   └── RELEASE_GUIDE.md       # 发布指南
+├── main.py                    # 主程序入口
+├── ptradeSim.py               # CLI入口脚本
+├── run_tests.py               # 测试运行器
+├── pyproject.toml             # 项目配置和依赖
+├── poetry.lock                # 依赖锁定文件
+├── LICENSE                    # 开源许可证
+├── CHANGELOG.md               # 更新日志
+└── README.md                  # 项目文档 (本文件)
 ```
 
 ## 🎓 策略开发指南
@@ -698,7 +730,7 @@ def handle_data(context, data):
 
 **⭐ 如果这个项目对你有帮助，请给我们一个Star！**
 
-[🐛 报告Bug](https://github.com/kaykouo/ptradeSim/issues) • [💡 功能建议](https://github.com/kaykouo/ptradeSim/issues) • [📖 文档中心](docs/README.md) • [🔧 API参考](docs/API_REFERENCE.md) • [📋 数据格式](docs/DATA_FORMAT.md)
+[🐛 报告Bug](https://github.com/kaykouo/src/issues) • [💡 功能建议](https://github.com/kaykouo/src/issues) • [📖 文档中心](docs/README.md) • [🔧 API参考](docs/API_REFERENCE.md) • [📋 数据格式](docs/DATA_FORMAT.md)
 
 <div align="center">
   <img src="sponsor/WechatPay.png" alt="WechatPay" width="200" style="margin-right:20px;" />

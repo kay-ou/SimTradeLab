@@ -63,7 +63,7 @@ def test_package_installation():
         run_command(f"{pip_path} install {wheel_file}")
         
         # 测试导入
-        test_import_cmd = f"{python_path} -c \"import ptradeSim; print('✅ ptradeSim导入成功')\""
+        test_import_cmd = f"{python_path} -c \"import src; print('✅ ptradeSim导入成功')\""
         run_command(test_import_cmd)
         
         # 测试命令行工具
@@ -90,7 +90,7 @@ import os
 sys.path.insert(0, ".")
 
 try:
-    from ptradeSim import BacktestEngine
+    from src import BacktestEngine
     print("✅ BacktestEngine导入成功")
     
     # 测试CSV数据源
@@ -108,7 +108,7 @@ try:
     
     # 测试真实数据源
     try:
-        from ptradeSim.data_sources import AkshareDataSource
+        from src.data_sources import AkshareDataSource
         akshare_source = AkshareDataSource()
         print("✅ AkshareDataSource创建成功")
     except ImportError as e:
@@ -138,9 +138,9 @@ def check_package_structure():
     print("📋 检查包结构...")
     
     required_files = [
-        "ptradeSim/__init__.py",
-        "ptradeSim/engine.py",
-        "ptradeSim/cli.py",
+        "src/__init__.py",
+        "src/engine.py",
+        "src/cli.py",
         "README.md",
         "CHANGELOG.md",
         "pyproject.toml",

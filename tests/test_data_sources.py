@@ -7,8 +7,8 @@ import pandas as pd
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
-from ptradeSim.data_sources import CSVDataSource, AkshareDataSource, TushareDataSource
-from ptradeSim.data_sources.manager import DataSourceManager
+from src.data_sources import CSVDataSource, AkshareDataSource, TushareDataSource
+from src.data_sources.manager import DataSourceManager
 
 
 class TestCSVDataSource:

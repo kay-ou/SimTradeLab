@@ -7,7 +7,7 @@
 import pandas as pd
 import pandas as pd
 from functools import partial
-from ptradeSim import (
+from src import (
     BacktestEngine,
     get_fundamentals,
     get_income_statement,

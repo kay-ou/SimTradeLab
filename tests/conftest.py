@@ -13,8 +13,8 @@ from unittest.mock import Mock, patch
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from ptradeSim import BacktestEngine
-from ptradeSim.data_sources import CSVDataSource, AkshareDataSource
+from src import BacktestEngine
+from src.data_sources import CSVDataSource, AkshareDataSource
 
 
 @pytest.fixture(scope="session")
@@ -176,7 +176,7 @@ def capture_logs():
     
     log_capture = StringIO()
     handler = logging.StreamHandler(log_capture)
-    logger = logging.getLogger('ptradeSim')
+    logger = logging.getLogger('src')
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
     

@@ -7,8 +7,8 @@ import pandas as pd
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
-from ptradeSim.engine import BacktestEngine
-from ptradeSim.context import Context
+from src.engine import BacktestEngine
+from src.context import Context
 
 
 class TestBacktestEngine:

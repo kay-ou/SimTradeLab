@@ -9,8 +9,8 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from ptradeSim.engine import BacktestEngine
-from ptradeSim.trading import (
+from src.engine import BacktestEngine
+from src.trading import (
     order, get_positions, get_position, get_open_orders,
     get_order, get_orders, get_trades, cancel_order
 )

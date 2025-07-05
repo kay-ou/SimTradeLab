@@ -10,8 +10,8 @@ import numpy as np
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from ptradeSim.engine import BacktestEngine
-from ptradeSim.market_data import get_MACD, get_KDJ, get_RSI, get_CCI, get_technical_indicators
+from src.engine import BacktestEngine
+from src.market_data import get_MACD, get_KDJ, get_RSI, get_CCI, get_technical_indicators
 
 
 def test_technical_indicators():

@@ -9,8 +9,8 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from ptradeSim.engine import BacktestEngine
-from ptradeSim import (
+from src.engine import BacktestEngine
+from src import (
     get_MACD, get_KDJ, get_RSI, get_CCI,
     get_positions, get_orders, get_trades,
     set_benchmark, get_version_info,
@@ -61,7 +61,7 @@ def test_all_features():
         # 2. 测试交易查询功能
         print("\n💼 2. 交易查询功能测试")
         try:
-            from ptradeSim.trading import order
+            from src.trading import order
             
             # 下单测试
             order_id = order(engine, test_security, 1000)
@@ -80,7 +80,7 @@ def test_all_features():
         # 3. 测试基准设置功能
         print("\n📈 3. 基准设置功能测试")
         try:
-            from ptradeSim.utils import set_benchmark, get_benchmark_returns
+            from src.utils import set_benchmark, get_benchmark_returns
             
             set_benchmark(engine, 'BENCHMARK_INDEX')
             benchmark_returns = get_benchmark_returns(engine)
@@ -124,7 +124,7 @@ def test_all_features():
         # 6. 测试性能分析功能
         print("\n📊 6. 性能分析功能测试")
         try:
-            from ptradeSim.performance import calculate_performance_metrics
+            from src.performance import calculate_performance_metrics
             
             # 需要一些投资组合历史数据
             engine.portfolio_history = [

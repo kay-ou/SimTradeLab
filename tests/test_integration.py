@@ -7,8 +7,8 @@ import pandas as pd
 from pathlib import Path
 from unittest.mock import patch
 
-from ptradeSim import BacktestEngine
-from ptradeSim.data_sources import AkshareDataSource
+from src import BacktestEngine
+from src.data_sources import AkshareDataSource
 
 
 class TestFullBacktestFlow:
