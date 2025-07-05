@@ -1,0 +1,199 @@
+# This workflow generates release notes automatically
+
+name: Generate Release Notes
+
+on:
+  # 当创建新的标签时触发
+  push:
+    tags:
+      - 'v*'
+  
+  # 允许手动触发
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name (e.g., v1.0.0)'
+        required: true
+        type: string
+      create_release:
+        description: 'Create GitHub Release'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  generate-release-notes:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整的Git历史
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Determine tag name
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag_name=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Release Notes
+        id: generate
+        run: |
+          # 生成Release Notes
+          python scripts/generate_release_notes.py ${{ steps.tag.outputs.tag_name }} --output release_notes.md --print
+          
+          # 检查文件是否生成成功
+          if [ -f release_notes.md ]; then
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "file_path=release_notes.md" >> $GITHUB_OUTPUT
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Release Notes as Artifact
+        if: steps.generate.outputs.success == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes-${{ steps.tag.outputs.tag_name }}
+          path: release_notes.md
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: steps.generate.outputs.success == 'true' && (github.event_name == 'push' || inputs.create_release)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const tagName = '${{ steps.tag.outputs.tag_name }}';
+            
+            // 读取生成的Release Notes
+            const releaseNotes = fs.readFileSync('release_notes.md', 'utf8');
+            
+            try {
+              // 检查Release是否已存在
+              let release;
+              try {
+                const existingRelease = await github.rest.repos.getReleaseByTag({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag: tagName
+                });
+                
+                // 如果存在，更新Release Notes
+                release = await github.rest.repos.updateRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  release_id: existingRelease.data.id,
+                  body: releaseNotes
+                });
+                
+                console.log(`✅ 已更新现有Release: ${tagName}`);
+                
+              } catch (error) {
+                if (error.status === 404) {
+                  // Release不存在，创建新的
+                  release = await github.rest.repos.createRelease({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    tag_name: tagName,
+                    name: `SimTradeLab ${tagName}`,
+                    body: releaseNotes,
+                    draft: false,
+                    prerelease: tagName.includes('alpha') || tagName.includes('beta') || tagName.includes('rc')
+                  });
+                  
+                  console.log(`✅ 已创建新Release: ${tagName}`);
+                } else {
+                  throw error;
+                }
+              }
+              
+              // 输出Release URL
+              console.log(`🔗 Release URL: ${release.data.html_url}`);
+              
+            } catch (error) {
+              console.error('❌ 创建/更新Release失败:', error);
+              throw error;
+            }
+
+      - name: Comment on related PRs
+        if: steps.generate.outputs.success == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tagName = '${{ steps.tag.outputs.tag_name }}';
+            
+            // 获取与此标签相关的提交
+            const { data: tag } = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `tags/${tagName}`
+            });
+            
+            const commitSha = tag.object.sha;
+            
+            // 查找包含此提交的PR
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 50
+            });
+            
+            for (const pr of prs) {
+              if (pr.merge_commit_sha === commitSha) {
+                // 在PR中添加评论
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: `🎉 This PR has been included in release [${tagName}](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/${tagName})!`
+                });
+                
+                console.log(`✅ 已在PR #${pr.number} 中添加发布通知`);
+                break;
+              }
+            }
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## 🎯 Release Notes 生成总结" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **标签**: ${{ steps.tag.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **生成状态**: ${{ steps.generate.outputs.success == 'true' && '✅ 成功' || '❌ 失败' }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.generate.outputs.success }}" = "true" ]; then
+            echo "- **文件**: ${{ steps.generate.outputs.file_path }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Release**: ${{ (github.event_name == 'push' || inputs.create_release) && '已创建/更新' || '仅生成文件' }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📋 **使用方法**:" >> $GITHUB_STEP_SUMMARY
+          echo "1. 下载生成的Release Notes文件" >> $GITHUB_STEP_SUMMARY
+          echo "2. 在GitHub Release中使用生成的内容" >> $GITHUB_STEP_SUMMARY
+          echo "3. 根据需要手动调整内容" >> $GITHUB_STEP_SUMMARY

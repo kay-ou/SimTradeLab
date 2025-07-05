@@ -1,0 +1,224 @@
+# This workflow will upload SimTradeLab to PyPI when a release is created
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python#publishing-to-package-registries
+
+name: Publish SimTradeLab Package
+
+on:
+  release:
+    types: [published]
+  # 可选：允许手动触发
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+
+      - name: Install project
+        run: poetry install --no-interaction
+
+      - name: Run tests
+        if: ${{ !inputs.skip_tests }}
+        run: |
+          poetry run pytest tests/ -v --tb=short
+          
+      - name: Run linting (optional)
+        continue-on-error: true
+        run: |
+          # 如果有linting工具，可以在这里运行
+          # poetry run flake8 src/simtradelab/
+          echo "Linting step (optional)"
+
+  release-build:
+    runs-on: ubuntu-latest
+    needs: test
+    # 如果跳过测试，则不依赖test job
+    if: ${{ !inputs.skip_tests || success() }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-3.11-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+
+      - name: Install project
+        run: poetry install --no-interaction
+
+      - name: Build release distributions
+        run: |
+          poetry build
+
+      - name: Check build artifacts
+        run: |
+          ls -la dist/
+          echo "Built packages:"
+          find dist/ -name "*.whl" -o -name "*.tar.gz"
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dists
+          path: dist/
+
+  pypi-publish:
+    runs-on: ubuntu-latest
+    needs:
+      - release-build
+    permissions:
+      # IMPORTANT: this permission is mandatory for trusted publishing
+      id-token: write
+
+    # Dedicated environments with protections for publishing are strongly recommended.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/simtradelab/${{ github.event.release.tag_name }}
+
+    steps:
+      - name: Retrieve release distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dists
+          path: dist/
+
+      - name: Verify distributions
+        run: |
+          ls -la dist/
+          echo "Publishing the following packages:"
+          find dist/ -name "*.whl" -o -name "*.tar.gz"
+
+      - name: Publish release distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          # 可选：添加详细输出
+          verbose: true
+
+  post-publish:
+    runs-on: ubuntu-latest
+    needs:
+      - pypi-publish
+    if: success()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify PyPI publication
+        run: |
+          # 等待PyPI索引更新
+          sleep 30
+          
+          # 尝试安装刚发布的包
+          pip install simtradelab==${{ github.event.release.tag_name }}
+          
+          # 验证安装
+          python -c "import simtradelab; print(f'✅ SimTradeLab {simtradelab.__version__} installed successfully')"
+
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          # 生成Release Notes
+          python scripts/generate_release_notes.py ${{ github.event.release.tag_name }} --output release_notes.md
+
+          # 读取生成的内容并设置为输出
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
+          cat release_notes.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update Release with Generated Notes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const releaseNotes = fs.readFileSync('release_notes.md', 'utf8');
+
+            // 更新Release的描述
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: context.payload.release.id,
+              body: releaseNotes
+            });
+
+      - name: Create success comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.payload.release.id,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🎉 SimTradeLab ${{ github.event.release.tag_name }} has been successfully published to PyPI!
+
+              📦 **Installation:**
+              \`\`\`bash
+              pip install simtradelab==${{ github.event.release.tag_name }}
+              \`\`\`
+
+              🔗 **PyPI Link:** https://pypi.org/project/simtradelab/${{ github.event.release.tag_name }}/
+
+              ✅ **Verification:** Package installation verified successfully.
+
+              📋 **Release Notes:** Automatically generated and updated in the release description.`
+            })

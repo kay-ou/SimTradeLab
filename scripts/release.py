@@ -138,19 +138,39 @@ def create_git_tag(version):
 def generate_release_notes(version):
     """生成发布说明"""
     print("📝 生成发布说明...")
-    
-    # 从CHANGELOG.md提取当前版本的更新内容
+
+    # 尝试使用自动生成脚本
+    tag = f"v{version}"
+    generate_script = Path("scripts/generate_release_notes.py")
+
+    if generate_script.exists():
+        try:
+            print("🤖 使用自动生成脚本...")
+            result = run_command(f"python {generate_script} {tag}")
+            if result:
+                print("✅ 自动生成Release Notes成功")
+                # 读取生成的内容
+                temp_file = Path(f"release-notes-{tag}.md")
+                if temp_file.exists():
+                    notes = temp_file.read_text(encoding='utf-8')
+                    temp_file.unlink()  # 删除临时文件
+                    return notes
+        except Exception as e:
+            print(f"⚠️ 自动生成失败，回退到CHANGELOG模式: {e}")
+
+    # 回退到从CHANGELOG.md提取内容
+    print("📋 从CHANGELOG.md提取发布说明...")
     changelog_path = Path("CHANGELOG.md")
     if not changelog_path.exists():
         print("⚠️ 找不到CHANGELOG.md文件")
         return "请查看项目文档了解更新内容。"
-    
-    content = changelog_path.read_text()
-    
+
+    content = changelog_path.read_text(encoding='utf-8')
+
     # 提取当前版本的内容
     version_pattern = rf"## \[{re.escape(version)}\].*?(?=## \[|\Z)"
     match = re.search(version_pattern, content, re.DOTALL)
-    
+
     if match:
         return match.group(0).strip()
     else:
