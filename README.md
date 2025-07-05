@@ -464,75 +464,105 @@ poetry run python tests/test_minute_trading.py     # 分钟级交易测试
 ## 📁 项目结构
 
 ```
-ptradeSim/
-├── 📁 src/                    # 源代码目录
-│   └── 📁 ptradesim/          # 核心包
-│       ├── __init__.py            # 包初始化文件
-│       ├── engine.py              # 回测引擎核心
-│       ├── context.py             # 上下文和投资组合管理
-│       ├── trading.py             # 交易执行接口
-│       ├── market_data.py         # 市场数据接口
-│       ├── financials.py          # 财务数据接口
-│       ├── utils.py               # 工具函数集合
-│       ├── performance.py         # 性能分析模块
-│       ├── logger.py              # 日志管理
-│       ├── compatibility.py       # 版本兼容性
-│       ├── cli.py                 # 命令行接口
-│       ├── 📁 config/             # 配置管理
+ptradeSim/                     # 项目根目录
+├── 📦 核心包结构
+│   └── src/ptradesim/         # 主要源代码包 (Poetry标准结构)
+│       ├── __init__.py        # 包初始化，导出主要API
+│       ├── engine.py          # 🚀 回测引擎核心 - BacktestEngine类
+│       ├── context.py         # 📊 上下文和投资组合管理
+│       ├── trading.py         # 💰 交易执行接口 - order, order_target等
+│       ├── market_data.py     # 📈 市场数据接口 - get_history, get_current_data等
+│       ├── financials.py      # 💼 财务数据接口 - 30+财务指标
+│       ├── utils.py           # 🛠️ 工具函数集合
+│       ├── performance.py     # 📊 性能分析模块 - 夏普比率、最大回撤等
+│       ├── logger.py          # 📝 日志管理系统
+│       ├── compatibility.py   # 🔄 版本兼容性处理
+│       ├── cli.py             # ⚡ 命令行接口 - ptradeSim命令
+│       ├── config/            # ⚙️ 配置管理模块
 │       │   ├── __init__.py
-│       │   └── data_config.py     # 数据配置
-│       └── 📁 data_sources/       # 数据源模块
+│       │   └── data_config.py # 数据源配置管理
+│       └── data_sources/      # 🌐 数据源模块
 │           ├── __init__.py
-│           ├── base.py            # 数据源基类
-│           ├── csv_source.py      # CSV数据源
-│           ├── akshare_source.py  # AkShare数据源
-│           ├── tushare_source.py  # Tushare数据源
-│           └── manager.py         # 数据源管理器
-├── 📁 strategies/             # 策略文件夹
-│   ├── buy_and_hold_strategy.py        # 买入持有策略
-│   ├── dual_moving_average_strategy.py # 双均线策略
-│   ├── technical_indicator_strategy.py # 技术指标策略
-│   ├── minute_trading_strategy.py      # 分钟级交易策略
-│   ├── grid_trading_strategy.py        # 网格交易策略
-│   ├── momentum_strategy.py            # 动量策略
-│   ├── real_data_strategy.py           # 真实数据策略
-│   ├── shadow_strategy.py              # 影子策略
-│   └── test_strategy.py                # 综合测试策略
-├── 📁 tests/                  # 测试套件
-│   ├── conftest.py                # pytest配置和fixtures
-│   ├── test_engine.py             # 引擎核心测试
-│   ├── test_api_functions.py      # API功能测试
-│   ├── test_data_sources.py       # 数据源测试
-│   ├── test_integration.py        # 集成测试
-│   ├── test_strategy_execution.py # 策略执行测试
-│   ├── test_financial_apis.py     # 财务接口测试
-│   ├── test_market_data_apis.py   # 市场数据测试
-│   ├── test_minute_trading.py     # 分钟级交易测试
-│   ├── test_technical_indicators.py # 技术指标测试
-│   └── README.md                  # 测试文档
-├── 📁 docs/                   # 文档目录
-│   ├── STRATEGY_GUIDE.md      # 策略开发指南
-│   ├── DATA_FORMAT.md         # 数据格式规范
-│   ├── API_REFERENCE.md       # API参考文档
-│   ├── TECHNICAL_INDICATORS.md # 技术指标文档
-│   ├── REAL_DATA_SOURCES.md   # 真实数据源指南
-│   └── MULTI_FREQUENCY_TRADING.md # 多频率交易指南
-├── 📁 data/                   # 数据文件
-│   ├── sample_data.csv        # 日线示例数据（标准长格式）
-│   └── minute_sample_data.csv # 分钟级示例数据
-├── 📁 scripts/                # 脚本工具
-│   ├── release.py             # 发布脚本
-│   ├── test-package.py        # 包测试脚本
-│   └── RELEASE_GUIDE.md       # 发布指南
-├── main.py                    # 主程序入口
-├── ptradeSim.py               # CLI入口脚本
-├── run_tests.py               # 测试运行器
-├── pyproject.toml             # 项目配置和依赖
-├── poetry.lock                # 依赖锁定文件
-├── LICENSE                    # 开源许可证
-├── CHANGELOG.md               # 更新日志
-└── README.md                  # 项目文档 (本文件)
+│           ├── base.py        # 数据源基类定义
+│           ├── csv_source.py  # CSV文件数据源
+│           ├── akshare_source.py  # AkShare真实数据源
+│           ├── tushare_source.py  # Tushare专业数据源
+│           └── manager.py     # 数据源管理器
+├── 📋 策略开发
+│   └── strategies/            # 策略文件夹 - 所有交易策略
+│       ├── buy_and_hold_strategy.py        # 买入持有策略
+│       ├── dual_moving_average_strategy.py # 双均线策略
+│       ├── technical_indicator_strategy.py # 技术指标策略
+│       ├── minute_trading_strategy.py      # 分钟级交易策略
+│       ├── grid_trading_strategy.py        # 网格交易策略
+│       ├── momentum_strategy.py            # 动量策略
+│       ├── real_data_strategy.py           # 真实数据策略
+│       ├── shadow_strategy.py              # 影子策略（状态持久化）
+│       └── test_strategy.py                # 综合测试策略
+├── 🧪 测试体系
+│   └── tests/                 # 完整测试套件 (100%覆盖率)
+│       ├── __init__.py
+│       ├── conftest.py        # pytest配置和fixtures
+│       ├── README.md          # 测试文档说明
+│       ├── unit/              # 单元测试
+│       │   ├── test_engine.py
+│       │   ├── test_api_functions.py
+│       │   ├── test_financial_apis.py
+│       │   ├── test_market_data_apis.py
+│       │   └── test_technical_indicators.py
+│       ├── integration/       # 集成测试
+│       │   ├── test_data_sources.py
+│       │   ├── test_strategy_execution.py
+│       │   └── test_minute_trading.py
+│       ├── e2e/              # 端到端测试
+│       └── performance/       # 性能测试
+├── 📚 文档系统
+│   └── docs/                  # 完整文档体系
+│       ├── README.md          # 文档导航中心
+│       ├── STRATEGY_GUIDE.md  # 策略开发指南
+│       ├── DATA_FORMAT.md     # 数据格式规范
+│       ├── API_REFERENCE.md   # API参考文档
+│       ├── TECHNICAL_INDICATORS.md # 技术指标文档
+│       ├── REAL_DATA_SOURCES.md    # 真实数据源指南
+│       ├── MULTI_FREQUENCY_TRADING.md # 多频率交易指南
+│       └── DATA_MIGRATION_GUIDE.md    # 数据迁移指南
+├── 📊 数据文件
+│   └── data/                  # 示例数据文件
+│       ├── sample_data.csv        # 日线示例数据（标准长格式）
+│       └── minute_sample_data.csv # 分钟级示例数据
+├── 🔧 工具脚本
+│   └── scripts/               # 开发和发布工具
+│       ├── release.py         # 自动发布脚本
+│       ├── test-package.py    # 包测试脚本
+│       └── RELEASE_GUIDE.md   # 发布指南
+├── 🚀 入口文件
+│   ├── main.py                # 主程序入口（兼容性）
+│   ├── ptradeSim.py           # CLI入口脚本
+│   └── run_tests.py           # 测试运行器
+├── ⚙️ 配置文件
+│   ├── pyproject.toml         # Poetry项目配置和依赖管理
+│   ├── poetry.lock            # 依赖锁定文件
+│   └── ptrade_config.yaml     # 数据源配置文件
+├── 📄 项目文档
+│   ├── README.md              # 项目主文档 (本文件)
+│   ├── CHANGELOG.md           # 版本更新日志
+│   └── LICENSE                # MIT开源许可证
+└── 🗂️ 其他文件
+    ├── .gitignore             # Git忽略文件配置
+    ├── coverage.xml           # 测试覆盖率报告
+    ├── htmlcov/               # HTML格式覆盖率报告
+    ├── dist/                  # 构建产物目录
+    └── sponsor/               # 赞助支持图片
 ```
+
+### 📦 包结构说明
+
+ptradeSim采用现代Python包管理最佳实践：
+
+- **Poetry标准结构**: `src/ptradesim/` 布局，便于包管理和分发
+- **模块化设计**: 核心功能按职责分离，便于维护和扩展
+- **完整测试覆盖**: 单元测试、集成测试、端到端测试全覆盖
+- **文档驱动**: 每个模块都有对应的详细文档
 
 ## 🎓 策略开发指南
 
@@ -636,25 +666,225 @@ def handle_data(context, data):
             log.info(f"技术指标卖出 {stock}")
 ```
 
+## 📦 作为Python包使用
+
+ptradeSim可以作为标准Python包安装和使用，支持多种安装和使用方式。
+
+### 🔧 安装方式
+
+**方式一：从PyPI安装（推荐）**
+```bash
+# 安装核心包
+pip install ptradesim
+
+# 或使用Poetry
+poetry add ptradesim
+
+# 安装包含数据源的完整版本
+pip install ptradesim[data]  # 包含akshare和tushare
+```
+
+**方式二：从源码安装**
+```bash
+# 克隆并安装
+git clone https://github.com/kay-ou/ptradeSim.git
+cd ptradeSim
+pip install -e .  # 开发模式安装
+
+# 或使用Poetry
+poetry install --with data
+```
+
+**方式三：直接从GitHub安装**
+```bash
+pip install git+https://github.com/kay-ou/ptradeSim.git
+```
+
+### 💻 在代码中使用
+
+**基本使用示例**
+```python
+# 导入核心组件
+from ptradesim import BacktestEngine
+from ptradesim.data_sources import AkshareDataSource, CSVDataSource
+
+# 方式1：使用CSV数据源
+engine = BacktestEngine(
+    strategy_file='my_strategy.py',
+    data_path='data/my_data.csv',
+    start_date='2024-01-01',
+    end_date='2024-12-31',
+    initial_cash=1000000.0
+)
+engine.run()
+
+# 方式2：使用真实数据源
+akshare_source = AkshareDataSource()
+engine = BacktestEngine(
+    strategy_file='my_strategy.py',
+    data_source=akshare_source,
+    securities=['000001.SZ', '000002.SZ'],
+    start_date='2024-01-01',
+    end_date='2024-12-31',
+    initial_cash=1000000.0
+)
+engine.run()
+```
+
+**高级使用示例**
+```python
+from ptradesim import BacktestEngine
+from ptradesim.data_sources import TushareDataSource
+from ptradesim.performance import PerformanceAnalyzer
+import os
+
+# 配置Tushare数据源
+os.environ['TUSHARE_TOKEN'] = 'your_token_here'
+tushare_source = TushareDataSource()
+
+# 创建回测引擎
+engine = BacktestEngine(
+    strategy_file='strategies/my_advanced_strategy.py',
+    data_source=tushare_source,
+    securities=['000001.SZ', '000002.SZ', '600000.SH'],
+    start_date='2023-01-01',
+    end_date='2024-01-01',
+    initial_cash=1000000.0,
+    frequency='1d',  # 交易频率
+    commission_ratio=0.0003,  # 手续费率
+    min_commission=5.0  # 最小手续费
+)
+
+# 运行回测
+results = engine.run()
+
+# 性能分析
+analyzer = PerformanceAnalyzer(results)
+performance_metrics = analyzer.calculate_metrics()
+print(f"夏普比率: {performance_metrics['sharpe_ratio']:.2f}")
+print(f"最大回撤: {performance_metrics['max_drawdown']:.2%}")
+```
+
+### 🎯 命令行工具
+
+安装后可直接使用命令行工具：
+
+```bash
+# 使用ptradesim命令（推荐）
+ptradesim --strategy my_strategy.py --data-source akshare --securities 000001.SZ
+
+# 或使用python -m方式
+python -m ptradesim.cli --strategy my_strategy.py --data data.csv
+```
+
+### 📚 API参考
+
+安装后可以访问完整的API：
+
+```python
+# 核心引擎
+from ptradesim import BacktestEngine
+
+# 数据源
+from ptradesim.data_sources import (
+    AkshareDataSource,
+    TushareDataSource,
+    CSVDataSource
+)
+
+# 性能分析
+from ptradesim.performance import PerformanceAnalyzer
+
+# 工具函数
+from ptradesim.utils import (
+    validate_data_format,
+    calculate_returns,
+    format_currency
+)
+
+# 配置管理
+from ptradesim.config import DataConfig
+```
+
 ## 🤝 贡献指南
 
 我们欢迎任何形式的贡献！
 
-### 如何贡献
+### 📋 Git提交规范
 
-1. 🍴 Fork 本项目
-2. 🌿 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 📝 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 📤 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 🔄 提交 Pull Request
+我们使用[约定式提交](https://www.conventionalcommits.org/zh-hans/)规范，请按以下格式提交：
 
-### 贡献类型
+```
+<类型>[可选的作用域]: <描述>
 
-- 🐛 Bug修复
-- ✨ 新功能开发
-- 📚 文档改进
-- 🧪 测试用例
-- 🎨 代码优化
+[可选的正文]
+
+[可选的脚注]
+```
+
+#### 🏷️ 提交类型说明
+
+| 类型 | 描述 | 示例 |
+|------|------|------|
+| `feat` | ✨ 新功能 | `feat: 添加AkShare数据源支持` |
+| `fix` | 🐛 Bug修复 | `fix: 修复持仓计算错误` |
+| `docs` | 📚 文档更新 | `docs: 更新API参考文档` |
+| `style` | 🎨 代码格式 | `style: 格式化trading.py代码` |
+| `refactor` | ♻️ 代码重构 | `refactor: 重构数据源管理器` |
+| `test` | 🧪 测试相关 | `test: 添加财务API单元测试` |
+| `chore` | 🔧 构建/工具 | `chore: 更新依赖版本` |
+| `perf` | ⚡ 性能优化 | `perf: 优化历史数据查询性能` |
+| `ci` | 👷 CI/CD | `ci: 添加GitHub Actions工作流` |
+| `build` | 📦 构建系统 | `build: 更新Poetry配置` |
+| `revert` | ⏪ 回滚提交 | `revert: 回滚feat: 添加新功能` |
+
+#### 📝 提交示例
+
+```bash
+# 新功能
+git commit -m "feat(data): 添加Tushare数据源支持"
+
+# Bug修复
+git commit -m "fix(engine): 修复回测引擎内存泄漏问题"
+
+# 文档更新
+git commit -m "docs: 更新策略开发指南"
+
+# 测试添加
+git commit -m "test(api): 添加交易接口集成测试"
+
+# 重构代码
+git commit -m "refactor(core): 重构性能分析模块结构"
+```
+
+### 🚀 贡献流程
+
+1. 🍴 **Fork项目**: 点击GitHub页面右上角的Fork按钮
+2. 🌿 **创建分支**: `git checkout -b feat/your-feature-name`
+3. 💻 **开发功能**: 编写代码并确保测试通过
+4. 🧪 **运行测试**: `poetry run python run_tests.py`
+5. 📝 **提交更改**: 使用规范的提交信息
+6. 📤 **推送分支**: `git push origin feat/your-feature-name`
+7. 🔄 **创建PR**: 在GitHub上创建Pull Request
+
+### 🎯 贡献类型
+
+| 贡献类型 | 描述 | 优先级 |
+|----------|------|--------|
+| 🐛 **Bug修复** | 修复现有功能的问题 | 🔴 高 |
+| ✨ **新功能** | 添加新的功能特性 | 🟡 中 |
+| 📚 **文档改进** | 完善文档和示例 | 🟢 中 |
+| 🧪 **测试用例** | 增加测试覆盖率 | 🟢 中 |
+| 🎨 **代码优化** | 提升代码质量和性能 | 🔵 低 |
+| 🌐 **国际化** | 多语言支持 | 🔵 低 |
+
+### ✅ 贡献要求
+
+- **代码质量**: 遵循PEP 8规范，使用类型提示
+- **测试覆盖**: 新功能必须包含相应测试
+- **文档更新**: 重要功能需要更新相关文档
+- **向后兼容**: 避免破坏现有API接口
+- **性能考虑**: 确保不会显著影响性能
 
 ## 📋 版本历程
 
