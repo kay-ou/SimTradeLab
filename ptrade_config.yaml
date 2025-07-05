@@ -1,0 +1,44 @@
+# ptradeSim 数据源配置文件
+# 
+# 这个文件配置了ptradeSim的数据源设置
+# 支持多种数据源：CSV文件、Tushare、AkShare等
+
+# 数据源配置
+data_sources:
+  # 默认使用的数据源
+  default: csv
+  
+  # CSV文件数据源配置
+  csv:
+    data_path: "./data/sample_data.csv"
+  
+  # Tushare数据源配置
+  # 需要先注册获取token: https://tushare.pro
+  tushare:
+    token: ""  # 请填入您的Tushare token，或设置环境变量 TUSHARE_TOKEN
+    cache_dir: "./cache/tushare"
+    cache_enabled: true
+  
+  # AkShare数据源配置
+  # 免费开源数据源，无需token
+  akshare:
+    cache_dir: "./cache/akshare"
+    cache_enabled: true
+
+# 缓存配置
+cache:
+  enabled: true
+  ttl: 3600  # 缓存时间（秒），3600 = 1小时
+  max_size: 1000  # 最大缓存条目数
+
+# 网络配置
+network:
+  timeout: 30  # 网络超时时间（秒）
+  retry_times: 3  # 重试次数
+  retry_delay: 1  # 重试延迟（秒）
+
+# 使用说明：
+# 1. 如果使用CSV数据源，请确保data_path指向正确的CSV文件
+# 2. 如果使用Tushare，请先注册账号获取token
+# 3. 如果使用AkShare，无需额外配置，但建议启用缓存以提高性能
+# 4. 可以通过设置环境变量 TUSHARE_TOKEN 来避免在配置文件中明文存储token

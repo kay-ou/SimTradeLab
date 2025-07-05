@@ -10,23 +10,31 @@ from .logger import log
 def calculate_portfolio_returns(engine):
     """
     计算投资组合收益率序列
-    
+
     Args:
         engine: 回测引擎实例
-    
+
     Returns:
         pandas.Series: 投资组合收益率序列
     """
     if not engine.portfolio_history:
         log.warning("没有投资组合历史数据")
         return pd.Series()
-    
+
+    if len(engine.portfolio_history) < 2:
+        log.warning(f"投资组合历史数据不足（只有{len(engine.portfolio_history)}个数据点），至少需要2个数据点才能计算收益率")
+        return pd.Series()
+
     # 转换为DataFrame
     portfolio_df = pd.DataFrame(engine.portfolio_history)
     portfolio_df.set_index('datetime', inplace=True)
-    
+
     # 计算收益率
     returns = portfolio_df['total_value'].pct_change().dropna()
+
+    if returns.empty:
+        log.warning("计算出的收益率序列为空，可能是因为投资组合价值没有变化")
+
     return returns
 
 
@@ -42,9 +50,14 @@ def calculate_performance_metrics(engine, benchmark_returns=None):
         dict: 性能指标字典
     """
     portfolio_returns = calculate_portfolio_returns(engine)
-    
+
     if portfolio_returns.empty:
-        log.warning("无法计算性能指标：投资组合收益率为空")
+        if not engine.portfolio_history:
+            log.warning("无法计算性能指标：没有投资组合历史数据")
+        elif len(engine.portfolio_history) < 2:
+            log.warning(f"无法计算性能指标：数据点不足（{len(engine.portfolio_history)}个），建议增加回测期间")
+        else:
+            log.warning("无法计算性能指标：投资组合收益率为空")
         return {}
     
     # 基础指标

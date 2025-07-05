@@ -158,8 +158,8 @@ def create_minute_sample_data():
         import numpy as np
         
         # 交易时间：9:30-11:30, 13:00-15:00
-        morning_times = pd.date_range('2022-11-01 09:30:00', '2022-11-01 11:30:00', freq='1T')
-        afternoon_times = pd.date_range('2022-11-01 13:00:00', '2022-11-01 15:00:00', freq='1T')
+        morning_times = pd.date_range('2022-11-01 09:30:00', '2022-11-01 11:30:00', freq='1min')
+        afternoon_times = pd.date_range('2022-11-01 13:00:00', '2022-11-01 15:00:00', freq='1min')
         trading_times = morning_times.union(afternoon_times)
         
         minute_data = []

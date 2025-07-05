@@ -7,6 +7,7 @@ import os
 import types
 from datetime import datetime
 from functools import partial
+from typing import Union, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -14,6 +15,8 @@ import pandas as pd
 from . import financials, market_data, trading, utils
 from .context import Context, Portfolio
 from .logger import log
+from .data_sources import DataSourceFactory, DataSourceManager, CSVDataSource
+from .config import load_config
 
 
 class BacktestEngine:
@@ -21,13 +24,38 @@ class BacktestEngine:
     回测引擎，负责加载策略、模拟交易并运行回测。
     """
 
-    def __init__(self, strategy_file, data_path, start_date, end_date, initial_cash, frequency='1d'):
+    def __init__(self, strategy_file, data_path=None, start_date=None, end_date=None,
+                 initial_cash=1000000, frequency='1d', data_source=None,
+                 securities=None, config_path=None):
+        """
+        初始化回测引擎
+
+        Args:
+            strategy_file: 策略文件路径
+            data_path: CSV数据文件路径（向后兼容）
+            start_date: 开始日期
+            end_date: 结束日期
+            initial_cash: 初始资金
+            frequency: 交易频率
+            data_source: 数据源类型或数据源对象
+            securities: 股票列表（用于在线数据源）
+            config_path: 配置文件路径
+        """
         self.strategy_file = strategy_file
         self.data_path = data_path
-        self.start_date = pd.to_datetime(start_date)
-        self.end_date = pd.to_datetime(end_date)
+        self.start_date = pd.to_datetime(start_date) if start_date else None
+        self.end_date = pd.to_datetime(end_date) if end_date else None
         self.initial_cash = initial_cash
         self.frequency = frequency
+        self.securities = securities or []
+
+        # 加载配置
+        self.config = load_config(config_path)
+
+        # 初始化数据源
+        self.data_source_manager = self._init_data_source(data_source)
+
+        # 初始化其他组件
         self.portfolio = Portfolio(initial_cash)
         self.context = Context(self.portfolio)
         self.commission_ratio = 0.0003  # 默认佣金
@@ -37,6 +65,53 @@ class BacktestEngine:
         self.current_data = {}
         self.portfolio_history = []
         self.strategy = self._load_strategy()
+
+    def _init_data_source(self, data_source):
+        """初始化数据源管理器"""
+        if data_source is None:
+            # 向后兼容：如果指定了data_path，使用CSV数据源
+            if self.data_path:
+                primary_source = CSVDataSource(data_path=self.data_path)
+                log.info("使用CSV数据源（向后兼容模式）")
+            else:
+                # 使用配置文件中的默认数据源
+                default_source_name = self.config.get_default_source()
+                primary_source = self._create_data_source(default_source_name)
+                log.info(f"使用默认数据源: {default_source_name}")
+        elif isinstance(data_source, str):
+            # 根据字符串创建数据源
+            primary_source = self._create_data_source(data_source)
+            log.info(f"使用指定数据源: {data_source}")
+        else:
+            # 直接使用传入的数据源对象
+            primary_source = data_source
+            log.info(f"使用自定义数据源: {type(data_source).__name__}")
+
+        # 创建数据源管理器（暂时不添加备用数据源）
+        return DataSourceManager(primary_source)
+
+    def _create_data_source(self, source_name):
+        """根据名称创建数据源"""
+        source_config = self.config.get_source_config(source_name)
+
+        if source_name == 'csv':
+            data_path = source_config.get('data_path', self.data_path or './data/sample_data.csv')
+            return DataSourceFactory.create('csv', data_path=data_path)
+        elif source_name == 'tushare':
+            token = self.config.get_tushare_token()
+            if not token:
+                raise ValueError("Tushare token未配置，请设置环境变量TUSHARE_TOKEN或在配置文件中设置")
+            cache_dir = source_config.get('cache_dir', './cache/tushare')
+            cache_enabled = source_config.get('cache_enabled', True)
+            return DataSourceFactory.create('tushare', token=token,
+                                          cache_dir=cache_dir, cache_enabled=cache_enabled)
+        elif source_name == 'akshare':
+            cache_dir = source_config.get('cache_dir', './cache/akshare')
+            cache_enabled = source_config.get('cache_enabled', True)
+            return DataSourceFactory.create('akshare',
+                                          cache_dir=cache_dir, cache_enabled=cache_enabled)
+        else:
+            raise ValueError(f"不支持的数据源类型: {source_name}")
 
     def _load_strategy(self):
         """
@@ -59,8 +134,26 @@ class BacktestEngine:
             for func_name in dir(module):
                 if not func_name.startswith("__"):
                     api_func = getattr(module, func_name)
-                    if callable(api_func):
-                        setattr(strategy_module, func_name, partial(api_func, self))
+                    # 只注入函数，排除类、模块和其他对象
+                    if callable(api_func) and hasattr(api_func, '__call__') and not isinstance(api_func, type):
+                        # 创建一个安全的包装函数，确保返回值类型正确
+                        def create_wrapper(func, engine, name):
+                            def wrapper(*args, **kwargs):
+                                try:
+                                    result = func(engine, *args, **kwargs)
+                                    # 对于 get_research_path，确保返回字符串
+                                    if name == 'get_research_path' and not isinstance(result, str):
+                                        log.warning(f"get_research_path 返回了非字符串类型: {type(result)}, 使用默认路径")
+                                        return './'
+                                    return result
+                                except Exception as e:
+                                    log.warning(f"API函数 {name} 调用失败: {e}")
+                                    # 为关键函数提供默认返回值
+                                    if name == 'get_research_path':
+                                        return './'
+                                    raise
+                            return wrapper
+                        setattr(strategy_module, func_name, create_wrapper(api_func, self, func_name))
 
         # 注入不需要engine参数的函数（兼容性和性能模块）
         standalone_modules = [compatibility, performance]
@@ -78,31 +171,45 @@ class BacktestEngine:
 
     def _load_data(self):
         """
-        从CSV文件加载K线数据，并按证券代码分组。
+        使用数据源管理器加载数据
         """
         try:
-            df = pd.read_csv(self.data_path)
-            datetime_col = next((col for col in ['datetime', 'date', 'timestamp'] if col in df.columns), None)
+            # 如果没有指定日期范围，尝试从数据源获取可用的日期范围
+            if self.start_date is None or self.end_date is None:
+                log.warning("未指定日期范围，将尝试加载所有可用数据")
+                # 对于CSV数据源，可以从文件中推断日期范围
+                # 对于在线数据源，需要用户指定日期范围
+                if self.start_date is None:
+                    self.start_date = pd.to_datetime('2023-01-01')
+                if self.end_date is None:
+                    self.end_date = pd.to_datetime('2023-12-31')
 
-            if datetime_col is None:
-                log.warning("错误：找不到日期时间列（datetime/date/timestamp）")
-                return {}
+            # 确定要获取数据的股票列表
+            securities = self.securities
+            if not securities:
+                # 如果没有指定股票列表，尝试从数据源获取
+                securities = self.data_source_manager.get_stock_list()
+                if not securities:
+                    log.warning("无法获取股票列表，请在初始化时指定securities参数")
+                    return {}
+                # 限制股票数量以避免过多的API调用
+                securities = securities[:10]  # 默认只取前10只股票
+                log.info(f"自动选择股票列表: {securities}")
 
-            df[datetime_col] = pd.to_datetime(df[datetime_col])
-            df.set_index(datetime_col, inplace=True)
+            # 从数据源获取历史数据
+            data_dict = self.data_source_manager.get_history(
+                securities=securities,
+                start_date=self.start_date.strftime('%Y-%m-%d'),
+                end_date=self.end_date.strftime('%Y-%m-%d'),
+                frequency=self.frequency
+            )
 
-        except FileNotFoundError:
-            log.warning(f"错误：在 {self.data_path} 找不到数据文件")
-            return {}
+            log.info(f"成功加载 {len(data_dict)} 只股票的数据")
+            return data_dict
+
         except Exception as e:
-            log.warning(f"错误：加载数据文件失败 - {e}")
+            log.warning(f"加载数据失败: {e}")
             return {}
-
-        if self.frequency in ['1m', '5m', '15m', '30m'] and self._is_daily_data(df):
-            df = self._generate_minute_data(df)
-
-        # return dict(df.groupby('security')) 应该这个就可以了，但出错，怀疑python或者pandas的bug
-        return dict(iter(df.groupby('security')))
 
 
     def _is_daily_data(self, df):

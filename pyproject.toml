@@ -1,16 +1,50 @@
 [tool.poetry]
 name = "ptradesim"
-version = "0.1.0"
-description = "A Python simulator for the PTrade strategy framework."
+version = "2.1.0"
+description = "A comprehensive Python backtesting simulator for quantitative trading strategies with real data source integration"
 authors = ["Kay <kay@example.com>"]
 readme = "README.md"
 license = "MIT"
+homepage = "https://github.com/kay-ou/ptradeSim"
+repository = "https://github.com/kay-ou/ptradeSim"
+documentation = "https://github.com/kay-ou/ptradeSim/blob/main/README.md"
+keywords = ["trading", "backtesting", "quantitative", "finance", "strategy", "akshare", "tushare"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 packages = [{ include = "ptradeSim" }]
+include = [
+    "README.md",
+    "CHANGELOG.md",
+    "data/*.csv",
+    "strategies/*.py",
+    "docs/**/*",
+    "tests/**/*",
+]
+
+[tool.poetry.scripts]
+ptradesim = "ptradeSim.cli:main"
 
 [tool.poetry.dependencies]
 python = ">=3.10.0,<4.0.0"
 pandas = ">=2.3.0,<3.0.0"
+numpy = ">=1.24.0,<2.0.0"
 matplotlib = ">=3.10.3,<4.0.0"
+PyYAML = "^6.0"
+
+[tool.poetry.group.data.dependencies]
+akshare = { version = "^1.17.16", optional = true }
+tushare = { version = "^1.2.89", optional = true }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.1"

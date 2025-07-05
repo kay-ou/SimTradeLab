@@ -34,6 +34,11 @@ from .compatibility import (
     set_ptrade_version, get_version_info, validate_order_status, convert_order_status,
     PtradeVersion
 )
+from .data_sources import (
+    DataSourceFactory, DataSourceManager, CSVDataSource,
+    TUSHARE_AVAILABLE, AKSHARE_AVAILABLE
+)
+from .config import DataSourceConfig, load_config, save_config
 
 
 __version__ = "1.0.0"
@@ -69,4 +74,11 @@ __all__ = [
     # compatibility
     'set_ptrade_version', 'get_version_info', 'validate_order_status', 'convert_order_status',
     'PtradeVersion',
+
+    # data sources
+    'DataSourceFactory', 'DataSourceManager', 'CSVDataSource',
+    'TUSHARE_AVAILABLE', 'AKSHARE_AVAILABLE',
+
+    # config
+    'DataSourceConfig', 'load_config', 'save_config'
 ]

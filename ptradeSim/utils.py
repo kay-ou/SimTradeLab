@@ -13,18 +13,38 @@ def get_research_path(engine):
     """模拟get_research_path函数"""
     return './'
 
-def set_commission(engine, commission_ratio, min_commission):
-    """模拟set_commission函数"""
+def set_commission(engine, commission_ratio=0.0003, min_commission=5.0, type="STOCK"):
+    """
+    设置交易手续费
+
+    Args:
+        engine: 回测引擎实例
+        commission_ratio: 佣金费率，默认0.0003 (0.03%)
+        min_commission: 最低佣金，默认5.0元
+        type: 交易类型，默认"STOCK"
+    """
     engine.commission_ratio = commission_ratio
     engine.min_commission = min_commission
+    log.info(f"设置手续费 - 费率: {commission_ratio:.4f}, 最低佣金: {min_commission}元, 类型: {type}")
 
 def set_limit_mode(engine, mode):
-    """模拟set_limit_mode函数"""
-    pass
+    """模拟set_limit_mode函数，设置限价模式"""
+    engine.limit_mode = bool(mode)
+    log.info(f"设置限价模式: {'开启' if engine.limit_mode else '关闭'}")
 
 def run_interval(engine, context, func, seconds):
-    """模拟run_interval函数"""
-    pass
+    """模拟run_interval函数，定时执行函数"""
+    # 在模拟环境中，我们简单记录这个调用
+    # 实际的定时执行在真实环境中由框架处理
+    log.info(f"注册定时任务: 每{seconds}秒执行函数 {func.__name__ if hasattr(func, '__name__') else str(func)}")
+    # 可以将定时任务信息存储到引擎中，供后续使用
+    if not hasattr(engine, 'interval_tasks'):
+        engine.interval_tasks = []
+    engine.interval_tasks.append({
+        'func': func,
+        'seconds': seconds,
+        'context': context
+    })
 
 def clear_file(engine, file_path):
     """模拟clear_file函数, 会确保目录存在并删除文件"""
@@ -107,6 +127,11 @@ def _generate_benchmark_data(engine, benchmark):
     """生成模拟基准数据"""
     import pandas as pd
     import numpy as np
+
+    # 检查是否有数据
+    if not engine.data:
+        log.warning("没有股票数据，无法生成基准数据")
+        return
 
     # 获取第一个股票的时间序列作为基准
     first_security = list(engine.data.keys())[0]

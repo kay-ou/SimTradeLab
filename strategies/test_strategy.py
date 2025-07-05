@@ -19,7 +19,7 @@ def initialize(context):
     log.info(f"获取初始资金: {initial_cash:,.2f}")
 
     # 设置手续费
-    set_commission(0.0003, 5.0)
+    set_commission(commission_ratio=0.0003, min_commission=5.0, type="STOCK")
     log.info("设置手续费率: 0.03%, 最低5元")
 
     # 设置限价模式
