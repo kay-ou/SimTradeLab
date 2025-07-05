@@ -19,6 +19,14 @@ ptradeSim 是一个专为量化交易策略开发设计的轻量级Python回测�
 
 ### 🌟 v2.1.0 重大更新
 
+#### 📊 增强报告系统
+- **多格式报告生成**：支持TXT、JSON、CSV、HTML、摘要和图表等6种格式
+- **HTML交互式报告**：现代化网页界面，包含Chart.js图表和响应式设计
+- **智能摘要报告**：自动策略评级系统（优秀/良好/一般/较差）
+- **可视化图表**：matplotlib生成的高质量收益曲线图
+- **报告管理系统**：完整的文件管理、清理和索引功能
+- **策略分类存储**：按策略名称自动组织报告到独立目录
+
 #### 🔌 真实数据源集成
 - **AkShare数据源**：支持真实A股数据获取，包含实时价格、成交量等
 - **Tushare数据源**：专业级金融数据接口（需要token配置）
@@ -28,7 +36,7 @@ ptradeSim 是一个专为量化交易策略开发设计的轻量级Python回测�
 #### 🛠️ 引擎优化
 - **API注入机制优化**：修复了类对象被错误注入的问题，确保只注入函数
 - **性能分析增强**：改进了性能指标计算，提供更友好的错误提示
-
+- **兼容性提升**：移除非标准API，确保与ptrade完全兼容
 
 #### 📊 策略改进
 - **真实数据策略**：新增 `real_data_strategy.py` 展示如何使用真实A股数据
@@ -427,6 +435,107 @@ engine = BacktestEngine(
 - 策略性能指标计算
 - 基准对比分析
 - 风险指标评估
+
+## 📊 增强报告系统
+
+ptradeSim v2.1.0 引入了全新的多格式报告系统，为策略分析提供专业级的可视化和数据输出。
+
+### 🎯 报告格式
+
+每次运行策略后，系统会自动生成以下格式的报告：
+
+| 格式 | 文件扩展名 | 用途 | 特色功能 |
+|------|------------|------|----------|
+| 📝 **详细文本报告** | `.txt` | 完整策略分析 | 包含策略代码、性能指标、交易统计 |
+| 📊 **结构化数据** | `.json` | 程序化分析 | 机器可读格式，便于二次开发 |
+| 📈 **数据表格** | `.csv` | Excel分析 | 投资组合历史数据，支持图表制作 |
+| 🌐 **交互式网页** | `.html` | 现代化展示 | Chart.js图表、响应式设计 |
+| 📋 **智能摘要** | `.summary.txt` | 快速概览 | 策略评级、关键指标突出显示 |
+| 📊 **可视化图表** | `.png` | 直观展示 | 高质量收益曲线图 |
+
+### 🌟 核心特性
+
+#### 🌐 HTML交互式报告
+- **现代化设计**：渐变色彩、卡片布局、响应式界面
+- **实时图表**：Chart.js驱动的交互式收益曲线
+- **关键指标**：收益率、夏普比率、最大回撤等核心指标
+- **移动端友好**：支持手机和平板设备访问
+
+#### 📋 智能摘要报告
+- **自动评级**：基于多维度指标的策略评级系统
+  - 🌟 **优秀**：收益率高、风险控制好、夏普比率优秀
+  - 👍 **良好**：收益率较好、风险适中
+  - ⚠️ **一般**：收益率一般或风险较高
+  - ❌ **较差**：收益率低或风险过高
+- **精美格式**：ASCII艺术边框、表格化展示
+- **核心指标**：突出显示最重要的性能数据
+
+#### 📁 智能文件管理
+- **策略分类**：按策略名称自动组织到独立目录
+- **文件命名**：包含策略名、日期范围、参数信息的智能命名
+- **批量管理**：支持报告清理、索引导出等批量操作
+
+### 🛠️ 报告管理工具
+
+#### 命令行管理工具
+```bash
+# 查看所有报告
+poetry run python scripts/report_manager_cli.py list
+
+# 查看特定策略的报告
+poetry run python scripts/report_manager_cli.py list --strategy buy_and_hold
+
+# 显示报告统计摘要
+poetry run python scripts/report_manager_cli.py summary
+
+# 清理30天前的旧报告
+poetry run python scripts/report_manager_cli.py cleanup --days 30
+
+# 打开HTML报告
+poetry run python scripts/report_manager_cli.py open --strategy buy_and_hold --type html
+```
+
+#### 程序化管理
+```python
+from src.ptradesim.report_manager import ReportManager
+
+# 创建报告管理器
+manager = ReportManager()
+
+# 列出所有报告
+reports = manager.list_reports()
+
+# 获取统计摘要
+summary = manager.get_report_summary()
+
+# 清理旧报告
+deleted_count = manager.cleanup_old_reports(days=30, keep_latest=5)
+
+# 导出报告索引
+index_file = manager.export_report_index()
+```
+
+### 📊 报告示例
+
+运行策略后的输出示例：
+```
+📄 报告文件已生成:
+   📝 buy_and_hold_strategy_20230103_20230105_cash100w_freq1d_20250705_200926.txt
+   📊 buy_and_hold_strategy_20230103_20230105_cash100w_freq1d_20250705_200926.json
+   📈 buy_and_hold_strategy_20230103_20230105_cash100w_freq1d_20250705_200926.csv
+   🌐 buy_and_hold_strategy_20230103_20230105_cash100w_freq1d_20250705_200926.html
+   📋 buy_and_hold_strategy_20230103_20230105_cash100w_freq1d_20250705_200926.summary.txt
+   📊 buy_and_hold_strategy_20230103_20230105_cash100w_freq1d_20250705_200926.png
+   📁 报告目录: reports/buy_and_hold_strategy/
+```
+
+### 🎯 使用建议
+
+1. **查看HTML报告**：获得最佳的可视化体验和交互性
+2. **使用摘要报告**：快速了解策略表现和自动评级
+3. **分析JSON数据**：进行程序化的深度分析和二次开发
+4. **定期管理报告**：使用CLI工具清理和组织历史报告
+5. **导出索引文件**：便于报告归档和版本管理
 
 ## 🧪 测试
 
@@ -898,9 +1007,7 @@ git commit -m "refactor(core): 重构性能分析模块结构"
 
 #### 🛠️ 引擎核心优化
 - **API注入机制修复**：解决了类对象被错误注入的问题，确保只注入函数对象
-- **set_commission函数更新**：支持新签名 `set_commission(commission_ratio=0.0003, min_commission=5.0, type="STOCK")`
 - **性能分析增强**：改进性能指标计算，提供更友好的数据不足提示
-- **策略兼容性**：移除非标准API函数（如`on_strategy_end`），确保与ptrade完全兼容
 
 #### 📊 策略功能改进
 - **真实数据策略**：新增 `real_data_strategy.py` 展示真实A股数据使用

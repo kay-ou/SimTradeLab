@@ -95,11 +95,7 @@ def after_trading_end(context, data):
     for stock, position in positions.items():
         log.info(f"持仓：{stock} {position.amount}股，市值{position.market_value:.2f}")
 
-def on_strategy_end(context):
-    # 策略结束
-    final_value = context.portfolio.total_value
-    total_return = (final_value - 100000) / 100000 * 100
-    log.info(f"策略结束：最终资产{final_value:.2f}，总收益率{total_return:.2f}%")
+
 '''
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
@@ -333,8 +329,6 @@ def handle_data(context, data):
         context.error_count += 1
         log.info(f"策略级错误：{str(e)}")
 
-def on_strategy_end(context):
-    log.info(f"策略结束：错误次数{context.error_count}，成功交易{context.successful_trades}")
 '''
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
@@ -438,11 +432,6 @@ def handle_data(context, data):
         if stock not in positions:
             order(stock, 100)
 
-def on_strategy_end(context):
-    # 报告API测试结果
-    for api_category, result in context.api_test_results.items():
-        status = "成功" if result else "失败"
-        log.info(f"API测试 - {api_category}: {status}")
 '''
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:

@@ -1,104 +1,116 @@
-# Changelog
+# 更新日志
 
-All notable changes to this project will be documented in this file.
+本项目的所有重要变更都将记录在此文件中。
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
+项目遵循 [语义化版本](https://semver.org/spec/v2.0.0.html) 规范。
 
 ## [2.1.0] - 2025-07-05
 
-### 🌟 Major Features Added
+### 🌟 重大功能新增
 
-#### 🌐 Real Data Source Integration
-- **AkShare Integration**: Added support for real A-share market data with live prices, volumes, and trading information
-- **Tushare Integration**: Professional financial data interface support (requires token configuration)
-- **Smart Data Source Management**: Automatic fallback to backup data sources when primary source fails
-- **Configuration Management**: Unified data source configuration through `ptrade_config.yaml`
+#### 📊 增强报告系统
+- **多格式报告生成**: 支持TXT、JSON、CSV、HTML、摘要和图表等6种格式
+- **HTML交互式报告**: 现代化网页界面，包含Chart.js图表和响应式设计
+- **智能摘要报告**: 自动策略评级系统（优秀/良好/一般/较差）
+- **可视化图表**: matplotlib生成的高质量收益曲线图
+- **报告管理系统**: 完整的文件管理、清理和索引功能
+- **策略分类存储**: 按策略名称自动组织报告到独立目录
 
-#### ⚡ Command Line Tool
-- **Professional CLI**: New `ptradeSim.py` command-line tool for strategy execution
-- **Rich Parameter Support**: Comprehensive parameter configuration including strategy files, data sources, securities, time ranges, and initial capital
-- **Multiple Output Modes**: Verbose, quiet, and normal output modes for different use cases
-- **Smart Validation**: Automatic parameter validation and user-friendly error messages
+#### 🌐 真实数据源集成
+- **AkShare集成**: 支持A股实时行情数据，包含价格、成交量等交易信息
+- **Tushare集成**: 专业金融数据接口支持（需要配置token）
+- **智能数据源管理**: 主数据源失败时自动切换到备用数据源
+- **配置管理**: 通过 `ptrade_config.yaml` 统一管理数据源配置
 
-### 🛠️ Engine Optimizations
+#### ⚡ 命令行工具
+- **专业CLI**: 全新的 `ptradeSim.py` 命令行工具
+- **丰富参数支持**: 全面的参数配置，包括策略文件、数据源、股票代码、时间范围和初始资金
+- **多种输出模式**: 详细、安静和普通输出模式，适应不同使用场景
+- **智能验证**: 自动参数验证和用户友好的错误提示
 
-#### 🔧 Core Engine Improvements
-- **API Injection Fix**: Resolved issue where class objects were incorrectly injected, ensuring only function objects are injected
-- **set_commission Update**: New function signature `set_commission(commission_ratio=0.0003, min_commission=5.0, type="STOCK")`
-- **Performance Analysis Enhancement**: Improved performance metrics calculation with better error handling for insufficient data
-- **Strategy Compatibility**: Removed non-standard API functions (like `on_strategy_end`) to ensure full ptrade compatibility
+### 🛠️ 引擎优化
 
-#### 📊 Strategy Improvements
-- **Real Data Strategy**: New `real_data_strategy.py` demonstrating real A-share data usage
-- **Smart Fallback Mechanism**: Automatic switch to simple trading strategy when historical data is insufficient
-- **Detailed Trading Logs**: Chinese language log output for better strategy debugging and analysis
-- **Position Management**: Fixed position data format issues, supporting dictionary-format position information
+#### 🔧 核心引擎改进
+- **API注入修复**: 解决了类对象错误注入的问题，确保只注入函数对象
+- **手续费函数更新**: 新的函数签名 `set_commission(commission_ratio=0.0003, min_commission=5.0, type="STOCK")`
+- **性能分析增强**: 改进性能指标计算，对数据不足情况有更好的错误处理
+- **兼容性提升**: 移除非标准API（如`on_strategy_end`），确保与ptrade完全兼容
 
-### 🔧 Dependency Management
-- **Modular Dependencies**: Moved data source dependencies to optional groups, supporting on-demand installation
-- **Version Conflict Resolution**: Fixed akshare duplicate definition issues
-- **Simplified Installation**: Support for `poetry install --with data` to install data source dependencies
+#### 📊 策略改进
+- **真实数据策略**: 新增 `real_data_strategy.py` 演示A股真实数据使用
+- **智能回退机制**: 历史数据不足时自动切换到简单交易策略
+- **详细交易日志**: 中文日志输出，便于策略调试和分析
+- **持仓管理**: 修复持仓数据格式问题，支持字典格式的持仓信息
 
-### 📚 Documentation Updates
-- **Comprehensive README**: Updated with v2.1.0 features, real data source usage, and command-line tool documentation
-- **Usage Examples**: Added complete code examples for both CSV and real data sources
-- **Parameter Reference**: Detailed parameter tables and usage scenarios
-- **Quick Start Guide**: Streamlined onboarding process for new users
+### 🔧 依赖管理
+- **模块化依赖**: 将数据源依赖移至可选组，支持按需安装
+- **版本冲突解决**: 修复akshare重复定义问题
+- **简化安装**: 支持 `poetry install --with data` 安装数据源依赖
 
-### 🧪 Testing Improvements
-- **Real Data Testing**: Comprehensive testing with actual A-share data (Ping An Bank, Vanke A, SPDB)
-- **CLI Tool Testing**: Full command-line interface testing with various parameter combinations
-- **Error Handling**: Improved error messages and edge case handling
+### 📚 文档更新
+- **全面README**: 更新v2.1.0功能、真实数据源使用和命令行工具文档
+- **使用示例**: 添加CSV和真实数据源的完整代码示例
+- **参数参考**: 详细的参数表格和使用场景
+- **快速开始指南**: 为新用户简化入门流程
 
-### 🔄 Breaking Changes
-- **Command Line Tool**: Renamed from `run_strategy.py` to `ptradeSim.py` for better branding
-- **Data Source Configuration**: Changed from `data_path=AkshareDataSource()` to `data_source=AkshareDataSource()`
-- **Dependency Structure**: Data sources now require explicit installation with `--with data` flag
+### 🧪 测试改进
+- **真实数据测试**: 使用实际A股数据进行全面测试（平安银行、万科A、浦发银行）
+- **CLI工具测试**: 全面的命令行界面测试，包含各种参数组合
+- **错误处理**: 改进错误信息和边缘情况处理
+- **报告系统测试**: 多格式报告生成和管理功能的完整测试
 
-### 🐛 Bug Fixes
-- Fixed position data access issues with real data sources
-- Resolved historical data format inconsistencies
-- Corrected API injection mechanism to prevent class object injection
-- Fixed commission function signature compatibility
+### 🔄 破坏性变更
+- **命令行工具**: 从 `run_strategy.py` 重命名为 `ptradeSim.py`，提升品牌识别度
+- **数据源配置**: 从 `data_path=AkshareDataSource()` 改为 `data_source=AkshareDataSource()`
+- **依赖结构**: 数据源现在需要使用 `--with data` 标志显式安装
+- **非标准API移除**: 移除 `on_strategy_end` 等非标准API，确保ptrade兼容性
 
-### 📈 Performance Improvements
-- Optimized data loading for real data sources
-- Improved memory usage for large datasets
-- Enhanced error handling and recovery mechanisms
+### 🐛 问题修复
+- 修复真实数据源的持仓数据访问问题
+- 解决历史数据格式不一致问题
+- 纠正API注入机制，防止类对象注入
+- 修复手续费函数签名兼容性
+- 清理所有非标准API引用
+
+### 📈 性能改进
+- 优化真实数据源的数据加载
+- 改进大数据集的内存使用
+- 增强错误处理和恢复机制
+- 提升报告生成效率
 
 ---
 
 ## [2.0.0] - 2024-12
 
-### Added
-- Multi-data source support (Tushare, AkShare, CSV)
-- Configuration management through YAML files
-- Smart fallback mechanisms for data sources
-- Caching optimization for API calls
-- Backward compatibility with existing CSV data sources
+### 新增功能
+- 多数据源支持（Tushare、AkShare、CSV）
+- 通过YAML文件进行配置管理
+- 数据源智能回退机制
+- API调用缓存优化
+- 与现有CSV数据源的向后兼容性
 
-### Changed
-- Enhanced data source architecture
-- Improved error handling and logging
-- Updated documentation structure
+### 变更内容
+- 增强数据源架构
+- 改进错误处理和日志记录
+- 更新文档结构
 
-### Fixed
-- Data loading performance issues
-- API rate limiting problems
-- Configuration file parsing errors
+### 问题修复
+- 数据加载性能问题
+- API速率限制问题
+- 配置文件解析错误
 
 ---
 
 ## [1.0.0] - 2024-11
 
-### Added
-- Initial release of ptradeSim
-- Basic backtesting engine
-- CSV data source support
-- Strategy framework compatibility
-- Performance analysis tools
-- Basic documentation
+### 新增功能
+- ptradeSim首次发布
+- 基础回测引擎
+- CSV数据源支持
+- 策略框架兼容性
+- 性能分析工具
+- 基础文档
 
 ### Features
 - Strategy backtesting with historical data

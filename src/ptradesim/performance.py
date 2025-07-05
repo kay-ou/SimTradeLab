@@ -140,35 +140,35 @@ def calculate_performance_metrics(engine, benchmark_returns=None):
 def print_performance_report(engine, benchmark_returns=None):
     """
     打印性能分析报告
-    
+
     Args:
         engine: 回测引擎实例
         benchmark_returns: 基准收益率序列
     """
     metrics = calculate_performance_metrics(engine, benchmark_returns)
-    
+
     if not metrics:
         log.warning("无法生成性能报告")
         return
-    
+
     print("\n" + "=" * 60)
     print("策略性能分析报告")
     print("=" * 60)
-    
+
     # 基础收益指标
     print("\n📈 收益指标:")
     print(f"  总收益率:     {metrics['total_return']:.2%}")
     print(f"  年化收益率:   {metrics['annualized_return']:.2%}")
     print(f"  初始资金:     {metrics['initial_value']:,.2f}")
     print(f"  最终资金:     {metrics['final_value']:,.2f}")
-    
+
     # 风险指标
     print("\n📊 风险指标:")
     print(f"  年化波动率:   {metrics['volatility']:.2%}")
     print(f"  夏普比率:     {metrics['sharpe_ratio']:.3f}")
     print(f"  最大回撤:     {metrics['max_drawdown']:.2%}")
     print(f"  胜率:         {metrics['win_rate']:.2%}")
-    
+
     # 交易统计
     print("\n📋 交易统计:")
     print(f"  交易天数:     {metrics['trading_days']}天")
@@ -219,6 +219,160 @@ def get_performance_summary(engine, benchmark_returns=None):
         summary['beta'] = metrics['beta']
 
     return summary
+
+
+def generate_report_file(engine, benchmark_returns=None, output_dir="reports"):
+    """
+    生成回测报告文件
+
+    Args:
+        engine: 回测引擎实例
+        benchmark_returns: 基准收益率序列
+        output_dir: 输出目录
+
+    Returns:
+        str: 生成的报告文件路径
+    """
+    import os
+    from datetime import datetime
+
+    # 创建报告目录
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 获取策略名称和时间信息
+    strategy_name = os.path.basename(engine.strategy_file).replace('.py', '')
+    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    start_date = engine.start_date.strftime("%Y%m%d") if engine.start_date else "unknown"
+    end_date = engine.end_date.strftime("%Y%m%d") if engine.end_date else "unknown"
+
+    # 生成文件名
+    filename = f"{strategy_name}_{start_date}_{end_date}_{current_time}.txt"
+    filepath = os.path.join(output_dir, filename)
+
+    # 获取性能指标
+    metrics = calculate_performance_metrics(engine, benchmark_returns)
+
+    if not metrics:
+        log.warning("无法生成性能报告文件")
+        return None
+
+    # 生成报告内容
+    report_content = _generate_report_content(engine, metrics, benchmark_returns)
+
+    # 写入文件
+    try:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(report_content)
+
+        log.info(f"回测报告已保存到: {filepath}")
+        return filepath
+
+    except Exception as e:
+        log.warning(f"保存报告文件失败: {e}")
+        return None
+
+
+def _generate_report_content(engine, metrics, benchmark_returns=None):
+    """
+    生成报告内容
+
+    Args:
+        engine: 回测引擎实例
+        metrics: 性能指标字典
+        benchmark_returns: 基准收益率序列
+
+    Returns:
+        str: 报告内容
+    """
+    from datetime import datetime
+
+    lines = []
+
+    # 报告头部
+    lines.append("=" * 80)
+    lines.append("ptradeSim 策略回测报告")
+    lines.append("=" * 80)
+    lines.append("")
+
+    # 基本信息
+    lines.append("📋 基本信息:")
+    lines.append(f"  策略名称:     {os.path.basename(engine.strategy_file)}")
+    lines.append(f"  策略文件:     {engine.strategy_file}")
+    lines.append(f"  回测期间:     {engine.start_date.strftime('%Y-%m-%d')} 至 {engine.end_date.strftime('%Y-%m-%d')}")
+    lines.append(f"  交易频率:     {engine.frequency}")
+    lines.append(f"  报告生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # 数据源信息
+    if hasattr(engine, 'data_source') and engine.data_source:
+        lines.append(f"  数据源:       {type(engine.data_source).__name__}")
+    elif engine.data_path:
+        lines.append(f"  数据源:       CSV文件 ({engine.data_path})")
+
+    if engine.securities:
+        lines.append(f"  股票列表:     {', '.join(engine.securities)}")
+
+    lines.append("")
+
+    # 收益指标
+    lines.append("📈 收益指标:")
+    lines.append(f"  总收益率:     {metrics['total_return']:.2%}")
+    lines.append(f"  年化收益率:   {metrics['annualized_return']:.2%}")
+    lines.append(f"  初始资金:     ¥{metrics['initial_value']:,.2f}")
+    lines.append(f"  最终资金:     ¥{metrics['final_value']:,.2f}")
+    lines.append(f"  净收益:       ¥{metrics['final_value'] - metrics['initial_value']:,.2f}")
+    lines.append("")
+
+    # 风险指标
+    lines.append("📊 风险指标:")
+    lines.append(f"  年化波动率:   {metrics['volatility']:.2%}")
+    lines.append(f"  夏普比率:     {metrics['sharpe_ratio']:.3f}")
+    lines.append(f"  最大回撤:     {metrics['max_drawdown']:.2%}")
+    lines.append(f"  胜率:         {metrics['win_rate']:.2%}")
+    lines.append("")
+
+    # 交易统计
+    lines.append("📋 交易统计:")
+    lines.append(f"  交易天数:     {metrics['trading_days']}天")
+    lines.append(f"  总交易次数:   {metrics['total_trades']}次")
+
+    if metrics['trading_days'] > 0:
+        avg_trades_per_day = metrics['total_trades'] / metrics['trading_days']
+        lines.append(f"  日均交易次数: {avg_trades_per_day:.2f}次")
+
+    lines.append("")
+
+    # 基准对比（如果有）
+    if benchmark_returns is not None and 'alpha' in metrics:
+        lines.append("📊 基准对比:")
+        lines.append(f"  基准总收益率: {metrics['benchmark_total_return']:.2%}")
+        lines.append(f"  基准年化收益: {metrics['benchmark_annualized_return']:.2%}")
+        lines.append(f"  基准波动率:   {metrics['benchmark_volatility']:.2%}")
+        lines.append(f"  Alpha:        {metrics['alpha']:.3f}")
+        lines.append(f"  Beta:         {metrics['beta']:.3f}")
+        lines.append(f"  信息比率:     {metrics['information_ratio']:.3f}")
+        lines.append(f"  跟踪误差:     {metrics['tracking_error']:.2%}")
+        lines.append("")
+
+    # 持仓信息
+    if hasattr(engine, 'context') and hasattr(engine.context, 'portfolio'):
+        lines.append("💼 最终持仓:")
+        portfolio = engine.context.portfolio
+        lines.append(f"  现金余额:     ¥{portfolio.cash:,.2f}")
+
+        if hasattr(portfolio, 'positions') and portfolio.positions:
+            lines.append("  股票持仓:")
+            for security, position in portfolio.positions.items():
+                if hasattr(position, 'amount') and position.amount > 0:
+                    market_value = getattr(position, 'market_value', 0)
+                    lines.append(f"    {security}: {position.amount}股, 市值¥{market_value:,.2f}")
+        lines.append("")
+
+    # 报告尾部
+    lines.append("=" * 80)
+    lines.append("报告结束")
+    lines.append("=" * 80)
+
+    return "\n".join(lines)
 
 
 # 全局引擎引用（用于策略中的无参数调用）

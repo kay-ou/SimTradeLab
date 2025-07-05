@@ -28,8 +28,10 @@ from .utils import (
     get_trading_day, get_all_trades_days, get_trade_days
 )
 from .performance import (
-    calculate_performance_metrics, print_performance_report, get_performance_summary
+    calculate_performance_metrics, print_performance_report, get_performance_summary,
+    generate_report_file
 )
+from .report_generator import ReportGenerator
 from .compatibility import (
     set_ptrade_version, get_version_info, validate_order_status, convert_order_status,
     PtradeVersion
@@ -70,6 +72,7 @@ __all__ = [
 
     # performance
     'calculate_performance_metrics', 'print_performance_report', 'get_performance_summary',
+    'generate_report_file', 'ReportGenerator',
 
     # compatibility
     'set_ptrade_version', 'get_version_info', 'validate_order_status', 'convert_order_status',

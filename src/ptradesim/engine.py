@@ -298,7 +298,8 @@ class BacktestEngine:
         log.info("策略回测结束")
 
         # 生成性能分析报告
-        self._generate_performance_report()
+        generated_files = self._generate_performance_report()
+        return generated_files
 
     def _run_daily_backtest(self, trading_days):
         """
@@ -382,6 +383,7 @@ class BacktestEngine:
     def _generate_performance_report(self):
         """生成性能分析报告"""
         from .performance import print_performance_report
+        from .report_generator import ReportGenerator
         from .utils import get_benchmark_returns
 
         # 获取基准收益率（如果设置了基准）
@@ -391,3 +393,69 @@ class BacktestEngine:
 
         # 打印性能报告
         print_performance_report(self, benchmark_returns)
+
+        # 生成多格式报告文件
+        report_generator = ReportGenerator(self)
+        generated_files = []
+
+        # 生成综合文本报告
+        txt_file = report_generator.generate_comprehensive_report(
+            benchmark_returns=benchmark_returns,
+            include_strategy_code=True,
+            include_trade_details=True
+        )
+        if txt_file:
+            generated_files.append(txt_file)
+
+        # 生成JSON报告（用于程序化分析）
+        json_file = report_generator.generate_json_report(benchmark_returns)
+        if json_file:
+            generated_files.append(json_file)
+
+        # 生成CSV报告（投资组合历史）
+        csv_file = report_generator.generate_csv_report()
+        if csv_file:
+            generated_files.append(csv_file)
+
+        # 生成HTML交互式报告
+        html_file = report_generator.generate_html_report(benchmark_returns)
+        if html_file:
+            generated_files.append(html_file)
+
+        # 生成简洁摘要报告
+        summary_file = report_generator.generate_summary_report(benchmark_returns)
+        if summary_file:
+            generated_files.append(summary_file)
+
+        # 生成收益曲线图表（如果matplotlib可用）
+        chart_file = report_generator.generate_performance_chart()
+        if chart_file:
+            generated_files.append(chart_file)
+
+        # 显示生成的文件
+        if generated_files:
+            print(f"\n📄 报告文件已生成:")
+            for file_path in generated_files:
+                file_type = self._get_file_type_emoji(file_path)
+                print(f"   {file_type} {os.path.basename(file_path)}")
+            print(f"   📁 报告目录: {os.path.dirname(generated_files[0])}")
+
+        return generated_files
+
+    def _get_file_type_emoji(self, file_path: str) -> str:
+        """根据文件类型返回对应的emoji"""
+        if file_path.endswith('.txt'):
+            if 'summary' in file_path:
+                return '📋'
+            else:
+                return '📝'
+        elif file_path.endswith('.json'):
+            return '📊'
+        elif file_path.endswith('.csv'):
+            return '📈'
+        elif file_path.endswith('.html'):
+            return '🌐'
+        elif file_path.endswith('.png'):
+            return '📊'
+        else:
+            return '📄'
