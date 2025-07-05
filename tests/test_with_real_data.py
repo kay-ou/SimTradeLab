@@ -12,7 +12,7 @@ import sys
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(__file__))
 
-from src import BacktestEngine, log
+from ptradesim import BacktestEngine, log
 
 
 def test_tushare_with_token():
@@ -167,7 +167,7 @@ def create_sample_config():
     print("创建示例配置文件")
     print("="*60)
     
-    from src.config import create_sample_config
+    from ptradesim.config import create_sample_config
     
     config_path = 'ptrade_config_sample.yaml'
     create_sample_config(config_path)

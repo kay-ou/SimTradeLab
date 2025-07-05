@@ -8,7 +8,7 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.engine import BacktestEngine
+from ptradesim.engine import BacktestEngine
 
 
 def test_trading_calendar_demo():

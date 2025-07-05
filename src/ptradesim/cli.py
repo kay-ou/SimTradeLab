@@ -9,8 +9,9 @@ ptradeSim 命令行接口模块
 import sys
 import os
 
-# 添加当前目录到路径，确保可以导入 ptradeSim.py
-current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 添加项目根目录到路径，确保可以导入 ptradeSim.py
+# 从 src/ptradesim/cli.py 到项目根目录需要向上两级
+current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, current_dir)
 
 

@@ -13,7 +13,7 @@ from unittest.mock import patch, MagicMock
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src import (
+from ptradesim import (
     BacktestEngine, DataSourceFactory, DataSourceManager, CSVDataSource,
     DataSourceConfig, load_config, TUSHARE_AVAILABLE, AKSHARE_AVAILABLE
 )

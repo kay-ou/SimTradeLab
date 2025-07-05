@@ -76,7 +76,7 @@ pip install akshare      # AkShare数据源
 **方式二：直接下载**
 ```bash
 # 下载并解压项目文件
-wget https://github.com/kaykouo/src/archive/main.zip
+wget https://github.com/kaykouo/ptradesim/archive/main.zip
 unzip main.zip && cd ptradeSim-main
 poetry install
 ```
@@ -110,7 +110,7 @@ poetry run python main.py
 
 # 或运行买入持有策略
 poetry run python -c "
-from src.engine import BacktestEngine
+from ptradesim.engine import BacktestEngine
 engine = BacktestEngine(
     strategy_file='strategies/buy_and_hold.py',
     data_path='data/sample_data.csv',
@@ -126,8 +126,8 @@ engine.run()
 ```bash
 # 使用AkShare数据源获取真实A股数据
 poetry run python -c "
-from src import BacktestEngine
-from src.data_sources import AkshareDataSource
+from ptradesim import BacktestEngine
+from ptradesim.data_sources import AkshareDataSource
 
 # 创建AkShare数据源
 akshare_source = AkshareDataSource()
@@ -151,8 +151,8 @@ engine.run()
 export TUSHARE_TOKEN=your_token_here
 
 poetry run python -c "
-from src import BacktestEngine
-from src.data_sources import TushareDataSource
+from ptradesim import BacktestEngine
+from ptradesim.data_sources import TushareDataSource
 
 tushare_source = TushareDataSource()
 engine = BacktestEngine(
@@ -310,7 +310,7 @@ def after_trading_end(context, data):
 ```bash
 # 创建回测引擎并运行
 poetry run python -c "
-from src.engine import BacktestEngine
+from ptradesim.engine import BacktestEngine
 engine = BacktestEngine(
     strategy_file='my_strategy.py',
     data_path='data/sample_data.csv',
@@ -351,8 +351,8 @@ data_sources:
 **方法2：直接在代码中使用**
 
 ```python
-from src import BacktestEngine
-from src.data_sources import AkshareDataSource
+from ptradesim import BacktestEngine
+from ptradesim.data_sources import AkshareDataSource
 
 # 创建数据源
 akshare_source = AkshareDataSource()
@@ -465,28 +465,29 @@ poetry run python tests/test_minute_trading.py     # 分钟级交易测试
 
 ```
 ptradeSim/
-├── 📁 src/                # 核心源代码包
-│   ├── __init__.py            # 包初始化文件
-│   ├── engine.py              # 回测引擎核心
-│   ├── context.py             # 上下文和投资组合管理
-│   ├── trading.py             # 交易执行接口
-│   ├── market_data.py         # 市场数据接口
-│   ├── financials.py          # 财务数据接口
-│   ├── utils.py               # 工具函数集合
-│   ├── performance.py         # 性能分析模块
-│   ├── logger.py              # 日志管理
-│   ├── compatibility.py       # 版本兼容性
-│   ├── cli.py                 # 命令行接口
-│   ├── 📁 config/             # 配置管理
-│   │   ├── __init__.py
-│   │   └── data_config.py     # 数据配置
-│   └── 📁 data_sources/       # 数据源模块
-│       ├── __init__.py
-│       ├── base.py            # 数据源基类
-│       ├── csv_source.py      # CSV数据源
-│       ├── akshare_source.py  # AkShare数据源
-│       ├── tushare_source.py  # Tushare数据源
-│       └── manager.py         # 数据源管理器
+├── 📁 src/                    # 源代码目录
+│   └── 📁 ptradesim/          # 核心包
+│       ├── __init__.py            # 包初始化文件
+│       ├── engine.py              # 回测引擎核心
+│       ├── context.py             # 上下文和投资组合管理
+│       ├── trading.py             # 交易执行接口
+│       ├── market_data.py         # 市场数据接口
+│       ├── financials.py          # 财务数据接口
+│       ├── utils.py               # 工具函数集合
+│       ├── performance.py         # 性能分析模块
+│       ├── logger.py              # 日志管理
+│       ├── compatibility.py       # 版本兼容性
+│       ├── cli.py                 # 命令行接口
+│       ├── 📁 config/             # 配置管理
+│       │   ├── __init__.py
+│       │   └── data_config.py     # 数据配置
+│       └── 📁 data_sources/       # 数据源模块
+│           ├── __init__.py
+│           ├── base.py            # 数据源基类
+│           ├── csv_source.py      # CSV数据源
+│           ├── akshare_source.py  # AkShare数据源
+│           ├── tushare_source.py  # Tushare数据源
+│           └── manager.py         # 数据源管理器
 ├── 📁 strategies/             # 策略文件夹
 │   ├── buy_and_hold_strategy.py        # 买入持有策略
 │   ├── dual_moving_average_strategy.py # 双均线策略
@@ -730,7 +731,7 @@ def handle_data(context, data):
 
 **⭐ 如果这个项目对你有帮助，请给我们一个Star！**
 
-[🐛 报告Bug](https://github.com/kaykouo/src/issues) • [💡 功能建议](https://github.com/kaykouo/src/issues) • [📖 文档中心](docs/README.md) • [🔧 API参考](docs/API_REFERENCE.md) • [📋 数据格式](docs/DATA_FORMAT.md)
+[🐛 报告Bug](https://github.com/kaykouo/ptradesim/issues) • [💡 功能建议](https://github.com/kaykouo/ptradesim/issues) • [📖 文档中心](docs/README.md) • [🔧 API参考](docs/API_REFERENCE.md) • [📋 数据格式](docs/DATA_FORMAT.md)
 
 <div align="center">
   <img src="sponsor/WechatPay.png" alt="WechatPay" width="200" style="margin-right:20px;" />

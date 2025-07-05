@@ -21,7 +21,7 @@ ptradeSim 支持多种交易频率，从分钟级到月线级别，满足不同�
 ### 创建分钟级策略
 
 ```python
-from src.engine import BacktestEngine
+from ptradesim.engine import BacktestEngine
 
 # 创建1分钟级回测引擎
 engine = BacktestEngine(

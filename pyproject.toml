@@ -22,7 +22,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-packages = [{ include = "src" }]
+packages = [
+  { include = "ptradesim", from = "src" }
+]
 include = [
     "README.md",
     "CHANGELOG.md",
@@ -33,7 +35,7 @@ include = [
 ]
 
 [tool.poetry.scripts]
-ptradesim = "src.cli:main"
+ptradesim = "ptradesim.cli:main"
 
 [tool.poetry.dependencies]
 python = ">=3.10.0,<4.0.0"
@@ -58,7 +60,7 @@ minversion = "6.0"
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=src",
+    "--cov=ptradesim",
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
     "--cov-report=xml",
@@ -74,7 +76,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src"]
+source = ["ptradesim"]
 omit = [
     "*/tests/*",
     "*/test_*.py",

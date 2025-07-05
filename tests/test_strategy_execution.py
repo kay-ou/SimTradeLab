@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import pandas as pd
-from src import BacktestEngine
+from ptradesim import BacktestEngine
 
 def test_strategy_execution():
     """测试策略完整执行流程"""

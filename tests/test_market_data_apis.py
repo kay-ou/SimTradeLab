@@ -7,7 +7,7 @@
 import pandas as pd
 import numpy as np
 from functools import partial
-from src import (
+from ptradesim import (
     BacktestEngine,
     get_price,
     get_current_data,

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from src import (
+from ptradesim import (
     BacktestEngine, log, get_Ashares, get_stock_status, get_stock_info, get_stock_name,
     get_fundamentals, get_history, get_price,
     order, order_target, order_value, set_universe,

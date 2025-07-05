@@ -7,7 +7,7 @@
 import pandas as pd
 import pandas as pd
 from functools import partial
-from src import (
+from ptradesim import (
     BacktestEngine,
     get_fundamentals,
     get_income_statement,

@@ -9,8 +9,8 @@ import pandas as pd
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.engine import BacktestEngine
-from src.utils import get_trading_day, get_all_trades_days, get_trade_days
+from ptradesim.engine import BacktestEngine
+from ptradesim.utils import get_trading_day, get_all_trades_days, get_trade_days
 
 
 def test_trading_calendar():

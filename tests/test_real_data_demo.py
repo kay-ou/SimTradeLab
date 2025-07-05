@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(__file__))
 
-from src import (
+from ptradesim import (
     BacktestEngine, DataSourceFactory, DataSourceConfig, 
     TUSHARE_AVAILABLE, AKSHARE_AVAILABLE, log
 )

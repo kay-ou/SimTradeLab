@@ -6,7 +6,7 @@
 """
 
 import pandas as pd
-from src import BacktestEngine
+from ptradesim import BacktestEngine
 
 def test_daily_trading():
     """测试日线交易"""

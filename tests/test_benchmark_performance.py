@@ -9,7 +9,7 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.engine import BacktestEngine
+from ptradesim.engine import BacktestEngine
 
 
 def test_benchmark_simple_mode():
@@ -92,8 +92,8 @@ def test_benchmark_ma_cross_mode():
         print("性能指标验证")
         print("=" * 70)
         
-        from src.performance import calculate_performance_metrics
-        from src.utils import get_benchmark_returns
+        from ptradesim.performance import calculate_performance_metrics
+        from ptradesim.utils import get_benchmark_returns
         
         # 获取基准收益率
         benchmark_returns = get_benchmark_returns(engine, engine.start_date, engine.end_date)

@@ -28,7 +28,7 @@ pip install akshare
 #### 使用CSV数据源（向后兼容）
 
 ```python
-from src import BacktestEngine
+from ptradesim import BacktestEngine
 
 # 传统方式，完全向后兼容
 engine = BacktestEngine(
@@ -45,7 +45,7 @@ engine.run()
 #### 使用Tushare数据源
 
 ```python
-from src import BacktestEngine
+from ptradesim import BacktestEngine
 
 # 设置环境变量
 import os
@@ -67,7 +67,7 @@ engine.run()
 #### 使用AkShare数据源
 
 ```python
-from src import BacktestEngine
+from ptradesim import BacktestEngine
 
 # 使用AkShare数据源（无需token）
 engine = BacktestEngine(
@@ -112,7 +112,7 @@ cache:
 ### 使用配置文件
 
 ```python
-from src import BacktestEngine, load_config
+from ptradesim import BacktestEngine, load_config
 
 # 加载配置
 config = load_config('ptrade_config.yaml')
@@ -132,8 +132,8 @@ engine = BacktestEngine(
 ### 自定义数据源
 
 ```python
-from src import BacktestEngine
-from src.data_sources import TushareDataSource
+from ptradesim import BacktestEngine
+from ptradesim.data_sources import TushareDataSource
 
 # 创建自定义数据源
 data_source = TushareDataSource(
@@ -156,7 +156,7 @@ engine = BacktestEngine(
 ### 数据源管理器
 
 ```python
-from src.data_sources import DataSourceManager, TushareDataSource, CSVDataSource
+from ptradesim.data_sources import DataSourceManager, TushareDataSource, CSVDataSource
 
 # 创建主数据源和备用数据源
 primary = TushareDataSource(token='your_token')

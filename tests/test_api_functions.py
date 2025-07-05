@@ -7,12 +7,12 @@ import pandas as pd
 from unittest.mock import Mock, patch
 from pathlib import Path
 
-from src import (
+from ptradesim import (
     trading, market_data, financials, utils,
     get_MACD, get_KDJ, get_RSI, get_CCI,
     get_positions, get_orders, get_trades
 )
-from src.engine import BacktestEngine
+from ptradesim.engine import BacktestEngine
 
 
 class TestTradingAPI:
