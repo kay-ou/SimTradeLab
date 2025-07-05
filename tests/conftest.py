@@ -173,26 +173,79 @@ def capture_logs():
     """捕获日志输出"""
     import logging
     from io import StringIO
-    
+
     log_capture = StringIO()
     handler = logging.StreamHandler(log_capture)
     logger = logging.getLogger('ptradesim')
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
-    
+
     yield log_capture
-    
+
     logger.removeHandler(handler)
+
+
+@pytest.fixture
+def sample_strategy_file(temp_dir):
+    """创建示例策略文件"""
+    strategy_content = '''
+def initialize(context):
+    context.stocks = ['STOCK_A', 'STOCK_B']
+    context.counter = 0
+
+def handle_data(context, data):
+    context.counter += 1
+    if len(data) > 0:
+        stock = list(data.keys())[0]
+        if context.counter == 1:
+            order(stock, 100)
+
+def before_trading_start(context, data):
+    pass
+
+def after_trading_end(context, data):
+    pass
+'''
+
+    strategy_path = Path(temp_dir) / "sample_strategy.py"
+    strategy_path.write_text(strategy_content)
+    return str(strategy_path)
+
+
+@pytest.fixture
+def sample_data_file(temp_dir):
+    """创建示例数据文件"""
+    import pandas as pd
+
+    data_rows = []
+    for i in range(10):
+        for stock in ['STOCK_A', 'STOCK_B']:
+            data_rows.append({
+                'date': f'2023-01-{i+1:02d}',
+                'security': stock,
+                'open': 10.0 + i * 0.1,
+                'high': 11.0 + i * 0.1,
+                'low': 9.0 + i * 0.1,
+                'close': 10.5 + i * 0.1,
+                'volume': 1000 + i * 100
+            })
+
+    df = pd.DataFrame(data_rows)
+    data_path = Path(temp_dir) / "sample_data.csv"
+    df.to_csv(data_path, index=False)
+    return str(data_path)
 
 
 # 测试标记
 def pytest_configure(config):
     """配置pytest"""
-    config.addinivalue_line("markers", "unit: Unit tests")
-    config.addinivalue_line("markers", "integration: Integration tests")
-    config.addinivalue_line("markers", "slow: Slow tests")
-    config.addinivalue_line("markers", "data: Tests requiring data files")
-    config.addinivalue_line("markers", "network: Tests requiring network access")
+    config.addinivalue_line("markers", "unit: 单元测试")
+    config.addinivalue_line("markers", "integration: 集成测试")
+    config.addinivalue_line("markers", "performance: 性能测试")
+    config.addinivalue_line("markers", "e2e: 端到端测试")
+    config.addinivalue_line("markers", "slow: 慢速测试")
+    config.addinivalue_line("markers", "data: 需要数据文件的测试")
+    config.addinivalue_line("markers", "network: 需要网络访问的测试")
 
 
 def pytest_collection_modifyitems(config, items):
