@@ -28,3 +28,6 @@ MANIFEST
 pickles_test/
 pickles_trade/
 .roo/mcp.json
+.coverage
+coverage.xml
+htmlcov/
