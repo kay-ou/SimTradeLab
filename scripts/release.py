@@ -16,6 +16,7 @@ import sys
 import subprocess
 import json
 import re
+import argparse
 from pathlib import Path
 from datetime import datetime
 
@@ -165,38 +166,92 @@ def create_release_notes_file(version, notes):
     return release_notes_path
 
 
+def parse_arguments():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(
+        description='SimTradeLab 发布脚本',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+使用示例:
+  python scripts/release.py                    # 完整发布流程
+  python scripts/release.py --skip-tests       # 跳过测试
+  python scripts/release.py --dry-run          # 预览模式，不执行实际操作
+        """
+    )
+
+    parser.add_argument('--skip-tests',
+                       action='store_true',
+                       help='跳过测试步骤')
+    parser.add_argument('--dry-run',
+                       action='store_true',
+                       help='预览模式，显示将要执行的操作但不实际执行')
+
+    return parser.parse_args()
+
+
 def main():
     """主发布流程"""
+    args = parse_arguments()
+
     print("🚀 simtradelab 发布流程开始")
     print("=" * 50)
-    
+
+    if args.dry_run:
+        print("🔍 预览模式 - 不会执行实际操作")
+    if args.skip_tests:
+        print("⚠️  跳过测试步骤")
+    print()
+
     try:
         # 1. 获取版本信息
         version = get_version_from_pyproject()
         print(f"📋 准备发布版本: v{version}")
-        
+
         # 2. 检查Git状态
-        check_git_status()
-        
-        # 3. 运行测试
-        run_tests()
-        
+        if not args.dry_run:
+            check_git_status()
+        else:
+            print("🔍 [预览] 检查Git状态")
+
+        # 3. 运行测试 (可选)
+        if not args.skip_tests:
+            if not args.dry_run:
+                run_tests()
+            else:
+                print("🔍 [预览] 运行测试")
+        else:
+            print("⏭️  跳过测试步骤")
+
         # 4. 构建包
-        build_package()
-        
+        if not args.dry_run:
+            build_package()
+        else:
+            print("🔍 [预览] 构建包")
+
         # 5. 创建Git标签
-        create_git_tag(version)
-        
+        if not args.dry_run:
+            create_git_tag(version)
+        else:
+            print("🔍 [预览] 创建Git标签")
+
         # 6. 生成发布说明
-        release_notes = generate_release_notes(version)
-        notes_file = create_release_notes_file(version, release_notes)
-        
+        if not args.dry_run:
+            release_notes = generate_release_notes(version)
+            notes_file = create_release_notes_file(version, release_notes)
+        else:
+            print("🔍 [预览] 生成发布说明")
+            notes_file = f"release-notes-v{version}.md"
+
         print("\n" + "=" * 50)
-        print("🎉 发布准备完成!")
+        if args.dry_run:
+            print("🔍 预览完成! (未执行实际操作)")
+        else:
+            print("🎉 发布准备完成!")
         print(f"📋 版本: v{version}")
-        print(f"📄 发布说明: {notes_file}")
-        print(f"📦 分发文件: dist/")
-        
+        if not args.dry_run:
+            print(f"📄 发布说明: {notes_file}")
+            print(f"📦 分发文件: dist/")
+
         print("\n📋 下一步操作:")
         print("1. 推送标签到远程仓库:")
         print(f"   git push origin v{version}")
@@ -204,7 +259,8 @@ def main():
         print(f"   - 访问: https://github.com/kay-ou/SimTradeLab/releases/new")
         print(f"   - 选择标签: v{version}")
         print(f"   - 复制发布说明: {notes_file}")
-        print(f"   - 上传分发文件: dist/*")
+        if not args.dry_run:
+            print(f"   - 上传分发文件: dist/*")
         print("\n3. 发布到PyPI (可选):")
         print("   poetry publish")
         

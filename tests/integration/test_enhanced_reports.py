@@ -210,24 +210,33 @@ def test_report_manager():
         # 测试索引导出
         print("\n📤 测试索引导出功能...")
         index_file = manager.export_report_index("test_index.json")
-        
-        if index_file and os.path.exists(index_file):
-            print(f"   ✅ 索引文件已生成: {os.path.basename(index_file)}")
-            
-            # 验证索引文件内容
-            import json
-            with open(index_file, 'r', encoding='utf-8') as f:
-                index_data = json.load(f)
-            
-            required_keys = ['generated_at', 'summary', 'reports']
-            for key in required_keys:
-                if key in index_data:
-                    print(f"   ✅ 包含 {key}")
-                else:
-                    print(f"   ❌ 缺少 {key}")
-        else:
-            print("   ❌ 索引文件生成失败")
-            return False
+
+        try:
+            if index_file and os.path.exists(index_file):
+                print(f"   ✅ 索引文件已生成: {os.path.basename(index_file)}")
+
+                # 验证索引文件内容
+                import json
+                with open(index_file, 'r', encoding='utf-8') as f:
+                    index_data = json.load(f)
+
+                required_keys = ['generated_at', 'summary', 'reports']
+                for key in required_keys:
+                    if key in index_data:
+                        print(f"   ✅ 包含 {key}")
+                    else:
+                        print(f"   ❌ 缺少 {key}")
+            else:
+                print("   ❌ 索引文件生成失败")
+                return False
+        finally:
+            # 清理测试生成的索引文件
+            if index_file and os.path.exists(index_file):
+                try:
+                    os.remove(index_file)
+                    print(f"   🧹 已清理测试文件: {os.path.basename(index_file)}")
+                except Exception as e:
+                    print(f"   ⚠️  清理测试文件失败: {e}")
         
         return True
         

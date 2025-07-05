@@ -2,7 +2,7 @@
 name = "simtradelab"
 version = "1.0.0"
 description = "开源策略回测框架，灵感来自PTrade的事件驱动模型，提供轻量、清晰、可插拔的策略验证环境"
-authors = ["Kay <kay@example.com>"]
+authors = ["Kay <kayou@duck.com>"]
 readme = "README.md"
 license = "MIT"
 homepage = "https://github.com/kay-ou/SimTradeLab"

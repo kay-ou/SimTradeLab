@@ -157,7 +157,7 @@ class ReportGenerator:
                 "strategy_name": self.strategy_name,
                 "strategy_file": self.engine.strategy_file,
                 "generated_at": datetime.now().isoformat(),
-                "simtradelab_version": "2.1.0"
+                "simtradelab_version": "1.0.0"
             },
             "backtest_config": {
                 "start_date": self.engine.start_date.isoformat() if self.engine.start_date else None,
@@ -219,7 +219,7 @@ class ReportGenerator:
                 "strategy_name": self.strategy_name,
                 "strategy_file": self.engine.strategy_file,
                 "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "simtradelab_version": "2.1.0"
+                "simtradelab_version": "1.0.0"
             },
             "backtest_config": {
                 "start_date": self.engine.start_date.strftime("%Y-%m-%d") if self.engine.start_date else None,

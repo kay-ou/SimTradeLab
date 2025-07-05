@@ -58,7 +58,7 @@ Thumbs.db
 # Project specific
 pickles_test/
 temp_*.py
-reports/*/
+reports/
 !reports/.gitkeep
 
 # Logs
