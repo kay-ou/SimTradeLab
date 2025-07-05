@@ -227,3 +227,18 @@ SimTradeLab 是一个由社区独立开发的开源策略回测框架，灵感�
 [📖 文档](docs/) | [🐛 报告问题](https://github.com/kay-ou/SimTradeLab/issues) | [💡 功能请求](https://github.com/kay-ou/SimTradeLab/issues)
 
 </div>
+
+---
+
+<div align="center">
+
+## 💖 赞助支持
+
+如果这个项目对您有帮助，欢迎赞助支持开发！
+
+<img src="https://github.com/kay-ou/SimTradeLab/blob/main/sponsor/WechatPay.png?raw=true" alt="微信赞助" width="200">
+<img src="https://github.com/kay-ou/SimTradeLab/blob/main/sponsor/AliPay.png?raw=true" alt="支付宝赞助" width="200">
+
+**您的支持是我们持续改进的动力！**
+
+</div>
