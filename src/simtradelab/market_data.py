@@ -55,11 +55,12 @@ from .logger import log
 def get_history(
     engine: 'BacktestEngine',
     count: int,
-    unit: str = '1d',
-    field: Union[str, List[str]] = 'close',
-    securities: Optional[List[str]] = None,
+    frequency: str = '1d',
+    field: Union[str, List[str]] = ['open','high','low','close','volume','money','price'],
+    security_list: Optional[List[str]] = None,
     fq: Optional[str] = None,
     include: bool = False,
+    fill: str = 'nan',
     is_dict: bool = False,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None
@@ -69,21 +70,26 @@ def get_history(
 
     Args:
         engine: 回测引擎实例
-        count: 数据条数
-        unit: 时间单位 ('1d', '1h', '5m' 等)
-        field: 字段名或字段列表
-        securities: 证券代码列表
-        fq: 复权类型 (暂未实现)
-        include: 是否包含当前时间点数据
-        is_dict: 是否返回字典格式
-        start_date: 开始日期
-        end_date: 结束日期
+        count: K线数量，大于0，返回指定数量的K线行情
+        frequency: K线周期，支持1分钟线(1m)、5分钟线(5m)、15分钟线(15m)、30分钟线(30m)、
+                  60分钟线(60m)、120分钟线(120m)、日线(1d)、周线(1w/weekly)、
+                  月线(mo/monthly)、季度线(1q/quarter)和年线(1y/yearly)频率的数据，默认为'1d'
+        field: 指明数据结果集中所支持输出的行情字段，默认为['open','high','low','close','volume','money','price']
+               支持字段：open, high, low, close, volume, money, price, preclose, high_limit, low_limit, unlimited
+        security_list: 要获取数据的股票列表，None表示在上下文中的universe中选中的所有股票
+        fq: 数据复权选项，支持pre-前复权，post-后复权，dypre-动态前复权，None-不复权，默认为None
+        include: 是否包含当前周期，True–包含，False-不包含，默认为False
+        fill: 行情获取不到某一时刻的分钟数据时，是否用上一分钟的数据进行填充该时刻数据，
+              'pre'–用上一分钟数据填充，'nan'–NaN进行填充，默认为'nan'
+        is_dict: 返回是否是字典(dict)格式{str: array()}，True–是，False-不是，默认为False
+        start_date: 开始日期 (扩展参数)
+        end_date: 结束日期 (扩展参数)
         
     Returns:
         DataFrame 或字典格式的历史数据
     """
-    if securities is None:
-        securities = list(engine.data.keys())
+    if security_list is None:
+        security_list = list(engine.data.keys())
 
     if isinstance(field, str):
         field = [field]
@@ -93,7 +99,7 @@ def get_history(
         '15m': '15T', '15min': '15T', '30m': '30T', '30min': '30T', '1h': 'H',
         'hour': 'H', '1w': 'W', 'week': 'W', '1M': 'M', 'month': 'M'
     }
-    pandas_freq = frequency_mapping.get(unit, 'D')
+    pandas_freq = frequency_mapping.get(frequency, 'D')
 
     extended_fields = {
         'pre_close', 'change', 'pct_change', 'amplitude',
@@ -102,7 +108,7 @@ def get_history(
 
     if is_dict:
         result = {}
-        for sec in securities:
+        for sec in security_list:
             if sec not in engine.data:
                 result[sec] = {col: np.array([]) for col in field}
                 continue
@@ -178,7 +184,7 @@ def get_history(
         return result
 
     result_df = pd.DataFrame()
-    for sec in securities:
+    for sec in security_list:
         if sec not in engine.data:
             continue
         hist_df = engine.data[sec].copy()

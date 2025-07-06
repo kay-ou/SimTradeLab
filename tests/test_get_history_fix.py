@@ -26,7 +26,7 @@ def test_get_history_parameters():
     print(f"get_history函数参数: {params}")
     
     # 验证PTrade兼容的参数名称
-    expected_params = ['engine', 'count', 'unit', 'field', 'securities']
+    expected_params = ['engine', 'count', 'frequency', 'field', 'security_list']
     
     for param in expected_params:
         assert param in params, f"缺少参数: {param}"
@@ -59,9 +59,9 @@ def test_get_history_ptrade_compatibility():
         result = get_history(
             engine=engine,
             count=20,
-            unit='1d',
+            frequency='1d',
             field='close',
-            securities=['000001.SZ', '600519.SH']
+            security_list=['000001.SZ', '600519.SH']
         )
         print("✅ PTrade标准调用方式成功")
     except Exception as e:
@@ -92,11 +92,12 @@ def test_parameter_defaults():
     
     # 验证默认值
     expected_defaults = {
-        'unit': '1d',
-        'field': 'close',
-        'securities': None,
+        'frequency': '1d',
+        'field': ['open','high','low','close','volume','money','price'],
+        'security_list': None,
         'fq': None,
         'include': False,
+        'fill': 'nan',
         'is_dict': False,
         'start_date': None,
         'end_date': None
@@ -131,20 +132,27 @@ def test_ptrade_examples():
         print("✅ 示例1: 获取5天收盘价")
     except Exception as e:
         print(f"❌ 示例1失败: {e}")
-    
+
     # PTrade文档示例2: 获取多个字段
     try:
         result = get_history(engine, 10, '1d', ['open', 'high', 'low', 'close'], ['600570.SS'])
         print("✅ 示例2: 获取多个字段")
     except Exception as e:
         print(f"❌ 示例2失败: {e}")
-    
+
     # PTrade文档示例3: 分钟级数据
     try:
         result = get_history(engine, 60, '1m', 'close', ['600570.SS'])
         print("✅ 示例3: 分钟级数据")
     except Exception as e:
         print(f"❌ 示例3失败: {e}")
+
+    # PTrade文档示例4: 使用复权
+    try:
+        result = get_history(engine, 20, '1d', 'close', ['600570.SS'], fq='pre')
+        print("✅ 示例4: 前复权数据")
+    except Exception as e:
+        print(f"❌ 示例4失败: {e}")
     
     print("✅ PTrade示例用法测试完成")
 
@@ -161,8 +169,10 @@ def main():
         
         print("\n🎉 get_history函数参数修复测试全部通过！")
         print("\n📋 修复总结:")
-        print("  ✅ 参数名从 'frequency' 改为 'unit'")
-        print("  ✅ 参数名从 'security_list' 改为 'securities'")
+        print("  ✅ 恢复PTrade标准参数名 'frequency'")
+        print("  ✅ 恢复PTrade标准参数名 'security_list'")
+        print("  ✅ 添加PTrade标准参数 'fill'")
+        print("  ✅ 更新默认字段为PTrade标准")
         print("  ✅ 与PTrade API完全兼容")
         print("  ✅ 支持所有PTrade调用方式")
         

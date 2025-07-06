@@ -181,7 +181,7 @@ def test_api_function_signatures():
         'run_daily': ['engine', 'context', 'func'],
         'run_interval': ['engine', 'context', 'func', 'seconds'],
         'order': ['engine', 'security', 'amount'],
-        'get_history': ['engine', 'count', 'unit'],
+        'get_history': ['engine', 'count', 'frequency'],
     }
     
     for func_name, expected_params in test_functions.items():
