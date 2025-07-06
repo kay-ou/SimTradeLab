@@ -126,9 +126,7 @@ def cmd_open(args):
     # 根据类型选择文件
     base_name = os.path.splitext(latest_report['full_path'])[0]
     
-    if args.type == 'html':
-        file_path = f"{base_name}.html"
-    elif args.type == 'json':
+    if args.type == 'json':
         file_path = f"{base_name}.json"
     elif args.type == 'csv':
         file_path = f"{base_name}.csv"
@@ -140,20 +138,15 @@ def cmd_open(args):
     if os.path.exists(file_path):
         print(f"📖 打开报告文件: {os.path.basename(file_path)}")
         
-        if args.type == 'html':
-            # 在浏览器中打开HTML文件
-            import webbrowser
-            webbrowser.open(f"file://{os.path.abspath(file_path)}")
-        else:
-            # 在终端中显示文件内容
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            # 限制显示长度
-            if len(content) > 5000 and not args.full:
-                content = content[:5000] + "\n\n... (内容已截断，使用 --full 查看完整内容)"
-            
-            print(content)
+        # 在终端中显示文件内容
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # 限制显示长度
+        if len(content) > 5000 and not args.full:
+            content = content[:5000] + "\n\n... (内容已截断，使用 --full 查看完整内容)"
+        
+        print(content)
     else:
         print(f"❌ 文件不存在: {os.path.basename(file_path)}")
 
@@ -172,7 +165,7 @@ def main():
   %(prog)s cleanup --days 30 --keep 5    # 清理30天前的报告，每策略保留5个
   %(prog)s organize                      # 按策略组织报告到子目录
   %(prog)s export --output index.json    # 导出报告索引
-  %(prog)s open --strategy buy_and_hold --type html  # 打开HTML报告
+  %(prog)s open --strategy buy_and_hold --type txt  # 打开txt报告
         """
     )
     
@@ -216,8 +209,8 @@ def main():
     # open 命令
     open_parser = subparsers.add_parser('open', help='打开报告文件')
     open_parser.add_argument('--strategy', required=True, help='策略名称')
-    open_parser.add_argument('--type', choices=['txt', 'html', 'json', 'csv', 'summary'],
-                            default='html', help='报告类型 (默认: html)')
+    open_parser.add_argument('--type', choices=['txt', 'json', 'csv', 'summary'],
+                            default='txt', help='报告类型 (默认: txt)')
     open_parser.add_argument('--full', action='store_true',
                             help='显示完整内容（仅对文本文件有效）')
     open_parser.set_defaults(func=cmd_open)

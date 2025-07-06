@@ -149,7 +149,7 @@ class ReportManager:
             for report in to_check:
                 if report['file_date'] < cutoff_date:
                     try:
-                        # 删除所有相关文件（txt, json, csv, html等）
+                        # 删除所有相关文件（txt, json, csv等）
                         base_name = os.path.splitext(report['full_path'])[0]
                         related_files = glob.glob(f"{base_name}.*")
                         

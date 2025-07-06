@@ -4,10 +4,8 @@
 测试增强的报告功能
 
 验证新增的报告功能：
-1. HTML交互式报告
-2. 摘要报告
-3. 收益曲线图表
-4. 报告管理功能
+1. 摘要报告
+2. 报告管理功能
 
 运行方法:
     poetry run python test_enhanced_reports.py
@@ -50,20 +48,13 @@ def test_enhanced_report_generation():
             file_types[ext] = file_types.get(ext, 0) + 1
         
         print("\n📊 生成的文件类型:")
-        expected_types = ['.txt', '.json', '.csv', '.html']
+        expected_types = ['.txt', '.json', '.csv']
         
         for ext in expected_types:
             if ext in file_types:
                 print(f"   ✅ {ext}: {file_types[ext]} 个")
             else:
                 print(f"   ❌ {ext}: 未生成")
-        
-        # 检查是否生成了图表文件
-        png_files = [f for f in generated_files if f.endswith('.png')]
-        if png_files:
-            print(f"   ✅ .png: {len(png_files)} 个 (图表)")
-        else:
-            print("   ⚠️ .png: 未生成 (可能未安装matplotlib)")
         
         # 检查摘要文件
         summary_files = [f for f in generated_files if 'summary' in f]
@@ -78,54 +69,6 @@ def test_enhanced_report_generation():
         print(f"❌ 测试失败: {e}")
         import traceback
         traceback.print_exc()
-        return False
-
-
-def test_html_report():
-    """测试HTML报告内容"""
-    print("\n🌐 测试HTML报告内容")
-    print("=" * 50)
-    
-    try:
-        # 查找最新的HTML报告
-        import glob
-        html_files = glob.glob("reports/*buy_and_hold_strategy*.html")
-        
-        if not html_files:
-            print("❌ 未找到HTML报告文件")
-            return False
-        
-        latest_html = max(html_files, key=os.path.getctime)
-        print(f"📄 检查HTML报告: {os.path.basename(latest_html)}")
-        
-        with open(latest_html, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        # 验证HTML内容
-        checks = [
-            ("HTML结构", "<!DOCTYPE html>" in content),
-            ("标题", "回测报告" in content),
-            ("图表脚本", "Chart.js" in content),
-            ("样式表", "<style>" in content),
-            ("性能指标", "总收益率" in content),
-            ("JavaScript", "<script>" in content)
-        ]
-        
-        all_passed = True
-        for check_name, check_result in checks:
-            if check_result:
-                print(f"   ✅ {check_name}")
-            else:
-                print(f"   ❌ {check_name}")
-                all_passed = False
-        
-        file_size = os.path.getsize(latest_html)
-        print(f"   📊 文件大小: {file_size:,} bytes")
-        
-        return all_passed
-        
-    except Exception as e:
-        print(f"❌ HTML报告测试失败: {e}")
         return False
 
 
@@ -244,55 +187,12 @@ def test_report_manager():
         print(f"❌ 报告管理测试失败: {e}")
         return False
 
-
-def test_chart_generation():
-    """测试图表生成功能"""
-    print("\n📊 测试图表生成功能")
-    print("=" * 50)
-    
-    try:
-        # 检查是否安装了matplotlib
-        try:
-            import matplotlib.pyplot as plt
-            print("✅ matplotlib 已安装")
-        except ImportError:
-            print("⚠️ matplotlib 未安装，跳过图表测试")
-            return True
-        
-        # 查找图表文件
-        import glob
-        chart_files = glob.glob("reports/*buy_and_hold_strategy*.png")
-        
-        if chart_files:
-            latest_chart = max(chart_files, key=os.path.getctime)
-            print(f"📊 找到图表文件: {os.path.basename(latest_chart)}")
-            
-            file_size = os.path.getsize(latest_chart)
-            print(f"   文件大小: {file_size:,} bytes")
-            
-            if file_size > 10000:  # 至少10KB
-                print("   ✅ 图表文件大小正常")
-                return True
-            else:
-                print("   ❌ 图表文件过小，可能生成失败")
-                return False
-        else:
-            print("❌ 未找到图表文件")
-            return False
-        
-    except Exception as e:
-        print(f"❌ 图表测试失败: {e}")
-        return False
-
-
 def main():
     """主函数"""
     print("🎯 simtradelab 增强报告功能测试")
     print("=" * 70)
     print("🚀 新增功能:")
-    print("   📊 HTML交互式报告 - 包含图表和现代化界面")
     print("   📋 摘要报告 - 简洁的策略评级和关键指标")
-    print("   📈 收益曲线图表 - matplotlib生成的可视化图表")
     print("   📁 报告管理器 - 文件组织、清理和索引功能")
     print("=" * 70)
     
@@ -300,10 +200,8 @@ def main():
     test_results = []
     
     test_results.append(("报告生成", test_enhanced_report_generation()))
-    test_results.append(("HTML报告", test_html_report()))
     test_results.append(("摘要报告", test_summary_report()))
     test_results.append(("报告管理", test_report_manager()))
-    test_results.append(("图表生成", test_chart_generation()))
     
     # 总结测试结果
     print("\n" + "=" * 70)
@@ -320,16 +218,13 @@ def main():
     
     if passed_count == len(test_results):
         print("\n🎉 所有测试通过！增强报告功能已成功实现:")
-        print("   📊 多格式报告生成 (TXT/JSON/CSV/HTML)")
+        print("   📊 多格式报告生成 (TXT/JSON/CSV)")
         print("   📋 智能摘要和策略评级")
-        print("   📈 可视化图表支持")
         print("   📁 完整的报告管理系统")
-        print("   🌐 交互式HTML报告")
         print("\n💡 使用建议:")
-        print("   1. 运行策略后查看HTML报告获得最佳体验")
-        print("   2. 使用摘要报告快速了解策略表现")
-        print("   3. 定期使用报告管理器清理旧文件")
-        print("   4. 导出索引文件便于报告归档")
+        print("   1. 使用摘要报告快速了解策略表现")
+        print("   2. 定期使用报告管理器清理旧文件")
+        print("   3. 导出索引文件便于报告归档")
     else:
         print("\n⚠️ 部分测试失败，请检查相关功能")
         sys.exit(1)

@@ -473,20 +473,11 @@ class BacktestEngine:
         if csv_file:
             generated_files.append(csv_file)
 
-        # 生成HTML交互式报告
-        html_file = report_generator.generate_html_report(benchmark_returns)
-        if html_file:
-            generated_files.append(html_file)
-
         # 生成简洁摘要报告
         summary_file = report_generator.generate_summary_report(benchmark_returns)
         if summary_file:
             generated_files.append(summary_file)
 
-        # 生成收益曲线图表（如果matplotlib可用）
-        chart_file = report_generator.generate_performance_chart()
-        if chart_file:
-            generated_files.append(chart_file)
 
         # 显示生成的文件
         if generated_files:
@@ -509,9 +500,5 @@ class BacktestEngine:
             return '📊'
         elif file_path.endswith('.csv'):
             return '📈'
-        elif file_path.endswith('.html'):
-            return '🌐'
-        elif file_path.endswith('.png'):
-            return '📊'
         else:
             return '📄'

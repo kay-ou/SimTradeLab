@@ -84,10 +84,8 @@ class LoggingConfig:
 class ReportConfig:
     """报告配置"""
     output_dir: str = "./reports"
-    formats: List[str] = field(default_factory=lambda: ["txt", "json", "csv", "html"])
+    formats: List[str] = field(default_factory=lambda: ["txt", "json", "csv"])
     include_charts: bool = True
-    chart_format: str = "png"
-    chart_dpi: int = 300
 
 
 @dataclass
@@ -197,8 +195,6 @@ class SimTradeLabConfig:
                     'output_dir': self.reports.output_dir,
                     'formats': self.reports.formats,
                     'include_charts': self.reports.include_charts,
-                    'chart_format': self.reports.chart_format,
-                    'chart_dpi': self.reports.chart_dpi,
                 },
                 'data_sources': {},
                 'default_data_source': self.default_data_source,

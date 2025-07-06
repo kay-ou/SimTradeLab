@@ -42,11 +42,10 @@ SimTradeLab（深测Lab）是一个由社区独立开发的开源策略回测框
 ### 核心特性
 
 - 🔧 **事件驱动引擎**: 完整的回测引擎实现，支持 `initialize`、`handle_data`、`before_trading_start`、`after_trading_end` 等事件
-- 📊 **多格式报告**: TXT、JSON、CSV、HTML、摘要、图表等6种格式的完整分析报告
+- 📊 **多格式报告**: TXT、JSON、CSV、摘要等格式的完整分析报告
 - 🌐 **真实数据源**: 支持 AkShare、Tushare、CSV 等多种数据源
 - ⚡ **智能CLI**: 集成的 `simtradelab` 命令行工具，快速启动回测
 - ✅ **PTrade兼容**: 保持与PTrade语法习惯的高度兼容性
-- 📈 **可视化报告**: HTML交互式报告和matplotlib图表
 
 ### 设计理念
 
@@ -1362,7 +1361,7 @@ logging:
 # 报告配置
 reports:
   output_dir: "./reports"
-  formats: ["txt", "json", "csv", "html"]
+  formats: ["txt", "json", "csv"]
   include_charts: true
 ```
 
@@ -1392,9 +1391,7 @@ save_config(config, 'output_config.yaml')
 1. **详细文本报告** (`.txt`) - 完整策略分析
 2. **结构化数据** (`.json`) - 程序化分析
 3. **数据表格** (`.csv`) - Excel分析
-4. **交互式网页** (`.html`) - 现代化展示
-5. **智能摘要** (`.summary.txt`) - 快速概览
-6. **可视化图表** (`.png`) - 直观展示
+4. **智能摘要** (`.summary.txt`) - 快速概览
 
 ### 报告内容
 
@@ -1681,7 +1678,6 @@ SimTradeLab与PTrade保持语法和API的高度兼容性，确保策略可以在
 
 SimTradeLab在保持兼容性的基础上，还提供了一些增强功能：
 
-- **更丰富的报告格式**（HTML、图表等）
 - **更灵活的数据源配置**（CSV、AkShare、Tushare）
 - **更便捷的命令行工具**
 - **更完整的技术指标库**
