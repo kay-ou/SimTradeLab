@@ -11,6 +11,29 @@ let dataFilesInfo = {}; // 存储数据文件的详细信息
 // API基础URL
 const API_BASE = '/api';
 
+// 移动端侧边栏切换功能
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    sidebar.classList.toggle('show');
+    
+    // 点击外部区域关闭侧边栏
+    if (sidebar.classList.contains('show')) {
+        document.addEventListener('click', closeSidebarOnOutsideClick);
+    } else {
+        document.removeEventListener('click', closeSidebarOnOutsideClick);
+    }
+}
+
+function closeSidebarOnOutsideClick(event) {
+    const sidebar = document.querySelector('.sidebar');
+    const toggleButton = document.querySelector('.sidebar-toggle');
+    
+    if (!sidebar.contains(event.target) && !toggleButton.contains(event.target)) {
+        sidebar.classList.remove('show');
+        document.removeEventListener('click', closeSidebarOnOutsideClick);
+    }
+}
+
 // 初始化代码编辑器
 function initCodeEditor() {
     if (strategyEditor) {
@@ -375,6 +398,13 @@ function showTab(tabName) {
     event.target.classList.add('active');
     
     currentTab = tabName;
+    
+    // 在移动端切换页面时自动隐藏侧边栏
+    if (window.innerWidth <= 768) {
+        const sidebar = document.querySelector('.sidebar');
+        sidebar.classList.remove('show');
+        document.removeEventListener('click', closeSidebarOnOutsideClick);
+    }
     
     // 根据不同页面加载对应数据
     switch(tabName) {
@@ -1297,6 +1327,53 @@ function removeParameterRow(index) {
 
 // 结果分析功能
 let allJobs = [];
+// 工具函数：优雅地截断文本
+function truncateText(text, maxLength = 30, breakWords = true) {
+    if (!text || text.length <= maxLength) return text;
+    
+    if (breakWords) {
+        // 在单词边界处截断
+        const truncated = text.substring(0, maxLength);
+        const lastSpace = truncated.lastIndexOf(' ');
+        const lastUnderscore = truncated.lastIndexOf('_');
+        const lastDot = truncated.lastIndexOf('.');
+        const breakPoint = Math.max(lastSpace, lastUnderscore, lastDot);
+        
+        if (breakPoint > maxLength * 0.6) { // 如果截断点不会太短
+            return text.substring(0, breakPoint) + '...';
+        }
+    }
+    
+    return text.substring(0, maxLength - 3) + '...';
+}
+
+// 工具函数：为长文件名生成带tooltip的HTML
+function createTruncatedElement(text, maxLength = 25, className = '') {
+    const truncated = truncateText(text, maxLength);
+    const needsTruncation = text.length > maxLength;
+    
+    if (needsTruncation) {
+        return `<span class="${className}" title="${text}" data-bs-toggle="tooltip">${truncated}</span>`;
+    }
+    return `<span class="${className}">${text}</span>`;
+}
+
+// 工具函数：智能截断策略名称（保留关键信息）
+function truncateStrategyName(strategyName, maxLength = 20) {
+    if (!strategyName || strategyName.length <= maxLength) return strategyName;
+    
+    // 移除常见后缀
+    const cleanName = strategyName.replace(/_strategy$/i, '').replace(/strategy$/i, '');
+    
+    // 如果清理后的名称足够短，就使用它
+    if (cleanName.length <= maxLength) {
+        return cleanName;
+    }
+    
+    // 否则智能截断
+    return truncateText(cleanName, maxLength, true);
+}
+
 let filteredJobs = [];
 let selectedJob = null;
 
@@ -1316,8 +1393,8 @@ async function loadJobResults() {
         
         // 将已有报告转换为伪任务对象，与回测任务统一显示
         const reportJobs = (reportsData.reports || []).map(report => {
-            // 尝试从报告文件中获取真实数据
-            let summaryData = {
+            // 使用从后端加载的真实数据
+            let summaryData = report.summary || {
                 total_return: 0,
                 annual_return: 0,
                 max_drawdown: 0,
@@ -1327,23 +1404,8 @@ async function loadJobResults() {
                 total_trades: 0
             };
             
-            // 检查是否有JSON报告文件
-            const jsonFile = report.files?.find(f => f.name.endsWith('.json'));
-            if (jsonFile) {
-                // 这里可以考虑预加载JSON数据，但现在先使用模拟数据
-                summaryData = {
-                    total_return: 0.08 + Math.random() * 0.2, // 8-28%收益率
-                    annual_return: 0.10 + Math.random() * 0.25, // 10-35%年化收益率
-                    max_drawdown: -(0.03 + Math.random() * 0.15), // -3%到-18%最大回撤
-                    sharpe_ratio: 0.8 + Math.random() * 1.5, // 0.8-2.3夏普比率
-                    volatility: 0.12 + Math.random() * 0.20, // 12-32%波动率
-                    win_rate: 0.45 + Math.random() * 0.35, // 45-80%胜率
-                    total_trades: Math.floor(50 + Math.random() * 300) // 50-350笔交易
-                };
-            }
-            
             return {
-                job_id: 'report_' + report.strategy_name,
+                job_id: 'report_' + report.strategy_name + '_' + report.session_id,
                 type: 'backtest',
                 status: 'completed',
                 created_at: report.created_at,
@@ -1357,7 +1419,9 @@ async function loadJobResults() {
                     summary: summaryData,
                     report_files: report.files.map(f => `reports/${report.strategy_name}/${f.name}`)
                 },
-                _isHistoricalReport: true // 标记为历史报告
+                _isHistoricalReport: true, // 标记为历史报告
+                _strategyName: report.strategy_name,
+                _sessionId: report.session_id
             };
         });
         
@@ -1378,6 +1442,9 @@ async function loadJobResults() {
 function displayJobResults() {
     const jobsHtml = filteredJobs.map(job => {
         const strategyName = job.request?.strategy_name || 'Unknown Strategy';
+        const truncatedStrategyName = truncateStrategyName(strategyName, 18);
+        const needsTooltip = strategyName !== truncatedStrategyName;
+        
         const timeRange = job.request ? `${job.request.start_date} ~ ${job.request.end_date}` : '';
         const isSelected = selectedJob && selectedJob.job_id === job.job_id;
         const isHistorical = job._isHistoricalReport;
@@ -1386,15 +1453,17 @@ function displayJobResults() {
             <div class="job-result-card mb-3 p-3 border rounded ${isSelected ? 'border-primary' : ''} ${isHistorical ? 'bg-light border-info' : ''}" 
                  onclick="selectJobResult('${job.job_id}')" style="cursor: pointer;">
                 <div class="d-flex justify-content-between align-items-start">
-                    <div class="flex-grow-1">
-                        <h6 class="mb-1 fw-bold">
-                            ${isHistorical ? '<i class="fas fa-folder-open text-info me-1"></i>' : ''}
-                            ${strategyName}
+                    <div class="flex-grow-1 min-w-0"> <!-- min-w-0 for text overflow -->
+                        <h6 class="mb-1 fw-bold d-flex align-items-center">
+                            ${isHistorical ? '<i class="fas fa-folder-open text-info me-1 flex-shrink-0"></i>' : ''}
+                            <span class="text-truncate" ${needsTooltip ? `title="${strategyName}" data-bs-toggle="tooltip"` : ''}>
+                                ${truncatedStrategyName}
+                            </span>
                         </h6>
-                        <small class="text-muted d-block">${isHistorical ? '历史报告' : timeRange}</small>
+                        <small class="text-muted d-block text-truncate">${isHistorical ? '历史报告' : timeRange}</small>
                         <small class="text-muted">${formatDateTime(job.completed_at)}</small>
                     </div>
-                    <div class="text-end">
+                    <div class="text-end flex-shrink-0 ms-2">
                         <span class="badge ${isHistorical ? 'bg-info' : 'bg-success'} mb-1">
                             ${isHistorical ? '历史报告' : '已完成'}
                         </span>
@@ -1413,10 +1482,10 @@ function displayJobResults() {
                 <div class="mt-2">
                     <div class="btn-group btn-group-sm w-100" role="group">
                         <button class="btn ${isHistorical ? 'btn-outline-info' : 'btn-outline-primary'}" onclick="event.stopPropagation(); viewJobDetails('${job.job_id}')">
-                            <i class="fas fa-eye"></i> 查看
+                            <i class="fas fa-eye"></i> <span class="d-none d-sm-inline">查看</span>
                         </button>
                         <button class="btn btn-outline-success" onclick="event.stopPropagation(); downloadJobReports('${job.job_id}')">
-                            <i class="fas fa-download"></i> 下载
+                            <i class="fas fa-download"></i> <span class="d-none d-sm-inline">下载</span>
                         </button>
                     </div>
                 </div>
@@ -1426,6 +1495,12 @@ function displayJobResults() {
     
     document.getElementById('job-results-list').innerHTML = jobsHtml || 
         '<div class="text-center py-4"><i class="fas fa-inbox fa-2x text-muted mb-2"></i><p class="text-muted">暂无已完成的任务</p></div>';
+    
+    // 初始化 Bootstrap tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 }
 
 function updateJobsCount() {
@@ -1448,7 +1523,26 @@ async function selectJobResult(jobId) {
         if (jobId.startsWith('report_')) {
             // Find the job in our local array (historical reports)
             selectedJob = allJobs.find(job => job.job_id === jobId);
-            if (selectedJob) {
+            if (selectedJob && selectedJob._isHistoricalReport) {
+                // Load detailed historical data including portfolio history
+                try {
+                    const response = await fetch(`${API_BASE}/reports/${selectedJob._strategyName}/data/${selectedJob._sessionId}`);
+                    if (response.ok) {
+                        const historicalData = await response.json();
+                        // Merge the detailed data into the selected job
+                        selectedJob.result.summary = historicalData.data.summary || selectedJob.result.summary;
+                        selectedJob.result.portfolio_history = historicalData.data.portfolio_history || [];
+                        selectedJob.result.backtest_config = historicalData.data.backtest_config || {};
+                        selectedJob.result.trade_summary = historicalData.data.trade_summary || {};
+                        selectedJob.result.final_positions = historicalData.data.final_positions || {};
+                        
+                        console.log('Loaded historical data:', historicalData.data);
+                    }
+                } catch (error) {
+                    console.error('Error loading detailed historical data:', error);
+                    // Continue with existing data if detailed load fails
+                }
+                
                 displayJobResults(); // 刷新列表以显示选中状态
                 showJobAnalysis(selectedJob);
                 document.getElementById('analysis-controls').style.display = 'block';
@@ -1492,37 +1586,42 @@ function showJobAnalysis(job) {
         
         const resultHtml = `
             <div class="analysis-header mb-4">
-                <h5 class="fw-bold">
-                    ${job._isHistoricalReport ? '<i class="fas fa-folder-open text-info me-2"></i>' : ''}
-                    ${job.request.strategy_name} ${job._isHistoricalReport ? '历史报告' : '分析报告'}
+                <h5 class="fw-bold d-flex align-items-center flex-wrap">
+                    ${job._isHistoricalReport ? '<i class="fas fa-folder-open text-info me-2 flex-shrink-0"></i>' : ''}
+                    <span class="text-truncate" title="${job.request.strategy_name}" data-bs-toggle="tooltip">
+                        ${truncateStrategyName(job.request.strategy_name, 25)}
+                    </span>
+                    <span class="badge ${job._isHistoricalReport ? 'bg-info' : 'bg-primary'} ms-2 flex-shrink-0">
+                        ${job._isHistoricalReport ? '历史报告' : '分析报告'}
+                    </span>
                 </h5>
-                <p class="text-muted mb-0">${job._isHistoricalReport ? '历史报告数据' : `回测期间：${job.request.start_date} 至 ${job.request.end_date}`}</p>
+                <p class="text-muted mb-0 small">${job._isHistoricalReport ? '历史报告数据' : `回测期间：${job.request.start_date} 至 ${job.request.end_date}`}</p>
             </div>
             
             <!-- 关键指标卡片 -->
             <div class="row mb-4">
-                <div class="col-md-3">
-                    <div class="metric-card bg-primary text-white p-3 rounded">
-                        <div class="metric-value">${((summary.total_return || 0) * 100).toFixed(2)}%</div>
-                        <div class="metric-label">总收益率</div>
+                <div class="col-lg-3 col-md-6 col-6 mb-3">
+                    <div class="metric-card bg-primary text-white p-3 rounded text-center">
+                        <div class="metric-value h5 mb-1">${((summary.total_return || 0) * 100).toFixed(2)}%</div>
+                        <div class="metric-label small">总收益率</div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="metric-card bg-success text-white p-3 rounded">
-                        <div class="metric-value">${((summary.annual_return || 0) * 100).toFixed(2)}%</div>
-                        <div class="metric-label">年化收益率</div>
+                <div class="col-lg-3 col-md-6 col-6 mb-3">
+                    <div class="metric-card bg-success text-white p-3 rounded text-center">
+                        <div class="metric-value h5 mb-1">${((summary.annual_return || 0) * 100).toFixed(2)}%</div>
+                        <div class="metric-label small">年化收益率</div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="metric-card bg-warning text-white p-3 rounded">
-                        <div class="metric-value">${((summary.max_drawdown || 0) * 100).toFixed(2)}%</div>
-                        <div class="metric-label">最大回撤</div>
+                <div class="col-lg-3 col-md-6 col-6 mb-3">
+                    <div class="metric-card bg-warning text-white p-3 rounded text-center">
+                        <div class="metric-value h5 mb-1">${((summary.max_drawdown || 0) * 100).toFixed(2)}%</div>
+                        <div class="metric-label small">最大回撤</div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="metric-card bg-info text-white p-3 rounded">
-                        <div class="metric-value">${(summary.sharpe_ratio || 0).toFixed(2)}</div>
-                        <div class="metric-label">夏普比率</div>
+                <div class="col-lg-3 col-md-6 col-6 mb-3">
+                    <div class="metric-card bg-info text-white p-3 rounded text-center">
+                        <div class="metric-value h5 mb-1">${(summary.sharpe_ratio || 0).toFixed(2)}</div>
+                        <div class="metric-label small">夏普比率</div>
                     </div>
                 </div>
             </div>
@@ -1562,61 +1661,252 @@ function showJobAnalysis(job) {
                 </div>
             </div>
             
+            <!-- 收益曲线图表 -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-chart-area"></i> 收益曲线 (Web界面实时绘制)</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="returns-chart-${job.job_id}" width="800" height="400"></canvas>
+                    </div>
+                </div>
+            </div>
+            
             <!-- 报告文件下载 -->
             <div class="card">
                 <div class="card-header bg-light">
-                    <h6 class="mb-0"><i class="fas fa-file-download"></i> 报告文件</h6>
+                    <h6 class="mb-0"><i class="fas fa-file-download"></i> 回测报告文件</h6>
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        ${result.report_files ? result.report_files.map(file => {
-                            const fileName = file.split('/').pop();
-                            const fileType = fileName.split('.').pop().toLowerCase();
-                            const typeIcons = {
-                                'json': 'file-code',
-                                'csv': 'file-csv', 
-                                'txt': 'file-alt'
-                            };
-                            const typeColors = {
-                                'json': 'primary',
-                                'csv': 'success',
-                                'txt': 'secondary'
-                            };
-                            return `
-                                <div class="col-md-6 mb-3">
-                                    <div class="card h-100">
-                                        <div class="card-body p-2">
-                                            <div class="d-flex align-items-center mb-2">
-                                                <i class="fas fa-${typeIcons[fileType] || 'file'} text-${typeColors[fileType] || 'primary'} me-2"></i>
-                                                <strong class="small">${fileType.toUpperCase()} 报告</strong>
-                                            </div>
-                                            <div class="btn-group w-100" role="group">
-                                                <button class="btn btn-outline-${typeColors[fileType] || 'primary'} btn-sm" 
-                                                        onclick="previewReportFile('${job.request.strategy_name}', '${fileName}')">
-                                                    <i class="fas fa-eye"></i> 预览
-                                                </button>
-                                                <a href="/api/reports/${job.request.strategy_name}/${fileName}" 
-                                                   class="btn btn-${typeColors[fileType] || 'primary'} btn-sm" 
-                                                   download="${fileName}">
-                                                    <i class="fas fa-download"></i> 下载
-                                                </a>
+                    ${result.report_files && result.report_files.length > 0 ? `
+                        <div class="row">
+                            ${(() => {
+                                // 按文件类型分组报告文件
+                                const fileGroups = {};
+                                result.report_files.forEach(file => {
+                                    const fileName = file.split('/').pop();
+                                    const fileType = fileName.split('.').pop().toLowerCase();
+                                    if (!fileGroups[fileType]) fileGroups[fileType] = [];
+                                    fileGroups[fileType].push({file, fileName, fileType});
+                                });
+                                
+                                const typeOrder = ['json', 'txt', 'csv']; // 优先显示顺序
+                                const sortedTypes = typeOrder.filter(type => fileGroups[type]);
+                                
+                                return sortedTypes.map(fileType => {
+                                    const files = fileGroups[fileType];
+                                    const typeIcons = {
+                                        'json': 'file-code',
+                                        'csv': 'file-csv', 
+                                        'txt': 'file-alt'
+                                    };
+                                    const typeColors = {
+                                        'json': 'primary',
+                                        'csv': 'success',
+                                        'txt': 'secondary'
+                                    };
+                                    const typeNames = {
+                                        'json': 'JSON数据报告',
+                                        'csv': 'CSV数据报告',
+                                        'txt': '文本报告'
+                                    };
+                                    
+                                    return `
+                                        <div class="col-md-12 mb-3">
+                                            <div class="card">
+                                                <div class="card-header bg-${typeColors[fileType]} text-white">
+                                                    <h6 class="mb-0">
+                                                        <i class="fas fa-${typeIcons[fileType]}"></i> 
+                                                        ${typeNames[fileType]} (${files.length} 个文件)
+                                                    </h6>
+                                                </div>
+                                                <div class="card-body p-2">
+                                                    <div class="row">
+                                                        ${files.map(({file, fileName}) => {
+                                                            // 智能截断文件名
+                                                            const maxFileNameLength = window.innerWidth < 768 ? 20 : 35; // 移动端更短
+                                                            const truncatedFileName = truncateText(fileName, maxFileNameLength, true);
+                                                            const needsFileTooltip = fileName !== truncatedFileName;
+                                                            
+                                                            return `
+                                                            <div class="col-lg-6 col-12 mb-2">
+                                                                <div class="d-flex justify-content-between align-items-center p-2 border rounded">
+                                                                    <span class="small text-truncate flex-grow-1 me-2" 
+                                                                          ${needsFileTooltip ? `title="${fileName}" data-bs-toggle="tooltip"` : ''}>
+                                                                        ${truncatedFileName}
+                                                                    </span>
+                                                                    <div class="btn-group btn-group-sm flex-shrink-0">
+                                                                        <button class="btn btn-outline-${typeColors[fileType]} btn-sm" 
+                                                                                onclick="previewReportFile('${job.request.strategy_name}', '${fileName}')"
+                                                                                title="预览文件" data-bs-toggle="tooltip">
+                                                                            <i class="fas fa-eye"></i>
+                                                                        </button>
+                                                                        <a href="/api/reports/${job.request.strategy_name}/${fileName}" 
+                                                                           class="btn btn-${typeColors[fileType]} btn-sm" 
+                                                                           download="${fileName}"
+                                                                           title="下载文件" data-bs-toggle="tooltip">
+                                                                            <i class="fas fa-download"></i>
+                                                                        </a>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        `;}).join('')}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('') : '<p class="text-muted">暂无报告文件</p>'}
-                    </div>
+                                    `;
+                                }).join('');
+                            })()}
+                        </div>
+                    ` : '<p class="text-muted">暂无报告文件</p>'}
                 </div>
             </div>
         `;
         
         visualizationDiv.innerHTML = resultHtml;
         
+        // 绘制收益曲线图
+        setTimeout(() => drawReturnsChart(job), 100);
+        
+        // 重新初始化tooltips
+        setTimeout(() => {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        }, 150);
+        
     } else if (job.type === 'batch_test' && job.result) {
         // 批量测试结果
         showBatchTestResults(job);
     }
+}
+
+function drawReturnsChart(job) {
+    const canvas = document.getElementById(`returns-chart-${job.job_id}`);
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // 使用真实的投资组合历史数据绘制收益曲线
+    const summary = job.result.summary || {};
+    const portfolioHistory = job.result.portfolio_history || [];
+    const totalReturn = summary.total_return || 0;
+    
+    let labels = [];
+    let returns = [];
+    let chartTitle = '回测收益曲线';
+    
+    if (portfolioHistory.length > 0) {
+        // 使用真实的投资组合历史数据
+        const initialValue = summary.initial_value || portfolioHistory[0]?.total_value || 1000000;
+        
+        labels = portfolioHistory.map(item => {
+            const date = new Date(item.date || item.datetime);
+            return date.toLocaleDateString();
+        });
+        
+        returns = portfolioHistory.map(item => {
+            const currentValue = item.total_value || 0;
+            return ((currentValue - initialValue) / initialValue) * 100;
+        });
+        
+        chartTitle = job._isHistoricalReport ? '历史报告收益曲线 (真实数据)' : '回测收益曲线 (真实数据)';
+        
+        console.log('Drawing chart with real portfolio data:', {
+            portfolioHistory: portfolioHistory.length,
+            labels: labels.length,
+            returns: returns.length
+        });
+    } else {
+        // 回退到模拟数据
+        const days = getDaysBetweenDates(job.request.start_date, job.request.end_date);
+        const maxDataPoints = Math.min(50, Math.max(10, days)); // 10-50个数据点
+        
+        for (let i = 0; i <= maxDataPoints; i++) {
+            const progress = i / maxDataPoints;
+            const dayOffset = Math.floor(days * progress);
+            
+            const date = new Date(job.request.start_date);
+            date.setDate(date.getDate() + dayOffset);
+            labels.push(date.toLocaleDateString());
+            
+            // 基于实际收益率生成累计收益曲线
+            const baseReturn = totalReturn * progress;
+            const volatility = summary.volatility || 0.15;
+            const randomFactor = (Math.random() - 0.5) * volatility * 0.3; // 添加波动
+            returns.push((baseReturn + randomFactor) * 100);
+        }
+        
+        // 确保最后一个点是准确的总收益率
+        returns[returns.length - 1] = totalReturn * 100;
+        chartTitle = job._isHistoricalReport ? '历史报告收益曲线 (模拟)' : '回测收益曲线 (模拟)';
+    }
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '策略收益率 (%)',
+                data: returns,
+                borderColor: job._isHistoricalReport ? '#17a2b8' : '#667eea',
+                backgroundColor: job._isHistoricalReport ? 'rgba(23, 162, 184, 0.1)' : 'rgba(102, 126, 234, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                title: {
+                    display: true,
+                    text: chartTitle
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '累计收益率 (%)'
+                    },
+                    grid: {
+                        color: 'rgba(0,0,0,0.1)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: '日期'
+                    },
+                    grid: {
+                        color: 'rgba(0,0,0,0.1)'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function getDaysBetweenDates(startDate, endDate) {
+    // 对于历史报告，使用默认时间跨度
+    if (startDate === '历史数据' || endDate === '历史数据') {
+        return 252; // 一年的交易日
+    }
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end - start);
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
 // 指南和帮助功能

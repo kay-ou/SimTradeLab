@@ -623,39 +623,40 @@ def _parse_backtest_results(report_files: List[str]) -> Dict:
             with open(json_file, 'r', encoding='utf-8') as f:
                 json_data = json.load(f)
             
-            # 安全地解析summary数据
+            # 安全地解析summary数据 - 使用正确的字段名
             summary_data = json_data.get("summary", {})
-            if summary_data:
+            performance_metrics = json_data.get("performance_metrics", {})
+            
+            if performance_metrics:
+                result["summary"].update({
+                    "total_return": float(performance_metrics.get("total_return", 0.0)),
+                    "annual_return": float(performance_metrics.get("annualized_return", 0.0)),  # 注意字段名
+                    "max_drawdown": float(performance_metrics.get("max_drawdown", 0.0)),
+                    "sharpe_ratio": float(performance_metrics.get("sharpe_ratio", 0.0)),
+                    "volatility": float(performance_metrics.get("volatility", 0.0)),
+                    "win_rate": float(performance_metrics.get("win_rate", 0.0)),
+                    "total_trades": int(performance_metrics.get("total_trades", 0))
+                })
+                log.info(f"Parsed summary: {result['summary']}")
+            elif summary_data:
+                # 如果没有performance_metrics，尝试使用summary字段
                 result["summary"].update({
                     "total_return": float(summary_data.get("total_return", 0.0)),
-                    "annual_return": float(summary_data.get("annual_return", 0.0)),
+                    "annual_return": float(summary_data.get("annual_return", summary_data.get("annualized_return", 0.0))),
                     "max_drawdown": float(summary_data.get("max_drawdown", 0.0)),
                     "sharpe_ratio": float(summary_data.get("sharpe_ratio", 0.0)),
                     "volatility": float(summary_data.get("volatility", 0.0)),
                     "win_rate": float(summary_data.get("win_rate", 0.0)),
                     "total_trades": int(summary_data.get("total_trades", 0))
                 })
-                log.info(f"Parsed summary: {result['summary']}")
+                log.info(f"Parsed summary from summary field: {result['summary']}")
             
             result["performance"] = json_data.get("performance", {})
         else:
             log.warning(f"No JSON report file found in: {report_files}")
         
-        # 不再处理PNG文件，因为已移除图表功能
-                
     except Exception as e:
         log.error(f"Error parsing backtest results: {e}")
-        # 如果解析失败，使用模拟数据进行测试
-        result["summary"] = {
-            "total_return": 0.12,  # 模拟数据
-            "annual_return": 0.15,
-            "max_drawdown": -0.08,
-            "sharpe_ratio": 1.45,
-            "volatility": 0.18,
-            "win_rate": 0.65,
-            "total_trades": 250
-        }
-        log.info("Using mock data due to parsing error")
     
     return result
 
@@ -769,30 +770,152 @@ async def _run_batch_test_task(job_id: str, request: BatchTestRequest):
 
 # 报告相关API
 
+async def load_historical_report_data(strategy_name: str, session_id: str = None) -> Dict:
+    """从历史报告文件中加载真实数据"""
+    try:
+        strategy_reports_dir = reports_dir / strategy_name
+        if not strategy_reports_dir.exists():
+            return None
+            
+        # 查找JSON报告文件
+        json_files = list(strategy_reports_dir.glob("*.json"))
+        if not json_files:
+            return None
+            
+        # 如果指定了session_id，查找对应的JSON文件
+        target_json = None
+        if session_id:
+            for json_file in json_files:
+                if session_id in json_file.name:
+                    target_json = json_file
+                    break
+        
+        # 如果没有找到指定的文件，使用最新的JSON文件
+        if not target_json:
+            target_json = max(json_files, key=lambda f: f.stat().st_mtime)
+        
+        with open(target_json, 'r', encoding='utf-8') as f:
+            report_data = json.load(f)
+        
+        # 提取性能指标
+        performance_metrics = report_data.get("performance_metrics", {})
+        portfolio_history = report_data.get("portfolio_history", [])
+        
+        # 构建标准化的summary数据 - 使用正确的字段名
+        summary_data = {
+            "total_return": float(performance_metrics.get("total_return", 0.0)),
+            "annual_return": float(performance_metrics.get("annualized_return", 0.0)),  # 注意字段名
+            "max_drawdown": float(performance_metrics.get("max_drawdown", 0.0)),
+            "sharpe_ratio": float(performance_metrics.get("sharpe_ratio", 0.0)),
+            "volatility": float(performance_metrics.get("volatility", 0.0)),
+            "win_rate": float(performance_metrics.get("win_rate", 0.0)),
+            "total_trades": int(performance_metrics.get("total_trades", 0)),
+            "final_value": float(performance_metrics.get("final_value", 0.0)),
+            "initial_value": float(performance_metrics.get("initial_value", 0.0))
+        }
+        
+        # 提取投资组合历史数据用于绘制收益曲线
+        portfolio_values = []
+        if portfolio_history:
+            for item in portfolio_history:
+                # 计算positions_value = total_value - cash
+                total_value = float(item.get("total_value", 0))
+                cash = float(item.get("cash", 0))
+                positions_value = total_value - cash
+                
+                portfolio_values.append({
+                    "date": item.get("datetime", item.get("date", "")),  # 支持两种日期字段名
+                    "total_value": total_value,
+                    "cash": cash,
+                    "positions_value": positions_value
+                })
+        
+        return {
+            "summary": summary_data,
+            "portfolio_history": portfolio_values,
+            "backtest_config": report_data.get("backtest_config", {}),
+            "report_info": report_data.get("report_info", {}),
+            "trade_summary": report_data.get("trade_summary", {}),
+            "final_positions": report_data.get("final_positions", {})
+        }
+        
+    except Exception as e:
+        log.error(f"Error loading historical report data for {strategy_name}: {e}")
+        return None
+
 @app.get("/api/reports")
 async def list_reports():
-    """获取所有报告列表"""
+    """获取所有报告列表，按回测会话分组"""
     reports = []
     
     for report_dir in reports_dir.iterdir():
         if report_dir.is_dir():
-            report_files = []
-            for file_path in report_dir.glob("*"):
-                if file_path.is_file():
-                    report_files.append({
-                        "name": file_path.name,
-                        "path": str(file_path.relative_to(project_root)),
-                        "size": file_path.stat().st_size,
-                        "type": file_path.suffix.lower()
-                    })
+            strategy_name = report_dir.name
             
-            reports.append({
-                "strategy_name": report_dir.name,
-                "created_at": datetime.fromtimestamp(report_dir.stat().st_mtime),
-                "files": report_files
-            })
+            # 查找JSON文件，按文件名分组（同一次回测会有相同的timestamp）
+            backtest_sessions = {}
+            
+            for file_path in report_dir.glob("*.json"):
+                if file_path.is_file():
+                    # 从文件名提取timestamp，格式: strategy_name_xxx_timestamp.json
+                    filename = file_path.stem
+                    parts = filename.split('_')
+                    if len(parts) >= 2:
+                        # 时间戳通常是最后两部分（YYYYMMDD_HHMMSS）
+                        timestamp = '_'.join(parts[-2:])
+                        session_key = timestamp
+                        
+                        if session_key not in backtest_sessions:
+                            backtest_sessions[session_key] = {
+                                "session_id": session_key,
+                                "strategy_name": strategy_name,
+                                "created_at": datetime.fromtimestamp(file_path.stat().st_mtime),
+                                "files": [],
+                                "summary": None
+                            }
+                        
+                        # 查找相关的所有文件（相同timestamp的不同格式）
+                        session_files = []
+                        base_pattern = filename.replace('.json', '')
+                        for ext in ['*.txt', '*.json', '*.csv', '*.summary.txt']:
+                            for related_file in report_dir.glob(f"{base_pattern}.{ext.replace('*.', '')}"): 
+                                if related_file.is_file():
+                                    session_files.append({
+                                        "name": related_file.name,
+                                        "path": str(related_file.relative_to(project_root)),
+                                        "size": related_file.stat().st_size,
+                                        "type": related_file.suffix.lower()
+                                    })
+                        
+                        backtest_sessions[session_key]["files"] = session_files
+                        
+                        # 尝试加载该会话的真实数据
+                        historical_data = await load_historical_report_data(strategy_name, session_key)
+                        if historical_data:
+                            backtest_sessions[session_key]["summary"] = historical_data.get("summary", {})
+            
+            # 将所有会话添加到报告列表中
+            for session in backtest_sessions.values():
+                reports.append(session)
+    
+    # 按创建时间排序
+    reports.sort(key=lambda x: x["created_at"], reverse=True)
     
     return {"reports": reports}
+
+@app.get("/api/reports/{strategy_name}/data/{session_id}")
+async def get_historical_report_data(strategy_name: str, session_id: str):
+    """获取指定会话的历史报告数据，包括收益曲线"""
+    historical_data = await load_historical_report_data(strategy_name, session_id)
+    
+    if not historical_data:
+        raise HTTPException(status_code=404, detail="Historical report data not found")
+    
+    return {
+        "strategy_name": strategy_name,
+        "session_id": session_id,
+        "data": historical_data
+    }
 
 @app.get("/api/reports/{strategy_name}/{filename}")
 async def get_report_file(strategy_name: str, filename: str):

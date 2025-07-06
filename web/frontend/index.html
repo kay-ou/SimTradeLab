@@ -108,9 +108,102 @@
             height: 400px;
             margin: 20px 0;
         }
+        
+        /* 响应式设计增强 */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: -100%;
+                width: 280px;
+                height: 100vh;
+                z-index: 1050;
+                transition: left 0.3s ease;
+            }
+            .sidebar.show {
+                left: 0;
+            }
+            .main-content {
+                margin-left: 0 !important;
+                padding: 15px;
+            }
+            .chart-container {
+                height: 300px;
+            }
+            .metric-card {
+                margin-bottom: 0.5rem;
+            }
+            .metric-value {
+                font-size: 1.2rem !important;
+            }
+            .metric-label {
+                font-size: 0.75rem !important;
+            }
+            .btn-group .btn {
+                padding: 0.25rem 0.5rem;
+                font-size: 0.875rem;
+            }
+            .job-result-card {
+                padding: 0.75rem !important;
+            }
+            .job-result-card h6 {
+                font-size: 0.9rem;
+            }
+            .analysis-header h5 {
+                font-size: 1.1rem;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .metric-value {
+                font-size: 1rem !important;
+            }
+            .metric-label {
+                font-size: 0.7rem !important;
+            }
+            .chart-container {
+                height: 250px;
+            }
+            .table-responsive {
+                font-size: 0.875rem;
+            }
+        }
+        
+        /* 移动端侧边栏开关按钮 */
+        .sidebar-toggle {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 1051;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar-toggle {
+                display: block;
+            }
+        }
+        
+        /* 文件名截断样式 */
+        .text-truncate-custom {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+        }
     </style>
 </head>
 <body>
+    <!-- 移动端侧边栏切换按钮 -->
+    <button class="sidebar-toggle" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+    
     <div class="container-fluid">
         <div class="row">
             <!-- 侧边栏 -->
