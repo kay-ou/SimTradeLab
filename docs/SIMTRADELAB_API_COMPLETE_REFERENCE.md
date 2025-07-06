@@ -5,24 +5,27 @@
 **开源策略回测框架 - 完整API参考手册**
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](../LICENSE)
 [![Version](https://img.shields.io/badge/Version-1.0.0-orange.svg)](#版本信息)
 
 *灵感来自PTrade的事件驱动模型，提供轻量、清晰、可插拔的策略验证环境*
 
 </div>
 
-## 📖 目录
+## 目录
 
 - [项目概述](#项目概述)
 - [快速开始](#快速开始)
 - [策略开发框架](#策略开发框架)
 - [数据接口API](#数据接口api)
+- [财务数据API](#财务数据api)
 - [交易接口API](#交易接口api)
+- [融资融券API](#融资融券api)
 - [工具函数API](#工具函数api)
 - [技术指标API](#技术指标api)
 - [高级功能API](#高级功能api)
 - [数据结构](#数据结构)
+- [数据格式规范](#数据格式规范)
 - [配置系统](#配置系统)
 - [报告系统](#报告系统)
 - [命令行工具](#命令行工具)
@@ -32,11 +35,11 @@
 
 ---
 
-## 📈 项目概述
+## 项目概述
 
 SimTradeLab（深测Lab）是一个由社区独立开发的开源策略回测框架，灵感来源于 PTrade 的事件驱动架构。它具备完全自主的实现与出色的扩展能力，为策略开发者提供一个轻量级、结构清晰、模块可插拔的策略验证环境。
 
-### ✨ 核心特性
+### 核心特性
 
 - 🔧 **事件驱动引擎**: 完整的回测引擎实现，支持 `initialize`、`handle_data`、`before_trading_start`、`after_trading_end` 等事件
 - 📊 **多格式报告**: TXT、JSON、CSV、HTML、摘要、图表等6种格式的完整分析报告
@@ -45,15 +48,15 @@ SimTradeLab（深测Lab）是一个由社区独立开发的开源策略回测框
 - ✅ **PTrade兼容**: 保持与PTrade语法习惯的高度兼容性
 - 📈 **可视化报告**: HTML交互式报告和matplotlib图表
 
-### 🎯 设计理念
+### 设计理念
 
 框架无需依赖 PTrade 即可独立运行，但与其语法保持高度兼容。**所有在 SimTradeLab 中编写的策略可无缝迁移至 PTrade 平台，反之亦然，两者之间的 API 可直接互通使用。**
 
 ---
 
-## 🚀 快速开始
+## 快速开始
 
-### 📦 安装
+### 安装
 
 ```bash
 # 克隆项目
@@ -67,7 +70,7 @@ poetry install
 poetry install --with data
 ```
 
-### 🎯 5分钟上手
+### 5分钟上手
 
 **1. 使用CSV数据源**
 ```bash
@@ -95,18 +98,128 @@ files = engine.run()
 
 ---
 
-## 🏗️ 策略开发框架
+## 策略开发框架
 
-### 业务流程框架
+### 策略结构
 
-SimTradeLab以事件触发为基础，通过以下事件来完成每个交易日的策略任务：
+#### 基本策略模板
 
-- **initialize（必选）**: 策略初始化事件
-- **before_trading_start（可选）**: 盘前事件  
-- **handle_data（必选）**: 盘中事件
-- **after_trading_end（可选）**: 盘后事件
+```python
+# -*- coding: utf-8 -*-
+"""
+策略名称和描述
+"""
 
-### 基本策略结构
+def initialize(context):
+    """
+    策略初始化函数
+    在回测开始前调用一次，用于设置策略参数
+    """
+    # 设置股票池
+    g.security = 'STOCK_A'
+    
+    # 策略参数
+    g.param1 = value1
+    g.param2 = value2
+    
+    log.info("策略初始化完成")
+
+
+def handle_data(context, data):
+    """
+    主策略逻辑函数
+    每个交易周期调用一次
+    """
+    security = g.security
+    
+    # 检查数据可用性
+    if security not in data:
+        return
+    
+    # 获取当前价格
+    current_price = data[security]['close']
+    
+    # 策略逻辑
+    # ...
+    
+    # 执行交易
+    # order(security, amount)
+
+
+def before_trading_start(context, data):
+    """
+    盘前处理函数（可选）
+    每个交易日开始前调用
+    """
+    log.info("盘前准备")
+
+
+def after_trading_end(context, data):
+    """
+    盘后处理函数（可选）
+    每个交易日结束后调用
+    """
+    log.info("盘后总结")
+```
+
+### 策略开发最佳实践
+
+#### 1. 参数设置
+
+```python
+def initialize(context):
+    # 使用有意义的变量名
+    g.stock_pool = ['STOCK_A', 'STOCK_B']
+    g.position_ratio = 0.8        # 最大仓位比例
+    g.stop_loss_ratio = 0.05      # 止损比例
+    g.rebalance_frequency = 5     # 调仓频率（天）
+    
+    # 策略状态变量
+    g.last_rebalance_date = None
+    g.trade_count = 0
+```
+
+#### 2. 风险控制
+
+```python
+def handle_data(context, data):
+    # 资金管理
+    available_cash = context.portfolio.cash
+    max_position_value = available_cash * g.position_ratio
+    
+    # 止损检查
+    position = get_position(g.security)
+    if position and position['pnl_ratio'] < -g.stop_loss_ratio:
+        order(g.security, -position['amount'])
+        log.info(f"止损卖出: {position['amount']}股")
+```
+
+#### 3. 日志记录
+
+```python
+def handle_data(context, data):
+    current_price = data[g.security]['close']
+    
+    # 详细的日志记录
+    log.info(f"当前价格: {current_price:.2f}")
+    log.info(f"账户总值: {context.portfolio.total_value:,.2f}")
+    
+    # 交易日志
+    if order_id:
+        log.info(f"下单成功: 订单ID {order_id}")
+```
+
+#### 4. 错误处理
+
+```python
+def handle_data(context, data):
+    try:
+        # 策略逻辑
+        pass
+    except Exception as e:
+        log.error(f"策略执行出错: {e}")
+        # 不要让异常中断回测
+```
 
 ```python
 def initialize(context):
@@ -156,7 +269,7 @@ def after_trading_end(context, data):
 
 ---
 
-## 📊 数据接口API
+## 数据接口API
 
 ### 市场数据接口
 
@@ -286,7 +399,157 @@ get_gear_price(security)
 
 ---
 
-## 💼 交易接口API
+## 财务数据API
+
+本模块提供全面的财务数据查询功能，帮助用户深入分析公司的基本面情况。所有财务数据均为模拟生成，仅用于策略研究和测试。
+
+### get_fundamentals() - 获取基本面数据
+
+```python
+get_fundamentals(stocks, table, fields=None, date=None, start_year=None, end_year=None, report_types=None, merge_type=None, date_type=None)
+```
+
+**功能说明：** 查询和获取上市公司的基本面财务数据，涵盖估值、盈利能力、资产负债状况、现金流和关键指标。
+
+**参数：**
+- `stocks` (str/list): 股票代码或列表，例如 `'000001.SZ'` 或 `['000001.SZ', '600519.SH']`。
+- `table` (str): 数据表名，支持以下选项：
+  - `'valuation'`: 估值表
+  - `'income'`: 利润表
+  - `'balance_sheet'`: 资产负债表
+  - `'cash_flow'`: 现金流量表
+  - `'indicator'`: 财务指标表
+- `fields` (str/list, 可选): 需要查询的字段，`None` 表示查询指定表中的所有字段。
+- `date` (str, 可选): 查询日期，格式 'YYYY-MM-DD'。
+- `start_year` (int, 可选): 开始年份。
+- `end_year` (int, 可选): 结束年份。
+- `report_types` (str, 可选): 财报类型（如 'Q1', 'H1', 'Q3', 'Y')。
+- `merge_type` (str, 可选): 合并类型。
+- `date_type` (str, 可选): 日期类型。
+
+**返回值：** 包含所查询基本面数据的Pandas DataFrame。
+
+**使用示例：**
+```python
+# 查询单只股票的估值数据
+df_valuation = get_fundamentals('000001.SZ', 'valuation', fields=['pe_ratio', 'pb_ratio'])
+log.info(f"估值数据:\\n{df_valuation}")
+
+# 查询多只股票的盈利能力指标
+df_income = get_fundamentals(['000001.SZ', '600519.SH'], 'income', fields=['roe', 'net_margin'])
+log.info(f"盈利能力指标:\\n{df_income}")
+```
+
+### get_income_statement() - 获取损益表
+
+```python
+get_income_statement(stocks, fields=None, date=None, count=4)
+```
+
+**功能说明：** 获取指定股票的损益表数据。
+
+**参数：**
+- `stocks` (str/list): 股票代码或列表。
+- `fields` (str/list, 可选): 需要查询的字段，`None` 表示查询所有字段。
+- `date` (str, 可选): 查询日期。
+- `count` (int): 获取报告期数，默认为4。
+
+**返回值：** 包含损益表数据的Pandas DataFrame。
+
+**使用示例：**
+```python
+# 获取单只股票最新4期的损益表
+df_income_statement = get_income_statement('000001.SZ')
+log.info(f"损益表:\\n{df_income_statement}")
+
+# 获取多只股票的指定字段
+df_specific_income = get_income_statement(['000001.SZ', '600519.SH'], fields=['revenue', 'net_income'])
+log.info(f"指定损益表字段:\\n{df_specific_income}")
+```
+
+### get_balance_sheet() - 获取资产负债表
+
+```python
+get_balance_sheet(stocks, fields=None, date=None, count=4)
+```
+
+**功能说明：** 获取指定股票的资产负债表数据。
+
+**参数：**
+- `stocks` (str/list): 股票代码或列表。
+- `fields` (str/list, 可选): 需要查询的字段，`None` 表示查询所有字段。
+- `date` (str, 可选): 查询日期。
+- `count` (int): 获取报告期数，默认为4。
+
+**返回值：** 包含资产负债表数据的Pandas DataFrame。
+
+**使用示例：**
+```python
+# 获取单只股票最新4期的资产负债表
+df_balance_sheet = get_balance_sheet('000001.SZ')
+log.info(f"资产负债表:\\n{df_balance_sheet}")
+
+# 获取多只股票的指定字段
+df_specific_balance = get_balance_sheet(['000001.SZ', '600519.SH'], fields=['total_assets', 'total_liabilities'])
+log.info(f"指定资产负债表字段:\\n{df_specific_balance}")
+```
+
+### get_cash_flow() - 获取现金流量表
+
+```python
+get_cash_flow(stocks, fields=None, date=None, count=4)
+```
+
+**功能说明：** 获取指定股票的现金流量表数据。
+
+**参数：**
+- `stocks` (str/list): 股票代码或列表。
+- `fields` (str/list, 可选): 需要查询的字段，`None` 表示查询所有字段。
+- `date` (str, 可选): 查询日期。
+- `count` (int): 获取报告期数，默认为4。
+
+**返回值：** 包含现金流量表数据的Pandas DataFrame。
+
+**使用示例：**
+```python
+# 获取单只股票最新4期的现金流量表
+df_cash_flow = get_cash_flow('000001.SZ')
+log.info(f"现金流量表:\\n{df_cash_flow}")
+
+# 获取多只股票的指定字段
+df_specific_cash_flow = get_cash_flow(['000001.SZ', '600519.SH'], fields=['operating_cash_flow', 'free_cash_flow'])
+log.info(f"指定现金流量表字段:\\n{df_specific_cash_flow}")
+```
+
+### get_financial_ratios() - 获取财务比率
+
+```python
+get_financial_ratios(stocks, fields=None, date=None)
+```
+
+**功能说明：** 获取指定股票的财务比率数据，用于综合评估公司表现。
+
+**参数：**
+- `stocks` (str/list): 股票代码或列表。
+- `fields` (str/list, 可选): 需要查询的字段，`None` 表示查询所有字段。
+- `date` (str, 可选): 查询日期。
+
+**返回值：** 包含财务比率数据的Pandas DataFrame。
+
+**使用示例：**
+```python
+# 获取单只股票的所有财务比率
+df_ratios = get_financial_ratios('000001.SZ')
+log.info(f"财务比率:\\n{df_ratios}")
+
+# 获取多只股票的指定比率
+df_specific_ratios = get_financial_ratios(['000001.SZ', '600519.SH'], fields=['roe', 'pe_ratio', 'dividend_yield'])
+log.info(f"指定财务比率:\\n{df_specific_ratios}")
+```
+
+---
+
+## 交易接口API
 
 ### 下单接口
 
@@ -340,8 +603,7 @@ order_value(security, target_value, limit_price=None, style=None)
 
 **功能说明：** 按指定价值买卖股票
 
-**使用示例：**
-```python
+**使用示例：**```python
 # 买入价值10万元的股票
 order_value('000001.SZ', 100000)
 ```
@@ -435,87 +697,110 @@ positions = get_positions(['000001.SZ', '000002.SZ'])
 
 ---
 
-## 🧮 技术指标API
+## 技术指标API
 
-### 通用技术指标接口
+SimTradeLab 提供了丰富的技术指标计算功能，支持多种经典的技术分析指标。
 
-#### get_technical_indicators() - 批量技术指标
+### 趋势指标
 
-```python
-get_technical_indicators(security, indicators, period=20, **kwargs)
+#### 移动平均线 (MA)```python
+# 通过 get_technical_indicators 计算
+ma_data = get_technical_indicators('STOCK_A', 'MA', period=20)
+
+# 或者通过历史数据计算
+hist_data = get_history(30, '1d', 'close', 'STOCK_A')
+ma_20 = hist_data['close'].rolling(20).mean()
 ```
 
-**功能说明：** 计算多种技术指标
-
-**参数：**
-- `security` (str/list): 股票代码
-- `indicators` (str/list): 指标名称列表
-- `period` (int): 计算周期
-- `**kwargs`: 其他参数
-
-**支持的指标：**
-- `MA`: 移动平均线
-- `EMA`: 指数移动平均线
-- `MACD`: 异同移动平均线
-- `RSI`: 相对强弱指标
-- `BOLL`: 布林带
-- `KDJ`: 随机指标
-- `CCI`: 顺势指标
-
-### 专用技术指标函数
-
-#### get_MACD() - MACD指标
-
-```python
-get_MACD(security, fast_period=12, slow_period=26, signal_period=9)
+#### 指数移动平均线 (EMA)```python
+ema_data = get_technical_indicators('STOCK_A', 'EMA', period=12)
 ```
 
-**功能说明：** 计算MACD技术指标（异同移动平均线）
-
-**返回值：** 包含 MACD_DIF、MACD_DEA、MACD_HIST 的DataFrame
-
-**使用示例：**
+#### MACD (异同移动平均线)
 ```python
-def handle_data(context, data):
-    # 计算MACD指标
-    macd_data = get_MACD('000001.SZ', fast_period=12, slow_period=26)
-    dif = macd_data[('MACD_DIF', '000001.SZ')].iloc[-1]
-    dea = macd_data[('MACD_DEA', '000001.SZ')].iloc[-1]
-    
-    # 金叉买入信号
-    if dif > dea:
-        order_target_percent('000001.SZ', 0.8)
+# 使用专用函数
+macd_data = get_MACD('STOCK_A', fast_period=12, slow_period=26, signal_period=9)
+
+# 返回字段：MACD_DIF, MACD_DEA, MACD_HIST
+dif = macd_data['MACD_DIF'].iloc[-1]
+dea = macd_data['MACD_DEA'].iloc[-1]
+hist = macd_data['MACD_HIST'].iloc[-1]
+
+# 交易信号
+if hist > 0 and macd_data['MACD_HIST'].iloc[-2] <= 0:
+    log.info("MACD金叉信号")
 ```
 
-#### get_KDJ() - KDJ指标
+### 动量指标
 
+#### RSI (相对强弱指标)
 ```python
-get_KDJ(security, k_period=9)
+# 使用专用函数
+rsi_data = get_RSI('STOCK_A', period=14)
+
+# 获取最新RSI值
+current_rsi = rsi_data['RSI14'].iloc[-1]
+
+# 交易信号
+if current_rsi < 30:
+    log.info("RSI超卖信号")
+elif current_rsi > 70:
+    log.info("RSI超买信号")
 ```
 
-**功能说明：** 计算KDJ随机指标
-
-**返回值：** 包含 KDJ_K、KDJ_D、KDJ_J 的DataFrame
-
-#### get_RSI() - RSI指标
-
+#### CCI (商品通道指标)
 ```python
-get_RSI(security, period=14)
+cci_data = get_CCI('STOCK_A', period=20)
+current_cci = cci_data['CCI20'].iloc[-1]
+
+# CCI信号判断
+if current_cci > 100:
+    log.info("CCI超买信号")
+elif current_cci < -100:
+    log.info("CCI超卖信号")
 ```
 
-**功能说明：** 计算RSI相对强弱指标
+### 摆动指标
 
-#### get_CCI() - CCI指标
-
+#### KDJ (随机指标)
 ```python
-get_CCI(security, period=20)
+# 使用专用函数
+kdj_data = get_KDJ('STOCK_A', k_period=9)
+
+# 返回字段：KDJ_K, KDJ_D, KDJ_J
+k_value = kdj_data['KDJ_K'].iloc[-1]
+d_value = kdj_data['KDJ_D'].iloc[-1]
+j_value = kdj_data['KDJ_J'].iloc[-1]
+
+# KDJ交易信号
+if k_value > d_value and kdj_data['KDJ_K'].iloc[-2] <= kdj_data['KDJ_D'].iloc[-2]:
+    log.info("KDJ金叉信号")
 ```
 
-**功能说明：** 计算CCI顺势指标
+### 波动率指标
+
+#### 布林带 (BOLL)
+```python
+boll_data = get_technical_indicators('STOCK_A', 'BOLL', period=20)
+
+# 返回字段：BOLL_UPPER, BOLL_MIDDLE, BOLL_LOWER
+upper = boll_data['BOLL_UPPER'].iloc[-1]
+middle = boll_data['BOLL_MIDDLE'].iloc[-1]
+lower = boll_data['BOLL_LOWER'].iloc[-1]
+
+# 当前价格
+current_price = get_current_data('STOCK_A')['close']
+
+# 布林带信号
+if current_price <= lower:
+    log.info("价格触及布林带下轨，可能反弹")
+elif current_price >= upper:
+    log.info("价格触及布林带上轨，可能回调")
+```
 
 ---
 
-## 🔧 工具函数API
+## 工具函数API
 
 ### 配置设置
 
@@ -703,7 +988,144 @@ permission_test(permission_type="trade")
 
 ---
 
-## 🏦 高级功能API
+## 融资融券API
+
+本模块提供完整的融资融券交易与查询功能。
+
+### 交易类API
+
+#### margin_trade() - 担保品买卖
+```python
+margin_trade(engine, security, amount, operation='buy')
+```
+- **功能**: 对担保品进行买入或卖出操作。
+- **参数**:
+  - `security`: 证券代码。
+  - `amount`: 交易数量。
+  - `operation`: `'buy'` (买入) 或 `'sell'` (卖出)。
+
+#### margincash_open() - 融资买入
+```python
+margincash_open(engine, security, amount, price=None)
+```
+- **功能**: 融资买入指定证券。
+- **参数**:
+  - `security`: 证券代码。
+  - `amount`: 买入数量。
+  - `price`: 买入价格，`None`表示市价。
+
+#### margincash_close() - 卖券还款
+```python
+margincash_close(engine, security, amount, price=None)
+```
+- **功能**: 卖出证券以归还融资款项。
+
+#### margincash_direct_refund() - 直接还款
+```python
+margincash_direct_refund(engine, amount)
+```
+- **功能**: 直接使用现金归还融资欠款。
+- **参数**: `amount` (float): 还款金额。
+
+#### marginsec_open() - 融券卖出
+```python
+marginsec_open(engine, security, amount, price=None)
+```
+- **功能**: 融券卖出指定证券。
+
+#### marginsec_close() - 买券还券
+```python
+marginsec_close(engine, security, amount, price=None)
+```
+- **功能**: 买入证券以归还融券负债。
+
+#### marginsec_direct_refund() - 直接还券
+```python
+marginsec_direct_refund(engine, security, amount)
+```
+- **功能**: 使用已有持仓直接归还融券负债。
+
+### 查询类API
+
+#### get_margincash_stocks() - 获取融资标的
+```python
+get_margincash_stocks(engine)
+```
+- **功能**: 获取可用于融资买入的证券列表。
+- **返回值**: `list`, 包含证券信息、保证金比例等。
+
+#### get_marginsec_stocks() - 获取融券标的
+```python
+get_marginsec_stocks(engine)
+```
+- **功能**: 获取可用于融券卖出的证券列表。
+- **返回值**: `list`, 包含证券信息、可融券数量等。
+
+#### get_margin_contract() - 合约查询
+```python
+get_margin_contract(engine)
+```
+- **功能**: 查询当前所有融资融券合约。
+- **返回值**: `list`, 包含合约详情。
+
+#### get_margin_contractreal() - 实时合约查询
+```python
+get_margin_contractreal(engine)
+```
+- **功能**: 查询合约的实时信息，包括盈亏、风险等。
+
+#### get_margin_assert() - 信用资产查询
+```python
+get_margin_assert(engine)
+```
+- **功能**: 查询信用账户的资产、负债、保证金等信息。
+- **返回值**: `dict`, 包含详细的信用资产信息。
+
+#### get_assure_security_list() - 担保券查询
+```python
+get_assure_security_list(engine)
+```
+- **功能**: 获取可作为担保品的证券列表及其折算率。
+
+#### get_margincash_open_amount() - 融资最大可买数量
+```python
+get_margincash_open_amount(engine, security)
+```
+- **功能**: 查询指定证券融资可买的最大数量。
+
+#### get_margincash_close_amount() - 卖券还款最大可卖数量
+```python
+get_margincash_close_amount(engine, security)
+```
+- **功能**: 查询持有的、可用于卖券还款的证券最大数量。
+
+#### get_marginsec_open_amount() - 融券最大可卖数量
+```python
+get_marginsec_open_amount(engine, security)
+```
+- **功能**: 查询指定证券融券可卖的最大数量。
+
+#### get_marginsec_close_amount() - 买券还券最大可买数量
+```python
+get_marginsec_close_amount(engine, security)
+```
+- **功能**: 查询为归还融券负债所需买入的最大数量。
+
+#### get_margin_entrans_amount() - 现券还券数量查询
+```python
+get_margin_entrans_amount(engine, security)
+```
+- **功能**: 查询可用于直接还券的现券数量。
+
+#### get_enslo_security_info() - 融券头寸信息查询
+```python
+get_enslo_security_info(engine, security)
+```
+- **功能**: 查询券商的融券头寸信息，如总额度、费率等。
+
+---
+
+## 高级功能API
 
 ### 期货交易
 
@@ -771,35 +1193,9 @@ get_etf_stock_list(etf_code)
 etf_purchase_redemption(etf_code, operation, amount)
 ```
 
-### 融资融券
-
-#### margincash_open() - 融资买入
-
-```python
-margincash_open(security, amount, limit_price=None, style=None)
-```
-
-#### margincash_close() - 卖券还款
-
-```python
-margincash_close(security, amount, limit_price=None, style=None)
-```
-
-#### marginsec_open() - 融券卖出
-
-```python
-marginsec_open(security, amount, limit_price=None, style=None)
-```
-
-#### marginsec_close() - 买券还券
-
-```python
-marginsec_close(security, amount, limit_price=None, style=None)
-```
-
 ---
 
-## 📋 数据结构
+## 数据结构
 
 ### Context对象
 
@@ -874,7 +1270,59 @@ Order对象包含订单信息。
 
 ---
 
-## ⚙️ 配置系统
+## 数据格式规范
+
+### 概述
+
+SimTradeLab 支持标准的 CSV 格式数据输入，采用**长格式**（Long Format）数据结构，便于处理多股票、多时间频率的数据。
+
+### 🔧 标准数据格式
+
+#### 必需列
+
+| 列名 | 类型 | 说明 | 示例 |
+|------|------|------|------|
+| `date` | string | 交易日期，格式：YYYY-MM-DD | 2023-01-01 |
+| `open` | float | 开盘价 | 100.50 |
+| `high` | float | 最高价 | 102.30 |
+| `low` | float | 最低价 | 99.80 |
+| `close` | float | 收盘价 | 101.20 |
+| `volume` | int | 成交量 | 1500000 |
+| `security` | string | 股票代码/标识符 | STOCK_A |
+
+#### 分钟级数据格式
+
+对于分钟级数据，`date` 列应包含完整的日期时间信息：
+
+| 列名 | 类型 | 说明 | 示例 |
+|------|------|------|------|
+| `datetime` | string | 日期时间，格式：YYYY-MM-DD HH:MM:SS | 2023-01-01 09:30:00 |
+| `open` | float | 开盘价 | 100.50 |
+| `high` | float | 最高价 | 102.30 |
+| `low` | float | 最低价 | 99.80 |
+| `close` | float | 收盘价 | 101.20 |
+| `volume` | int | 成交量 | 15000 |
+| `security` | string | 股票代码/标识符 | STOCK_A |
+
+### ⚠️ 注意事项
+
+#### 数据质量要求
+
+1. **无缺失值**：所有必需列不能有空值
+2. **数据类型**：确保价格为数值类型，成交量为整数类型
+3. **日期格式**：严格按照 YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS 格式
+4. **逻辑一致性**：high ≥ max(open, close)，low ≤ min(open, close)
+5. **正数约束**：价格和成交量必须为正数
+
+#### 多股票数据
+
+- 同一个CSV文件可以包含多只股票的数据
+- 通过 `security` 列区分不同股票
+- 建议按日期和股票代码排序
+
+---
+
+## 配置系统
 
 ### 配置文件结构
 
@@ -935,7 +1383,7 @@ save_config(config, 'output_config.yaml')
 
 ---
 
-## 📊 报告系统
+## 报告系统
 
 ### 报告格式
 
@@ -970,7 +1418,7 @@ save_config(config, 'output_config.yaml')
 
 ---
 
-## ⌨️ 命令行工具
+## 命令行工具
 
 ### 基本用法
 
@@ -1021,7 +1469,7 @@ done
 
 ---
 
-## 💡 使用示例
+## 使用示例
 
 ### 基础买入持有策略
 
@@ -1164,7 +1612,7 @@ def handle_data(context, data):
 
 ---
 
-## 🔄 PTrade兼容性
+## PTrade兼容性
 
 ### 高度兼容的设计理念
 
@@ -1240,7 +1688,7 @@ SimTradeLab在保持兼容性的基础上，还提供了一些增强功能：
 
 ---
 
-## ⚠️ 注意事项
+## 注意事项
 
 ### 通用注意事项
 
@@ -1280,7 +1728,7 @@ SimTradeLab在保持兼容性的基础上，还提供了一些增强功能：
 
 ---
 
-## 📚 版本信息
+## 版本信息
 
 **当前版本：** v1.0.0
 
@@ -1303,7 +1751,7 @@ SimTradeLab在保持兼容性的基础上，还提供了一些增强功能：
 
 ---
 
-## 🤝 贡献与支持
+## 贡献与支持
 
 ### 贡献指南
 
@@ -1324,17 +1772,17 @@ SimTradeLab在保持兼容性的基础上，还提供了一些增强功能：
 ### 文档资源
 
 - **项目主页**: [GitHub Repository](https://github.com/kay-ou/SimTradeLab)
-- **完整文档**: [docs/](docs/)
-- **策略示例**: [strategies/](strategies/)
-- **更新日志**: [CHANGELOG.md](CHANGELOG.md)
+- **完整文档**: [docs/](./)
+- **策略示例**: [strategies/](../strategies/)
+- **更新日志**: [CHANGELOG.md](../CHANGELOG.md)
 
 ---
 
-## 📄 许可证
+## 许可证
 
-本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
+本项目采用 MIT 许可证。详见 [LICENSE](../LICENSE) 文件。
 
-## ⚖️ 免责声明
+## 免责声明
 
 SimTradeLab是一个开源的策略回测框架，仅用于教育、研究和非商业用途。本项目不提供投资建议，使用者应自行承担使用风险。项目开发者不对任何由使用本项目所引发的直接或间接损失承担责任。
 
@@ -1342,9 +1790,9 @@ SimTradeLab是一个开源的策略回测框架，仅用于教育、研究和非
 
 <div align="center">
 
-**⭐ 如果这个项目对您有帮助，请给我们一个星标！**
+**如果这个项目对您有帮助，请给我们一个星标！**
 
-[🏠 项目主页](https://github.com/kay-ou/SimTradeLab) | [📖 完整文档](docs/) | [🐛 报告问题](https://github.com/kay-ou/SimTradeLab/issues) | [💡 功能请求](https://github.com/kay-ou/SimTradeLab/issues)
+[项目主页](https://github.com/kay-ou/SimTradeLab) | [完整文档](./) | [报告问题](https://github.com/kay-ou/SimTradeLab/issues) | [功能请求](https://github.com/kay-ou/SimTradeLab/issues)
 
 **感谢您使用 SimTradeLab！**
 
