@@ -132,6 +132,14 @@ def after_trading_end(context, data):
         
         // 监听窗口大小变化
         window.addEventListener('resize', autoResizeEditor);
+        
+        // 确保编辑器正确渲染
+        setTimeout(() => {
+            if (strategyEditor) {
+                strategyEditor.resize(true);
+                strategyEditor.renderer.updateFull();
+            }
+        }, 100);
     }
 }
 
@@ -179,6 +187,11 @@ function initResizableEditor() {
         startWidth = parseInt(document.defaultView.getComputedStyle(container).width, 10);
         startHeight = parseInt(document.defaultView.getComputedStyle(container).height, 10);
         
+        // 添加拖拽时的样式
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'se-resize';
+        container.style.transition = 'none'; // 拖拽时禁用过渡动画
+        
         document.addEventListener('mousemove', handleResize);
         document.addEventListener('mouseup', stopResize);
         e.preventDefault();
@@ -199,24 +212,47 @@ function initResizableEditor() {
         const finalWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
         const finalHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
         
+        // 同时更新容器和编辑器尺寸
         container.style.width = finalWidth + 'px';
         container.style.height = finalHeight + 'px';
         
-        // 确保编辑器内容跟随容器大小变化
+        // 立即更新编辑器尺寸，无延迟
         if (strategyEditor) {
-            // 延迟执行确保DOM更新完成
-            setTimeout(() => {
-                strategyEditor.resize(true); // 强制重新计算尺寸
-                strategyEditor.renderer.updateFull(true); // 强制重新渲染
-                strategyEditor.renderer.onResize(); // 触发resize事件
-            }, 10);
+            try {
+                // 使用requestAnimationFrame确保DOM更新完成后再调整编辑器
+                requestAnimationFrame(() => {
+                    strategyEditor.resize(true); // 强制重新计算尺寸
+                    strategyEditor.renderer.updateFull(true); // 强制重新渲染
+                });
+            } catch (error) {
+                console.warn('Editor resize error:', error);
+            }
         }
     }
     
     function stopResize() {
+        if (!isResizing) return;
+        
         isResizing = false;
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        container.style.transition = ''; // 恢复过渡动画
+        
         document.removeEventListener('mousemove', handleResize);
         document.removeEventListener('mouseup', stopResize);
+        
+        // 拖拽结束后再次确保编辑器正确渲染
+        if (strategyEditor) {
+            setTimeout(() => {
+                try {
+                    strategyEditor.resize(true);
+                    strategyEditor.renderer.updateFull(true);
+                    strategyEditor.renderer.onResize();
+                } catch (error) {
+                    console.warn('Editor final resize error:', error);
+                }
+            }, 50);
+        }
     }
 }
 

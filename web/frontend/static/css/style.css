@@ -307,6 +307,22 @@
     .chart-container {
         height: 300px;
     }
+    
+    /* 移动端编辑器优化 */
+    .editor-container {
+        min-height: 300px;
+        resize: vertical; /* 移动端只允许垂直调整 */
+    }
+    
+    .resize-handle {
+        width: 30px;
+        height: 30px; /* 移动端更大的拖拽区域 */
+        background: linear-gradient(-45deg, transparent 20%, #667eea 20%, #667eea 30%, transparent 30%, transparent 50%, #667eea 50%, #667eea 60%, transparent 60%);
+    }
+    
+    .resizable-editor {
+        min-height: 300px;
+    }
 }
 
 /* 打印样式 */
@@ -338,12 +354,27 @@
     width: 100%;
     resize: both;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .resizable-editor {
-    width: 100%;
-    height: 100%;
+    width: 100% !important;
+    height: 100% !important;
     min-height: 500px;
+    flex-grow: 1;
+    position: relative;
+}
+
+/* 确保Ace编辑器填充整个容器 */
+.resizable-editor .ace_editor {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.resizable-editor .ace_scroller {
+    width: 100% !important;
+    height: 100% !important;
 }
 
 .resize-handle {
@@ -355,6 +386,7 @@
     background: linear-gradient(-45deg, transparent 30%, #ccc 30%, #ccc 40%, transparent 40%, transparent 60%, #ccc 60%, #ccc 70%, transparent 70%);
     cursor: se-resize;
     z-index: 1000;
+    flex-shrink: 0;
 }
 
 .editor-container:hover .resize-handle {
@@ -373,10 +405,22 @@
     border: none !important;
     border-radius: 0 !important;
     max-height: none !important;
+    display: flex !important;
+    flex-direction: column !important;
 }
 
 .editor-fullscreen .resizable-editor {
     height: calc(100vh - 60px) !important;
+    min-height: auto !important;
+    flex-grow: 1 !important;
+}
+
+.editor-fullscreen .resizable-editor .ace_editor {
+    height: 100% !important;
+}
+
+.editor-fullscreen .resize-handle {
+    display: none; /* 全屏模式下隐藏拖拽手柄 */
 }
 
 .fullscreen-overlay {
