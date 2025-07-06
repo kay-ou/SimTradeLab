@@ -1749,21 +1749,7 @@ SimTradeLab在保持兼容性的基础上，还提供了一些增强功能：
 
 ## 贡献与支持
 
-### 贡献指南
-
-欢迎社区贡献代码、报告问题或提出改进建议：
-
-1. **Fork项目** - 在GitHub上fork项目
-2. **创建分支** - `git checkout -b feature/新功能`
-3. **提交代码** - `git commit -m '添加新功能'`
-4. **推送分支** - `git push origin feature/新功能`
-5. **提交PR** - 在GitHub上创建Pull Request
-
-### 问题反馈
-
-- **Bug报告**: [GitHub Issues](https://github.com/kay-ou/SimTradeLab/issues)
-- **功能请求**: [GitHub Issues](https://github.com/kay-ou/SimTradeLab/issues)
-- **使用问题**: [GitHub Discussions](https://github.com/kay-ou/SimTradeLab/discussions)
+我们欢迎任何形式的社区贡献。请参考我们的 [贡献指南](CONTRIBUTING.md) 了解如何参与项目开发、提交问题和功能请求。
 
 ### 文档资源
 

@@ -2,34 +2,27 @@
 
 欢迎来到 SimTradeLab 文档中心！这里包含了使用 SimTradeLab 进行量化交易策略开发的完整指南。
 
-## 📚 文档导航
+## 文档导航
 
-### 🚀 快速开始
+### 快速开始
 - [项目主页](../README.md) - 项目概述和快速安装
 - [5分钟上手指南](../README.md#🎯-5分钟上手指南) - 快速体验 SimTradeLab
 
-### 📖 开发指南
-- [策略开发指南](STRATEGY_GUIDE.md) - 完整的策略开发教程
-- [API参考文档](API_REFERENCE.md) - 详细的API接口说明
-- [数据格式规范](DATA_FORMAT.md) - CSV数据格式标准 ✅
-- [数据迁移指南](DATA_MIGRATION_GUIDE.md) - 数据格式转换工具 ✅
-- [技术指标文档](TECHNICAL_INDICATORS.md) - 技术指标使用指南
-- [多频率交易](MULTI_FREQUENCY_TRADING.md) - 分钟级交易指南
+### 开发指南
+- [API完整参考](SIMTRADELAB_API_COMPLETE_REFERENCE.md) - 包含所有API、策略开发、数据格式等内容的完整文档。
 
-### 🧪 测试与质量
+### 测试与质量
 - [测试文档](../tests/README.md) - 测试套件说明
 - [性能基准](PERFORMANCE_BENCHMARKS.md) - 性能测试结果
 
-### 🔧 高级主题
-- [多频率交易](MULTI_FREQUENCY_TRADING.md) - 分钟级交易指南 ✅
+### 高级主题
 - [风险管理](RISK_MANAGEMENT.md) - 风险控制策略 🚧
 - [性能优化](PERFORMANCE_OPTIMIZATION.md) - 策略性能优化 🚧
 
-### 📊 示例与案例
-- [策略示例集](STRATEGY_EXAMPLES.md) - 丰富的策略示例 🚧
+### 示例与案例
 - [最佳实践](BEST_PRACTICES.md) - 开发最佳实践 🚧
 
-## 🎯 文档特色
+## 文档特色
 
 ### 📋 完整覆盖
 - **基础教程**: 从零开始的策略开发
@@ -47,23 +40,11 @@
 - **社区贡献**: 欢迎社区贡献文档
 - **反馈改进**: 根据用户反馈持续改进
 
-## 🤝 贡献文档
+## 贡献文档
 
-我们欢迎您为文档做出贡献！
+我们欢迎任何形式的社区贡献。请参考我们的 [贡献指南](CONTRIBUTING.md) 了解如何参与项目开发、提交问题和功能请求。
 
-### 如何贡献
-1. Fork 项目仓库
-2. 在 `docs/` 目录下创建或修改文档
-3. 使用 Markdown 格式编写
-4. 提交 Pull Request
-
-### 文档规范
-- 使用清晰的标题结构
-- 提供代码示例和运行结果
-- 添加适当的图表和截图
-- 保持语言简洁明了
-
-## 📞 获取帮助
+## 获取帮助
 
 如果您在使用过程中遇到问题：
 
@@ -74,6 +55,6 @@
 
 ---
 
-**开始您的量化交易之旅！** 🚀
+**开始您的量化交易之旅！**
 
-选择上面的任一文档开始学习，或者直接查看 [策略开发指南](STRATEGY_GUIDE.md) 开始您的第一个策略。
+选择查看 [API完整参考](SIMTRADELAB_API_COMPLETE_REFERENCE.md) 开始您的第一个策略。
