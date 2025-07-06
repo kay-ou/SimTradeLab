@@ -61,6 +61,13 @@ mypy = "^1.5.0"
 pre-commit = "^3.0.0"
 bandit = "^1.7.0"
 
+[tool.poetry.group.web.dependencies]
+fastapi = ">=0.68.0"
+uvicorn = { version = ">=0.15.0", extras = ["standard"] }
+python-multipart = ">=0.0.5"
+jinja2 = ">=3.0.0"
+aiofiles = ">=0.7.0"
+
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = [

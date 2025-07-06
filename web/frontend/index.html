@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SimTradeLab - 策略回测平台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/material.min.css" rel="stylesheet">
+    <link href="static/css/style.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.8);
+            border-radius: 8px;
+            margin: 2px 8px;
+            transition: all 0.3s ease;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            color: white;
+            background-color: rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
+        }
+        .main-content {
+            min-height: 100vh;
+            background-color: #f8f9fa;
+        }
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+            transition: transform 0.2s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 8px;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+        }
+        .CodeMirror {
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            height: 400px;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .status-pending { background-color: #ffeaa7; color: #2d3436; }
+        .status-running { background-color: #74b9ff; color: white; }
+        .status-completed { background-color: #00b894; color: white; }
+        .status-failed { background-color: #e17055; color: white; }
+        .nav-tabs .nav-link {
+            border: none;
+            border-radius: 8px 8px 0 0;
+            color: #6c757d;
+        }
+        .nav-tabs .nav-link.active {
+            background-color: white;
+            border-bottom: 3px solid #667eea;
+            color: #667eea;
+        }
+        .progress {
+            height: 8px;
+            border-radius: 4px;
+        }
+        .table-responsive {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 侧边栏 -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <h4 class="text-white"><i class="fas fa-chart-line"></i> SimTradeLab</h4>
+                        <p class="text-white-50 small">策略回测平台</p>
+                    </div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#" onclick="showTab('dashboard')">
+                                <i class="fas fa-tachometer-alt"></i> 仪表盘
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" onclick="showTab('strategies')">
+                                <i class="fas fa-code"></i> 策略管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" onclick="showTab('data')">
+                                <i class="fas fa-database"></i> 数据管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" onclick="showTab('backtest')">
+                                <i class="fas fa-play"></i> 回测执行
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" onclick="showTab('batch')">
+                                <i class="fas fa-layer-group"></i> 批量测试
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" onclick="showTab('results')">
+                                <i class="fas fa-chart-bar"></i> 结果分析
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" onclick="showTab('reports')">
+                                <i class="fas fa-file-alt"></i> 报告中心
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- 主内容区 -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                <div class="pt-3 pb-2 mb-3">
+                    
+                    <!-- 仪表盘页面 -->
+                    <div id="dashboard-tab" class="tab-content">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                            <h1 class="h2"><i class="fas fa-tachometer-alt text-primary"></i> 仪表盘</h1>
+                            <button class="btn btn-outline-primary" onclick="refreshDashboard()">
+                                <i class="fas fa-sync-alt"></i> 刷新
+                            </button>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-3 mb-4">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-primary"><i class="fas fa-code"></i></h5>
+                                        <h3 id="strategy-count">-</h3>
+                                        <p class="card-text text-muted">策略总数</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-4">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-success"><i class="fas fa-database"></i></h5>
+                                        <h3 id="data-count">-</h3>
+                                        <p class="card-text text-muted">数据文件</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-4">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-info"><i class="fas fa-tasks"></i></h5>
+                                        <h3 id="job-count">-</h3>
+                                        <p class="card-text text-muted">运行任务</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-4">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-warning"><i class="fas fa-file-alt"></i></h5>
+                                        <h3 id="report-count">-</h3>
+                                        <p class="card-text text-muted">报告数量</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-clock"></i> 最近任务</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="recent-jobs"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-chart-pie"></i> 系统状态</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <small class="text-muted">API状态</small>
+                                            <div class="progress">
+                                                <div class="progress-bar bg-success" style="width: 100%">正常</div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <small class="text-muted">数据源状态</small>
+                                            <div id="data-source-status"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 策略管理页面 -->
+                    <div id="strategies-tab" class="tab-content" style="display: none;">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                            <h1 class="h2"><i class="fas fa-code text-primary"></i> 策略管理</h1>
+                            <div>
+                                <button class="btn btn-success me-2" onclick="createNewStrategy()">
+                                    <i class="fas fa-plus"></i> 新建策略
+                                </button>
+                                <button class="btn btn-outline-primary" onclick="loadStrategies()">
+                                    <i class="fas fa-sync-alt"></i> 刷新
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-list"></i> 策略列表</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="strategy-list"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h5><i class="fas fa-edit"></i> 策略编辑器</h5>
+                                        <div>
+                                            <button class="btn btn-primary btn-sm" onclick="saveCurrentStrategy()">
+                                                <i class="fas fa-save"></i> 保存
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm" onclick="deleteCurrentStrategy()">
+                                                <i class="fas fa-trash"></i> 删除
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label for="strategy-name" class="form-label">策略名称</label>
+                                            <input type="text" class="form-control" id="strategy-name" placeholder="输入策略名称">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="strategy-description" class="form-label">策略描述</label>
+                                            <input type="text" class="form-control" id="strategy-description" placeholder="输入策略描述">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">策略代码</label>
+                                            <textarea id="strategy-code"></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 数据管理页面 -->
+                    <div id="data-tab" class="tab-content" style="display: none;">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                            <h1 class="h2"><i class="fas fa-database text-primary"></i> 数据管理</h1>
+                            <button class="btn btn-outline-primary" onclick="loadDataSources()">
+                                <i class="fas fa-sync-alt"></i> 刷新
+                            </button>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-plug"></i> 数据源配置</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="data-sources-list"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-file-csv"></i> 本地数据文件</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label for="data-file-upload" class="form-label">上传CSV文件</label>
+                                            <input class="form-control" type="file" id="data-file-upload" accept=".csv" onchange="uploadDataFile(this)">
+                                        </div>
+                                        <div id="data-files-list"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 回测执行页面 -->
+                    <div id="backtest-tab" class="tab-content" style="display: none;">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                            <h1 class="h2"><i class="fas fa-play text-primary"></i> 回测执行</h1>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-cog"></i> 回测配置</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="backtest-form">
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="backtest-strategy" class="form-label">选择策略</label>
+                                                    <select class="form-select" id="backtest-strategy" required>
+                                                        <option value="">请选择策略</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="backtest-data-source" class="form-label">数据源</label>
+                                                    <select class="form-select" id="backtest-data-source" onchange="toggleDataSourceOptions()">
+                                                        <option value="csv">CSV文件</option>
+                                                        <option value="akshare">AkShare在线</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            
+                                            <div id="csv-options" class="mb-3">
+                                                <label for="backtest-data-file" class="form-label">数据文件</label>
+                                                <select class="form-select" id="backtest-data-file">
+                                                    <option value="">请选择数据文件</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <div id="online-options" class="mb-3" style="display: none;">
+                                                <label for="backtest-securities" class="form-label">股票代码（用逗号分隔）</label>
+                                                <input type="text" class="form-control" id="backtest-securities" placeholder="例如: 000001.SZ,000002.SZ">
+                                            </div>
+
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="backtest-start-date" class="form-label">开始日期</label>
+                                                    <input type="date" class="form-control" id="backtest-start-date" required>
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="backtest-end-date" class="form-label">结束日期</label>
+                                                    <input type="date" class="form-control" id="backtest-end-date" required>
+                                                </div>
+                                            </div>
+
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="backtest-initial-cash" class="form-label">初始资金</label>
+                                                    <input type="number" class="form-control" id="backtest-initial-cash" value="1000000" min="1000">
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="backtest-commission" class="form-label">手续费率</label>
+                                                    <input type="number" class="form-control" id="backtest-commission" value="0.0003" step="0.0001" min="0">
+                                                </div>
+                                            </div>
+
+                                            <button type="submit" class="btn btn-primary btn-lg w-100">
+                                                <i class="fas fa-rocket"></i> 开始回测
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-tasks"></i> 运行状态</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="backtest-status"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 批量测试页面 -->
+                    <div id="batch-tab" class="tab-content" style="display: none;">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                            <h1 class="h2"><i class="fas fa-layer-group text-primary"></i> 批量参数测试</h1>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-sliders-h"></i> 参数配置</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="batch-test-form">
+                                            <div class="mb-3">
+                                                <label for="batch-strategy" class="form-label">选择策略</label>
+                                                <select class="form-select" id="batch-strategy" required>
+                                                    <option value="">请选择策略</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label class="form-label">参数范围设置</label>
+                                                <div id="parameter-ranges">
+                                                    <div class="row mb-2">
+                                                        <div class="col-md-4">
+                                                            <input type="text" class="form-control" placeholder="参数名" id="param-name-0">
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <input type="text" class="form-control" placeholder="取值列表，用逗号分隔" id="param-values-0">
+                                                        </div>
+                                                        <div class="col-md-2">
+                                                            <button type="button" class="btn btn-outline-danger" onclick="removeParameterRow(0)">删除</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addParameterRow()">
+                                                    <i class="fas fa-plus"></i> 添加参数
+                                                </button>
+                                            </div>
+
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="batch-start-date" class="form-label">开始日期</label>
+                                                    <input type="date" class="form-control" id="batch-start-date" required>
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="batch-end-date" class="form-label">结束日期</label>
+                                                    <input type="date" class="form-control" id="batch-end-date" required>
+                                                </div>
+                                            </div>
+
+                                            <button type="submit" class="btn btn-warning btn-lg w-100">
+                                                <i class="fas fa-layer-group"></i> 开始批量测试
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-chart-line"></i> 测试进度</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="batch-test-status"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 结果分析页面 -->
+                    <div id="results-tab" class="tab-content" style="display: none;">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                            <h1 class="h2"><i class="fas fa-chart-bar text-primary"></i> 结果分析</h1>
+                            <button class="btn btn-outline-primary" onclick="loadJobResults()">
+                                <i class="fas fa-sync-alt"></i> 刷新
+                            </button>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-list"></i> 任务列表</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="job-results-list"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-8 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-chart-area"></i> 可视化分析</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="result-visualization">
+                                            <p class="text-muted text-center py-5">请选择一个已完成的任务查看分析结果</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 报告中心页面 -->
+                    <div id="reports-tab" class="tab-content" style="display: none;">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                            <h1 class="h2"><i class="fas fa-file-alt text-primary"></i> 报告中心</h1>
+                            <button class="btn btn-outline-primary" onclick="loadReports()">
+                                <i class="fas fa-sync-alt"></i> 刷新
+                            </button>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-folder-open"></i> 报告文件</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="reports-list"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 自定义JavaScript -->
+    <script src="static/js/app.js"></script>
+</body>
+</html>
