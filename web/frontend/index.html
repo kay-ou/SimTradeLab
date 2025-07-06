@@ -4,14 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SimTradeLab - 策略回测平台</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/material.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.0.1/codemirror.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.0.1/theme/material-darker.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/ace-builds@1.23.4/css/ace.css" rel="stylesheet">
     <link href="static/css/style.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.23.4/src-min-noconflict/ace.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.23.4/src-min-noconflict/mode-python.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.23.4/src-min-noconflict/theme-monokai.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
         .sidebar {
             min-height: 100vh;
@@ -50,10 +53,14 @@
         .btn-primary:hover {
             background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
         }
-        .CodeMirror {
+        .CodeMirror, .ace_editor {
             border-radius: 8px;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
             height: 400px;
+            border: 2px solid #e9ecef;
+        }
+        .ace_editor {
+            font-size: 14px;
         }
         .status-badge {
             padding: 4px 12px;
@@ -286,8 +293,20 @@
                                             <input type="text" class="form-control" id="strategy-description" placeholder="输入策略描述">
                                         </div>
                                         <div class="mb-3">
-                                            <label class="form-label">策略代码</label>
-                                            <textarea id="strategy-code"></textarea>
+                                            <label class="form-label">
+                                                策略代码
+                                                <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="toggleEditorFullscreen()">
+                                                    <i class="fas fa-expand" id="fullscreen-icon"></i> 全屏
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary ms-1" onclick="resetEditorSize()">
+                                                    <i class="fas fa-compress-arrows-alt"></i> 重置
+                                                </button>
+                                            </label>
+                                            <div class="editor-container">
+                                                <div id="strategy-code-editor" class="resizable-editor"></div>
+                                                <div class="resize-handle" id="resize-handle"></div>
+                                            </div>
+                                            <textarea id="strategy-code" style="display: none;"></textarea>
                                         </div>
                                     </div>
                                 </div>
@@ -307,8 +326,11 @@
                         <div class="row">
                             <div class="col-md-6 mb-4">
                                 <div class="card">
-                                    <div class="card-header">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
                                         <h5><i class="fas fa-plug"></i> 数据源配置</h5>
+                                        <button class="btn btn-sm btn-primary" onclick="saveDataSourceConfig()">
+                                            <i class="fas fa-save"></i> 保存配置
+                                        </button>
                                     </div>
                                     <div class="card-body">
                                         <div id="data-sources-list"></div>
@@ -364,9 +386,15 @@
                                             
                                             <div id="csv-options" class="mb-3">
                                                 <label for="backtest-data-file" class="form-label">数据文件</label>
-                                                <select class="form-select" id="backtest-data-file">
+                                                <select class="form-select" id="backtest-data-file" onchange="onDataFileChange()">
                                                     <option value="">请选择数据文件</option>
                                                 </select>
+                                                <div id="csv-file-info" class="mt-2" style="display: none;">
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-info-circle"></i> 
+                                                        <span id="csv-info-text"></span>
+                                                    </small>
+                                                </div>
                                             </div>
                                             
                                             <div id="online-options" class="mb-3" style="display: none;">
@@ -492,31 +520,93 @@
                     <div id="results-tab" class="tab-content" style="display: none;">
                         <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
                             <h1 class="h2"><i class="fas fa-chart-bar text-primary"></i> 结果分析</h1>
-                            <button class="btn btn-outline-primary" onclick="loadJobResults()">
-                                <i class="fas fa-sync-alt"></i> 刷新
-                            </button>
+                            <div>
+                                <button class="btn btn-outline-secondary me-2" onclick="showResultsGuide()">
+                                    <i class="fas fa-question-circle"></i> 使用指南
+                                </button>
+                                <button class="btn btn-outline-primary" onclick="loadJobResults()">
+                                    <i class="fas fa-sync-alt"></i> 刷新
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 使用指南卡片 -->
+                        <div id="results-guide" class="alert alert-info" style="display: none;">
+                            <h6><i class="fas fa-lightbulb"></i> 如何使用结果分析？</h6>
+                            <p class="mb-2">1. <strong>选择任务</strong>：在左侧任务列表中点击已完成的回测任务</p>
+                            <p class="mb-2">2. <strong>查看概览</strong>：右侧会显示该任务的关键指标和收益曲线</p>
+                            <p class="mb-2">3. <strong>对比分析</strong>：可以选择多个任务进行对比分析</p>
+                            <p class="mb-0">4. <strong>下载报告</strong>：点击任务卡片中的下载按钮获取详细报告</p>
+                            <button type="button" class="btn-close float-end" onclick="hideResultsGuide()"></button>
                         </div>
 
                         <div class="row">
                             <div class="col-md-4 mb-4">
                                 <div class="card">
-                                    <div class="card-header">
-                                        <h5><i class="fas fa-list"></i> 任务列表</h5>
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h5><i class="fas fa-list"></i> 回测任务</h5>
+                                        <small class="text-muted">共 <span id="total-jobs-count">0</span> 个</small>
                                     </div>
                                     <div class="card-body">
+                                        <div class="mb-3">
+                                            <input type="text" class="form-control form-control-sm" 
+                                                   id="job-search" placeholder="搜索策略名称..."
+                                                   onkeyup="filterJobResults()">
+                                        </div>
                                         <div id="job-results-list"></div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-8 mb-4">
                                 <div class="card">
-                                    <div class="card-header">
-                                        <h5><i class="fas fa-chart-area"></i> 可视化分析</h5>
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h5><i class="fas fa-chart-area"></i> 分析结果</h5>
+                                        <div id="analysis-controls" style="display: none;">
+                                            <button class="btn btn-sm btn-outline-primary me-2" onclick="exportAnalysisData()">
+                                                <i class="fas fa-download"></i> 导出数据
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary" onclick="compareStrategies()">
+                                                <i class="fas fa-balance-scale"></i> 对比分析
+                                            </button>
+                                        </div>
                                     </div>
                                     <div class="card-body">
                                         <div id="result-visualization">
-                                            <p class="text-muted text-center py-5">请选择一个已完成的任务查看分析结果</p>
+                                            <div class="text-center py-5">
+                                                <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                                                <h5 class="text-muted">选择回测任务开始分析</h5>
+                                                <p class="text-muted">在左侧任务列表中选择一个已完成的回测任务，这里将显示：</p>
+                                                <ul class="list-unstyled text-muted">
+                                                    <li><i class="fas fa-check-circle text-success"></i> 策略收益率和基准对比</li>
+                                                    <li><i class="fas fa-check-circle text-success"></i> 风险指标分析</li>
+                                                    <li><i class="fas fa-check-circle text-success"></i> 交易统计信息</li>
+                                                    <li><i class="fas fa-check-circle text-success"></i> 收益曲线图表</li>
+                                                </ul>
+                                            </div>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 对比分析模态框 -->
+                        <div class="modal fade" id="compareModal" tabindex="-1">
+                            <div class="modal-dialog modal-xl">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title"><i class="fas fa-balance-scale"></i> 策略对比分析</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div id="comparison-content">
+                                            <p class="text-muted">选择多个策略进行对比分析...</p>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-primary" onclick="generateComparisonReport()">
+                                            <i class="fas fa-file-export"></i> 生成对比报告
+                                        </button>
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
                                     </div>
                                 </div>
                             </div>
@@ -552,7 +642,7 @@
     </div>
 
     <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <!-- 自定义JavaScript -->
     <script src="static/js/app.js"></script>

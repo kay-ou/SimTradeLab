@@ -259,6 +259,138 @@ async def upload_data_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
 
+@app.get("/api/data/files/{filename}/preview")
+async def preview_data_file(filename: str):
+    """预览数据文件内容"""
+    # 检查文件在data目录
+    data_file_path = data_dir / filename
+    if not data_file_path.exists():
+        # 检查文件在uploads目录
+        data_file_path = web_uploads_dir / filename
+        if not data_file_path.exists():
+            raise HTTPException(status_code=404, detail="Data file not found")
+    
+    try:
+        # 读取文件基本信息
+        df = pd.read_csv(data_file_path)
+        
+        # 获取文件统计信息
+        total_rows = len(df)
+        columns = df.columns.tolist()
+        
+        # 预览前20行数据
+        preview_data = df.head(20).fillna('').values.tolist()
+        
+        # 尝试检测日期范围
+        date_range = None
+        securities = None
+        
+        # 检查可能的日期列
+        date_columns = ['date', 'datetime', 'time', 'Date', 'DateTime', 'Time']
+        date_col = None
+        for col in date_columns:
+            if col in df.columns:
+                date_col = col
+                break
+        
+        if date_col:
+            try:
+                df[date_col] = pd.to_datetime(df[date_col])
+                date_range = {
+                    "start": df[date_col].min().strftime('%Y-%m-%d'),
+                    "end": df[date_col].max().strftime('%Y-%m-%d')
+                }
+            except:
+                pass
+        
+        # 检查股票代码列
+        security_columns = ['security', 'symbol', 'code', 'Security', 'Symbol', 'Code']
+        security_col = None
+        for col in security_columns:
+            if col in df.columns:
+                security_col = col
+                break
+        
+        if security_col:
+            securities = df[security_col].unique().tolist()[:10]  # 最多显示前10个
+        
+        return {
+            "filename": filename,
+            "total_rows": total_rows,
+            "columns": columns,
+            "preview_data": preview_data,
+            "date_range": date_range,
+            "securities": securities
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
+
+@app.get("/api/data/files/{filename}/info")
+async def get_data_file_info(filename: str):
+    """获取数据文件详细信息"""
+    # 检查文件在data目录
+    data_file_path = data_dir / filename
+    if not data_file_path.exists():
+        # 检查文件在uploads目录
+        data_file_path = web_uploads_dir / filename
+        if not data_file_path.exists():
+            raise HTTPException(status_code=404, detail="Data file not found")
+    
+    try:
+        # 读取文件基本信息
+        df = pd.read_csv(data_file_path)
+        
+        # 获取文件统计信息
+        total_rows = len(df)
+        columns = df.columns.tolist()
+        
+        # 尝试检测日期范围
+        date_range = None
+        securities = None
+        
+        # 检查可能的日期列
+        date_columns = ['date', 'datetime', 'time', 'Date', 'DateTime', 'Time']
+        date_col = None
+        for col in date_columns:
+            if col in df.columns:
+                date_col = col
+                break
+        
+        if date_col:
+            try:
+                df[date_col] = pd.to_datetime(df[date_col])
+                date_range = {
+                    "start": df[date_col].min().strftime('%Y-%m-%d'),
+                    "end": df[date_col].max().strftime('%Y-%m-%d')
+                }
+            except:
+                pass
+        
+        # 检查股票代码列
+        security_columns = ['security', 'symbol', 'code', 'Security', 'Symbol', 'Code']
+        security_col = None
+        for col in security_columns:
+            if col in df.columns:
+                security_col = col
+                break
+        
+        if security_col:
+            securities = df[security_col].unique().tolist()
+        
+        return {
+            "filename": filename,
+            "total_rows": total_rows,
+            "columns": columns,
+            "date_range": date_range,
+            "securities": securities,
+            "file_size": data_file_path.stat().st_size,
+            "modified_at": datetime.fromtimestamp(data_file_path.stat().st_mtime)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading file info: {str(e)}")
+
 # 回测相关API
 
 @app.post("/api/backtest")

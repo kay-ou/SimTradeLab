@@ -6,9 +6,288 @@ let currentTab = 'dashboard';
 let strategyEditor = null;
 let currentJobId = null;
 let parameterRowCount = 1;
+let dataFilesInfo = {}; // 存储数据文件的详细信息
 
 // API基础URL
 const API_BASE = '/api';
+
+// 初始化代码编辑器
+function initCodeEditor() {
+    if (strategyEditor) {
+        strategyEditor.destroy();
+    }
+    
+    const editorElement = document.getElementById('strategy-code-editor');
+    if (editorElement) {
+        strategyEditor = ace.edit('strategy-code-editor');
+        strategyEditor.setTheme('ace/theme/monokai');
+        strategyEditor.session.setMode('ace/mode/python');
+        strategyEditor.setOptions({
+            fontSize: 14,
+            showPrintMargin: false,
+            highlightActiveLine: true,
+            enableBasicAutocompletion: true,
+            enableSnippets: true,
+            enableLiveAutocompletion: true,
+            wrap: true,
+            autoScrollEditorIntoView: true,
+            fontFamily: 'JetBrains Mono, Fira Code, Consolas, Monaco, Courier New, monospace'
+        });
+        
+        // 设置默认模板
+        strategyEditor.setValue(`# -*- coding: utf-8 -*-
+"""
+策略模板 - 请在此编写您的交易策略
+"""
+
+def initialize(context):
+    """
+    策略初始化函数
+    """
+    # 设置基准和股票池
+    context.benchmark = '000300.SH'  # 沪深300指数
+    context.stocks = ['000001.SZ', '000002.SZ']  # 股票池
+    
+    # 策略参数
+    context.short_window = 5   # 短期均线
+    context.long_window = 20   # 长期均线
+    
+    # 其他初始化逻辑
+    pass
+
+def handle_data(context, data):
+    """
+    每个交易日都会调用的函数
+    """
+    for stock in context.stocks:
+        # 获取历史价格数据
+        hist = get_history(context, stock, count=context.long_window, fields=['close'])
+        
+        if len(hist) < context.long_window:
+            continue
+            
+        # 计算移动平均线
+        short_ma = hist['close'].tail(context.short_window).mean()
+        long_ma = hist['close'].tail(context.long_window).mean()
+        current_price = hist['close'].iloc[-1]
+        
+        # 获取当前持仓
+        current_position = get_position(context, stock)
+        
+        # 交易逻辑：金叉买入，死叉卖出
+        if short_ma > long_ma and current_position == 0:
+            # 买入信号
+            order_target_percent(context, stock, 0.5)  # 使用50%资金买入
+            
+        elif short_ma < long_ma and current_position > 0:
+            # 卖出信号
+            order_target_percent(context, stock, 0)  # 全部卖出
+
+def before_trading_start(context, data):
+    """
+    每日开盘前调用
+    """
+    pass
+
+def after_trading_end(context, data):
+    """
+    每日收盘后调用
+    """
+    pass
+`, 1);
+        
+        // 同步到hidden textarea
+        strategyEditor.on('change', function() {
+            document.getElementById('strategy-code').value = strategyEditor.getValue();
+        });
+        
+        // 初始化可调整大小功能
+        initResizableEditor();
+        
+        // 自动调整编辑器大小到窗口
+        autoResizeEditor();
+        
+        // 监听窗口大小变化
+        window.addEventListener('resize', autoResizeEditor);
+    }
+}
+
+// 自动调整编辑器大小
+function autoResizeEditor() {
+    const container = document.querySelector('.editor-container');
+    if (container && !container.classList.contains('editor-fullscreen')) {
+        const windowHeight = window.innerHeight;
+        const containerTop = container.getBoundingClientRect().top;
+        
+        // 计算可用高度：窗口高度 - 容器顶部位置 - 底部留白
+        const availableHeight = windowHeight - containerTop - 50;
+        
+        // 设置最小高度为500px，充分利用可用空间
+        const targetHeight = Math.max(500, Math.min(availableHeight, windowHeight * 0.7));
+        
+        container.style.height = targetHeight + 'px';
+        container.style.width = '100%'; // 确保宽度充分利用
+        
+        if (strategyEditor) {
+            strategyEditor.resize();
+        }
+    }
+}
+
+// 初始化可调整大小功能
+function initResizableEditor() {
+    const container = document.querySelector('.editor-container');
+    const resizeHandle = document.getElementById('resize-handle');
+    
+    if (!container || !resizeHandle) return;
+    
+    let isResizing = false;
+    let startX, startY, startWidth, startHeight;
+    
+    resizeHandle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startWidth = parseInt(document.defaultView.getComputedStyle(container).width, 10);
+        startHeight = parseInt(document.defaultView.getComputedStyle(container).height, 10);
+        
+        document.addEventListener('mousemove', handleResize);
+        document.addEventListener('mouseup', stopResize);
+        e.preventDefault();
+    });
+    
+    function handleResize(e) {
+        if (!isResizing) return;
+        
+        const newWidth = startWidth + e.clientX - startX;
+        const newHeight = startHeight + e.clientY - startY;
+        
+        // 设置最小和最大尺寸
+        const minWidth = 300;
+        const minHeight = 200;
+        const maxWidth = window.innerWidth - 100;
+        const maxHeight = window.innerHeight - 100;
+        
+        const finalWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+        const finalHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
+        
+        container.style.width = finalWidth + 'px';
+        container.style.height = finalHeight + 'px';
+        
+        // 确保编辑器内容跟随容器大小变化
+        if (strategyEditor) {
+            setTimeout(() => {
+                strategyEditor.resize();
+                strategyEditor.renderer.updateFull();
+            }, 0);
+        }
+    }
+    
+    function stopResize() {
+        isResizing = false;
+        document.removeEventListener('mousemove', handleResize);
+        document.removeEventListener('mouseup', stopResize);
+    }
+}
+
+// 切换全屏模式
+function toggleEditorFullscreen() {
+    const container = document.querySelector('.editor-container');
+    const icon = document.getElementById('fullscreen-icon');
+    
+    if (container.classList.contains('editor-fullscreen')) {
+        exitFullscreen();
+    } else {
+        enterFullscreen();
+    }
+}
+
+// 进入全屏模式
+function enterFullscreen() {
+    const container = document.querySelector('.editor-container');
+    const icon = document.getElementById('fullscreen-icon');
+    
+    container.classList.add('editor-fullscreen');
+    icon.className = 'fas fa-compress';
+    
+    // 创建全屏控制栏
+    const overlay = document.createElement('div');
+    overlay.className = 'fullscreen-overlay';
+    overlay.innerHTML = `
+        <div>
+            <h5 class="mb-0"><i class="fas fa-code"></i> 策略编辑器 - 全屏模式</h5>
+        </div>
+        <div class="fullscreen-controls">
+            <button onclick="resetEditorSize()" title="重置大小">
+                <i class="fas fa-compress-arrows-alt"></i> 重置
+            </button>
+            <button onclick="saveCurrentStrategy()" title="保存策略">
+                <i class="fas fa-save"></i> 保存
+            </button>
+            <button onclick="exitFullscreen()" title="退出全屏">
+                <i class="fas fa-times"></i> 退出全屏
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    container.style.top = '60px';
+    container.style.height = 'calc(100vh - 60px)';
+    
+    if (strategyEditor) {
+        strategyEditor.resize();
+    }
+    
+    // ESC键退出全屏
+    document.addEventListener('keydown', handleEscapeKey);
+}
+
+// 退出全屏模式
+function exitFullscreen() {
+    const container = document.querySelector('.editor-container');
+    const icon = document.getElementById('fullscreen-icon');
+    const overlay = document.querySelector('.fullscreen-overlay');
+    
+    container.classList.remove('editor-fullscreen');
+    icon.className = 'fas fa-expand';
+    
+    if (overlay) {
+        overlay.remove();
+    }
+    
+    // 重置样式
+    container.style.top = '';
+    container.style.height = '';
+    
+    if (strategyEditor) {
+        strategyEditor.resize();
+    }
+    
+    document.removeEventListener('keydown', handleEscapeKey);
+}
+
+// ESC键处理
+function handleEscapeKey(e) {
+    if (e.key === 'Escape') {
+        exitFullscreen();
+    }
+}
+
+// 重置编辑器大小
+function resetEditorSize() {
+    const container = document.querySelector('.editor-container');
+    
+    if (container.classList.contains('editor-fullscreen')) {
+        exitFullscreen();
+    }
+    
+    container.style.width = '';
+    container.style.height = '400px';
+    
+    if (strategyEditor) {
+        strategyEditor.resize();
+    }
+}
 
 // 工具函数
 function showMessage(message, type = 'success') {
@@ -77,6 +356,10 @@ function showTab(tabName) {
             break;
         case 'strategies':
             loadStrategies();
+            // 延迟初始化代码编辑器，确保DOM已渲染
+            setTimeout(() => {
+                initCodeEditor();
+            }, 100);
             break;
         case 'data':
             loadDataSources();
@@ -314,6 +597,8 @@ async function deleteCurrentStrategy() {
 }
 
 // 数据管理功能
+let currentDataSources = {};
+
 async function loadDataSources() {
     try {
         const [sources, files] = await Promise.all([
@@ -321,18 +606,27 @@ async function loadDataSources() {
             fetch(`${API_BASE}/data/files`).then(r => r.json())
         ]);
         
-        // 显示数据源
+        // 保存当前数据源配置
+        currentDataSources = sources.data_sources;
+        
+        // 显示可编辑的数据源配置
         const sourcesHtml = sources.data_sources.map(source => `
-            <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded">
-                <div>
-                    <h6 class="mb-1">${source.name}</h6>
-                    <small class="text-muted">${source.description}</small>
+            <div class="mb-3 p-3 border rounded data-source-config" data-source="${source.name}">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <h6 class="mb-1">${source.name.toUpperCase()}</h6>
+                        <small class="text-muted">${source.description}</small>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable-${source.name}" 
+                               ${source.enabled ? 'checked' : ''} 
+                               onchange="toggleDataSource('${source.name}', this.checked)">
+                        <label class="form-check-label" for="enable-${source.name}">
+                            ${source.enabled ? '已启用' : '已禁用'}
+                        </label>
+                    </div>
                 </div>
-                <div>
-                    <span class="badge ${source.enabled ? 'bg-success' : 'bg-secondary'}">
-                        ${source.enabled ? '已启用' : '已禁用'}
-                    </span>
-                </div>
+                ${getDataSourceConfigFields(source)}
             </div>
         `).join('');
         document.getElementById('data-sources-list').innerHTML = sourcesHtml;
@@ -343,10 +637,13 @@ async function loadDataSources() {
                 <div>
                     <h6 class="mb-1">${file.name}</h6>
                     <small class="text-muted">列: ${file.columns.join(', ')}</small>
+                    <br><small class="text-muted">修改时间: ${formatDateTime(file.modified_at)}</small>
                 </div>
                 <div class="text-end">
-                    <div><small>${formatFileSize(file.size)}</small></div>
-                    <div><small class="text-muted">${formatDateTime(file.modified_at)}</small></div>
+                    <div><small class="fw-bold">${formatFileSize(file.size)}</small></div>
+                    <button class="btn btn-sm btn-outline-primary mt-1" onclick="previewDataFile('${file.name}')">
+                        <i class="fas fa-eye"></i> 预览
+                    </button>
                 </div>
             </div>
         `).join('');
@@ -356,6 +653,216 @@ async function loadDataSources() {
         console.error('Error loading data sources:', error);
         showMessage('加载数据源失败', 'error');
     }
+}
+
+// 获取数据源配置字段
+function getDataSourceConfigFields(source) {
+    switch(source.name) {
+        case 'tushare':
+            return `
+                <div class="row">
+                    <div class="col-md-12">
+                        <label class="form-label">Tushare Token</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="tushare-token" 
+                                   placeholder="请输入Tushare API Token" 
+                                   value="${source.token || ''}">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('tushare-token')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted">
+                            请到 <a href="https://tushare.pro/" target="_blank">Tushare官网</a> 注册获取免费Token
+                        </small>
+                    </div>
+                </div>
+            `;
+        case 'csv':
+            return `
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="form-label">数据目录</label>
+                        <input type="text" class="form-control" id="csv-data-path" 
+                               value="${source.data_path || 'data/'}" 
+                               placeholder="CSV文件存储目录">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">日期格式</label>
+                        <select class="form-select" id="csv-date-format">
+                            <option value="%Y-%m-%d" ${(source.date_format === '%Y-%m-%d') ? 'selected' : ''}>YYYY-MM-DD</option>
+                            <option value="%Y/%m/%d" ${(source.date_format === '%Y/%m/%d') ? 'selected' : ''}>YYYY/MM/DD</option>
+                            <option value="%Y%m%d" ${(source.date_format === '%Y%m%d') ? 'selected' : ''}>YYYYMMDD</option>
+                        </select>
+                    </div>
+                </div>
+            `;
+        case 'akshare':
+            return `
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-info-circle"></i>
+                            AkShare是免费的数据源，无需额外配置。支持获取中国股票市场的实时和历史数据。
+                        </div>
+                    </div>
+                </div>
+            `;
+        default:
+            return '';
+    }
+}
+
+// 切换数据源启用状态
+function toggleDataSource(sourceName, enabled) {
+    const label = document.querySelector(`label[for="enable-${sourceName}"]`);
+    label.textContent = enabled ? '已启用' : '已禁用';
+    
+    // 更新本地配置
+    if (currentDataSources[sourceName]) {
+        currentDataSources[sourceName].enabled = enabled;
+    }
+}
+
+// 切换密码可见性
+function togglePasswordVisibility(inputId) {
+    const input = document.getElementById(inputId);
+    const icon = input.nextElementSibling.querySelector('i');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fas fa-eye';
+    }
+}
+
+// 保存数据源配置
+async function saveDataSourceConfig() {
+    try {
+        const config = {};
+        
+        // 收集所有数据源配置
+        Object.keys(currentDataSources).forEach(sourceName => {
+            const sourceConfig = { ...currentDataSources[sourceName] };
+            
+            // 根据数据源类型收集特定配置
+            switch(sourceName) {
+                case 'tushare':
+                    const token = document.getElementById('tushare-token')?.value;
+                    if (token) {
+                        sourceConfig.token = token;
+                    }
+                    break;
+                case 'csv':
+                    const dataPath = document.getElementById('csv-data-path')?.value;
+                    const dateFormat = document.getElementById('csv-date-format')?.value;
+                    if (dataPath) sourceConfig.data_path = dataPath;
+                    if (dateFormat) sourceConfig.date_format = dateFormat;
+                    break;
+            }
+            
+            config[sourceName] = sourceConfig;
+        });
+        
+        // 发送配置到后端
+        const response = await fetch(`${API_BASE}/config/data-sources`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(config)
+        });
+        
+        if (response.ok) {
+            showMessage('数据源配置保存成功');
+        } else {
+            throw new Error('保存失败');
+        }
+        
+    } catch (error) {
+        console.error('Error saving data source config:', error);
+        showMessage('保存数据源配置失败', 'error');
+    }
+}
+
+// 预览数据文件
+async function previewDataFile(filename) {
+    try {
+        const response = await fetch(`${API_BASE}/data/files/${filename}/preview`);
+        if (response.ok) {
+            const data = await response.json();
+            showDataPreviewModal(filename, data);
+        } else {
+            showMessage('无法预览文件', 'error');
+        }
+    } catch (error) {
+        console.error('Error previewing file:', error);
+        showMessage('预览文件失败', 'error');
+    }
+}
+
+// 显示数据预览模态框
+function showDataPreviewModal(filename, data) {
+    const modalHtml = `
+        <div class="modal fade" id="dataPreviewModal" tabindex="-1">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-file-csv"></i> 数据预览: ${filename}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <strong>文件信息:</strong><br>
+                                行数: ${data.total_rows}<br>
+                                列数: ${data.columns.length}
+                            </div>
+                            <div class="col-md-4">
+                                <strong>日期范围:</strong><br>
+                                开始: ${data.date_range?.start || 'N/A'}<br>
+                                结束: ${data.date_range?.end || 'N/A'}
+                            </div>
+                            <div class="col-md-4">
+                                <strong>股票代码:</strong><br>
+                                ${data.securities?.join(', ') || 'N/A'}
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-striped table-sm">
+                                <thead>
+                                    <tr>
+                                        ${data.columns.map(col => `<th>${col}</th>`).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.preview_data.map(row => `
+                                        <tr>
+                                            ${row.map(cell => `<td>${cell}</td>`).join('')}
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 移除已存在的模态框
+    const existingModal = document.getElementById('dataPreviewModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modal = new bootstrap.Modal(document.getElementById('dataPreviewModal'));
+    modal.show();
 }
 
 async function uploadDataFile(input) {
@@ -396,6 +903,12 @@ async function loadBacktestOptions() {
             fetch(`${API_BASE}/data/files`).then(r => r.json())
         ]);
         
+        // 存储数据文件信息
+        dataFilesInfo = {};
+        dataFiles.data_files.forEach(file => {
+            dataFilesInfo[file.name] = file;
+        });
+        
         // 填充策略选择器
         const strategySelect = document.getElementById('backtest-strategy');
         strategySelect.innerHTML = '<option value="">请选择策略</option>' +
@@ -404,7 +917,7 @@ async function loadBacktestOptions() {
         // 填充数据文件选择器
         const dataFileSelect = document.getElementById('backtest-data-file');
         dataFileSelect.innerHTML = '<option value="">请选择数据文件</option>' +
-            dataFiles.data_files.map(f => `<option value="${f.name}">${f.name}</option>`).join('');
+            dataFiles.data_files.map(f => `<option value="${f.name}">${f.name} (${f.columns.includes('date') || f.columns.includes('datetime') ? '包含日期' : '无日期列'})</option>`).join('');
         
         // 设置默认日期
         const today = new Date();
@@ -419,6 +932,121 @@ async function loadBacktestOptions() {
     }
 }
 
+// 当数据文件选择改变时的处理
+async function onDataFileChange() {
+    const selectedFile = document.getElementById('backtest-data-file').value;
+    const infoDiv = document.getElementById('csv-file-info');
+    const infoText = document.getElementById('csv-info-text');
+    
+    if (!selectedFile) {
+        infoDiv.style.display = 'none';
+        return;
+    }
+    
+    try {
+        // 首先尝试获取文件的详细信息（包括日期范围）
+        const response = await fetch(`${API_BASE}/data/files/${selectedFile}/info`);
+        if (response.ok) {
+            const fileInfo = await response.json();
+            
+            // 显示文件信息
+            infoText.innerHTML = `
+                文件包含 ${fileInfo.total_rows} 行数据，
+                ${fileInfo.securities?.length || 0} 个股票代码
+                ${fileInfo.date_range ? `，日期范围: ${fileInfo.date_range.start} 至 ${fileInfo.date_range.end}` : ''}
+            `;
+            infoDiv.style.display = 'block';
+            
+            // 自动填充日期范围
+            if (fileInfo.date_range) {
+                document.getElementById('backtest-start-date').value = fileInfo.date_range.start;
+                document.getElementById('backtest-end-date').value = fileInfo.date_range.end;
+                
+                showMessage(`已自动设置日期范围: ${fileInfo.date_range.start} 至 ${fileInfo.date_range.end}`, 'info');
+            }
+            return;
+        }
+    } catch (error) {
+        console.error('API not available, trying fallback method:', error);
+    }
+    
+    // 如果API不可用，尝试基于本地文件信息进行简单的日期推测
+    const fileInfo = dataFilesInfo[selectedFile];
+    if (fileInfo) {
+        infoText.innerHTML = `
+            文件大小: ${formatFileSize(fileInfo.size)}，
+            列: ${fileInfo.columns.join(', ')}
+        `;
+        infoDiv.style.display = 'block';
+        
+        // 尝试基于文件名猜测日期范围
+        const dateGuess = guessDateRangeFromFilename(selectedFile);
+        if (dateGuess) {
+            document.getElementById('backtest-start-date').value = dateGuess.start;
+            document.getElementById('backtest-end-date').value = dateGuess.end;
+            showMessage(`根据文件名推测日期范围: ${dateGuess.start} 至 ${dateGuess.end}`, 'info');
+        } else {
+            // 如果无法猜测，设置一个合理的默认范围
+            const today = new Date();
+            const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+            document.getElementById('backtest-start-date').value = oneYearAgo.toISOString().split('T')[0];
+            document.getElementById('backtest-end-date').value = today.toISOString().split('T')[0];
+        }
+    }
+}
+
+// 根据文件名猜测日期范围的辅助函数
+function guessDateRangeFromFilename(filename) {
+    // 尝试从文件名中提取日期信息
+    const datePatterns = [
+        // 匹配 YYYY-MM-DD 格式
+        /(\d{4}-\d{2}-\d{2})/g,
+        // 匹配 YYYYMMDD 格式
+        /(\d{8})/g,
+        // 匹配 YYYY_MM_DD 格式
+        /(\d{4}_\d{2}_\d{2})/g
+    ];
+    
+    for (const pattern of datePatterns) {
+        const matches = filename.match(pattern);
+        if (matches && matches.length >= 2) {
+            // 假设第一个是开始日期，最后一个是结束日期
+            let startDate = matches[0];
+            let endDate = matches[matches.length - 1];
+            
+            // 标准化日期格式为 YYYY-MM-DD
+            startDate = startDate.replace(/_/g, '-').replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+            endDate = endDate.replace(/_/g, '-').replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+            
+            // 验证日期格式
+            if (isValidDate(startDate) && isValidDate(endDate)) {
+                return { start: startDate, end: endDate };
+            }
+        } else if (matches && matches.length === 1) {
+            // 只有一个日期，作为结束日期，开始日期设为一年前
+            let endDate = matches[0];
+            endDate = endDate.replace(/_/g, '-').replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+            
+            if (isValidDate(endDate)) {
+                const end = new Date(endDate);
+                const start = new Date(end.getFullYear() - 1, end.getMonth(), end.getDate());
+                return { 
+                    start: start.toISOString().split('T')[0], 
+                    end: endDate 
+                };
+            }
+        }
+    }
+    
+    return null;
+}
+
+// 验证日期格式的辅助函数
+function isValidDate(dateString) {
+    const date = new Date(dateString);
+    return date instanceof Date && !isNaN(date) && dateString.match(/^\d{4}-\d{2}-\d{2}$/);
+}
+
 function toggleDataSourceOptions() {
     const dataSource = document.getElementById('backtest-data-source').value;
     const csvOptions = document.getElementById('csv-options');
@@ -427,9 +1055,13 @@ function toggleDataSourceOptions() {
     if (dataSource === 'csv') {
         csvOptions.style.display = 'block';
         onlineOptions.style.display = 'none';
+        // 当切换到CSV时，如果已选择文件，则触发文件信息加载
+        onDataFileChange();
     } else {
         csvOptions.style.display = 'none';
         onlineOptions.style.display = 'block';
+        // 清除CSV文件信息显示
+        document.getElementById('csv-file-info').style.display = 'none';
     }
 }
 
@@ -582,165 +1214,448 @@ function removeParameterRow(index) {
 }
 
 // 结果分析功能
+let allJobs = [];
+let filteredJobs = [];
+let selectedJob = null;
+
 async function loadJobResults() {
     try {
         showLoading('job-results-list');
         const response = await fetch(`${API_BASE}/jobs`);
         const data = await response.json();
         
-        const completedJobs = data.jobs.filter(job => job.status === 'completed');
+        allJobs = data.jobs.filter(job => job.status === 'completed');
+        filteredJobs = [...allJobs];
         
-        const jobsHtml = completedJobs.map(job => `
-            <div class="list-group-item list-group-item-action" onclick="showJobResult('${job.job_id}')">
-                <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1">${job.type}</h6>
-                    <small>${formatDateTime(job.completed_at)}</small>
-                </div>
-                <p class="mb-1 small">${job.message}</p>
-                <small class="text-muted">Job ID: ${job.job_id}</small>
-            </div>
-        `).join('');
-        
-        document.getElementById('job-results-list').innerHTML = jobsHtml || '<p class="text-muted">暂无已完成的任务</p>';
+        displayJobResults();
+        updateJobsCount();
         
     } catch (error) {
         console.error('Error loading job results:', error);
         showMessage('加载任务结果失败', 'error');
+        document.getElementById('job-results-list').innerHTML = '<p class="text-muted">加载失败</p>';
     }
 }
 
-async function showJobResult(jobId) {
-    try {
-        const response = await fetch(`${API_BASE}/jobs/${jobId}`);
-        const job = await response.json();
+function displayJobResults() {
+    const jobsHtml = filteredJobs.map(job => {
+        const strategyName = job.request?.strategy_name || 'Unknown Strategy';
+        const timeRange = job.request ? `${job.request.start_date} ~ ${job.request.end_date}` : '';
+        const isSelected = selectedJob && selectedJob.job_id === job.job_id;
         
-        const visualizationDiv = document.getElementById('result-visualization');
-        
-        if (job.type === 'backtest' && job.result) {
-            // 显示回测结果
-            const result = job.result;
-            const summary = result.summary || {};
-            const performance = result.performance || {};
-            
-            const resultHtml = `
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>基本信息</h6>
-                        <table class="table table-sm">
-                            <tr><td>策略名称</td><td>${job.request.strategy_name}</td></tr>
-                            <tr><td>回测期间</td><td>${job.request.start_date} 至 ${job.request.end_date}</td></tr>
-                            <tr><td>初始资金</td><td>¥${job.request.initial_cash.toLocaleString()}</td></tr>
-                            <tr><td>数据源</td><td>${job.request.data_source}</td></tr>
-                        </table>
+        return `
+            <div class="job-result-card mb-3 p-3 border rounded ${isSelected ? 'border-primary' : ''}" 
+                 onclick="selectJobResult('${job.job_id}')" style="cursor: pointer;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1 fw-bold">${strategyName}</h6>
+                        <small class="text-muted d-block">${timeRange}</small>
+                        <small class="text-muted">${formatDateTime(job.completed_at)}</small>
                     </div>
-                    <div class="col-md-6">
-                        <h6>收益指标</h6>
-                        <table class="table table-sm">
-                            <tr><td>总收益率</td><td>${(summary.total_return * 100 || 0).toFixed(2)}%</td></tr>
-                            <tr><td>年化收益率</td><td>${(summary.annual_return * 100 || 0).toFixed(2)}%</td></tr>
-                            <tr><td>最大回撤</td><td>${(summary.max_drawdown * 100 || 0).toFixed(2)}%</td></tr>
-                            <tr><td>夏普比率</td><td>${(summary.sharpe_ratio || 0).toFixed(2)}</td></tr>
-                        </table>
+                    <div class="text-end">
+                        <span class="badge bg-success mb-1">已完成</span>
+                        ${job.result?.summary ? `
+                            <div class="small text-success">
+                                <i class="fas fa-arrow-up"></i> ${((job.result.summary.total_return || 0) * 100).toFixed(1)}%
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
-                
-                <div class="mt-4">
-                    <h6>报告文件</h6>
+                <div class="mt-2">
+                    <div class="btn-group btn-group-sm w-100" role="group">
+                        <button class="btn btn-outline-primary" onclick="event.stopPropagation(); viewJobDetails('${job.job_id}')">
+                            <i class="fas fa-eye"></i> 查看
+                        </button>
+                        <button class="btn btn-outline-success" onclick="event.stopPropagation(); downloadJobReports('${job.job_id}')">
+                            <i class="fas fa-download"></i> 下载
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    document.getElementById('job-results-list').innerHTML = jobsHtml || 
+        '<div class="text-center py-4"><i class="fas fa-inbox fa-2x text-muted mb-2"></i><p class="text-muted">暂无已完成的任务</p></div>';
+}
+
+function updateJobsCount() {
+    document.getElementById('total-jobs-count').textContent = filteredJobs.length;
+}
+
+function filterJobResults() {
+    const searchTerm = document.getElementById('job-search').value.toLowerCase();
+    filteredJobs = allJobs.filter(job => {
+        const strategyName = (job.request?.strategy_name || '').toLowerCase();
+        return strategyName.includes(searchTerm);
+    });
+    displayJobResults();
+    updateJobsCount();
+}
+
+async function selectJobResult(jobId) {
+    try {
+        const response = await fetch(`${API_BASE}/jobs/${jobId}`);
+        selectedJob = await response.json();
+        
+        displayJobResults(); // 刷新列表以显示选中状态
+        showJobAnalysis(selectedJob);
+        document.getElementById('analysis-controls').style.display = 'block';
+        
+    } catch (error) {
+        console.error('Error selecting job result:', error);
+        showMessage('加载任务详情失败', 'error');
+    }
+}
+
+function showJobAnalysis(job) {
+    const visualizationDiv = document.getElementById('result-visualization');
+    
+    if (job.type === 'backtest' && job.result) {
+        const result = job.result;
+        const summary = result.summary || {};
+        const performance = result.performance || {};
+        
+        const resultHtml = `
+            <div class="analysis-header mb-4">
+                <h5 class="fw-bold">${job.request.strategy_name} 分析报告</h5>
+                <p class="text-muted mb-0">回测期间：${job.request.start_date} 至 ${job.request.end_date}</p>
+            </div>
+            
+            <!-- 关键指标卡片 -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="metric-card bg-primary text-white p-3 rounded">
+                        <div class="metric-value">${((summary.total_return || 0) * 100).toFixed(2)}%</div>
+                        <div class="metric-label">总收益率</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card bg-success text-white p-3 rounded">
+                        <div class="metric-value">${((summary.annual_return || 0) * 100).toFixed(2)}%</div>
+                        <div class="metric-label">年化收益率</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card bg-warning text-white p-3 rounded">
+                        <div class="metric-value">${((summary.max_drawdown || 0) * 100).toFixed(2)}%</div>
+                        <div class="metric-label">最大回撤</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card bg-info text-white p-3 rounded">
+                        <div class="metric-value">${(summary.sharpe_ratio || 0).toFixed(2)}</div>
+                        <div class="metric-label">夏普比率</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 详细分析表格 -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-chart-line"></i> 收益分析</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm table-borderless">
+                                <tr><td class="fw-bold">初始资金</td><td>¥${(job.request.initial_cash || 0).toLocaleString()}</td></tr>
+                                <tr><td class="fw-bold">最终资金</td><td>¥${((job.request.initial_cash || 0) * (1 + (summary.total_return || 0))).toLocaleString()}</td></tr>
+                                <tr><td class="fw-bold">绝对收益</td><td class="${(summary.total_return || 0) >= 0 ? 'text-success' : 'text-danger'}">
+                                    ¥${(((job.request.initial_cash || 0) * (summary.total_return || 0))).toLocaleString()}</td></tr>
+                                <tr><td class="fw-bold">日均收益率</td><td>${(((summary.annual_return || 0) / 365) * 100).toFixed(4)}%</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-shield-alt"></i> 风险分析</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm table-borderless">
+                                <tr><td class="fw-bold">波动率</td><td>${((summary.volatility || 0) * 100).toFixed(2)}%</td></tr>
+                                <tr><td class="fw-bold">胜率</td><td>${((summary.win_rate || 0) * 100).toFixed(1)}%</td></tr>
+                                <tr><td class="fw-bold">交易次数</td><td>${summary.total_trades || 0} 次</td></tr>
+                                <tr><td class="fw-bold">数据源</td><td class="text-capitalize">${job.request.data_source}</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 收益曲线图表 -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-chart-area"></i> 收益曲线</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="returns-chart-${job.job_id}" width="800" height="400"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 报告文件下载 -->
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-file-download"></i> 报告文件</h6>
+                </div>
+                <div class="card-body">
                     <div class="row">
                         ${result.report_files ? result.report_files.map(file => {
                             const fileName = file.split('/').pop();
-                            const fileType = fileName.split('.').pop();
-                            return `<div class="col-md-3 mb-2">
-                                <a href="${file}" target="_blank" class="btn btn-outline-primary btn-sm w-100">
-                                    <i class="fas fa-file-${fileType === 'json' ? 'code' : fileType === 'csv' ? 'csv' : 'alt'}"></i>
-                                    ${fileName}
-                                </a>
-                            </div>`;
-                        }).join('') : ''}
+                            const fileType = fileName.split('.').pop().toLowerCase();
+                            const typeIcons = {
+                                'json': 'file-code',
+                                'csv': 'file-csv', 
+                                'html': 'file-code',
+                                'txt': 'file-alt',
+                                'png': 'file-image',
+                                'pdf': 'file-pdf'
+                            };
+                            const typeColors = {
+                                'json': 'primary',
+                                'csv': 'success',
+                                'html': 'warning', 
+                                'txt': 'secondary',
+                                'png': 'info',
+                                'pdf': 'danger'
+                            };
+                            return `
+                                <div class="col-md-4 mb-2">
+                                    <a href="/api/reports/${job.request.strategy_name}/${fileName}" target="_blank" 
+                                       class="btn btn-outline-${typeColors[fileType] || 'primary'} btn-sm w-100">
+                                        <i class="fas fa-${typeIcons[fileType] || 'file'}"></i>
+                                        ${fileType.toUpperCase()} 报告
+                                    </a>
+                                </div>
+                            `;
+                        }).join('') : '<p class="text-muted">暂无报告文件</p>'}
                     </div>
                 </div>
-            `;
-            
-            visualizationDiv.innerHTML = resultHtml;
-            
-        } else if (job.type === 'batch_test' && job.result) {
-            // 显示批量测试结果
-            const result = job.result;
-            
-            // 创建参数优化图表
-            if (result.results && result.results.length > 0) {
-                visualizationDiv.innerHTML = `
-                    <h6>批量测试结果 (${result.completed_combinations}/${result.total_combinations})</h6>
-                    <div class="chart-container">
-                        <canvas id="batch-results-chart"></canvas>
-                    </div>
-                    <div class="mt-3">
-                        <h6>最佳参数组合</h6>
-                        <div class="alert alert-success">
-                            <strong>参数:</strong> ${JSON.stringify(result.best_result.parameters)}<br>
-                            <strong>总收益率:</strong> ${(result.best_result.total_return * 100).toFixed(2)}%<br>
-                            <strong>最大回撤:</strong> ${(result.best_result.max_drawdown * 100).toFixed(2)}%<br>
-                            <strong>夏普比率:</strong> ${result.best_result.sharpe_ratio.toFixed(2)}
-                        </div>
-                    </div>
-                `;
-                
-                // 创建散点图
-                const ctx = document.getElementById('batch-results-chart').getContext('2d');
-                new Chart(ctx, {
-                    type: 'scatter',
-                    data: {
-                        datasets: [{
-                            label: '参数组合结果',
-                            data: result.results.map((r, i) => ({
-                                x: r.total_return * 100,
-                                y: r.max_drawdown * 100,
-                                label: `组合${i+1}: ${JSON.stringify(r.parameters)}`
-                            })),
-                            backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                            borderColor: 'rgba(54, 162, 235, 1)',
-                        }]
+            </div>
+        `;
+        
+        visualizationDiv.innerHTML = resultHtml;
+        
+        // 绘制收益曲线图
+        setTimeout(() => drawReturnsChart(job), 100);
+        
+    } else if (job.type === 'batch_test' && job.result) {
+        // 批量测试结果
+        showBatchTestResults(job);
+    }
+}
+
+function drawReturnsChart(job) {
+    const canvas = document.getElementById(`returns-chart-${job.job_id}`);
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // 模拟收益曲线数据（实际应该从后端获取）
+    const summary = job.result.summary || {};
+    const totalReturn = summary.total_return || 0;
+    const days = getDaysBetweenDates(job.request.start_date, job.request.end_date);
+    
+    // 生成模拟数据点
+    const labels = [];
+    const returns = [];
+    for (let i = 0; i <= days; i += Math.max(1, Math.floor(days / 50))) {
+        const date = new Date(job.request.start_date);
+        date.setDate(date.getDate() + i);
+        labels.push(date.toLocaleDateString());
+        
+        // 模拟累计收益曲线
+        const progress = i / days;
+        const randomFactor = (Math.random() - 0.5) * 0.1; // 添加一些随机波动
+        returns.push((totalReturn * progress + randomFactor) * 100);
+    }
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '策略收益率 (%)',
+                data: returns,
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '累计收益率 (%)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: '日期'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function getDaysBetweenDates(startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end - start);
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+// 指南和帮助功能
+function showResultsGuide() {
+    document.getElementById('results-guide').style.display = 'block';
+}
+
+function hideResultsGuide() {
+    document.getElementById('results-guide').style.display = 'none';
+}
+
+// 其他功能
+function viewJobDetails(jobId) {
+    selectJobResult(jobId);
+}
+
+function downloadJobReports(jobId) {
+    const job = allJobs.find(j => j.job_id === jobId);
+    if (job && job.result && job.result.report_files) {
+        job.result.report_files.forEach(file => {
+            const fileName = file.split('/').pop();
+            const link = document.createElement('a');
+            link.href = `/api/reports/${job.request.strategy_name}/${fileName}`;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+        showMessage('开始下载报告文件');
+    }
+}
+
+function exportAnalysisData() {
+    if (!selectedJob) return;
+    
+    const data = {
+        job_id: selectedJob.job_id,
+        strategy_name: selectedJob.request.strategy_name,
+        backtest_period: `${selectedJob.request.start_date} to ${selectedJob.request.end_date}`,
+        summary: selectedJob.result.summary,
+        performance: selectedJob.result.performance
+    };
+    
+    const dataStr = JSON.stringify(data, null, 2);
+    const dataBlob = new Blob([dataStr], {type: 'application/json'});
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${selectedJob.request.strategy_name}_analysis.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+function compareStrategies() {
+    // 显示对比分析模态框
+    const modal = new bootstrap.Modal(document.getElementById('compareModal'));
+    modal.show();
+    
+    // 这里可以实现多策略对比功能
+    showMessage('对比分析功能正在开发中', 'info');
+}
+
+function generateComparisonReport() {
+    showMessage('对比报告生成功能正在开发中', 'info');
+}
+
+// 显示批量测试结果
+function showBatchTestResults(job) {
+    const visualizationDiv = document.getElementById('result-visualization');
+    const result = job.result;
+    
+    // 创建参数优化图表
+    if (result.results && result.results.length > 0) {
+        visualizationDiv.innerHTML = `
+            <h6>批量测试结果 (${result.completed_combinations}/${result.total_combinations})</h6>
+            <div class="chart-container">
+                <canvas id="batch-results-chart"></canvas>
+            </div>
+            <div class="mt-3">
+                <h6>最佳参数组合</h6>
+                <div class="alert alert-success">
+                    <strong>参数:</strong> ${JSON.stringify(result.best_result.parameters)}<br>
+                    <strong>总收益率:</strong> ${(result.best_result.total_return * 100).toFixed(2)}%<br>
+                    <strong>最大回撤:</strong> ${(result.best_result.max_drawdown * 100).toFixed(2)}%<br>
+                    <strong>夏普比率:</strong> ${result.best_result.sharpe_ratio.toFixed(2)}
+                </div>
+            </div>
+        `;
+        
+        // 创建散点图
+        const ctx = document.getElementById('batch-results-chart').getContext('2d');
+        new Chart(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: '参数组合结果',
+                    data: result.results.map((r, i) => ({
+                        x: r.total_return * 100,
+                        y: r.max_drawdown * 100,
+                        label: `组合${i+1}: ${JSON.stringify(r.parameters)}`
+                    })),
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: '总收益率 (%)'
+                        }
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: '总收益率 (%)'
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: '最大回撤 (%)'
-                                }
-                            }
-                        },
-                        plugins: {
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return context.raw.label;
-                                    }
-                                }
+                    y: {
+                        title: {
+                            display: true,
+                            text: '最大回撤 (%)'
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.raw.label;
                             }
                         }
                     }
-                });
+                }
             }
-        }
-        
-        // 高亮选中的任务
-        document.querySelectorAll('#job-results-list .list-group-item').forEach(item => {
-            item.classList.remove('active');
         });
-        event.target.classList.add('active');
-        
-    } catch (error) {
-        console.error('Error showing job result:', error);
-        showMessage('加载任务结果失败', 'error');
     }
 }
 

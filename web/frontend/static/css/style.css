@@ -328,7 +328,132 @@
     }
 }
 
-/* 深色模式支持 */
+/* 可调整大小的编辑器样式 */
+.editor-container {
+    position: relative;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    min-height: 500px;
+    max-height: 80vh;
+    width: 100%;
+    resize: both;
+    overflow: hidden;
+}
+
+.resizable-editor {
+    width: 100%;
+    height: 100%;
+    min-height: 500px;
+}
+
+.resize-handle {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 20px;
+    height: 20px;
+    background: linear-gradient(-45deg, transparent 30%, #ccc 30%, #ccc 40%, transparent 40%, transparent 60%, #ccc 60%, #ccc 70%, transparent 70%);
+    cursor: se-resize;
+    z-index: 1000;
+}
+
+.editor-container:hover .resize-handle {
+    background: linear-gradient(-45deg, transparent 30%, #667eea 30%, #667eea 40%, transparent 40%, transparent 60%, #667eea 60%, #667eea 70%, transparent 70%);
+}
+
+/* 全屏编辑器样式 */
+.editor-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 9999 !important;
+    background: white;
+    border: none !important;
+    border-radius: 0 !important;
+    max-height: none !important;
+}
+
+.editor-fullscreen .resizable-editor {
+    height: calc(100vh - 60px) !important;
+}
+
+.fullscreen-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 60px;
+    background: rgba(102, 126, 234, 0.95);
+    backdrop-filter: blur(10px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    color: white;
+}
+
+.fullscreen-controls {
+    display: flex;
+    gap: 10px;
+}
+
+.fullscreen-controls button {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.fullscreen-controls button:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* 结果分析页面样式 */
+.metric-card {
+    text-align: center;
+    transition: transform 0.2s ease;
+}
+
+.metric-card:hover {
+    transform: translateY(-5px);
+}
+
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.metric-label {
+    font-size: 0.875rem;
+    opacity: 0.9;
+}
+
+.job-result-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.job-result-card:hover {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.job-result-card.border-primary {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+}
+
+.analysis-header {
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e9ecef;
+}
+
 @media (prefers-color-scheme: dark) {
     :root {
         --light-bg: #1a1a1a;
