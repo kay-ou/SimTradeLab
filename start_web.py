@@ -60,25 +60,35 @@ def setup_directories():
         directory.mkdir(parents=True, exist_ok=True)
         print(f"📁 确保目录存在: {directory}")
 
-def start_server(host="localhost", port=8000, reload=False, workers=1):
+def start_server(host="0.0.0.0", port=8000, reload=False, workers=1):
     """启动Web服务器"""
     print(f"\n🌐 启动Web服务器...")
-    print(f"📍 访问地址: http://{host}:{port}")
-    print(f"🔧 API文档: http://{host}:{port}/docs")
+    print(f"📍 内部地址: http://{host}:{port}")
+    print(f"📍 外部访问: http://localhost:{port}")
+    print(f"🔧 API文档: http://localhost:{port}/docs")
     print(f"⏹️  按 Ctrl+C 停止服务器\n")
     
-    # 延迟后自动打开浏览器
-    def open_browser():
-        time.sleep(2)
-        try:
-            webbrowser.open(f'http://{host}:{port}')
-        except Exception as e:
-            print(f"⚠️  无法自动打开浏览器: {e}")
+    # 只在非Docker环境且未禁用浏览器时才自动打开
+    should_open_browser = (
+        not os.environ.get('SIMTRADELAB_NO_BROWSER') and 
+        not os.path.exists('/.dockerenv') and  # Docker环境检测
+        host not in ['0.0.0.0']
+    )
     
-    import threading
-    browser_thread = threading.Thread(target=open_browser)
-    browser_thread.daemon = True
-    browser_thread.start()
+    if should_open_browser:
+        # 延迟后自动打开浏览器
+        def open_browser():
+            time.sleep(2)
+            try:
+                browser_url = f'http://localhost:{port}' if host == '0.0.0.0' else f'http://{host}:{port}'
+                webbrowser.open(browser_url)
+            except Exception as e:
+                print(f"⚠️  无法自动打开浏览器: {e}")
+        
+        import threading
+        browser_thread = threading.Thread(target=open_browser)
+        browser_thread.daemon = True
+        browser_thread.start()
     
     # 启动服务器
     os.chdir(project_root)
@@ -103,7 +113,7 @@ def start_server(host="localhost", port=8000, reload=False, workers=1):
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="SimTradeLab Web 界面启动器")
-    parser.add_argument("--host", default="localhost", help="服务器地址 (默认: localhost)")
+    parser.add_argument("--host", default="0.0.0.0", help="服务器地址 (默认: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8000, help="服务器端口 (默认: 8000)")
     parser.add_argument("--reload", action="store_true", help="启用热重载 (开发模式)")
     parser.add_argument("--workers", type=int, default=1, help="工作进程数 (生产模式)")

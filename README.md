@@ -22,16 +22,42 @@ SimTradeLab（深测Lab） 是一个由社区独立开发的开源策略回测�
 ### ✨ 核心特性
 
 - 🔧 **事件驱动引擎**: 完整的回测引擎实现
-- 📊 **多格式报告**: TXT、JSON、CSV、HTML、摘要、图表等6种格式
+- 🌐 **现代Web界面**: 可视化策略编辑、回测监控和结果分析
+- 🐳 **Docker支持**: 一键容器化部署，支持集群扩展
+- 📊 **多格式报告**: TXT、JSON、CSV、摘要等格式
 - 🌐 **真实数据源**: 支持AkShare、Tushare等主流数据源
 - ⚡ **智能CLI**: 集成的 `simtradelab` 命令行工具
 - ✅ **PTrade兼容**: 保持与PTrade语法习惯的兼容性
-- 📈 **可视化报告**: HTML交互式报告和matplotlib图表
 
 ## 🚀 快速开始
 
-### 📦 安装
+### 🌐 方式一：Web界面（推荐）
 
+```bash
+# 安装依赖
+poetry install --with data
+
+# 启动Web界面
+python start_web.py
+```
+
+然后访问 `http://localhost:8000` 享受现代化的Web界面体验！
+
+### 🐳 方式二：Docker部署（生产推荐）
+
+```bash
+# 一键启动
+docker-compose up --build
+
+# 后台运行
+docker-compose up -d --build
+```
+
+访问 `http://localhost:8000` 开始使用！
+
+### ⚡ 方式三：命令行
+
+**基础安装:**
 ```bash
 # 克隆项目
 git clone https://github.com/kay-ou/SimTradeLab.git
@@ -45,6 +71,15 @@ poetry install --with data
 ```
 
 ### 🎯 5分钟上手
+
+**🌐 Web界面体验（推荐）:**
+1. 启动Web界面：`python start_web.py`
+2. 访问 `http://localhost:8000`
+3. 在策略管理页面创建或编辑策略
+4. 在回测执行页面配置参数并运行
+5. 在结果分析页面查看图表和报告
+
+**⚡ 命令行快速开始:**
 
 **1. 使用CSV数据源**
 ```bash
@@ -69,6 +104,24 @@ engine = BacktestEngine(
 )
 files = engine.run()
 ```
+
+## 🌐 Web界面特性
+
+### 核心功能模块
+- 📊 **仪表盘**: 系统状态概览和快速操作
+- 📝 **策略管理**: 可视化代码编辑器，支持语法高亮和智能补全
+- 🗄️ **数据管理**: 支持多数据源配置和文件上传
+- ▶️ **回测执行**: 实时监控回测进度和状态
+- 🔄 **批量测试**: 参数优化和批量回测功能
+- 📈 **结果分析**: 交互式图表和性能指标分析
+- 📋 **报告中心**: 多格式报告查看和下载
+
+### 技术亮点
+- **现代化编辑器**: 基于Ace Editor的Python代码编辑器
+- **实时更新**: 支持任务状态实时监控
+- **响应式设计**: 完美适配移动端和桌面端
+- **RESTful API**: 完整的后端API支持
+- **图表可视化**: Chart.js提供丰富的交互式图表
 
 ## ⚡ 命令行工具
 
@@ -119,9 +172,7 @@ data_sources:
 - 📝 **详细文本报告** (`.txt`) - 完整策略分析
 - 📊 **结构化数据** (`.json`) - 程序化分析
 - 📈 **数据表格** (`.csv`) - Excel分析
-- 🌐 **交互式网页** (`.html`) - 现代化展示
 - 📋 **智能摘要** (`.summary.txt`) - 快速概览
-- 📊 **可视化图表** (`.png`) - 直观展示
 
 报告自动按策略分类存储在 `reports/{strategy_name}/` 目录下。
 
@@ -228,7 +279,7 @@ SimTradeLab 是一个由社区独立开发的开源策略回测框架，灵感�
 
 **⭐ 如果这个项目对您有帮助，请给我们一个星标！**
 
-[📖 文档](docs/) | [🐛 报告问题](https://github.com/kay-ou/SimTradeLab/issues) | [💡 功能请求](https://github.com/kay-ou/SimTradeLab/issues)
+[📖 文档](docs/) | [🌐 Web部署指南](WEB_DOCKER_GUIDE.md) | [🐛 报告问题](https://github.com/kay-ou/SimTradeLab/issues) | [💡 功能请求](https://github.com/kay-ou/SimTradeLab/issues)
 
 </div>
 
