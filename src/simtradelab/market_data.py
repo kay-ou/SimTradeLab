@@ -2,14 +2,41 @@
 """
 市场数据接口模块
 """
+from typing import Union, List, Optional, Dict, Any
 import hashlib
 import pandas as pd
 import numpy as np
 from .logger import log
 
-def get_history(engine, count, frequency='1d', field='close', security_list=None, fq=None, include=False, is_dict=False, start_date=None, end_date=None):
+def get_history(
+    engine: 'BacktestEngine', 
+    count: int, 
+    frequency: str = '1d', 
+    field: Union[str, List[str]] = 'close', 
+    security_list: Optional[List[str]] = None, 
+    fq: Optional[str] = None, 
+    include: bool = False, 
+    is_dict: bool = False, 
+    start_date: Optional[str] = None, 
+    end_date: Optional[str] = None
+) -> Union[pd.DataFrame, Dict[str, Dict[str, np.ndarray]]]:
     """
-    增强的历史数据获取函数
+    获取历史数据
+    
+    Args:
+        engine: 回测引擎实例
+        count: 数据条数
+        frequency: 数据频率 ('1d', '1h', '5m' 等)
+        field: 字段名或字段列表
+        security_list: 股票代码列表
+        fq: 复权类型 (暂未实现)
+        include: 是否包含当前时间点数据
+        is_dict: 是否返回字典格式
+        start_date: 开始日期
+        end_date: 结束日期
+        
+    Returns:
+        DataFrame 或字典格式的历史数据
     """
     if security_list is None:
         security_list = list(engine.data.keys())
@@ -130,9 +157,29 @@ def get_history(engine, count, frequency='1d', field='close', security_list=None
                 log.warning(f"字段 '{f}' 不存在")
     return result_df
 
-def get_price(engine, security, start_date=None, end_date=None, frequency='1d', fields=None, count=None):
+def get_price(
+    engine: 'BacktestEngine', 
+    security: Union[str, List[str]], 
+    start_date: Optional[str] = None, 
+    end_date: Optional[str] = None, 
+    frequency: str = '1d', 
+    fields: Optional[Union[str, List[str]]] = None, 
+    count: Optional[int] = None
+) -> pd.DataFrame:
     """
-    增强的价格数据获取函数
+    获取价格数据
+    
+    Args:
+        engine: 回测引擎实例
+        security: 股票代码或股票代码列表
+        start_date: 开始日期
+        end_date: 结束日期
+        frequency: 数据频率
+        fields: 字段名或字段列表
+        count: 数据条数
+        
+    Returns:
+        价格数据DataFrame
     """
     count = count or 1
     securities = [security] if isinstance(security, str) else security
@@ -209,9 +256,19 @@ def get_price(engine, security, start_date=None, end_date=None, frequency='1d', 
 
     return result_df
 
-def get_current_data(engine, security=None):
+def get_current_data(
+    engine: 'BacktestEngine', 
+    security: Optional[Union[str, List[str]]] = None
+) -> Dict[str, Dict[str, float]]:
     """
     获取当前实时市场数据
+    
+    Args:
+        engine: 回测引擎实例
+        security: 股票代码或股票代码列表，None表示所有股票
+        
+    Returns:
+        当前市场数据字典
     """
     securities = list(engine.data.keys()) if security is None else ([security] if isinstance(security, str) else security)
     current_data = {}
@@ -253,9 +310,21 @@ def get_current_data(engine, security=None):
         }
     return current_data
 
-def get_market_snapshot(engine, security=None, fields=None):
+def get_market_snapshot(
+    engine: 'BacktestEngine', 
+    security: Optional[Union[str, List[str]]] = None, 
+    fields: Optional[Union[str, List[str]]] = None
+) -> pd.DataFrame:
     """
     获取市场快照数据
+    
+    Args:
+        engine: 回测引擎实例
+        security: 股票代码或股票代码列表
+        fields: 字段名或字段列表
+        
+    Returns:
+        市场快照数据DataFrame
     """
     current_data = get_current_data(engine, security)
     if not current_data:
@@ -273,9 +342,25 @@ def get_market_snapshot(engine, security=None, fields=None):
     data_dict = {field: [current_data[sec].get(field) for sec in current_data] for field in fields}
     return pd.DataFrame(data_dict, index=list(current_data.keys()))
 
-def get_technical_indicators(engine, security, indicators, period=20, **kwargs):
+def get_technical_indicators(
+    engine: 'BacktestEngine', 
+    security: Union[str, List[str]], 
+    indicators: Union[str, List[str]], 
+    period: int = 20, 
+    **kwargs: Any
+) -> pd.DataFrame:
     """
     计算技术指标
+    
+    Args:
+        engine: 回测引擎实例
+        security: 股票代码或股票代码列表
+        indicators: 指标名或指标列表
+        period: 计算周期
+        **kwargs: 其他参数
+        
+    Returns:
+        技术指标数据DataFrame
     """
     securities = [security] if isinstance(security, str) else security
     indicators = [indicators] if isinstance(indicators, str) else indicators
@@ -374,7 +459,13 @@ def get_technical_indicators(engine, security, indicators, period=20, **kwargs):
 # ==================== 独立技术指标函数接口 ====================
 # 符合ptradeAPI标准的独立技术指标函数
 
-def get_MACD(engine, security, fast_period=12, slow_period=26, signal_period=9):
+def get_MACD(
+    engine: 'BacktestEngine', 
+    security: Union[str, List[str]], 
+    fast_period: int = 12, 
+    slow_period: int = 26, 
+    signal_period: int = 9
+) -> pd.DataFrame:
     """
     计算MACD指标 (异同移动平均线)
 
@@ -386,7 +477,7 @@ def get_MACD(engine, security, fast_period=12, slow_period=26, signal_period=9):
         signal_period: 信号线周期，默认9
 
     Returns:
-        DataFrame: 包含MACD_DIF, MACD_DEA, MACD_HIST的数据框
+        包含MACD_DIF, MACD_DEA, MACD_HIST的数据框
     """
     return get_technical_indicators(
         engine, security, 'MACD',
@@ -396,7 +487,11 @@ def get_MACD(engine, security, fast_period=12, slow_period=26, signal_period=9):
     )
 
 
-def get_KDJ(engine, security, k_period=9):
+def get_KDJ(
+    engine: 'BacktestEngine', 
+    security: Union[str, List[str]], 
+    k_period: int = 9
+) -> pd.DataFrame:
     """
     计算KDJ指标 (随机指标)
 
@@ -406,7 +501,7 @@ def get_KDJ(engine, security, k_period=9):
         k_period: K值计算周期，默认9
 
     Returns:
-        DataFrame: 包含KDJ_K, KDJ_D, KDJ_J的数据框
+        包含KDJ_K, KDJ_D, KDJ_J的数据框
     """
     return get_technical_indicators(
         engine, security, 'KDJ',
@@ -414,7 +509,11 @@ def get_KDJ(engine, security, k_period=9):
     )
 
 
-def get_RSI(engine, security, period=14):
+def get_RSI(
+    engine: 'BacktestEngine', 
+    security: Union[str, List[str]], 
+    period: int = 14
+) -> pd.DataFrame:
     """
     计算RSI指标 (相对强弱指标)
 
@@ -424,7 +523,7 @@ def get_RSI(engine, security, period=14):
         period: 计算周期，默认14
 
     Returns:
-        DataFrame: 包含RSI值的数据框
+        包含RSI值的数据框
     """
     return get_technical_indicators(
         engine, security, 'RSI',
@@ -432,7 +531,11 @@ def get_RSI(engine, security, period=14):
     )
 
 
-def get_CCI(engine, security, period=20):
+def get_CCI(
+    engine: 'BacktestEngine', 
+    security: Union[str, List[str]], 
+    period: int = 20
+) -> pd.DataFrame:
     """
     计算CCI指标 (顺势指标)
 
@@ -442,9 +545,125 @@ def get_CCI(engine, security, period=20):
         period: 计算周期，默认20
 
     Returns:
-        DataFrame: 包含CCI值的数据框
+        包含CCI值的数据框
     """
     return get_technical_indicators(
         engine, security, 'CCI',
         cci_period=period
     )
+
+
+# ==================== 市场信息API ====================
+
+def get_market_list(engine: 'BacktestEngine') -> List[str]:
+    """
+    获取市场列表
+    
+    Args:
+        engine: 回测引擎实例
+        
+    Returns:
+        市场代码列表
+    """
+    # 根据股票代码后缀判断市场
+    markets = set()
+    
+    if not engine.data:
+        return []
+    
+    for security in engine.data.keys():
+        if '.' in security:
+            market = security.split('.')[-1]
+            markets.add(market)
+        else:
+            # 默认市场
+            markets.add('SZ')  # 深圳
+    
+    market_list = list(markets)
+    log.info(f"获取市场列表: {market_list}")
+    return market_list
+
+
+def get_cash(engine: 'BacktestEngine') -> float:
+    """
+    获取当前现金
+    
+    Args:
+        engine: 回测引擎实例
+        
+    Returns:
+        当前现金金额
+    """
+    if hasattr(engine, 'context') and engine.context:
+        return engine.context.portfolio.cash
+    return 0.0
+
+
+def get_total_value(engine: 'BacktestEngine') -> float:
+    """
+    获取总资产
+    
+    Args:
+        engine: 回测引擎实例
+        
+    Returns:
+        总资产金额
+    """
+    if hasattr(engine, 'context') and engine.context:
+        return engine.context.portfolio.total_value
+    return 0.0
+
+
+def get_datetime(engine: 'BacktestEngine') -> str:
+    """
+    获取当前时间
+    
+    Args:
+        engine: 回测引擎实例
+        
+    Returns:
+        当前时间字符串
+    """
+    if hasattr(engine, 'context') and engine.context and engine.context.current_dt:
+        return engine.context.current_dt.strftime('%Y-%m-%d %H:%M:%S')
+    return ""
+
+
+def get_previous_trading_date(engine: 'BacktestEngine', date: str = None) -> str:
+    """
+    获取上一交易日
+    
+    Args:
+        engine: 回测引擎实例
+        date: 基准日期，None表示当前日期
+        
+    Returns:
+        上一交易日字符串
+    """
+    from .utils import get_trading_day
+    import pandas as pd
+    
+    previous_date = get_trading_day(engine, date, offset=-1)
+    if previous_date:
+        return previous_date.strftime('%Y-%m-%d')
+    return ""
+
+
+def get_next_trading_date(engine: 'BacktestEngine', date: str = None) -> str:
+    """
+    获取下一交易日
+    
+    Args:
+        engine: 回测引擎实例
+        date: 基准日期，None表示当前日期
+        
+    Returns:
+        下一交易日字符串
+    """
+    from .utils import get_trading_day
+    import pandas as pd
+    
+    next_date = get_trading_day(engine, date, offset=1)
+    if next_date:
+        return next_date.strftime('%Y-%m-%d')
+    return ""

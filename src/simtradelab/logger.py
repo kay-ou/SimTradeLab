@@ -31,4 +31,21 @@ class Logger:
         timestamp = self._format_timestamp()
         print(f"{timestamp} - WARNING - {msg}")
 
+    def error(self, msg):
+        """记录error级别日志"""
+        timestamp = self._format_timestamp()
+        print(f"{timestamp} - ERROR - {msg}")
+
+    def debug(self, msg):
+        """记录debug级别日志"""
+        timestamp = self._format_timestamp()
+        print(f"{timestamp} - DEBUG - {msg}")
+        
+    def critical(self, msg):
+        """记录critical级别日志"""
+        timestamp = self._format_timestamp()
+        print(f"{timestamp} - CRITICAL - {msg}")
+
+
+# 全局日志实例
 log = Logger()

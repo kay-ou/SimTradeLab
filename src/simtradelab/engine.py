@@ -6,7 +6,6 @@ import importlib.util
 import os
 import types
 from datetime import datetime
-from functools import partial
 from typing import Union, List, Optional
 
 import numpy as np
@@ -17,6 +16,10 @@ from .context import Context, Portfolio
 from .logger import log
 from .data_sources import DataSourceFactory, DataSourceManager, CSVDataSource
 from .config import load_config
+from .performance_optimizer import (
+    get_global_cache, ConcurrentDataLoader, VectorizedCalculator, MemoryOptimizer
+)
+from .exceptions import DataLoadError, EngineError
 
 
 class BacktestEngine:
@@ -171,14 +174,28 @@ class BacktestEngine:
 
     def _load_data(self):
         """
-        使用数据源管理器加载数据
+        使用数据源管理器加载数据（优化版本）
         """
         try:
+            # 生成缓存键
+            cache_key_params = {
+                'securities': tuple(sorted(self.securities)) if self.securities else (),
+                'start_date': self.start_date.strftime('%Y-%m-%d') if self.start_date else None,
+                'end_date': self.end_date.strftime('%Y-%m-%d') if self.end_date else None,
+                'frequency': self.frequency,
+                'data_source': str(type(self.data_source_manager.primary_source).__name__)
+            }
+            
+            # 尝试从缓存获取数据
+            cache = get_global_cache()
+            cached_data = cache.get(**cache_key_params)
+            if cached_data is not None:
+                log.info("从缓存加载数据成功")
+                return MemoryOptimizer.reduce_memory_usage(cached_data)
+            
             # 如果没有指定日期范围，尝试从数据源获取可用的日期范围
             if self.start_date is None or self.end_date is None:
                 log.warning("未指定日期范围，将尝试加载所有可用数据")
-                # 对于CSV数据源，可以从文件中推断日期范围
-                # 对于在线数据源，需要用户指定日期范围
                 if self.start_date is None:
                     self.start_date = pd.to_datetime('2023-01-01')
                 if self.end_date is None:
@@ -187,29 +204,50 @@ class BacktestEngine:
             # 确定要获取数据的股票列表
             securities = self.securities
             if not securities:
-                # 如果没有指定股票列表，尝试从数据源获取
                 securities = self.data_source_manager.get_stock_list()
                 if not securities:
-                    log.warning("无法获取股票列表，请在初始化时指定securities参数")
-                    return {}
+                    raise DataLoadError("无法获取股票列表，请在初始化时指定securities参数")
                 # 限制股票数量以避免过多的API调用
-                securities = securities[:10]  # 默认只取前10只股票
+                securities = securities[:10]
                 log.info(f"自动选择股票列表: {securities}")
 
-            # 从数据源获取历史数据
-            data_dict = self.data_source_manager.get_history(
-                securities=securities,
-                start_date=self.start_date.strftime('%Y-%m-%d'),
-                end_date=self.end_date.strftime('%Y-%m-%d'),
-                frequency=self.frequency
-            )
+            # 使用并发加载器加载数据
+            if len(securities) > 1:
+                log.info(f"使用并发方式加载 {len(securities)} 只股票数据")
+                concurrent_loader = ConcurrentDataLoader(max_workers=min(4, len(securities)))
+                data_dict = concurrent_loader.load_multiple_securities(
+                    self.data_source_manager,
+                    securities,
+                    self.start_date.strftime('%Y-%m-%d'),
+                    self.end_date.strftime('%Y-%m-%d'),
+                    self.frequency
+                )
+            else:
+                # 单只股票直接加载
+                data_dict = self.data_source_manager.get_history(
+                    securities=securities,
+                    start_date=self.start_date.strftime('%Y-%m-%d'),
+                    end_date=self.end_date.strftime('%Y-%m-%d'),
+                    frequency=self.frequency
+                )
 
-            log.info(f"成功加载 {len(data_dict)} 只股票的数据")
-            return data_dict
+            if not data_dict:
+                raise DataLoadError("未能加载到任何股票数据")
 
+            # 内存优化
+            optimized_data = MemoryOptimizer.reduce_memory_usage(data_dict)
+            
+            # 缓存数据
+            cache.set(data_dict, **cache_key_params)
+            
+            log.info(f"成功加载 {len(optimized_data)} 只股票的数据")
+            return optimized_data
+
+        except DataLoadError:
+            raise
         except Exception as e:
-            log.warning(f"加载数据失败: {e}")
-            return {}
+            log.error(f"加载数据失败: {e}")
+            raise DataLoadError(f"数据加载过程中发生错误: {str(e)}") from e
 
 
     def _is_daily_data(self, df):
@@ -262,13 +300,31 @@ class BacktestEngine:
 
     def _update_portfolio_value(self, current_prices):
         """
-        根据当前价格更新投资组合的总价值。
+        根据当前价格更新投资组合的总价值（优化版本）
         """
-        total_value = self.portfolio.cash
-        for security, position in self.portfolio.positions.items():
-            price = current_prices.get(security, 0)
-            total_value += position.amount * price
-        self.portfolio.total_value = total_value
+        try:
+            # 向量化计算持仓价值
+            if not self.portfolio.positions:
+                self.portfolio.total_value = self.portfolio.cash
+                return
+                
+            # 使用 numpy 数组进行向量化计算
+            securities = list(self.portfolio.positions.keys())
+            amounts = np.array([pos.amount for pos in self.portfolio.positions.values()])
+            prices = np.array([current_prices.get(sec, 0) for sec in securities])
+            
+            # 向量化计算总持仓价值
+            total_position_value = np.sum(amounts * prices)
+            self.portfolio.total_value = self.portfolio.cash + total_position_value
+            
+        except Exception as e:
+            log.warning(f"更新投资组合价值时发生错误: {e}")
+            # 回退到原始方法
+            total_value = self.portfolio.cash
+            for security, position in self.portfolio.positions.items():
+                price = current_prices.get(security, 0)
+                total_value += position.amount * price
+            self.portfolio.total_value = total_value
 
     def run(self):
         """
