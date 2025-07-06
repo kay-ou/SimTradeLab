@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
 """
-现代化配置管理系统
+SimTradeLab 配置管理系统
+
+提供现代化的配置管理功能，支持数据源配置、回测参数配置等。
 """
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 import os
+import json
 import yaml
 from .exceptions import ConfigurationError
+from .logger import log
 
 
 @dataclass

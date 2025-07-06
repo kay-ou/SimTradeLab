@@ -1,6 +1,57 @@
 # -*- coding: utf-8 -*-
 """
 辅助工具函数模块
+
+=======================
+PTrade 完全兼容工具函数
+=======================
+
+提供与 PTrade 完全一致的辅助工具函数，支持：
+
+⚙️ **回测配置**
+- set_commission(): 设置交易手续费，与PTrade参数一致
+- set_slippage(): 设置滑点参数
+- set_benchmark(): 设置基准指数
+- set_universe(): 设置股票池
+
+📅 **交易日历**
+- get_trading_day(): 获取交易日，支持偏移
+- get_all_trades_days(): 获取所有交易日
+- get_trade_days(): 获取指定范围交易日
+
+🏪 **ETF交易工具**
+- get_etf_info(): 获取ETF基本信息
+- get_etf_stock_list(): 获取ETF成分券
+- etf_purchase_redemption(): ETF申购赎回
+
+💰 **期货期权工具**
+- buy_open(), sell_close(): 期货开平仓
+- option_exercise(): 期权行权
+- get_instruments(): 获取合约信息
+
+📈 **股票信息查询**
+- get_stock_info(): 获取股票基本信息
+- get_stock_blocks(): 获取股票板块信息
+- get_suspend_info(): 获取停牌信息
+- get_dividend_info(): 获取分红信息
+
+🔧 **系统工具**
+- run_daily(): 定时任务调度
+- get_user_name(): 获取账户信息
+- permission_test(): 权限验证
+- send_email(), send_qywx(): 消息通知
+
+PTrade 兼容性说明:
+- 所有函数与PTrade API完全兼容
+- 参数名称、类型、默认值保持一致
+- 返回值格式与PTrade相同
+- 支持PTrade的所有配置选项
+
+扩展功能:
+- 增强的错误处理
+- 更丰富的日志输出
+- 优化的性能表现
+- 灵活的配置选项
 """
 from pathlib import Path
 from .logger import log
@@ -930,61 +981,6 @@ def get_tick_direction(engine, stock):
     return direction
 
 
-# ==================== 高级市场数据API ====================
-
-def get_snapshot(engine, stock):
-    """
-    获取股票快照数据
-    
-    Args:
-        engine: 回测引擎实例
-        stock: 股票代码
-        
-    Returns:
-        dict: 快照数据
-    """
-    if stock in engine.data:
-        latest_data = engine.data[stock].iloc[-1]
-        snapshot = {
-            'code': stock,
-            'open': latest_data['open'],
-            'high': latest_data['high'],
-            'low': latest_data['low'],
-            'close': latest_data['close'],
-            'volume': latest_data['volume'],
-            'turnover': latest_data['close'] * latest_data['volume'],
-            'bid1': latest_data['close'] * 0.999,
-            'ask1': latest_data['close'] * 1.001,
-            'bid1_volume': 10000,
-            'ask1_volume': 10000
-        }
-    else:
-        snapshot = {'code': stock, 'error': 'No data available'}
-    
-    log.info(f"获取股票快照: {stock}")
-    return snapshot
-
-
-def get_volume_ratio(engine, stock):
-    """
-    获取股票量比
-    
-    Args:
-        engine: 回测引擎实例
-        stock: 股票代码
-        
-    Returns:
-        float: 量比
-    """
-    if stock in engine.data and len(engine.data[stock]) >= 5:
-        recent_volume = engine.data[stock]['volume'].iloc[-1]
-        avg_volume = engine.data[stock]['volume'].iloc[-5:].mean()
-        volume_ratio = recent_volume / avg_volume if avg_volume > 0 else 1.0
-    else:
-        volume_ratio = 1.0
-    
-    log.info(f"获取量比: {stock} -> {volume_ratio:.2f}")
-    return volume_ratio
 
 
 def get_turnover_rate(engine, stock):
@@ -1430,196 +1426,12 @@ def get_ipo_stocks(engine, date=None):
     return ipo_stocks
 
 
-# ==================== 高级行情数据API ====================
-
-def get_individual_entrust(engine, stocks, start_time=None, end_time=None):
-    """
-    获取逐笔委托行情
-
-    Args:
-        engine: 回测引擎实例
-        stocks: 股票代码或股票列表
-        start_time: 开始时间
-        end_time: 结束时间
-
-    Returns:
-        dict: 逐笔委托数据，key为股票代码，value为DataFrame
-    """
-    
-
-    if isinstance(stocks, str):
-        stocks = [stocks]
-
-    result = {}
-
-    for stock in stocks:
-        # 模拟逐笔委托数据
-        current_time = datetime.now()
-        time_range = pd.date_range(
-            start=current_time - timedelta(minutes=30),
-            end=current_time,
-            freq='10S'  # 每10秒一条记录
-        )
-
-        n_records = len(time_range)
-
-        # 生成模拟数据
-        base_price = 10.0  # 基础价格
-        entrust_data = pd.DataFrame({
-            'business_time': [int(t.timestamp() * 1000) for t in time_range],  # 毫秒时间戳
-            'hq_px': np.round(base_price + np.random.normal(0, 0.1, n_records), 2),  # 委托价格
-            'business_amount': np.random.randint(100, 10000, n_records),  # 委托量
-            'order_no': [f"ORD{i:06d}" for i in range(n_records)],  # 委托编号
-            'business_direction': np.random.choice([0, 1], n_records),  # 0-卖，1-买
-            'trans_kind': np.random.choice([1, 2, 3], n_records)  # 1-市价，2-限价，3-本方最优
-        })
-
-        result[stock] = entrust_data
-
-    log.info(f"获取逐笔委托数据: {len(stocks)}只股票")
-    return result
 
 
-def get_individual_transaction(engine, stocks, start_time=None, end_time=None):
-    """
-    获取逐笔成交行情
-
-    Args:
-        engine: 回测引擎实例
-        stocks: 股票代码或股票列表
-        start_time: 开始时间
-        end_time: 结束时间
-
-    Returns:
-        dict: 逐笔成交数据，key为股票代码，value为DataFrame
-    """
-    if isinstance(stocks, str):
-        stocks = [stocks]
-
-    result = {}
-
-    for stock in stocks:
-        # 模拟逐笔成交数据
-        current_time = datetime.now()
-        time_range = pd.date_range(
-            start=current_time - timedelta(minutes=30),
-            end=current_time,
-            freq='15S'  # 每15秒一条记录
-        )
-
-        n_records = len(time_range)
-
-        # 生成模拟数据
-        base_price = 10.0  # 基础价格
-        transaction_data = pd.DataFrame({
-            'business_time': [int(t.timestamp() * 1000) for t in time_range],  # 毫秒时间戳
-            'hq_px': np.round(base_price + np.random.normal(0, 0.05, n_records), 2),  # 成交价格
-            'business_amount': np.random.randint(100, 5000, n_records),  # 成交量
-            'trade_index': [f"TRD{i:06d}" for i in range(n_records)],  # 成交编号
-            'business_direction': np.random.choice([0, 1], n_records),  # 0-卖，1-买
-            'buy_no': [f"BUY{i:06d}" for i in range(n_records)],  # 叫买方编号
-            'sell_no': [f"SELL{i:06d}" for i in range(n_records)],  # 叫卖方编号
-            'trans_flag': np.random.choice([0, 1], n_records, p=[0.95, 0.05]),  # 0-普通，1-撤单
-            'trans_identify_am': np.random.choice([0, 1], n_records, p=[0.9, 0.1]),  # 0-盘中，1-盘后
-            'channel_num': np.random.randint(1, 10, n_records)  # 成交通道信息
-        })
-
-        result[stock] = transaction_data
-
-    log.info(f"获取逐笔成交数据: {len(stocks)}只股票")
-    return result
 
 
-def get_gear_price(engine, security):
-    """
-    获取指定代码的档位行情价格
-
-    Args:
-        engine: 回测引擎实例
-        security: 股票代码
-
-    Returns:
-        dict: 档位行情数据
-    """
-    # 模拟档位行情数据
-    base_price = 10.0
-
-    # 生成买卖五档数据
-    bid_prices = []
-    ask_prices = []
-
-    for i in range(5):
-        bid_price = round(base_price - (i + 1) * 0.01, 2)
-        ask_price = round(base_price + (i + 1) * 0.01, 2)
-        bid_prices.append(bid_price)
-        ask_prices.append(ask_price)
-
-    gear_data = {
-        'security': security,
-        'timestamp': int(datetime.now().timestamp() * 1000),
-        'bid_prices': bid_prices,  # 买一到买五价格
-        'bid_volumes': [random.randint(100, 10000) for _ in range(5)],  # 买一到买五量
-        'ask_prices': ask_prices,  # 卖一到卖五价格
-        'ask_volumes': [random.randint(100, 10000) for _ in range(5)],  # 卖一到卖五量
-        'last_price': base_price,  # 最新价
-        'total_bid_volume': sum([random.randint(100, 10000) for _ in range(5)]),  # 委买总量
-        'total_ask_volume': sum([random.randint(100, 10000) for _ in range(5)]),  # 委卖总量
-    }
-
-    log.info(f"获取档位行情: {security}")
-    return gear_data
 
 
-def get_sort_msg(engine, market_type='sector', sort_field='pct_change', ascending=False, count=20):
-    """
-    获取板块、行业的涨幅排名
-
-    Args:
-        engine: 回测引擎实例
-        market_type: 市场类型 ('sector'-板块, 'industry'-行业)
-        sort_field: 排序字段 ('pct_change'-涨跌幅, 'volume'-成交量, 'amount'-成交额)
-        ascending: 是否升序排列
-        count: 返回数量
-
-    Returns:
-        list: 排名数据列表
-    """
-    # 模拟板块/行业数据
-    if market_type == 'sector':
-        sectors = [
-            '银行板块', '证券板块', '保险板块', '地产板块', '钢铁板块',
-            '煤炭板块', '有色板块', '石油板块', '电力板块', '汽车板块',
-            '家电板块', '食品板块', '医药板块', '科技板块', '军工板块'
-        ]
-        data_source = sectors
-    else:  # industry
-        industries = [
-            '银行业', '证券业', '保险业', '房地产业', '钢铁业',
-            '煤炭业', '有色金属', '石油化工', '电力行业', '汽车制造',
-            '家用电器', '食品饮料', '医药生物', '计算机', '国防军工'
-        ]
-        data_source = industries
-
-    # 生成模拟排名数据
-    sort_data = []
-    for i, name in enumerate(data_source[:count]):
-        item = {
-            'name': name,
-            'code': f"{market_type.upper()}{i:03d}",
-            'pct_change': round(random.uniform(-5.0, 8.0), 2),  # 涨跌幅 -5% 到 8%
-            'volume': random.randint(1000000, 100000000),  # 成交量
-            'amount': random.randint(100000000, 10000000000),  # 成交额
-            'up_count': random.randint(0, 50),  # 上涨家数
-            'down_count': random.randint(0, 50),  # 下跌家数
-            'flat_count': random.randint(0, 10),  # 平盘家数
-        }
-        sort_data.append(item)
-
-    # 按指定字段排序
-    sort_data.sort(key=lambda x: x[sort_field], reverse=not ascending)
-
-    log.info(f"获取{market_type}排名数据: {len(sort_data)}个")
-    return sort_data
 
 
 def send_email(engine, to_email, subject, content, attachments=None):

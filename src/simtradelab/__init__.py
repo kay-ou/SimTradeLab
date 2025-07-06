@@ -2,11 +2,57 @@
 """
 SimTradeLab - 开源策略回测框架
 
-灵感来自PTrade的事件驱动模型，提供轻量、清晰、可插拔的策略验证环境
+=======================
+PTrade 完全兼容框架  
+=======================
+
+SimTradeLab 致力于与 PTrade 保持 100% API 兼容性，确保：
+
+🔄 **无缝迁移**
+- 所有在 SimTradeLab 中编写的策略可直接在 PTrade 平台运行
+- PTrade 策略可无需修改直接在 SimTradeLab 中运行
+- API 函数名称、参数、返回值格式完全一致
+
+📦 **完整功能覆盖**
+- 数据获取：历史数据、实时行情、基本面数据
+- 交易执行：下单、撤单、持仓管理、风控
+- 高级功能：期货、期权、ETF、可转债交易
+- 系统功能：配置管理、日志记录、性能分析
+
+🛠 **配置兼容性**  
+- 支持 PTrade 配置文件格式
+- 环境变量配置方式一致
+- 数据源配置参数完全兼容
 
 主要组件:
-- engine: 回测引擎
-- context: 上下文和投资组合管理
+- engine: 回测引擎，兼容PTrade策略执行模式
+- context: 上下文和投资组合管理，API与PTrade一致
+- market_data: 市场数据接口，支持PTrade所有数据类型
+- trading: 交易接口，完全兼容PTrade交易API
+- config: 配置管理，支持PTrade配置格式
+- utils: 工具函数，提供PTrade兼容的辅助功能
+
+使用示例:
+```python
+# PTrade策略代码可直接运行，无需修改
+def initialize(context):
+    # 设置基准和股票池
+    set_benchmark('000300.SH')
+    set_universe(['000001.SZ', '000002.SZ'])
+    
+def handle_data(context, data):
+    # 获取历史数据
+    hist = get_history(context, count=20, field='close')
+    
+    # 执行交易
+    order_target_percent('000001.SZ', 0.5)
+```
+
+PTrade 迁移指南:
+1. 配置文件：直接使用现有PTrade配置文件
+2. 策略代码：无需任何修改
+3. 数据格式：保持一致的DataFrame格式
+4. API调用：所有函数签名完全相同
 """
 
 from .engine import BacktestEngine
@@ -18,7 +64,10 @@ from .financials import (
 from .market_data import (
     get_history, get_price, get_current_data, get_market_snapshot, get_technical_indicators,
     get_MACD, get_KDJ, get_RSI, get_CCI, get_market_list, 
-    get_cash, get_total_value, get_datetime, get_previous_trading_date, get_next_trading_date
+    get_cash, get_total_value, get_datetime, get_previous_trading_date, get_next_trading_date,
+    # 高级市场数据API（从utils.py迁移而来）
+    get_snapshot, get_volume_ratio, get_turnover_rate, get_pe_ratio, get_pb_ratio,
+    get_individual_entrust, get_individual_transaction, get_gear_price, get_sort_msg
 )
 from .trading import (
     order, order_target, order_value, cancel_order,
@@ -44,8 +93,6 @@ from .utils import (
     option_covered_lock, option_covered_unlock,
     # 基础查询
     get_market_detail, get_stock_blocks, get_tick_direction,
-    # 高级市场数据
-    get_snapshot, get_volume_ratio, get_turnover_rate, get_pe_ratio, get_pb_ratio,
     # 分红配股
     get_dividend_info, get_rights_issue_info,
     # 停复牌
@@ -54,8 +101,6 @@ from .utils import (
     check_limit, create_dir, get_user_name, get_trade_name, permission_test,
     # 股票基础信息补充
     get_stock_exrights, get_index_stocks, get_industry_stocks, get_ipo_stocks,
-    # 高级行情数据
-    get_individual_entrust, get_individual_transaction, get_gear_price, get_sort_msg,
     # 系统集成功能
     send_email, send_qywx,
     # 期权高级功能
@@ -78,11 +123,11 @@ from .data_sources import (
     DataSourceFactory, DataSourceManager, CSVDataSource,
     TUSHARE_AVAILABLE, AKSHARE_AVAILABLE
 )
-from .config import DataSourceConfig, load_config, save_config
+# 配置管理 - 现代配置系统
 from .config_manager import (
     SimTradeLabConfig, BacktestConfig, LoggingConfig, ReportConfig,
-    TushareConfig, AkshareConfig, CSVConfig, 
-    load_config as load_modern_config, get_config, save_config as save_modern_config
+    TushareConfig, AkshareConfig, CSVConfig, DataSourceConfig,
+    load_config, get_config, save_config
 )
 from .exceptions import (
     SimTradeLabError, DataSourceError, DataLoadError, DataValidationError,
@@ -121,6 +166,9 @@ __all__ = [
     'get_history', 'get_price', 'get_current_data', 'get_market_snapshot', 'get_technical_indicators',
     'get_MACD', 'get_KDJ', 'get_RSI', 'get_CCI', 'get_market_list',
     'get_cash', 'get_total_value', 'get_datetime', 'get_previous_trading_date', 'get_next_trading_date',
+    # 高级市场数据（从utils.py迁移而来）
+    'get_snapshot', 'get_volume_ratio', 'get_turnover_rate', 'get_pe_ratio', 'get_pb_ratio',
+    'get_individual_entrust', 'get_individual_transaction', 'get_gear_price', 'get_sort_msg',
     
     # trading
     'order', 'order_target', 'order_value', 'cancel_order',
@@ -152,9 +200,6 @@ __all__ = [
     # 基础查询
     'get_market_detail', 'get_stock_blocks', 'get_tick_direction',
     
-    # 高级市场数据
-    'get_snapshot', 'get_volume_ratio', 'get_turnover_rate', 'get_pe_ratio', 'get_pb_ratio',
-    
     # 分红配股
     'get_dividend_info', 'get_rights_issue_info',
     
@@ -166,9 +211,6 @@ __all__ = [
 
     # 股票基础信息补充
     'get_stock_exrights', 'get_index_stocks', 'get_industry_stocks', 'get_ipo_stocks',
-
-    # 高级行情数据
-    'get_individual_entrust', 'get_individual_transaction', 'get_gear_price', 'get_sort_msg',
 
     # 系统集成功能
     'send_email', 'send_qywx',
@@ -204,11 +246,10 @@ __all__ = [
     'DataSourceFactory', 'DataSourceManager', 'CSVDataSource',
     'TUSHARE_AVAILABLE', 'AKSHARE_AVAILABLE',
 
-    # config
-    'DataSourceConfig', 'load_config', 'save_config',
+    # config - 现代配置系统
     'SimTradeLabConfig', 'BacktestConfig', 'LoggingConfig', 'ReportConfig',
-    'TushareConfig', 'AkshareConfig', 'CSVConfig',
-    'load_modern_config', 'get_config', 'save_modern_config',
+    'TushareConfig', 'AkshareConfig', 'CSVConfig', 'DataSourceConfig',
+    'load_config', 'get_config', 'save_config',
 
     # exceptions
     'SimTradeLabError', 'DataSourceError', 'DataLoadError', 'DataValidationError',

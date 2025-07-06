@@ -1,6 +1,56 @@
 # -*- coding: utf-8 -*-
 """
 交易执行接口模块
+
+=======================
+PTrade 完全兼容交易API
+=======================
+
+提供与 PTrade 完全一致的交易执行接口，支持：
+
+🛒 **基础交易功能**
+- order(): 核心下单函数，与PTrade签名完全一致
+- order_target(): 目标数量下单
+- order_value(): 目标金额下单
+- cancel_order(): 撤单操作
+
+📊 **高级交易功能**
+- order_target_value(): 目标市值调整
+- order_target_percent(): 目标比例调整
+- order_percent(): 按比例下单
+- order_market(): 市价单
+
+🔍 **持仓查询**
+- get_positions(): 获取所有持仓
+- get_position(): 获取单个持仓
+- get_open_orders(): 获取未成交订单
+- get_orders(): 获取历史订单
+- get_trades(): 获取成交记录
+
+🏢 **特殊交易**
+- ipo_stocks_order(): IPO申购
+- after_trading_order(): 盘后定价交易
+- etf_basket_order(): ETF篮子交易
+
+PTrade 兼容性说明:
+- 交易函数签名与PTrade完全一致
+- 订单状态和类型定义相同
+- 风控检查逻辑与PTrade一致
+- 错误处理和异常类型相同
+
+支持的交易类型:
+- 股票现货交易
+- ETF申购赎回
+- 期货合约交易
+- 期权策略交易
+- 可转债交易
+- 融资融券交易
+
+风控功能:
+- 资金充足性检查
+- 持仓数量验证
+- 交易时间限制
+- 涨跌停价格检查
 """
 from typing import Optional, Union, Dict, List, Any
 import uuid

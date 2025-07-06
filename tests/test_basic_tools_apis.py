@@ -17,7 +17,7 @@ from simtradelab import (
     BacktestEngine, check_limit, create_dir, get_user_name,
     get_trade_name, permission_test
 )
-from simtradelab.logger import log_info, log_warning, log_error, log_debug
+from simtradelab.logger import log
 from simtradelab.data_sources import CSVDataSource
 import pandas as pd
 
@@ -27,10 +27,10 @@ def test_log_functions():
     print("\n=== 测试日志函数 ===")
     
     # 测试各种级别的日志
-    log_info("这是一条INFO级别的日志")
-    log_warning("这是一条WARNING级别的日志")
-    log_error("这是一条ERROR级别的日志")
-    log_debug("这是一条DEBUG级别的日志")
+    log.info("这是一条INFO级别的日志")
+    log.warning("这是一条WARNING级别的日志")
+    log.error("这是一条ERROR级别的日志")
+    log.debug("这是一条DEBUG级别的日志")
     
     print("✅ 日志函数测试完成")
 
