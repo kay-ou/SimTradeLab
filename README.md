@@ -148,10 +148,12 @@ def after_trading_end(context, data):
 ```
 
 ### 可用API
-- **交易接口**: `order`, `order_target`, `order_target_percent`
-- **数据接口**: `data.current()`, `get_history()`
-- **查询接口**: `context.portfolio`, `context.current_dt`
-- **工具函数**: `log.info()`, `set_commission()`
+📖 **完整文档**
+
+- 🎯 [SimTradeLab API 完整参考文档](docs/SIMTRADELAB_API_COMPLETE_REFERENCE.md) - **推荐主文档**
+- 📋 [策略开发指南](docs/STRATEGY_GUIDE.md) 
+- 📊 [数据格式说明](docs/DATA_FORMAT.md)
+- 🔧 [技术指标说明](docs/TECHNICAL_INDICATORS.md)
 
 ## 🧪 测试
 
