@@ -1,76 +1,54 @@
-# SimTradeLab 现代化配置文件
-# 此文件使用 YAML 格式，支持完整的配置管理
-
-# 回测配置
 backtest:
-  initial_cash: 1000000.0        # 初始资金
-  commission_rate: 0.0003        # 佣金费率
-  min_commission: 5.0            # 最低佣金
-  slippage: 0.001                # 滑点
-  frequency: "1d"                # 交易频率
-  benchmark: null                # 基准指数
-  
-  # 性能优化配置
-  enable_cache: true             # 启用缓存
-  cache_dir: "./cache"           # 缓存目录
-  concurrent_loading: true       # 并发数据加载
-  max_workers: 4                 # 最大工作线程数
-  memory_optimization: true      # 内存优化
-
-# 日志配置
-logging:
-  level: "INFO"                  # 日志级别
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  file_handler: true             # 文件日志处理器
-  log_dir: "./logs"              # 日志目录
-  max_file_size: 10485760        # 最大文件大小 (10MB)
-  backup_count: 5                # 备份文件数量
-
-# 报告配置
-reports:
-  output_dir: "./reports"        # 输出目录
-  formats:                       # 支持的格式
-    - "txt"
-    - "json"
-    - "csv"
-    - "html"
-  include_charts: true           # 包含图表
-  chart_format: "png"            # 图表格式
-  chart_dpi: 300                 # 图表DPI
-
-# 数据源配置
+  benchmark: null
+  cache_dir: ./cache
+  commission_rate: 0.0003
+  concurrent_loading: true
+  enable_cache: true
+  frequency: 1d
+  initial_cash: 1000000.0
+  max_workers: 4
+  memory_optimization: true
+  min_commission: 5.0
+  slippage: 0.001
 data_sources:
-  # CSV数据源
-  csv:
-    enabled: true
-    data_path: "./data/sample_data.csv"
-    encoding: "utf-8"
-    date_column: "date"
-    cache_enabled: true
-    cache_dir: "./cache/csv"
-    timeout: 30
-    retry_count: 3
-    extra_params: {}
-
-  # Tushare数据源
-  tushare:
-    enabled: false               # 默认禁用，需要配置token
-    token: null                  # 从环境变量 TUSHARE_TOKEN 获取
-    pro_api: true
-    cache_enabled: true
-    cache_dir: "./cache/tushare"
-    timeout: 30
-    retry_count: 3
-    extra_params: {}
-
-  # AkShare数据源
   akshare:
-    enabled: true
+    cache_dir: ./cache/akshare
     cache_enabled: true
-    cache_dir: "./cache/akshare"
-    timeout: 30
-    retry_count: 3
+    enabled: true
     extra_params: {}
-
-# 默认数据源
-default_data_source: "csv"
+    retry_count: 3
+    timeout: 30
+  csv:
+    cache_dir: ./cache/csv
+    cache_enabled: true
+    data_path: ./data/sample_data.csv
+    date_column: '%Y-%m-%d'
+    enabled: true
+    encoding: utf-8
+    extra_params: {}
+    retry_count: 3
+    timeout: 30
+  tushare:
+    cache_dir: ./cache/tushare
+    cache_enabled: true
+    enabled: false
+    extra_params: {}
+    pro_api: true
+    retry_count: 3
+    timeout: 30
+    token: null
+default_data_source: csv
+logging:
+  backup_count: 5
+  file_handler: true
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+  log_dir: ./logs
+  max_file_size: 10485760
+reports:
+  formats:
+  - txt
+  - json
+  - csv
+  include_charts: false
+  output_dir: ./reports
