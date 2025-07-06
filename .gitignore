@@ -65,6 +65,7 @@ reports/
 *.log
 logs/
 
+web/uploads/
 cache/
 CLAUDE.md
 .roo/
