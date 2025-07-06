@@ -5,9 +5,14 @@ SimTradeLab Web 界面启动脚本
 """
 import os
 import sys
+import warnings
 import webbrowser
 import time
 from pathlib import Path
+
+# 抑制pkg_resources废弃警告
+warnings.filterwarnings("ignore", message="pkg_resources is deprecated")
+warnings.filterwarnings("ignore", category=UserWarning, module="py_mini_racer")
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent
