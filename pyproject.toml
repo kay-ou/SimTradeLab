@@ -36,7 +36,6 @@ simtradelab = "simtradelab.cli:main"
 
 [project.optional-dependencies]
 data = ["akshare>=1.17.16", "tushare>=1.2.89"]
-all = ["akshare>=1.17.16", "tushare>=1.2.89"]
 
 [tool.poetry]
 packages = [
@@ -50,6 +49,10 @@ include = [
     "docs/**/*",
     "tests/**/*",
 ]
+
+[tool.poetry.group.data.dependencies]
+akshare = "^1.17.16"
+tushare = "^1.2.89"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.1"
