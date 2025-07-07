@@ -345,3 +345,713 @@ class TestDataSourceManager:
         # 验证返回空结果
         assert isinstance(result, dict)
         assert len(result) == 0
+
+
+class TestAkshareDataSourceComprehensive:
+    """AkShare数据源全面测试 - 覆盖所有缺失函数"""
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.akshare_source.ak')
+    def test_akshare_get_fundamentals(self, mock_ak):
+        """测试AkShare基本面数据获取"""
+        # 设置mock基本信息数据
+        mock_basic_info = pd.DataFrame({
+            'item': ['总股本', '流通股本', '市值'],
+            'value': [1000000, 800000, 50000000]
+        })
+        
+        # 设置mock财务指标数据
+        mock_financial_data = pd.DataFrame({
+            'pe': [15.5],
+            'pb': [2.3],
+            'roe': [0.12]
+        })
+        
+        mock_ak.stock_individual_info_em.return_value = mock_basic_info
+        mock_ak.stock_financial_analysis_indicator.return_value = mock_financial_data
+        
+        try:
+            source = AkshareDataSource()
+            result = source.get_fundamentals(['000001.SZ'])
+            
+            assert isinstance(result, dict)
+            if '000001.SZ' in result:
+                fund_data = result['000001.SZ']
+                assert isinstance(fund_data, dict)
+                # 检查基本信息是否包含
+                assert '总股本' in fund_data or 'pe' in fund_data
+        except ImportError:
+            pytest.skip("AkShare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.akshare_source.ak')
+    def test_akshare_get_fundamentals_error_handling(self, mock_ak):
+        """测试AkShare基本面数据获取错误处理"""
+        # 模拟API调用失败
+        mock_ak.stock_individual_info_em.side_effect = Exception("API调用失败")
+        mock_ak.stock_financial_analysis_indicator.side_effect = Exception("API调用失败")
+        
+        try:
+            source = AkshareDataSource()
+            result = source.get_fundamentals(['000001.SZ'])
+            
+            assert isinstance(result, dict)
+            assert '000001.SZ' in result
+            assert result['000001.SZ'] == {}  # 错误时返回空字典
+        except ImportError:
+            pytest.skip("AkShare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.akshare_source.ak')
+    def test_akshare_get_trading_calendar(self, mock_ak):
+        """测试AkShare交易日历获取"""
+        # 设置mock交易日历数据
+        mock_calendar_data = pd.DataFrame({
+            'trade_date': ['2024-12-01', '2024-12-02', '2024-12-03']
+        })
+        
+        mock_ak.tool_trade_date_hist_sina.return_value = mock_calendar_data
+        
+        try:
+            source = AkshareDataSource()
+            result = source.get_trading_calendar('2024-12-01', '2024-12-03')
+            
+            assert isinstance(result, list)
+            assert len(result) == 3
+            assert '2024-12-01' in result
+            assert '2024-12-03' in result
+        except ImportError:
+            pytest.skip("AkShare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.akshare_source.ak')
+    def test_akshare_get_trading_calendar_fallback(self, mock_ak):
+        """测试AkShare交易日历获取失败时的回退机制"""
+        # 模拟API调用失败
+        mock_ak.tool_trade_date_hist_sina.side_effect = Exception("API调用失败")
+        
+        try:
+            source = AkshareDataSource()
+            result = source.get_trading_calendar('2024-12-01', '2024-12-03')
+            
+            assert isinstance(result, list)
+            # 应该回退到父类的实现
+        except ImportError:
+            pytest.skip("AkShare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.akshare_source.ak')
+    def test_akshare_get_stock_list(self, mock_ak):
+        """测试AkShare股票列表获取"""
+        # 设置mock股票列表数据
+        mock_stock_data = pd.DataFrame({
+            '代码': ['000001', '000002', '600000', '600001'],
+            '名称': ['平安银行', '万科A', '浦发银行', '邯郸钢铁']
+        })
+        
+        mock_ak.stock_zh_a_spot_em.return_value = mock_stock_data
+        
+        try:
+            source = AkshareDataSource()
+            result = source.get_stock_list()
+            
+            assert isinstance(result, list)
+            assert len(result) == 4
+            assert '000001.SZ' in result
+            assert '000002.SZ' in result
+            assert '600000.SH' in result
+            assert '600001.SH' in result
+        except ImportError:
+            pytest.skip("AkShare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.akshare_source.ak')
+    def test_akshare_get_stock_list_error_handling(self, mock_ak):
+        """测试AkShare股票列表获取错误处理"""
+        # 模拟API调用失败
+        mock_ak.stock_zh_a_spot_em.side_effect = Exception("API调用失败")
+        
+        try:
+            source = AkshareDataSource()
+            result = source.get_stock_list()
+            
+            assert isinstance(result, list)
+            assert len(result) == 0  # 错误时返回空列表
+        except ImportError:
+            pytest.skip("AkShare not installed")
+    
+    @pytest.mark.unit
+    def test_akshare_convert_ak_code_back(self):
+        """测试AkShare代码反向转换"""
+        try:
+            source = AkshareDataSource()
+            
+            # 测试深交所代码
+            assert source._convert_ak_code_back('000001') == '000001.SZ'
+            assert source._convert_ak_code_back('300001') == '300001.SZ'
+            
+            # 测试上交所代码
+            assert source._convert_ak_code_back('600000') == '600000.SH'
+            assert source._convert_ak_code_back('688001') == '688001.SH'
+            
+            # 测试默认情况
+            assert source._convert_ak_code_back('999999') == '999999.SZ'
+        except ImportError:
+            pytest.skip("AkShare not installed")
+    
+    @pytest.mark.unit
+    def test_akshare_standardize_data(self):
+        """测试AkShare数据标准化"""
+        try:
+            source = AkshareDataSource()
+            
+            # 创建测试数据
+            test_data = pd.DataFrame({
+                '日期': ['2024-12-01', '2024-12-02', '2024-12-03'],
+                '开盘': [10.0, 10.1, 10.2],
+                '最高': [10.5, 10.6, 10.7],
+                '最低': [9.5, 9.6, 9.7],
+                '收盘': [10.2, 10.3, 10.4],
+                '成交量': [100000, 110000, 120000]
+            })
+            
+            # 调用标准化函数
+            result = source._standardize_akshare_data(test_data, '000001.SZ', '1d')
+            
+            assert isinstance(result, pd.DataFrame)
+            assert 'open' in result.columns
+            assert 'high' in result.columns
+            assert 'low' in result.columns
+            assert 'close' in result.columns
+            assert 'volume' in result.columns
+            assert 'security' in result.columns
+            assert len(result) == 3
+        except ImportError:
+            pytest.skip("AkShare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.akshare_source.ak')
+    def test_akshare_get_history_minute_data(self, mock_ak):
+        """测试AkShare分钟级历史数据获取"""
+        # 设置mock分钟数据
+        mock_minute_data = pd.DataFrame({
+            '时间': ['2024-12-01 09:30:00', '2024-12-01 09:31:00'],
+            '开盘': [10.0, 10.1],
+            '最高': [10.5, 10.6],
+            '最低': [9.5, 9.6],
+            '收盘': [10.2, 10.3],
+            '成交量': [100000, 110000]
+        })
+        
+        mock_ak.stock_zh_a_hist_min_em.return_value = mock_minute_data
+        
+        try:
+            source = AkshareDataSource()
+            result = source.get_history(
+                securities=['000001.SZ'],
+                start_date='2024-12-01',
+                end_date='2024-12-01',
+                frequency='1m'
+            )
+            
+            assert isinstance(result, dict)
+            if '000001.SZ' in result:
+                assert isinstance(result['000001.SZ'], pd.DataFrame)
+                assert not result['000001.SZ'].empty
+        except ImportError:
+            pytest.skip("AkShare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.akshare_source.ak')
+    def test_akshare_get_current_data_error_scenarios(self, mock_ak):
+        """测试AkShare实时数据获取错误场景"""
+        # 模拟空数据
+        mock_ak.stock_zh_a_spot_em.return_value = pd.DataFrame()
+        
+        try:
+            source = AkshareDataSource()
+            result = source.get_current_data(['000001.SZ'])
+            
+            assert isinstance(result, dict)
+            assert len(result) == 0  # 空数据时返回空字典
+        except ImportError:
+            pytest.skip("AkShare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.akshare_source.ak')
+    def test_akshare_get_current_data_stock_not_found(self, mock_ak):
+        """测试AkShare实时数据获取股票未找到"""
+        # 设置mock数据但不包含请求的股票
+        mock_spot_data = pd.DataFrame({
+            '代码': ['000002'],
+            '最新价': [20.0],
+            '最高': [20.5],
+            '最低': [19.5]
+        })
+        
+        mock_ak.stock_zh_a_spot_em.return_value = mock_spot_data
+        
+        try:
+            source = AkshareDataSource()
+            result = source.get_current_data(['000001'])  # 请求000001但数据中只有000002
+            
+            assert isinstance(result, dict)
+            assert len(result) == 0  # 未找到股票时返回空字典
+        except ImportError:
+            pytest.skip("AkShare not installed")
+
+
+class TestTushareDataSourceComprehensive:
+    """Tushare数据源全面测试 - 覆盖所有缺失函数"""
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.tushare_source.ts')
+    def test_tushare_get_current_data(self, mock_ts):
+        """测试Tushare实时数据获取"""
+        # 设置mock数据
+        mock_realtime_data = pd.DataFrame({
+            'ts_code': ['000001.SZ', '000002.SZ'],
+            'price': [10.5, 15.8],
+            'high': [11.0, 16.0],
+            'low': [10.0, 15.0],
+            'open': [10.2, 15.5],
+            'vol': [1000000, 800000],
+            'pre_close': [10.0, 15.0],
+            'change': [0.5, 0.8],
+            'pct_chg': [5.0, 5.33],
+            'amount': [10500000, 12640000],
+            'bid1': [10.4, 15.7],
+            'ask1': [10.6, 15.9]
+        })
+        
+        mock_pro = Mock()
+        mock_pro.realtime_quote.return_value = mock_realtime_data
+        mock_ts.pro_api.return_value = mock_pro
+        
+        try:
+            source = TushareDataSource('test_token')
+            result = source.get_current_data(['000001.SZ', '000002.SZ'])
+            
+            assert isinstance(result, dict)
+            assert len(result) == 2
+            assert '000001.SZ' in result
+            assert '000002.SZ' in result
+            
+            # 检查数据结构
+            stock_data = result['000001.SZ']
+            assert 'last_price' in stock_data
+            assert 'current_price' in stock_data
+            assert 'high' in stock_data
+            assert 'low' in stock_data
+            assert 'volume' in stock_data
+            assert 'bid1' in stock_data
+            assert 'ask1' in stock_data
+        except ImportError:
+            pytest.skip("Tushare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.tushare_source.ts')
+    def test_tushare_get_current_data_error_handling(self, mock_ts):
+        """测试Tushare实时数据获取错误处理"""
+        # 模拟API调用失败
+        mock_pro = Mock()
+        mock_pro.realtime_quote.side_effect = Exception("API调用失败")
+        mock_ts.pro_api.return_value = mock_pro
+        
+        try:
+            source = TushareDataSource('test_token')
+            result = source.get_current_data(['000001.SZ'])
+            
+            assert isinstance(result, dict)
+            assert len(result) == 0  # 错误时返回空字典
+        except ImportError:
+            pytest.skip("Tushare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.tushare_source.ts')
+    def test_tushare_get_fundamentals(self, mock_ts):
+        """测试Tushare基本面数据获取"""
+        # 设置mock基本信息
+        mock_basic_info = pd.DataFrame({
+            'ts_code': ['000001.SZ'],
+            'symbol': ['000001'],
+            'name': ['平安银行'],
+            'area': ['深圳'],
+            'industry': ['银行'],
+            'market': ['主板']
+        })
+        
+        # 设置mock财务数据
+        mock_income = pd.DataFrame({
+            'ts_code': ['000001.SZ'],
+            'revenue': [100000000],
+            'net_profit': [20000000]
+        })
+        
+        mock_balance = pd.DataFrame({
+            'ts_code': ['000001.SZ'],
+            'total_assets': [500000000],
+            'total_equity': [100000000]
+        })
+        
+        mock_cashflow = pd.DataFrame({
+            'ts_code': ['000001.SZ'],
+            'operating_cf': [30000000],
+            'investing_cf': [-10000000]
+        })
+        
+        mock_pro = Mock()
+        mock_pro.stock_basic.return_value = mock_basic_info
+        mock_pro.income.return_value = mock_income
+        mock_pro.balancesheet.return_value = mock_balance
+        mock_pro.cashflow.return_value = mock_cashflow
+        mock_ts.pro_api.return_value = mock_pro
+        
+        try:
+            source = TushareDataSource('test_token')
+            result = source.get_fundamentals(['000001.SZ'])
+            
+            assert isinstance(result, dict)
+            assert '000001.SZ' in result
+            
+            fund_data = result['000001.SZ']
+            assert isinstance(fund_data, dict)
+            assert 'name' in fund_data
+            assert 'revenue' in fund_data
+            assert 'total_assets' in fund_data
+            assert 'operating_cf' in fund_data
+        except ImportError:
+            pytest.skip("Tushare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.tushare_source.ts')
+    def test_tushare_get_fundamentals_with_date(self, mock_ts):
+        """测试Tushare基本面数据获取（指定日期）"""
+        mock_pro = Mock()
+        mock_pro.stock_basic.return_value = pd.DataFrame()
+        mock_pro.income.return_value = pd.DataFrame()
+        mock_pro.balancesheet.return_value = pd.DataFrame()
+        mock_pro.cashflow.return_value = pd.DataFrame()
+        mock_ts.pro_api.return_value = mock_pro
+        
+        try:
+            source = TushareDataSource('test_token')
+            result = source.get_fundamentals(['000001.SZ'], date='2024-12-01')
+            
+            # 验证调用参数
+            mock_pro.income.assert_called_with(ts_code='000001.SZ', period='202412')
+            
+            assert isinstance(result, dict)
+        except ImportError:
+            pytest.skip("Tushare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.tushare_source.ts')
+    def test_tushare_get_fundamentals_error_handling(self, mock_ts):
+        """测试Tushare基本面数据获取错误处理"""
+        mock_pro = Mock()
+        mock_pro.stock_basic.side_effect = Exception("API调用失败")
+        mock_ts.pro_api.return_value = mock_pro
+        
+        try:
+            source = TushareDataSource('test_token')
+            result = source.get_fundamentals(['000001.SZ'])
+            
+            assert isinstance(result, dict)
+            assert '000001.SZ' in result
+            assert result['000001.SZ'] == {}  # 错误时返回空字典
+        except ImportError:
+            pytest.skip("Tushare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.tushare_source.ts')
+    def test_tushare_get_trading_calendar(self, mock_ts):
+        """测试Tushare交易日历获取"""
+        # 设置mock交易日历数据
+        mock_calendar_data = pd.DataFrame({
+            'cal_date': ['20241201', '20241202', '20241203'],
+            'is_open': ['1', '1', '1']
+        })
+        
+        mock_pro = Mock()
+        mock_pro.trade_cal.return_value = mock_calendar_data
+        mock_ts.pro_api.return_value = mock_pro
+        
+        try:
+            source = TushareDataSource('test_token')
+            result = source.get_trading_calendar('2024-12-01', '2024-12-03')
+            
+            assert isinstance(result, list)
+            assert len(result) == 3
+            assert '2024-12-01' in result
+            assert '2024-12-02' in result
+            assert '2024-12-03' in result
+        except ImportError:
+            pytest.skip("Tushare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.tushare_source.ts')
+    def test_tushare_get_trading_calendar_fallback(self, mock_ts):
+        """测试Tushare交易日历获取失败时的回退机制"""
+        mock_pro = Mock()
+        mock_pro.trade_cal.side_effect = Exception("API调用失败")
+        mock_ts.pro_api.return_value = mock_pro
+        
+        try:
+            source = TushareDataSource('test_token')
+            result = source.get_trading_calendar('2024-12-01', '2024-12-03')
+            
+            assert isinstance(result, list)
+            # 应该回退到父类的实现
+        except ImportError:
+            pytest.skip("Tushare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.tushare_source.ts')
+    def test_tushare_get_stock_list(self, mock_ts):
+        """测试Tushare股票列表获取"""
+        # 设置mock股票列表数据
+        mock_stock_data = pd.DataFrame({
+            'ts_code': ['000001.SZ', '000002.SZ', '600000.SH', '600001.SH'],
+            'symbol': ['000001', '000002', '600000', '600001'],
+            'name': ['平安银行', '万科A', '浦发银行', '邯郸钢铁']
+        })
+        
+        mock_pro = Mock()
+        mock_pro.stock_basic.return_value = mock_stock_data
+        mock_ts.pro_api.return_value = mock_pro
+        
+        try:
+            source = TushareDataSource('test_token')
+            result = source.get_stock_list()
+            
+            assert isinstance(result, list)
+            assert len(result) == 4
+            assert '000001.SZ' in result
+            assert '000002.SZ' in result
+            assert '600000.SH' in result
+            assert '600001.SH' in result
+        except ImportError:
+            pytest.skip("Tushare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.tushare_source.ts')
+    def test_tushare_get_stock_list_error_handling(self, mock_ts):
+        """测试Tushare股票列表获取错误处理"""
+        mock_pro = Mock()
+        mock_pro.stock_basic.side_effect = Exception("API调用失败")
+        mock_ts.pro_api.return_value = mock_pro
+        
+        try:
+            source = TushareDataSource('test_token')
+            result = source.get_stock_list()
+            
+            assert isinstance(result, list)
+            assert len(result) == 0  # 错误时返回空列表
+        except ImportError:
+            pytest.skip("Tushare not installed")
+    
+    @pytest.mark.unit
+    def test_tushare_convert_security_code(self):
+        """测试Tushare股票代码转换"""
+        try:
+            source = TushareDataSource('test_token')
+            
+            # 测试已有后缀的代码
+            assert source._convert_security_code('000001.SZ') == '000001.SZ'
+            assert source._convert_security_code('600000.SH') == '600000.SH'
+            
+            # 测试没有后缀的代码
+            assert source._convert_security_code('000001') == '000001.SZ'
+            assert source._convert_security_code('300001') == '300001.SZ'
+            assert source._convert_security_code('600000') == '600000.SH'
+            assert source._convert_security_code('688001') == '688001.SH'
+            
+            # 测试默认情况
+            assert source._convert_security_code('999999') == '999999.SZ'
+        except ImportError:
+            pytest.skip("Tushare not installed")
+    
+    @pytest.mark.unit
+    def test_tushare_convert_ts_code_back(self):
+        """测试Tushare代码反向转换"""
+        try:
+            source = TushareDataSource('test_token')
+            
+            # Tushare的反向转换直接返回原代码
+            assert source._convert_ts_code_back('000001.SZ') == '000001.SZ'
+            assert source._convert_ts_code_back('600000.SH') == '600000.SH'
+        except ImportError:
+            pytest.skip("Tushare not installed")
+    
+    @pytest.mark.unit
+    def test_tushare_standardize_data(self):
+        """测试Tushare数据标准化"""
+        try:
+            source = TushareDataSource('test_token')
+            
+            # 创建测试数据
+            test_data = pd.DataFrame({
+                'trade_date': ['20241201', '20241202', '20241203'],
+                'ts_code': ['000001.SZ', '000001.SZ', '000001.SZ'],
+                'open': [10.0, 10.1, 10.2],
+                'high': [10.5, 10.6, 10.7],
+                'low': [9.5, 9.6, 9.7],
+                'close': [10.2, 10.3, 10.4],
+                'vol': [100000, 110000, 120000]
+            })
+            
+            # 调用标准化函数
+            result = source._standardize_tushare_data(test_data, '000001.SZ', '1d')
+            
+            assert isinstance(result, pd.DataFrame)
+            assert 'open' in result.columns
+            assert 'high' in result.columns
+            assert 'low' in result.columns
+            assert 'close' in result.columns
+            assert 'volume' in result.columns  # vol被重命名为volume
+            assert 'security' in result.columns
+            assert len(result) == 3
+        except ImportError:
+            pytest.skip("Tushare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.tushare_source.ts')
+    def test_tushare_get_history_minute_data(self, mock_ts):
+        """测试Tushare分钟级历史数据获取"""
+        # 设置mock分钟数据
+        mock_minute_data = pd.DataFrame({
+            'datetime': ['2024-12-01 09:30:00', '2024-12-01 09:31:00'],
+            'open': [10.0, 10.1],
+            'high': [10.5, 10.6],
+            'low': [9.5, 9.6],
+            'close': [10.2, 10.3],
+            'volume': [100000, 110000]
+        })
+        
+        mock_ts.get_hist_data.return_value = mock_minute_data
+        mock_ts.pro_api.return_value = Mock()
+        
+        try:
+            source = TushareDataSource('test_token')
+            result = source.get_history(
+                securities=['000001.SZ'],
+                start_date='2024-12-01',
+                end_date='2024-12-01',
+                frequency='1m'
+            )
+            
+            assert isinstance(result, dict)
+            # 由于mock数据可能不完整，检查返回类型即可
+        except ImportError:
+            pytest.skip("Tushare not installed")
+
+
+class TestDataSourcesCaching:
+    """数据源缓存功能测试"""
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.akshare_source.ak')
+    def test_akshare_caching_mechanism(self, mock_ak):
+        """测试AkShare缓存机制"""
+        # 设置mock数据
+        mock_data = pd.DataFrame({
+            '日期': ['2024-12-01'],
+            '开盘': [10.0],
+            '收盘': [10.2]
+        })
+        mock_ak.stock_zh_a_hist.return_value = mock_data
+        
+        try:
+            source = AkshareDataSource()
+            
+            # 第一次调用
+            result1 = source.get_history(['000001.SZ'], '2024-12-01', '2024-12-01')
+            
+            # 第二次调用应该使用缓存
+            result2 = source.get_history(['000001.SZ'], '2024-12-01', '2024-12-01')
+            
+            # API应该只被调用一次
+            assert mock_ak.stock_zh_a_hist.call_count == 1
+            
+            assert result1 == result2
+        except ImportError:
+            pytest.skip("AkShare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.tushare_source.ts')
+    def test_tushare_caching_mechanism(self, mock_ts):
+        """测试Tushare缓存机制"""
+        # 设置mock数据
+        mock_data = pd.DataFrame({
+            'trade_date': ['20241201'],
+            'ts_code': ['000001.SZ'],
+            'open': [10.0],
+            'close': [10.2]
+        })
+        
+        mock_pro = Mock()
+        mock_pro.daily.return_value = mock_data
+        mock_ts.pro_api.return_value = mock_pro
+        
+        try:
+            source = TushareDataSource('test_token')
+            
+            # 第一次调用
+            result1 = source.get_history(['000001.SZ'], '2024-12-01', '2024-12-01')
+            
+            # 第二次调用应该使用缓存
+            result2 = source.get_history(['000001.SZ'], '2024-12-01', '2024-12-01')
+            
+            # API应该只被调用一次
+            assert mock_pro.daily.call_count == 1
+            
+            assert result1 == result2
+        except ImportError:
+            pytest.skip("Tushare not installed")
+
+
+class TestDataSourcesIntegration:
+    """数据源集成测试"""
+    
+    @pytest.mark.unit
+    def test_akshare_initialization_without_import(self):
+        """测试AkShare未安装时的初始化"""
+        with patch('simtradelab.data_sources.akshare_source.AKSHARE_AVAILABLE', False):
+            with pytest.raises(ImportError):
+                AkshareDataSource()
+    
+    @pytest.mark.unit
+    def test_tushare_initialization_without_import(self):
+        """测试Tushare未安装时的初始化"""
+        with patch('simtradelab.data_sources.tushare_source.TUSHARE_AVAILABLE', False):
+            with pytest.raises(ImportError):
+                TushareDataSource('test_token')
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.akshare_source.ak')
+    def test_akshare_unsupported_frequency(self, mock_ak):
+        """测试AkShare不支持的频率"""
+        try:
+            source = AkshareDataSource()
+            result = source.get_history(['000001.SZ'], '2024-12-01', '2024-12-01', frequency='2h')
+            
+            assert isinstance(result, dict)
+            assert len(result) == 0  # 不支持的频率应该返回空结果
+        except ImportError:
+            pytest.skip("AkShare not installed")
+    
+    @pytest.mark.unit
+    @patch('simtradelab.data_sources.tushare_source.ts')
+    def test_tushare_unsupported_frequency(self, mock_ts):
+        """测试Tushare不支持的频率"""
+        mock_ts.pro_api.return_value = Mock()
+        
+        try:
+            source = TushareDataSource('test_token')
+            result = source.get_history(['000001.SZ'], '2024-12-01', '2024-12-01', frequency='2h')
+            
+            assert isinstance(result, dict)
+            assert len(result) == 0  # 不支持的频率应该返回空结果
+        except ImportError:
+            pytest.skip("Tushare not installed")

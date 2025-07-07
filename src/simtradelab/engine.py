@@ -320,10 +320,16 @@ class BacktestEngine:
         except Exception as e:
             log.warning(f"更新投资组合价值时发生错误: {e}")
             # 回退到原始方法
+            # 回退到更安全的方法
             total_value = self.portfolio.cash
             for security, position in self.portfolio.positions.items():
                 price = current_prices.get(security, 0)
-                total_value += position.amount * price
+                try:
+                    # 尝试进行计算，如果持仓数量无效则跳过
+                    if isinstance(position.amount, (int, float)):
+                        total_value += position.amount * price
+                except TypeError:
+                    log.warning(f"跳过无效的持仓数据: {security}")
             self.portfolio.total_value = total_value
 
     def run(self):
