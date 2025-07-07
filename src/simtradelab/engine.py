@@ -271,7 +271,7 @@ class BacktestEngine:
         for security, security_data in daily_df.groupby('security'):
             for idx, row in security_data.iterrows():
                 day_start = idx.replace(hour=9, minute=30)
-                minute_times = pd.date_range(start=day_start, periods=periods_per_day, freq=f'{minute_interval}T')
+                minute_times = pd.date_range(start=day_start, periods=periods_per_day, freq=f'{minute_interval}min')
                 daily_range = row['high'] - row['low']
                 daily_volume = row['volume']
 
