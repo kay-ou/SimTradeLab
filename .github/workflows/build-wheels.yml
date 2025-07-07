@@ -35,8 +35,10 @@ jobs:
         poetry build
     
     - name: Test wheel installation
+      shell: bash
       run: |
-        pip install dist/*.whl
+        # 使用bash确保通配符正确展开
+        python -m pip install dist/simtradelab-*.whl
         python -c "import simtradelab; print('Poetry wheel installation successful')"
     
     - name: Clean up Poetry installation
@@ -48,8 +50,9 @@ jobs:
         python -m build --wheel
     
     - name: Test setuptools wheel installation
+      shell: bash
       run: |
-        pip install dist/*.whl --force-reinstall
+        python -m pip install dist/simtradelab-*.whl --force-reinstall
         python -c "import simtradelab; print('Setuptools wheel installation successful')"
     
     - name: Test basic functionality
@@ -88,8 +91,9 @@ jobs:
         path: dist/
     
     - name: Test pip install from wheel
+      shell: bash
       run: |
-        pip install dist/*.whl
+        python -m pip install dist/simtradelab-*.whl
         python -c "
         import simtradelab
         print('Wheel installation test passed')
@@ -97,8 +101,9 @@ jobs:
         "
     
     - name: Test optional dependencies
+      shell: bash
       run: |
-        pip install dist/*.whl[data]
+        python -m pip install "dist/simtradelab-*.whl[data]"
         python -c "
         try:
             import akshare
