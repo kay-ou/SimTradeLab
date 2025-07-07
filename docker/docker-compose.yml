@@ -1,20 +1,20 @@
 services:
   simtradelab-web:
     build: 
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     container_name: simtradelab-web
     ports:
       - "8000:8000"
     volumes:
       # 持久化数据目录
-      - ./data:/app/data
-      - ./strategies:/app/strategies
-      - ./reports:/app/reports
-      - ./cache:/app/cache
-      - ./web/uploads:/app/web/uploads
+      - ../data:/app/data
+      - ../strategies:/app/strategies
+      - ../reports:/app/reports
+      - ../cache:/app/cache
+      - ../web/uploads:/app/web/uploads
       # 配置文件
-      - ./simtradelab_config.yaml:/app/simtradelab_config.yaml:ro
+      - ../simtradelab_config.yaml:/app/simtradelab_config.yaml:ro
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
