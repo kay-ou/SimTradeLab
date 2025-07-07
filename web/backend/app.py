@@ -15,8 +15,10 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 import pandas as pd
+import numpy as np
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent.parent
@@ -27,10 +29,37 @@ from simtradelab.data_sources import CSVDataSource, AkshareDataSource
 from simtradelab.config_manager import get_config
 from simtradelab.logger import log
 
+# 自定义JSON编码器
+class CustomJSONResponse(JSONResponse):
+    def render(self, content: Any) -> bytes:
+        # 使用我们的序列化函数处理内容
+        serializable_content = _ensure_json_serializable(content)
+        return super().render(serializable_content)
+
+def _ensure_json_serializable(obj):
+    """确保对象可以被JSON序列化"""
+    if isinstance(obj, dict):
+        return {k: _ensure_json_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_ensure_json_serializable(item) for item in obj]
+    elif isinstance(obj, (pd.Timestamp, datetime)):
+        return obj.isoformat()
+    elif isinstance(obj, (np.integer, np.floating)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif hasattr(obj, 'to_dict'):  # pandas对象
+        return _ensure_json_serializable(obj.to_dict())
+    elif hasattr(obj, '__dict__'):  # 自定义对象
+        return _ensure_json_serializable(obj.__dict__)
+    else:
+        return obj
+
 app = FastAPI(
     title="SimTradeLab Web API",
     description="SimTradeLab 策略回测平台 Web API",
-    version="1.0.0"
+    version="1.0.0",
+    default_response_class=CustomJSONResponse
 )
 
 # CORS设置
@@ -103,7 +132,7 @@ async def root():
 @app.get("/api/health")
 async def health_check():
     """健康检查"""
-    return {"status": "healthy", "timestamp": datetime.now()}
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 # 策略管理相关API
 
@@ -127,7 +156,7 @@ async def list_strategies():
                 "name": strategy_file.stem,
                 "filename": strategy_file.name,
                 "description": description,
-                "modified_at": datetime.fromtimestamp(strategy_file.stat().st_mtime),
+                "modified_at": datetime.fromtimestamp(strategy_file.stat().st_mtime).isoformat(),
                 "size": strategy_file.stat().st_size
             })
         except Exception as e:
@@ -150,7 +179,7 @@ async def get_strategy(strategy_name: str):
             "name": strategy_name,
             "code": content,
             "filename": strategy_file.name,
-            "modified_at": datetime.fromtimestamp(strategy_file.stat().st_mtime)
+            "modified_at": datetime.fromtimestamp(strategy_file.stat().st_mtime).isoformat()
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading strategy: {str(e)}")
@@ -303,7 +332,7 @@ async def list_data_files():
     
     # 按修改时间排序，最新的在前面
     files.sort(key=lambda x: x["modified_at"], reverse=True)
-    
+
     return {"data_files": files}
 
 @app.post("/api/data/upload")
@@ -468,7 +497,7 @@ async def get_data_file_info(filename: str):
             "date_range": date_range,
             "securities": securities,
             "file_size": data_file_path.stat().st_size,
-            "modified_at": datetime.fromtimestamp(data_file_path.stat().st_mtime)
+            "modified_at": datetime.fromtimestamp(data_file_path.stat().st_mtime).isoformat()
         }
         
     except Exception as e:
@@ -665,7 +694,8 @@ async def get_job_status(job_id: str):
     """获取任务状态"""
     if job_id not in active_jobs:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
+    # 直接返回数据，自定义JSON响应类会处理序列化
     return active_jobs[job_id]
 
 @app.get("/api/jobs")
@@ -747,17 +777,19 @@ async def _run_batch_test_task(job_id: str, request: BatchTestRequest):
                 continue
         
         # 完成任务
+        batch_result = {
+            "total_combinations": total_combinations,
+            "completed_combinations": len(results),
+            "results": results,
+            "best_result": max(results, key=lambda x: x["total_return"]) if results else None
+        }
+
         active_jobs[job_id].update({
             "status": "completed",
             "progress": 100.0,
             "message": f"批量测试完成，共完成 {len(results)} 个组合",
             "completed_at": datetime.now(),
-            "result": {
-                "total_combinations": total_combinations,
-                "completed_combinations": len(results),
-                "results": results,
-                "best_result": max(results, key=lambda x: x["total_return"]) if results else None
-            }
+            "result": batch_result
         })
         
     except Exception as e:
@@ -847,60 +879,82 @@ async def load_historical_report_data(strategy_name: str, session_id: str = None
 async def list_reports():
     """获取所有报告列表，按回测会话分组"""
     reports = []
-    
-    for report_dir in reports_dir.iterdir():
-        if report_dir.is_dir():
-            strategy_name = report_dir.name
-            
-            # 查找JSON文件，按文件名分组（同一次回测会有相同的timestamp）
-            backtest_sessions = {}
-            
-            for file_path in report_dir.glob("*.json"):
-                if file_path.is_file():
-                    # 从文件名提取timestamp，格式: strategy_name_xxx_timestamp.json
-                    filename = file_path.stem
-                    parts = filename.split('_')
-                    if len(parts) >= 2:
-                        # 时间戳通常是最后两部分（YYYYMMDD_HHMMSS）
-                        timestamp = '_'.join(parts[-2:])
-                        session_key = timestamp
-                        
-                        if session_key not in backtest_sessions:
-                            backtest_sessions[session_key] = {
-                                "session_id": session_key,
-                                "strategy_name": strategy_name,
-                                "created_at": datetime.fromtimestamp(file_path.stat().st_mtime),
-                                "files": [],
-                                "summary": None
-                            }
-                        
-                        # 查找相关的所有文件（相同timestamp的不同格式）
-                        session_files = []
-                        base_pattern = filename.replace('.json', '')
-                        for ext in ['*.txt', '*.json', '*.csv', '*.summary.txt']:
-                            for related_file in report_dir.glob(f"{base_pattern}.{ext.replace('*.', '')}"): 
-                                if related_file.is_file():
-                                    session_files.append({
-                                        "name": related_file.name,
-                                        "path": str(related_file.relative_to(project_root)),
-                                        "size": related_file.stat().st_size,
-                                        "type": related_file.suffix.lower()
-                                    })
-                        
-                        backtest_sessions[session_key]["files"] = session_files
-                        
-                        # 尝试加载该会话的真实数据
-                        historical_data = await load_historical_report_data(strategy_name, session_key)
-                        if historical_data:
-                            backtest_sessions[session_key]["summary"] = historical_data.get("summary", {})
-            
-            # 将所有会话添加到报告列表中
-            for session in backtest_sessions.values():
-                reports.append(session)
-    
-    # 按创建时间排序
-    reports.sort(key=lambda x: x["created_at"], reverse=True)
-    
+
+    try:
+        for report_dir in reports_dir.iterdir():
+            if report_dir.is_dir():
+                strategy_name = report_dir.name
+
+                # 查找JSON文件，按文件名分组（同一次回测会有相同的timestamp）
+                backtest_sessions = {}
+
+                for file_path in report_dir.glob("*.json"):
+                    if file_path.is_file():
+                        try:
+                            # 从文件名提取timestamp，格式: strategy_name_xxx_timestamp.json
+                            filename = file_path.stem
+                            parts = filename.split('_')
+                            if len(parts) >= 2:
+                                # 时间戳通常是最后两部分（YYYYMMDD_HHMMSS）
+                                timestamp = '_'.join(parts[-2:])
+                                session_key = timestamp
+
+                                if session_key not in backtest_sessions:
+                                    backtest_sessions[session_key] = {
+                                        "session_id": session_key,
+                                        "strategy_name": strategy_name,
+                                        "created_at": datetime.fromtimestamp(file_path.stat().st_mtime),
+                                        "files": [],
+                                        "summary": {}  # 默认为空字典，避免None值
+                                    }
+
+                                # 查找相关的所有文件（相同timestamp的不同格式）
+                                session_files = []
+                                base_pattern = filename.replace('.json', '')
+                                for ext in ['txt', 'json', 'csv']:
+                                    for related_file in report_dir.glob(f"{base_pattern}.{ext}"):
+                                        if related_file.is_file():
+                                            session_files.append({
+                                                "name": related_file.name,
+                                                "path": str(related_file.relative_to(project_root)),
+                                                "size": related_file.stat().st_size,
+                                                "type": related_file.suffix.lower()
+                                            })
+
+                                backtest_sessions[session_key]["files"] = session_files
+
+                                # 尝试加载该会话的基本摘要数据（不加载完整数据以提高性能）
+                                try:
+                                    with open(file_path, 'r', encoding='utf-8') as f:
+                                        report_data = json.load(f)
+
+                                    performance_metrics = report_data.get("performance_metrics", {})
+                                    backtest_sessions[session_key]["summary"] = {
+                                        "total_return": float(performance_metrics.get("total_return", 0.0)),
+                                        "max_drawdown": float(performance_metrics.get("max_drawdown", 0.0)),
+                                        "sharpe_ratio": float(performance_metrics.get("sharpe_ratio", 0.0)),
+                                        "total_trades": int(performance_metrics.get("total_trades", 0))
+                                    }
+                                except Exception as e:
+                                    log.warning(f"Error loading summary for {file_path}: {e}")
+                                    # 保持默认的空字典
+
+                        except Exception as e:
+                            log.warning(f"Error processing file {file_path}: {e}")
+                            continue
+
+                # 将所有会话添加到报告列表中
+                for session in backtest_sessions.values():
+                    reports.append(session)
+
+        # 按创建时间排序
+        reports.sort(key=lambda x: x["created_at"], reverse=True)
+
+    except Exception as e:
+        log.error(f"Error listing reports: {e}")
+        # 返回空列表而不是抛出异常
+        reports = []
+
     return {"reports": reports}
 
 @app.get("/api/reports/{strategy_name}/data/{session_id}")
@@ -964,12 +1018,13 @@ async def preview_report_file(strategy_name: str, filename: str):
             import pandas as pd
             df = pd.read_csv(report_path)
             
+            preview_data = df.head(20).fillna('').values.tolist()
             return {
                 "filename": filename,
                 "type": file_ext,
                 "columns": df.columns.tolist(),
                 "rows": len(df),
-                "preview_data": df.head(20).fillna('').values.tolist(),
+                "preview_data": preview_data,
                 "size": report_path.stat().st_size,
                 "preview": True
             }
