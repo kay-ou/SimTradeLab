@@ -88,9 +88,10 @@ def after_trading_end(context, data):
     positions = get_positions()
     total_value = context.portfolio.total_value
     cash = context.portfolio.cash
-    market_value = context.portfolio.market_value
+    # 计算持仓市值
+    positions_value = sum(position['market_value'] for position in positions.values())
 
-    log.info(f"交易日结束：总资产{total_value:.2f}，现金{cash:.2f}，持仓市值{market_value:.2f}")
+    log.info(f"交易日结束：总资产{total_value:.2f}，现金{cash:.2f}，持仓市值{positions_value:.2f}")
 
     # 记录持仓信息
     for stock, position in positions.items():

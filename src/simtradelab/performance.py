@@ -2,6 +2,7 @@
 """
 策略性能分析模块
 """
+import os
 import pandas as pd
 import numpy as np
 from .logger import log
@@ -240,10 +241,11 @@ def generate_report_file(engine, benchmark_returns=None, output_dir="reports"):
     os.makedirs(output_dir, exist_ok=True)
 
     # 获取策略名称和时间信息
-    strategy_name = os.path.basename(engine.strategy_file).replace('.py', '')
+    strategy_file = getattr(engine, 'strategy_file', 'unknown_strategy.py')
+    strategy_name = os.path.basename(strategy_file).replace('.py', '')
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    start_date = engine.start_date.strftime("%Y%m%d") if engine.start_date else "unknown"
-    end_date = engine.end_date.strftime("%Y%m%d") if engine.end_date else "unknown"
+    start_date = engine.start_date.strftime("%Y%m%d") if hasattr(engine, 'start_date') and engine.start_date else "unknown"
+    end_date = engine.end_date.strftime("%Y%m%d") if hasattr(engine, 'end_date') and engine.end_date else "unknown"
 
     # 生成文件名
     filename = f"{strategy_name}_{start_date}_{end_date}_{current_time}.txt"
@@ -296,20 +298,37 @@ def _generate_report_content(engine, metrics, benchmark_returns=None):
 
     # 基本信息
     lines.append("📋 基本信息:")
-    lines.append(f"  策略名称:     {os.path.basename(engine.strategy_file)}")
-    lines.append(f"  策略文件:     {engine.strategy_file}")
-    lines.append(f"  回测期间:     {engine.start_date.strftime('%Y-%m-%d')} 至 {engine.end_date.strftime('%Y-%m-%d')}")
-    lines.append(f"  交易频率:     {engine.frequency}")
+    strategy_file = getattr(engine, 'strategy_file', 'unknown_strategy.py')
+    lines.append(f"  策略名称:     {os.path.basename(strategy_file)}")
+    lines.append(f"  策略文件:     {strategy_file}")
+
+    # 安全地获取日期信息
+    start_date_str = "未知"
+    end_date_str = "未知"
+    if hasattr(engine, 'start_date') and engine.start_date:
+        start_date_str = engine.start_date.strftime('%Y-%m-%d')
+    if hasattr(engine, 'end_date') and engine.end_date:
+        end_date_str = engine.end_date.strftime('%Y-%m-%d')
+
+    lines.append(f"  回测期间:     {start_date_str} 至 {end_date_str}")
+    lines.append(f"  交易频率:     {getattr(engine, 'frequency', '未知')}")
     lines.append(f"  报告生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     # 数据源信息
     if hasattr(engine, 'data_source') and engine.data_source:
         lines.append(f"  数据源:       {type(engine.data_source).__name__}")
-    elif engine.data_path:
+    elif hasattr(engine, 'data_path') and engine.data_path:
         lines.append(f"  数据源:       CSV文件 ({engine.data_path})")
 
-    if engine.securities:
-        lines.append(f"  股票列表:     {', '.join(engine.securities)}")
+    if hasattr(engine, 'securities') and engine.securities:
+        try:
+            # 确保securities是可迭代的
+            securities_list = list(engine.securities) if engine.securities else []
+            if securities_list:
+                lines.append(f"  股票列表:     {', '.join(securities_list)}")
+        except (TypeError, AttributeError):
+            # 如果securities不是可迭代的，跳过
+            pass
 
     lines.append("")
 
