@@ -158,12 +158,13 @@ jobs:
         run: |
           # 在新的虚拟环境中测试安装
           python -m venv test_env
+          WHEEL_FILE=$(find dist -name "simtradelab-*.whl" | head -1)
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             source test_env/Scripts/activate
-            python -m pip install dist/simtradelab-*.whl
+            python -m pip install "$WHEEL_FILE"
           else
             source test_env/bin/activate
-            python -m pip install dist/simtradelab-*.whl
+            python -m pip install "$WHEEL_FILE"
           fi
           python -c "import simtradelab; print(f'✅ Package installation test passed: {simtradelab.__version__}')"
 
