@@ -68,6 +68,7 @@ flake8 = "^6.0.0"
 mypy = "^1.5.0"
 pre-commit = "^3.0.0"
 bandit = "^1.7.0"
+build = "^1.2.2.post1"
 
 [tool.poetry.group.web.dependencies]
 fastapi = ">=0.68.0"

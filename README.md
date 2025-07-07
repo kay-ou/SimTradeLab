@@ -66,6 +66,15 @@ pip install --no-build-isolation simtradelab
 python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/kay-ou/SimTradeLab/main/scripts/windows_install_troubleshoot.py').read())"
 ```
 
+**验证安装成功：**
+```bash
+# 测试导入
+python -c "import simtradelab; print(f'✅ SimTradeLab {simtradelab.__version__} 安装成功!')"
+
+# 测试CLI工具
+simtradelab --help
+```
+
 ### 🌐 方式二：Web界面
 
 ```bash
