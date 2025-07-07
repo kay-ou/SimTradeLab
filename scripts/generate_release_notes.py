@@ -21,11 +21,11 @@ def run_command(cmd: str, cwd: Optional[str] = None) -> str:
     try:
         result = subprocess.run(
             cmd, shell=True, cwd=cwd, check=True,
-            capture_output=True, text=True
+            capture_output=True, text=True, errors='replace'
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        print(f"❌ 命令执行失败: {cmd}")
+        print(f"命令执行失败: {cmd}")
         print(f"错误: {e.stderr}")
         return ""
 
@@ -54,12 +54,16 @@ def get_git_info(tag: str) -> Dict[str, str]:
     info['commit_count'] = commit_count if commit_count else "0"
     
     # 获取文件变更数量
-    files_changed = run_command(f"git diff --name-only {info['previous_tag']}..{tag} | wc -l")
-    info['files_changed'] = files_changed if files_changed else "0"
+    files_changed_output = run_command(f"git diff --name-only {info['previous_tag']}..{tag}")
+    info['files_changed'] = str(len(files_changed_output.splitlines())) if files_changed_output else "0"
     
     # 获取贡献者
-    contributors = run_command(f"git log {info['previous_tag']}..{tag} --format='%an' | sort | uniq")
-    info['contributors'] = contributors.split('\n') if contributors else []
+    contributors_output = run_command(f"git log {info['previous_tag']}..{tag} --format='%an'")
+    if contributors_output:
+        contributors_list = sorted(list(set(contributors_output.splitlines())))
+        info['contributors'] = [c for c in contributors_list if c] # Filter out empty strings
+    else:
+        info['contributors'] = []
     info['contributor_count'] = str(len(info['contributors']))
     
     return info
@@ -190,7 +194,7 @@ def format_section(items: List[str], prefix: str = "- ") -> str:
 
 def generate_release_notes(tag: str, output_file: Optional[str] = None) -> str:
     """生成Release Notes"""
-    print(f"🎯 生成 {tag} 的Release Notes...")
+    print(f"生成 {tag} 的Release Notes...")
     
     # 获取版本信息
     version = tag.lstrip('v')
@@ -250,28 +254,28 @@ def generate_release_notes(tag: str, output_file: Optional[str] = None) -> str:
     if output_file:
         output_path = Path(output_file)
         output_path.write_text(release_notes, encoding='utf-8')
-        print(f"✅ Release Notes已保存到: {output_path}")
+        print(f"Release Notes已保存到: {output_path}")
     
     return release_notes
 
 
 def create_default_template() -> str:
     """创建默认模板"""
-    return """# 🎉 SimTradeLab {{tag_name}} 发布
+    return """# SimTradeLab {{tag_name}} 发布
 
-## ✨ 新增功能
+## 新增功能
 {{new_features}}
 
-## 🔧 改进优化
+## 改进优化
 {{improvements}}
 
-## 🐛 问题修复
+## 问题修复
 {{bug_fixes}}
 
-## 📚 文档更新
+## 文档更新
 {{documentation}}
 
-## ⚠️ 破坏性变更
+## 破坏性变更
 {{breaking_changes}}
 
 ## 📦 安装方法
@@ -297,12 +301,12 @@ def main():
         
         if args.print:
             print("\n" + "="*60)
-            print("📋 生成的Release Notes:")
+            print("生成的Release Notes:")
             print("="*60)
             print(release_notes)
         
     except Exception as e:
-        print(f"❌ 生成Release Notes失败: {e}")
+        print(f"生成Release Notes失败: {e}")
         return 1
     
     return 0
