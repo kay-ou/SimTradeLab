@@ -43,11 +43,11 @@ class ReportManager:
         reports = []
         
         # 获取所有报告文件
-        pattern = os.path.join(self.reports_dir, "*.txt")
+        pattern = os.path.join(self.reports_dir, "**", "*.txt")
         if strategy_name:
-            pattern = os.path.join(self.reports_dir, f"{strategy_name}_*.txt")
+            pattern = os.path.join(self.reports_dir, strategy_name, "*.txt")
         
-        for file_path in glob.glob(pattern):
+        for file_path in glob.glob(pattern, recursive=True):
             if 'summary' in file_path:  # 跳过摘要文件
                 continue
                 
@@ -79,7 +79,8 @@ class ReportManager:
         Returns:
             Dict: 报告统计信息
         """
-        all_files = glob.glob(os.path.join(self.reports_dir, "*"))
+        all_files = glob.glob(os.path.join(self.reports_dir, "**", "*"), recursive=True)
+        all_files = [f for f in all_files if os.path.isfile(f)]  # 只包含文件，不包含目录
         
         summary = {
             'total_files': len(all_files),

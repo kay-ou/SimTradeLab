@@ -136,18 +136,26 @@ def mock_akshare_source(mock_akshare_data):
         # 模拟ak.stock_zh_a_hist函数
         def mock_stock_hist(symbol, period="daily", start_date=None, end_date=None, adjust=""):
             import pandas as pd
-            # 从symbol中提取股票代码
-            if symbol.startswith('sz') or symbol.startswith('sh'):
-                stock_code = symbol[2:] + ('.SZ' if symbol.startswith('sz') else '.SH')
-            else:
-                stock_code = symbol
+            # AkShare数据源会将000001.SZ转换为000001，所以我们需要相应地匹配
+            stock_code = symbol
+            if not '.' in stock_code:
+                # 将6位代码转换为标准格式
+                if stock_code.startswith('00') or stock_code.startswith('30'):
+                    stock_code = f"{stock_code}.SZ"
+                elif stock_code.startswith('60') or stock_code.startswith('68'):
+                    stock_code = f"{stock_code}.SH"
+                else:
+                    stock_code = f"{stock_code}.SZ"
 
             if stock_code in mock_akshare_data:
                 df = mock_akshare_data[stock_code].copy()
-                df.columns = ['开盘', '最高', '最低', '收盘', '成交量']
+                # 重置索引并添加日期列，使用AkShare的列名
+                df = df.reset_index()
+                df.columns = ['日期', '开盘', '最高', '最低', '收盘', '成交量']
                 return df
             else:
-                return pd.DataFrame()
+                # 返回空DataFrame，但有正确的列名
+                return pd.DataFrame(columns=['日期', '开盘', '最高', '最低', '收盘', '成交量'])
         
         mock_ak.stock_zh_a_hist.side_effect = mock_stock_hist
         

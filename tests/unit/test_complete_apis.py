@@ -111,9 +111,23 @@ class TestFuturesAPIs:
         """创建模拟引擎"""
         engine = Mock()
         engine.current_data = {'IF2312': {'close': 4000.0}}
+        engine.commission_ratio = 0.0003
+        engine.min_commission = 5.0
+        engine.slippage = 0.001
+        
+        # 模拟context和portfolio
+        engine.context = Mock()
+        engine.context.portfolio = Mock()
+        engine.context.portfolio.cash = 1000000.0
+        engine.context.portfolio.positions = {}
+        engine.context.blotter = Mock()
+        engine.context.blotter.orders = []
+        # 确保blotter.add_order返回字符串而不是Mock对象
+        engine.context.blotter.add_order.return_value = 'order_123'
+        
         return engine
     
-    @patch('simtradelab.trading.order')
+    @patch('simtradelab.utils.order')
     def test_buy_open(self, mock_order, mock_engine):
         """测试期货多开"""
         mock_order.return_value = 'order_123'
@@ -121,7 +135,7 @@ class TestFuturesAPIs:
         assert result == 'order_123'
         mock_order.assert_called_once_with(mock_engine, 'IF2312', 5)
     
-    @patch('simtradelab.trading.order')
+    @patch('simtradelab.utils.order')
     def test_sell_close(self, mock_order, mock_engine):
         """测试期货多平"""
         mock_order.return_value = 'order_123'
@@ -129,7 +143,7 @@ class TestFuturesAPIs:
         assert result == 'order_123'
         mock_order.assert_called_once_with(mock_engine, 'IF2312', -5)
     
-    @patch('simtradelab.trading.order')
+    @patch('simtradelab.utils.order')
     def test_sell_open(self, mock_order, mock_engine):
         """测试期货空开"""
         mock_order.return_value = 'order_123'
@@ -137,7 +151,7 @@ class TestFuturesAPIs:
         assert result == 'order_123'
         mock_order.assert_called_once_with(mock_engine, 'IF2312', -5)
     
-    @patch('simtradelab.trading.order')
+    @patch('simtradelab.utils.order')
     def test_buy_close(self, mock_order, mock_engine):
         """测试期货空平"""
         mock_order.return_value = 'order_123'

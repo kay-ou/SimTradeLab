@@ -205,6 +205,13 @@ def get_history(
                 result_df[(f, sec)] = valid_hist[f]
             else:
                 log.warning(f"字段 '{f}' 不存在")
+    
+    # 确保即使结果为空也返回明确的DataFrame而不是容易被误用的空DataFrame
+    if result_df.empty:
+        # 返回带有明确列结构的空DataFrame，避免布尔值混淆
+        columns = [(f, sec) for f in field for sec in security_list if sec in engine.data]
+        result_df = pd.DataFrame(columns=columns)
+    
     return result_df
 
 def get_price(
@@ -288,6 +295,9 @@ def get_price(
                 result_data[sec][field] = [None] * count
 
     if not result_data:
+        # 对于单个股票请求close价格的情况，返回None而不是空DataFrame，避免布尔值错误
+        if isinstance(security, str) and len(fields) == 1 and fields[0] == 'close':
+            return None
         return pd.DataFrame()
 
     sample_data = engine.data[securities[0]]
@@ -303,6 +313,12 @@ def get_price(
 
     if len(fields) == 1:
         result_df.columns = [col[1] for col in result_df.columns]
+
+    # 特殊处理：单个股票的单个字段（通常是close价格），返回数值而不是DataFrame
+    if isinstance(security, str) and len(fields) == 1 and not result_df.empty:
+        if fields[0] == 'close':
+            # 返回最新的close价格作为数值
+            return float(result_df.iloc[-1, 0])
 
     return result_df
 

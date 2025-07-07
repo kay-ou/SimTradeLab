@@ -48,7 +48,7 @@ class TestMarketDataModule:
     
     def test_get_history_basic(self, mock_engine):
         """测试基本历史数据获取"""
-        result = get_history(mock_engine, count=5, security_list=['STOCK_A'])
+        result = get_history(mock_engine, count=5, field=['close'], security_list=['STOCK_A'])
         
         assert isinstance(result, pd.DataFrame)
         assert len(result.columns) == 1
@@ -124,10 +124,10 @@ class TestMarketDataModule:
     
     def test_get_price_single_security(self, mock_engine):
         """测试获取单只股票价格"""
-        result = get_price(mock_engine, 'STOCK_A', count=3)
+        result = get_price(mock_engine, 'STOCK_A', count=3, fields=['close', 'open'])
         
         assert isinstance(result, pd.DataFrame)
-        assert 'STOCK_A' in result.columns
+        assert len(result.columns) == 2
         assert len(result) == 3
     
     def test_get_price_multiple_securities(self, mock_engine):

@@ -367,6 +367,9 @@ class BacktestEngine:
             self.context.previous_date = previous_day.date() if previous_day is not None else day.date()
             log.current_dt = day.replace(hour=9, minute=30)
 
+            # 更新交易日开始数据
+            self.context.portfolio.update_daily_start()
+
             # 重置当日订单和成交数据
             self.context.blotter.reset_daily_data()
 

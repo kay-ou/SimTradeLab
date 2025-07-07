@@ -252,6 +252,8 @@ class Portfolio:
         self.cash = start_cash  # 可用现金
         self.positions = {}  # 持仓信息, dict a stock to a Position object
         self.total_value = start_cash  # 总资产
+        self.previous_total_value = start_cash  # 前一日总资产，用于计算日盈亏
+        self._daily_pnl = 0.0  # 当日盈亏
 
     def calculate_total_value(self, current_prices=None):
         """计算总资产价值"""
@@ -269,8 +271,22 @@ class Portfolio:
                     position.last_sale_price = price
 
         positions_value = sum(position.market_value for position in self.positions.values())
-        self.total_value = self.cash + positions_value
+        new_total_value = self.cash + positions_value
+        
+        # 计算当日盈亏
+        self._daily_pnl = new_total_value - self.previous_total_value
+        self.total_value = new_total_value
         return self.total_value
+    
+    @property
+    def daily_pnl(self):
+        """当日盈亏"""
+        return self._daily_pnl
+    
+    def update_daily_start(self):
+        """更新交易日开始时的数据"""
+        self.previous_total_value = self.total_value
+        self._daily_pnl = 0.0
 
 
 class Context:

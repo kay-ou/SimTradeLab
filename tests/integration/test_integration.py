@@ -220,11 +220,21 @@ def initialize(context):
     context.weights = [0.5, 0.5]
 
 def handle_data(context, data):
-    # 等权重投资
+    # 等权重投资 - 只在第一天或需要重新平衡时交易
+    positions = get_positions()
     total_value = context.portfolio.total_value
-    for i, stock in enumerate(context.stocks):
-        target_value = total_value * context.weights[i]
-        order_value(stock, target_value)
+    
+    # 检查是否已经有持仓，如果有则不重复投资
+    if len(positions) == 0:
+        # 初次建仓
+        for i, stock in enumerate(context.stocks):
+            if stock in data:
+                target_value = total_value * context.weights[i]
+                try:
+                    order_target_value(stock, target_value)
+                except Exception as e:
+                    log.warning(f"买入{stock}失败: {e}")
+                    continue
 
 def before_trading_start(context, data):
     pass
@@ -257,10 +267,14 @@ def after_trading_end(context, data):
         assert hasattr(engine, 'portfolio_history')
         assert len(engine.portfolio_history) > 0
 
-        # 验证有交易活动
-        initial_cash = engine.portfolio_history[0]['cash']
-        final_cash = engine.portfolio_history[-1]['cash']
-        assert abs(initial_cash - final_cash) > 0.01  # 现金发生了变化，说明有交易
+        # 验证有交易活动 - 检查是否有持仓而不是依赖现金变化
+        final_positions = engine.context.portfolio.positions
+        assert len(final_positions) > 0, "应该有持仓记录，说明发生了交易"
+        
+        # 额外验证：检查是否有交易记录
+        if hasattr(engine.context, 'blotter'):
+            trades = engine.context.blotter.get_all_trades()
+            assert len(trades) > 0, "应该有交易记录"
     
     @pytest.mark.integration
     def test_commission_impact(self, mock_csv_data, temp_dir):

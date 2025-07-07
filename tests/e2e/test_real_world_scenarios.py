@@ -53,10 +53,10 @@ def handle_data(context, data):
     # 风险管理：检查持仓比例
     for stock in context.stocks:
         if stock in positions:
-            position_ratio = positions[stock].market_value / total_value
+            position_ratio = positions[stock]['market_value'] / total_value
             if position_ratio > context.max_position_size:
                 # 减仓
-                reduce_amount = int(positions[stock].amount * 0.1)
+                reduce_amount = int(positions[stock]['amount'] * 0.1)
                 order(stock, -reduce_amount)
                 log.info(f"风险控制：减持{stock} {reduce_amount}股")
     
@@ -76,7 +76,7 @@ def handle_data(context, data):
             
             # 计算目标持仓
             target_shares = int(target_value_per_stock / current_price)
-            current_shares = positions.get(stock, type('obj', (object,), {'amount': 0})).amount
+            current_shares = positions.get(stock, {'amount': 0})['amount']
             
             order_amount = target_shares - current_shares
             if abs(order_amount) > 10:  # 只有变化较大时才交易
@@ -94,7 +94,7 @@ def after_trading_end(context, data):
 
     # 记录持仓信息
     for stock, position in positions.items():
-        log.info(f"持仓：{stock} {position.amount}股，市值{position.market_value:.2f}")
+        log.info(f"持仓：{stock} {position['amount']}股，市值{position['market_value']:.2f}")
 
 
 '''
@@ -155,7 +155,7 @@ def handle_data(context, data):
     current_weights = {}
     for stock in context.stocks:
         if stock in positions:
-            current_weights[stock] = positions[stock].market_value / total_value
+            current_weights[stock] = positions[stock]['market_value'] / total_value
         else:
             current_weights[stock] = 0
     
@@ -179,16 +179,14 @@ def handle_data(context, data):
             
             target_weight = context.weights[stock]
             target_value = total_value * target_weight
-            current_price = get_price(stock)
             
-            if current_price:
-                target_shares = int(target_value / current_price)
-                current_shares = positions.get(stock, type('obj', (object,), {'amount': 0})).amount
-                
-                order_amount = target_shares - current_shares
-                if abs(order_amount) > 5:
-                    order(stock, order_amount)
-                    log.info(f"重新平衡{stock}：目标权重{target_weight:.1%}，下单{order_amount}股")
+            # 使用order_target_value来避免现金不足的问题
+            try:
+                order_target_value(stock, target_value)
+                log.info(f"重新平衡{stock}：目标权重{target_weight:.1%}，目标金额{target_value:.0f}")
+            except Exception as e:
+                log.warning(f"重新平衡{stock}失败: {e}")
+                continue
 
 def after_trading_end(context, data):
     # 记录投资组合状态
@@ -198,7 +196,7 @@ def after_trading_end(context, data):
     weights_info = []
     for stock in context.stocks:
         if stock in positions:
-            weight = positions[stock].market_value / total_value
+            weight = positions[stock]['market_value'] / total_value
             weights_info.append(f"{stock}:{weight:.1%}")
         else:
             weights_info.append(f"{stock}:0%")
