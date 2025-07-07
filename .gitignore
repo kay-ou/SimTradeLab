@@ -67,5 +67,6 @@ logs/
 
 web/uploads/
 cache/
-CLAUDE.md
 .roo/
+CLAUDE.md
+GEMINI.md
