@@ -116,16 +116,16 @@ def test_report_generation():
                 
                 if all_passed:
                     print("✅ 报告生成功能测试通过")
-                    return True
+                    assert True
                 else:
                     print("❌ 报告内容验证失败")
-                    return False
+                    assert False
             else:
                 print("❌ 未找到报告文件")
                 return False
         else:
             print("❌ reports目录不存在")
-            return False
+            assert False
             
     except Exception as e:
         print(f"❌ 报告生成测试失败: {e}")
@@ -167,14 +167,14 @@ def test_filename_format():
         
         if all_parts_found:
             print("✅ 文件名格式测试通过")
-            return True
+            assert True
         else:
             print("❌ 文件名格式测试失败")
-            return False
+            assert False
             
     except Exception as e:
         print(f"❌ 文件名格式测试失败: {e}")
-        return False
+        assert False
 
 
 def main():

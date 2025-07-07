@@ -368,7 +368,7 @@ def get_current_data(
             'ask2_volume': int(900 + 4500 * hash_factor), 'ask3_volume': int(700 + 3500 * hash_factor),
             'ask4_volume': int(500 + 2500 * hash_factor), 'ask5_volume': int(300 + 1500 * hash_factor),
             'pre_close': current_price * 0.98, 'change': current_price * 0.02, 'pct_change': 2.04,
-            'amount': latest_data['volume'] * current_price / 10000,
+            'amount': np.float64(latest_data['volume']) * np.float64(current_price) / 10000,
             'turnover_rate': 2.5 + 5.0 * hash_factor,
             'high_limit': current_price * 0.98 * 1.1, 'low_limit': current_price * 0.98 * 0.9,
             'amplitude': ((latest_data['high'] - latest_data['low']) / (current_price * 0.98)) * 100,
@@ -875,7 +875,7 @@ def get_individual_entrust(engine: 'BacktestEngine', stocks: Union[str, List[str
         time_range = pd.date_range(
             start=current_time - timedelta(minutes=30),
             end=current_time,
-            freq='10S'  # 每10秒一条记录
+            freq='10s'  # 每10秒一条记录
         )
 
         n_records = len(time_range)
@@ -924,7 +924,7 @@ def get_individual_transaction(engine: 'BacktestEngine', stocks: Union[str, List
         time_range = pd.date_range(
             start=current_time - timedelta(minutes=30),
             end=current_time,
-            freq='15S'  # 每15秒一条记录
+            freq='15s'  # 每15秒一条记录
         )
 
         n_records = len(time_range)

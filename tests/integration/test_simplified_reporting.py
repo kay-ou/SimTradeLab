@@ -95,12 +95,12 @@ def test_simplified_reporting():
                 
             else:
                 print("❌ 未找到报告文件")
-                return False
+                assert False
         else:
             print("❌ reports目录不存在")
-            return False
+            assert False
         
-        return True
+        assert True
         
     except Exception as e:
         print(f"❌ 测试失败: {e}")
@@ -128,11 +128,11 @@ def test_dual_moving_average_strategy():
         engine.run()
         
         print("✅ 双均线策略测试完成!")
-        return True
+        assert True
         
     except Exception as e:
         print(f"❌ 双均线策略测试失败: {e}")
-        return False
+        assert False
 
 
 def test_filename_generation():
@@ -176,11 +176,11 @@ def test_filename_generation():
                 print(f"   ❌ 缺少 {part}")
         
         print("✅ 文件名生成测试完成!")
-        return True
+        assert True
         
     except Exception as e:
         print(f"❌ 文件名生成测试失败: {e}")
-        return False
+        assert False
 
 
 def main():

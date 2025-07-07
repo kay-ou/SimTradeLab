@@ -128,7 +128,7 @@ def test_ptrade_api_naming_consistency():
     
     print(f"\n📊 PTrade API覆盖率: {coverage:.1f}% ({len(implemented_ptrade_apis)}/{len(ptrade_apis)})")
     
-    return len(missing_apis) == 0
+    assert len(missing_apis) == 0
 
 
 def test_log_functions():

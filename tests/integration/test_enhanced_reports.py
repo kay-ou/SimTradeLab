@@ -63,13 +63,13 @@ def test_enhanced_report_generation():
         else:
             print("   ❌ 摘要文件: 未生成")
         
-        return True
+        assert True
         
     except Exception as e:
         print(f"❌ 测试失败: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False
 
 
 def test_summary_report():
@@ -84,7 +84,7 @@ def test_summary_report():
         
         if not summary_files:
             print("❌ 未找到摘要报告文件")
-            return False
+            assert False
         
         latest_summary = max(summary_files, key=os.path.getctime)
         print(f"📄 检查摘要报告: {os.path.basename(latest_summary)}")
@@ -171,7 +171,7 @@ def test_report_manager():
                         print(f"   ❌ 缺少 {key}")
             else:
                 print("   ❌ 索引文件生成失败")
-                return False
+                assert False
         finally:
             # 清理测试生成的索引文件
             if index_file and os.path.exists(index_file):
@@ -181,11 +181,11 @@ def test_report_manager():
                 except Exception as e:
                     print(f"   ⚠️  清理测试文件失败: {e}")
         
-        return True
+        assert True
         
     except Exception as e:
         print(f"❌ 报告管理测试失败: {e}")
-        return False
+        assert False
 
 def main():
     """主函数"""
