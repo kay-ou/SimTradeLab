@@ -104,7 +104,7 @@ def after_trading_end(context, data):
 '''
     
     strategy_path = Path(temp_dir) / "simple_strategy.py"
-    strategy_path.write_text(strategy_content)
+    strategy_path.write_text(strategy_content, encoding='utf-8')
     return str(strategy_path)
 
 
@@ -216,7 +216,7 @@ def after_trading_end(context, data):
 '''
 
     strategy_path = Path(temp_dir) / "sample_strategy.py"
-    strategy_path.write_text(strategy_content)
+    strategy_path.write_text(strategy_content, encoding='utf-8')
     return str(strategy_path)
 
 
