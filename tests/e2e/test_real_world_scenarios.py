@@ -87,10 +87,11 @@ def after_trading_end(context, data):
     # 交易后处理
     positions = get_positions()
     total_value = context.portfolio.total_value
-    daily_pnl = context.portfolio.daily_pnl
-    
-    log.info(f"交易日结束：总资产{total_value:.2f}，当日盈亏{daily_pnl:.2f}")
-    
+    cash = context.portfolio.cash
+    market_value = context.portfolio.market_value
+
+    log.info(f"交易日结束：总资产{total_value:.2f}，现金{cash:.2f}，持仓市值{market_value:.2f}")
+
     # 记录持仓信息
     for stock, position in positions.items():
         log.info(f"持仓：{stock} {position.amount}股，市值{position.market_value:.2f}")
@@ -98,7 +99,7 @@ def after_trading_end(context, data):
 
 '''
         
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
             f.write(strategy_content)
             strategy_file = f.name
         
