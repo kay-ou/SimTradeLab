@@ -31,19 +31,54 @@ SimTradeLab（深测Lab） 是一个由社区独立开发的开源策略回测�
 
 ## 🚀 快速开始
 
-### 🌐 方式一：Web界面（推荐）
+### 📦 方式一：pip安装（推荐）
+
+#### Linux/macOS 安装
+```bash
+# 直接安装
+pip install simtradelab
+
+# 包含数据源支持
+pip install simtradelab[data]
+
+# 开发环境安装
+pip install simtradelab[dev]
+```
+
+#### Windows 安装
+```bash
+# 方法1：使用预编译包（推荐）
+pip install --only-binary=all numpy pandas matplotlib
+pip install simtradelab
+
+# 方法2：使用conda环境（推荐）
+conda create -n simtradelab python=3.12
+conda activate simtradelab
+conda install numpy pandas matplotlib pyyaml
+pip install simtradelab
+
+# 方法3：如果遇到编译问题
+pip install --no-build-isolation simtradelab
+```
+
+**Windows安装问题？** 运行故障排除脚本：
+```bash
+python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/kay-ou/SimTradeLab/main/scripts/windows_install_troubleshoot.py').read())"
+```
+
+### 🌐 方式二：Web界面
 
 ```bash
 # 安装依赖
-poetry install --with data
+pip install simtradelab[web]
 
 # 启动Web界面
-python start_web.py
+python -c "from simtradelab.web import start_server; start_server()"
 ```
 
 然后访问 `http://localhost:8000` 享受现代化的Web界面体验！
 
-### 🐳 方式二：Docker部署（生产推荐）
+### 🐳 方式三：Docker部署（生产推荐）
 
 ```bash
 # 一键启动

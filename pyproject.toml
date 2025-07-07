@@ -18,6 +18,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
     "Topic :: Office/Business :: Financial :: Investment",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -43,6 +44,13 @@ pandas = ">=2.3.0,<3.0.0"
 numpy = ">=2.0.0,<3.0.0"
 matplotlib = ">=3.10.3,<4.0.0"
 PyYAML = "^6.0"
+setuptools = {version = ">=65.0", markers = "python_version >= '3.10'"}
+wheel = ">=0.37.0"
+
+[tool.poetry.extras]
+data = ["akshare", "tushare"]
+dev = ["pytest", "pytest-cov", "pytest-mock", "pytest-xdist", "psutil", "black", "isort", "flake8", "mypy", "pre-commit", "bandit"]
+web = ["fastapi", "uvicorn", "python-multipart", "jinja2", "aiofiles"]
 
 [tool.poetry.group.data.dependencies]
 akshare = { version = "^1.17.16", optional = true }
@@ -111,7 +119,12 @@ exclude_lines = [
 ]
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
+requires = [
+    "poetry-core>=1.0.0",
+    "setuptools>=65.0",
+    "wheel>=0.37.0",
+    "numpy>=2.0.0,<3.0.0"
+]
 build-backend = "poetry.core.masonry.api"
 
 # Black配置
