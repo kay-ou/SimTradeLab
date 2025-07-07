@@ -1,28 +1,44 @@
-[tool.poetry]
+[project]
 name = "simtradelab"
 version = "1.1.0"
 description = "开源策略回测框架，灵感来自PTrade的事件驱动模型，提供轻量、清晰、可插拔的策略验证环境"
-authors = ["Kay <kayou@duck.com>"]
+authors = [
+    {name = "Kay", email = "kayou@duck.com"}
+]
 readme = "README.md"
-license = "MIT"
-homepage = "https://github.com/kay-ou/SimTradeLab"
-repository = "https://github.com/kay-ou/SimTradeLab"
-documentation = "https://github.com/kay-ou/SimTradeLab/blob/main/README.md"
+license = {text = "MIT"}
 keywords = ["trading", "backtesting", "quantitative", "finance", "strategy", "akshare", "tushare"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Financial and Insurance Industry",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
     "Topic :: Office/Business :: Financial :: Investment",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+requires-python = ">=3.10.0"
+dependencies = [
+    "pandas>=2.3.0,<3.0.0",
+    "numpy>=2.0.0,<3.0.0",
+    "matplotlib>=3.10.3,<4.0.0",
+    "PyYAML>=6.0",
+    "colorama>=0.4.0; sys_platform == 'win32'",
+]
+
+[project.urls]
+Homepage = "https://github.com/kay-ou/SimTradeLab"
+Repository = "https://github.com/kay-ou/SimTradeLab"
+Documentation = "https://github.com/kay-ou/SimTradeLab/blob/main/README.md"
+
+[project.scripts]
+simtradelab = "simtradelab.cli:main"
+
+[project.optional-dependencies]
+data = ["akshare>=1.17.16", "tushare>=1.2.89"]
+all = ["akshare>=1.17.16", "tushare>=1.2.89"]
+
+[tool.poetry]
 packages = [
   { include = "simtradelab", from = "src" }
 ]
@@ -34,27 +50,6 @@ include = [
     "docs/**/*",
     "tests/**/*",
 ]
-
-[tool.poetry.scripts]
-simtradelab = "simtradelab.cli:main"
-
-[tool.poetry.dependencies]
-python = ">=3.10.0,<4.0.0"
-pandas = ">=2.3.0,<3.0.0"
-numpy = ">=2.0.0,<3.0.0"
-matplotlib = ">=3.10.3,<4.0.0"
-PyYAML = "^6.0"
-setuptools = {version = ">=65.0", markers = "python_version >= '3.10'"}
-wheel = ">=0.37.0"
-
-[tool.poetry.extras]
-data = ["akshare", "tushare"]
-dev = ["pytest", "pytest-cov", "pytest-mock", "pytest-xdist", "psutil", "black", "isort", "flake8", "mypy", "pre-commit", "bandit"]
-web = ["fastapi", "uvicorn", "python-multipart", "jinja2", "aiofiles"]
-
-[tool.poetry.group.data.dependencies]
-akshare = { version = "^1.17.16", optional = true }
-tushare = { version = "^1.2.89", optional = true }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.1"
@@ -69,6 +64,8 @@ mypy = "^1.5.0"
 pre-commit = "^3.0.0"
 bandit = "^1.7.0"
 build = "^1.2.2.post1"
+# Windows-specific development tools
+pywin32 = { version = "^306", markers = "sys_platform == 'win32'" }
 
 [tool.poetry.group.web.dependencies]
 fastapi = ">=0.68.0"
@@ -103,6 +100,7 @@ omit = [
     "*/tests/*",
     "*/test_*.py",
     "*/__pycache__/*",
+    "*/site-packages/*",
 ]
 
 [tool.coverage.report]
@@ -120,58 +118,22 @@ exclude_lines = [
 ]
 
 [build-system]
-requires = [
-    "poetry-core>=1.0.0",
-    "setuptools>=65.0",
-    "wheel>=0.37.0",
-    "numpy>=2.0.0,<3.0.0"
-]
+requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-# Black配置
 [tool.black]
 line-length = 88
 target-version = ['py310']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''
 
-# isort配置
 [tool.isort]
 profile = "black"
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
 line_length = 88
 
-# mypy配置
 [tool.mypy]
 python_version = "3.10"
+strict = true
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_equality = true
 
 [[tool.mypy.overrides]]
 module = [
@@ -181,7 +143,6 @@ module = [
 ]
 ignore_missing_imports = true
 
-# bandit配置
 [tool.bandit]
-exclude_dirs = ["tests", "test_*.py", "*_test.py"]
+exclude_dirs = ["tests"]
 skips = ["B101"]
