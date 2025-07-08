@@ -19,7 +19,7 @@ from .exceptions import (
 
 # PTrade 兼容层
 try:
-    from .adapters.ptrade import PTradeLegacyAdapter
+    from .adapters.ptrade import PTradeAdapter, PTradeMode, APIRouter
     _PTRADE_AVAILABLE = True
 except ImportError:
     _PTRADE_AVAILABLE = False
@@ -41,4 +41,4 @@ __all__ = [
 
 # 动态添加PTrade适配器到导出列表
 if _PTRADE_AVAILABLE:
-    __all__.append('PTradeLegacyAdapter')
+    __all__.extend(['PTradeAdapter', 'PTradeMode', 'APIRouter'])

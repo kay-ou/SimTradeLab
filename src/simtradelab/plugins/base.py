@@ -9,9 +9,10 @@ import asyncio
 import logging
 import threading
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Set
 from dataclasses import dataclass, field
 from enum import Enum
+from abc import ABC, abstractmethod
 
 from ..exceptions import SimTradeLabError
 
@@ -39,6 +40,37 @@ class PluginState(Enum):
     STOPPED = "stopped"
     ERROR = "error"
     PAUSED = "paused"
+
+
+class PluginMode(Enum):
+    """插件运行模式基础枚举"""
+    DEFAULT = "default"
+    DEBUG = "debug"
+    PRODUCTION = "production"
+
+
+class ModeAwarePlugin(ABC):
+    """模式感知插件接口"""
+    
+    @abstractmethod
+    def get_supported_modes(self) -> Set[Enum]:
+        """获取插件支持的运行模式"""
+        pass
+    
+    @abstractmethod
+    def set_mode(self, mode: Enum) -> None:
+        """设置插件运行模式"""
+        pass
+    
+    @abstractmethod
+    def get_current_mode(self) -> Optional[Enum]:
+        """获取当前运行模式"""
+        pass
+    
+    @abstractmethod
+    def is_mode_available(self, mode: Enum) -> bool:
+        """检查指定模式是否可用"""
+        pass
 
 
 @dataclass
@@ -71,6 +103,7 @@ class BasePlugin(abc.ABC):
     
     所有插件都必须继承此类并实现相应的抽象方法。
     提供插件生命周期管理、配置管理、事件处理等基础功能。
+    同时实现ModeAwarePlugin接口，支持运行模式管理。
     """
     
     def __init__(self, metadata: PluginMetadata, config: Optional[PluginConfig] = None):
@@ -94,6 +127,10 @@ class BasePlugin(abc.ABC):
         # 插件实例变量
         self._context = {}
         self._resources = []
+        
+        # 模式相关属性
+        self._current_mode: Optional[Enum] = None
+        self._supported_modes: Set[Enum] = {PluginMode.DEFAULT}
     
     @property
     def metadata(self) -> PluginMetadata:
@@ -535,5 +572,59 @@ class BasePlugin(abc.ABC):
         """
         插件关闭时调用
         子类可以重写此方法来执行清理逻辑
+        """
+        pass
+    
+    # =========================================
+    # ModeAwarePlugin接口实现
+    # =========================================
+    
+    def get_supported_modes(self) -> Set[Enum]:
+        """获取插件支持的运行模式"""
+        return self._supported_modes.copy()
+    
+    def set_mode(self, mode: Enum) -> None:
+        """设置插件运行模式"""
+        if not self.is_mode_available(mode):
+            supported_modes = [m.value for m in self._supported_modes]
+            raise PluginConfigError(
+                f"Mode '{mode.value}' is not supported by plugin '{self._metadata.name}'. "
+                f"Supported modes: {', '.join(supported_modes)}"
+            )
+        
+        old_mode = self._current_mode
+        self._current_mode = mode
+        
+        # 调用模式变更钩子
+        self._on_mode_changed(old_mode, mode)
+        
+        self._logger.info(f"Plugin mode changed from {old_mode} to {mode}")
+    
+    def get_current_mode(self) -> Optional[Enum]:
+        """获取当前运行模式"""
+        return self._current_mode
+    
+    def is_mode_available(self, mode: Enum) -> bool:
+        """检查指定模式是否可用"""
+        return mode in self._supported_modes
+    
+    def _set_supported_modes(self, modes: Set[Enum]) -> None:
+        """设置支持的模式（供子类使用）"""
+        self._supported_modes = modes.copy()
+        
+        # 如果当前模式不在支持列表中，重置为None
+        if self._current_mode and self._current_mode not in self._supported_modes:
+            old_mode = self._current_mode
+            self._current_mode = None
+            self._on_mode_changed(old_mode, None)
+    
+    def _on_mode_changed(self, old_mode: Optional[Enum], new_mode: Optional[Enum]) -> None:
+        """
+        模式变更时调用的钩子方法
+        子类可以重写此方法来处理模式变更
+        
+        Args:
+            old_mode: 旧模式
+            new_mode: 新模式
         """
         pass
