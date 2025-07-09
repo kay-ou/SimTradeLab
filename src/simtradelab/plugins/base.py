@@ -9,7 +9,7 @@ import asyncio
 import logging
 import threading
 import time
-from typing import Any, Dict, List, Optional, Union, Set
+from typing import Any, Callable, Dict, List, Optional, Union, Set
 from dataclasses import dataclass, field
 from enum import Enum
 from abc import ABC, abstractmethod
@@ -106,6 +106,8 @@ class BasePlugin(abc.ABC):
     同时实现ModeAwarePlugin接口，支持运行模式管理。
     """
     
+    METADATA: PluginMetadata = PluginMetadata(name="BasePlugin", version="0.0.0")
+    
     def __init__(self, metadata: PluginMetadata, config: Optional[PluginConfig] = None):
         """
         初始化插件
@@ -118,15 +120,15 @@ class BasePlugin(abc.ABC):
         self._config = config or PluginConfig()
         self._state = PluginState.UNINITIALIZED
         self._logger = logging.getLogger(f"plugin.{metadata.name}")
-        self._event_handlers = {}
+        self._event_handlers: Dict[str, List[Callable]] = {}
         self._lock = threading.RLock()
-        self._start_time = None
+        self._start_time: Optional[float] = None
         self._error_count = 0
-        self._last_error = None
+        self._last_error: Optional[Exception] = None
         
         # 插件实例变量
-        self._context = {}
-        self._resources = []
+        self._context: Dict[str, Any] = {}
+        self._resources: List[Any] = []
         
         # 模式相关属性
         self._current_mode: Optional[Enum] = None
@@ -405,7 +407,7 @@ class BasePlugin(abc.ABC):
             self._logger.error(f"Failed to shutdown plugin {self._metadata.name}: {e}")
             raise PluginError(f"Plugin shutdown failed: {e}")
     
-    def register_event_handler(self, event_type: str, handler: callable) -> None:
+    def register_event_handler(self, event_type: str, handler: Callable) -> None:
         """
         注册事件处理器
         
@@ -418,7 +420,7 @@ class BasePlugin(abc.ABC):
         self._event_handlers[event_type].append(handler)
         self._logger.debug(f"Registered event handler for {event_type}")
     
-    def unregister_event_handler(self, event_type: str, handler: callable) -> None:
+    def unregister_event_handler(self, event_type: str, handler: Callable) -> None:
         """
         取消注册事件处理器
         
@@ -572,6 +574,26 @@ class BasePlugin(abc.ABC):
         """
         插件关闭时调用
         子类可以重写此方法来执行清理逻辑
+        """
+        pass
+    
+    def get_state(self) -> Dict[str, Any]:
+        """
+        获取插件的当前状态，用于持久化或热重载。
+        子类应重写此方法以返回需要保存的状态。
+        
+        Returns:
+            一个包含插件状态的字典。
+        """
+        return {}
+
+    def set_state(self, state: Dict[str, Any]) -> None:
+        """
+        从给定的状态恢复插件。
+        子类应重写此方法以从状态字典中恢复其内部状态。
+        
+        Args:
+            state: 包含插件状态的字典。
         """
         pass
     

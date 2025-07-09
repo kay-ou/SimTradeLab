@@ -300,6 +300,72 @@ class PluginManager:
             except Exception as e:
                 self._logger.error(f"Failed to unload plugin {plugin_name}: {e}")
                 return False
+
+    def reload_plugin(self, plugin_name: str) -> bool:
+        """
+        热重载插件，并尝试保持其状态。
+        
+        Args:
+            plugin_name: 插件名称
+            
+        Returns:
+            是否成功重载
+        """
+        with self._lock:
+            if plugin_name not in self._plugins:
+                self._logger.error(f"Cannot reload: Plugin {plugin_name} not registered.")
+                return False
+            
+            registry = self._plugins[plugin_name]
+            
+            if not registry.instance:
+                self._logger.warning(f"Plugin {plugin_name} is not loaded. Loading it instead.")
+                try:
+                    self.load_plugin(plugin_name)
+                    return True
+                except PluginLoadError:
+                    return False
+
+            # 1. 保存状态
+            old_instance = registry.instance
+            state_to_restore = None
+            if hasattr(old_instance, 'get_state') and callable(old_instance.get_state):
+                try:
+                    state_to_restore = old_instance.get_state()
+                    self._logger.info(f"Saved state for plugin {plugin_name}.")
+                except Exception as e:
+                    self._logger.error(f"Failed to get state from {plugin_name}: {e}")
+
+            # 2. 卸载旧插件
+            if not self.unload_plugin(plugin_name):
+                self._logger.error(f"Failed to unload plugin {plugin_name} during reload.")
+                return False
+
+            # 3. 加载新插件
+            try:
+                new_instance = self.load_plugin(plugin_name, registry.config)
+            except PluginLoadError as e:
+                self._logger.error(f"Failed to load plugin {plugin_name} during reload: {e}")
+                return False
+
+            # 4. 恢复状态
+            if state_to_restore and hasattr(new_instance, 'set_state') and callable(new_instance.set_state):
+                try:
+                    new_instance.set_state(state_to_restore)
+                    self._logger.info(f"Restored state for reloaded plugin {plugin_name}.")
+                except Exception as e:
+                    self._logger.error(f"Failed to set state for reloaded plugin {plugin_name}: {e}")
+
+            self._logger.info(f"Plugin {plugin_name} reloaded successfully.")
+            
+            # 发布插件重载事件
+            self._event_bus.publish(
+                "plugin.reloaded",
+                data={'plugin_name': plugin_name, 'instance': new_instance},
+                source="plugin_manager"
+            )
+            
+            return True
     
     def start_plugin(self, plugin_name: str) -> bool:
         """

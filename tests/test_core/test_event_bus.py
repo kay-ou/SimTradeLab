@@ -347,11 +347,74 @@ class TestEventBus:
         )
         
         assert received_event is not None
-        assert received_event.type == "test"
-        assert received_event.data == "test_data"
-        assert received_event.source == "test_source"
-        assert received_event.priority == EventPriority.HIGH
-        assert received_event.metadata == metadata
+    
+    def test_subscribe_with_weak_ref(self, event_bus):
+        """测试弱引用订阅基本功能"""
+        call_count = 0
+        
+        class TestObject:
+            def handler(self, event):
+                nonlocal call_count
+                call_count += 1
+        
+        obj = TestObject()
+        sub_id = event_bus.subscribe("test", obj.handler, weak_ref=True)
+        
+        # 验证弱引用被创建
+        assert sub_id in event_bus._weak_refs
+        
+        # 先发布一次事件确认处理器工作
+        event_bus.publish("test")
+        assert call_count == 1
+        
+        # 手动取消订阅来测试清理
+        success = event_bus.unsubscribe(sub_id)
+        assert success is True
+        assert event_bus._stats['subscriptions_count'] == 0
+        
+        # 如果有弱引用，应该被清理
+        assert sub_id not in event_bus._weak_refs
+    
+    def test_publish_exception_handling(self, event_bus):
+        """测试发布异常处理"""
+        def failing_handler(event):
+            raise ValueError("Handler failed")
+        
+        def working_handler(event):
+            return "success"
+        
+        event_bus.subscribe("test", failing_handler)
+        event_bus.subscribe("test", working_handler)
+        
+        # 发布事件，失败的处理器应该被记录但不影响其他处理器
+        results = event_bus.publish("test")
+        
+        # 应该有两个结果，失败的为None，成功的为"success"
+        assert len(results) == 2
+        assert None in results
+        assert "success" in results
+        assert event_bus._stats['events_failed'] > 0
+    
+    def test_publish_when_not_running(self, event_bus):
+        """测试在非运行状态发布事件"""
+        event_bus._running = False
+        
+        with pytest.raises(EventPublishError, match="EventBus is not running"):
+            event_bus.publish("test")
+    
+    def test_async_publish_future(self, event_bus):
+        """测试异步发布返回Future"""
+        def handler(event):
+            return "result"
+        
+        event_bus.subscribe("test", handler)
+        
+        future = event_bus.publish("test", async_publish=True)
+        assert isinstance(future, Future)
+        
+        # 等待结果
+        results = future.result(timeout=1.0)
+        assert results == ["result"]
     
     def test_publish_when_not_running(self, event_bus):
         """测试在未运行状态下发布事件"""

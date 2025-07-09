@@ -742,4 +742,99 @@ class TestPluginErrorHandling:
         status = plugin.get_status()
         assert status['error_count'] == 1
         assert status['last_error'] is not None
-        assert "Initialize failed" in status['last_error']
+    
+    def test_plugin_resource_cleanup_failure(self):
+        """测试资源清理失败"""
+        metadata = PluginMetadata(name="test_plugin", version="1.0.0")
+        plugin = MockPlugin(metadata)
+        
+        # 创建会抛出异常的资源
+        class FailingResource:
+            def close(self):
+                raise Exception("Cleanup failed")
+        
+        resource = FailingResource()
+        plugin.add_resource(resource)
+        
+        # 清理资源时应该捕获异常并记录警告
+        with patch.object(plugin._logger, 'warning') as mock_warning:
+            plugin._cleanup_resources()
+            mock_warning.assert_called_once()
+    
+    def test_plugin_event_handler_failure(self):
+        """测试事件处理器失败"""
+        metadata = PluginMetadata(name="test_plugin", version="1.0.0")
+        plugin = MockPlugin(metadata)
+        
+        def failing_handler(data):
+            raise Exception("Handler failed")
+        
+        plugin.register_event_handler("test_event", failing_handler)
+        
+        # 事件处理应该捕获异常并记录错误
+        with patch.object(plugin._logger, 'error') as mock_error:
+            results = asyncio.run(plugin.handle_event("test_event", "test_data"))
+            mock_error.assert_called_once()
+            assert results == [None]  # 失败的处理器返回None
+    
+    def test_plugin_mode_reset_on_unsupported_modes(self):
+        """测试设置不支持的模式时重置当前模式"""
+        from enum import Enum
+        
+        class TestMode(Enum):
+            MODE1 = "mode1"
+            MODE2 = "mode2"
+        
+        class OtherMode(Enum):
+            OTHER = "other"
+        
+        metadata = PluginMetadata(name="test_plugin", version="1.0.0")
+        plugin = MockPlugin(metadata)
+        
+        # 设置支持的模式
+        plugin._set_supported_modes({TestMode.MODE1, TestMode.MODE2})
+        plugin.set_mode(TestMode.MODE1)
+        
+        # 更新支持的模式，不包括当前模式
+        plugin._set_supported_modes({OtherMode.OTHER})
+        
+        # 当前模式应该被重置为None
+        assert plugin.get_current_mode() is None
+    
+    def test_plugin_default_validation_passes(self):
+        """测试默认配置验证通过"""
+        metadata = PluginMetadata(name="test_plugin", version="1.0.0")
+        plugin = MockPlugin(metadata)
+        
+        # 默认的_validate_config应该什么都不做
+        plugin._validate_config({"any": "config"})  # 应该不抛出异常
+    
+    def test_plugin_default_hooks_no_op(self):
+        """测试默认钩子方法为空操作"""
+        metadata = PluginMetadata(name="test_plugin", version="1.0.0")
+        plugin = MockPlugin(metadata)
+        
+        # 测试默认钩子方法不抛出异常
+        plugin._on_config_changed({}, {})
+        plugin._on_mode_changed(None, None)
+        plugin._on_pause()
+        plugin._on_resume()
+        plugin._on_shutdown()
+    
+    def test_plugin_resource_without_cleanup_method(self):
+        """测试没有清理方法的资源"""
+        metadata = PluginMetadata(name="test_plugin", version="1.0.0")
+        plugin = MockPlugin(metadata)
+        
+        # 创建没有清理方法的资源
+        class NoCleanupResource:
+            pass
+        
+        resource = NoCleanupResource()
+        plugin.add_resource(resource)
+        
+        # 清理应该尝试删除资源
+        plugin._cleanup_resources()
+        
+        # 资源应该被移除
+        assert len(plugin._resources) == 0

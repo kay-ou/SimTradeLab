@@ -65,7 +65,7 @@ class Portfolio:
     margin: Optional[float] = None  # 保证金
     risk_degree: Optional[float] = None  # 风险度
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.start_date is None:
             self.start_date = datetime.now()
         # 保存起始资金用于计算收益率
@@ -78,7 +78,7 @@ class Portfolio:
         """总资产 - 兼容性别名"""
         return self.portfolio_value
     
-    def update_portfolio_value(self):
+    def update_portfolio_value(self) -> None:
         """更新投资组合价值"""
         self.positions_value = sum(pos.market_value for pos in self.positions.values())
         self.portfolio_value = self.cash + self.positions_value
@@ -123,7 +123,7 @@ class Position:
     margin: Optional[float] = None  # 保证金
     exercise_date: Optional[datetime] = None  # 行权日
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # 兼容性属性映射
         self.security = self.sid
     
@@ -156,7 +156,7 @@ class Order:
     status: str = 'new'  # 订单状态
     filled: int = 0  # 成交数量
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # 兼容性属性映射
         self.security = self.symbol
         self.limit_price = self.limit
@@ -201,8 +201,8 @@ class Commission:
 class Blotter:
     """订单记录管理器"""
     
-    def __init__(self):
-        self.orders = {}
+    def __init__(self) -> None:
+        self.orders: Dict[str, Order] = {}
         self.order_id_counter = 0
         self.current_dt = datetime.now()  # 当前单位时间的开始时间
     
@@ -257,7 +257,7 @@ class PTradeContext:
     benchmark: Optional[str] = None
     current_dt: Optional[datetime] = None
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.g = types.SimpleNamespace()  # 全局变量容器
         
         if self.blotter is None:
@@ -276,10 +276,10 @@ class PTradeContext:
 class PTradeAPIRegistry:
     """PTrade API注册表"""
     
-    def __init__(self):
-        self._apis: Dict[str, Callable] = {}
+    def __init__(self) -> None:
+        self._apis: Dict[str, Callable[..., Any]] = {}
         self._api_modes: Dict[str, Set[PTradeMode]] = {}  # API支持的模式
-        self._categories = {
+        self._categories: Dict[str, List[str]] = {
             'lifecycle': [],      # 策略生命周期函数
             'settings': [],       # 设置函数
             'market_data': [],    # 获取信息函数
@@ -291,15 +291,15 @@ class PTradeAPIRegistry:
             'utils': []          # 其他函数
         }
     
-    def register_api(self, name: str, func: Callable, category: str = 'utils', 
-                    modes: Set[PTradeMode] = None):
+    def register_api(self, name: str, func: Callable[..., Any], category: str = 'utils', 
+                    modes: Optional[Set[PTradeMode]] = None) -> None:
         """注册API函数"""
         self._apis[name] = func
         self._api_modes[name] = modes or {PTradeMode.RESEARCH, PTradeMode.BACKTEST, PTradeMode.TRADING}
         if category in self._categories:
             self._categories[category].append(name)
     
-    def get_api(self, name: str) -> Optional[Callable]:
+    def get_api(self, name: str) -> Optional[Callable[..., Any]]:
         """获取API函数"""
         return self._apis.get(name)
     
@@ -332,7 +332,7 @@ class PTradeAdapter(BasePlugin):
         version="2.0.0",
         description="PTrade API Compatibility Adapter with 150+ APIs",
         author="SimTradeLab",
-        dependencies=[],
+        dependencies=["csv_data_plugin", "technical_indicators_plugin"],  # 依赖CSV数据插件和技术指标插件
         tags=["ptrade", "compatibility", "adapter", "complete"],
         category="adapter",
         priority=10  # 高优先级，确保早期加载
@@ -346,7 +346,11 @@ class PTradeAdapter(BasePlugin):
         self._strategy_module: Optional[types.ModuleType] = None
         self._api_registry = PTradeAPIRegistry()
         self._data_cache: Dict[str, Any] = {}
-        self._current_data: Dict[str, pd.DataFrame] = {}
+        self._current_data: Dict[str, Dict[str, float]] = {}
+        
+        # 插件引用（在初始化时从插件管理器获取）
+        self._data_plugin = None
+        self._indicators_plugin = None
         
         # 设置PTrade支持的模式
         self._set_supported_modes({
@@ -365,7 +369,7 @@ class PTradeAdapter(BasePlugin):
         self._slippage_rate = self._config.config.get('slippage_rate', 0.001)
         
         # 策略生命周期钩子
-        self._strategy_hooks = {
+        self._strategy_hooks: Dict[str, Optional[Callable[..., Any]]] = {
             'initialize': None,
             'handle_data': None,
             'before_trading_start': None,
@@ -376,8 +380,42 @@ class PTradeAdapter(BasePlugin):
         }
         
         # 事件监听器列表
-        self._event_listeners = []
+        self._event_listeners: List[str] = []
+        
+        # 事件总线引用 - 将在插件管理器中设置
+        self._event_bus_ref: Optional[EventBus] = None
     
+    def set_event_bus(self, event_bus: EventBus) -> None:
+        """
+        Set the event bus reference (called by plugin manager)
+        
+        Args:
+            event_bus: The event bus instance
+        """
+        self._event_bus_ref = event_bus
+    
+    def _setup_plugin_proxies(self) -> None:
+        """设置插件代理机制"""
+        # 为技术指标插件创建代理方法
+        if self._indicators_plugin:
+            # 自动让PTrade adapter获得插件的所有公共方法
+            plugin_methods = [
+                name for name in dir(self._indicators_plugin) 
+                if not name.startswith('_') and callable(getattr(self._indicators_plugin, name))
+            ]
+            
+            for method_name in plugin_methods:
+                if not hasattr(self, method_name):  # 避免覆盖现有方法
+                    plugin_method = getattr(self._indicators_plugin, method_name)
+                    # 创建代理方法
+                    setattr(self, method_name, plugin_method)
+            
+            self._logger.debug(f"Created proxy methods for technical indicators plugin: {plugin_methods}")
+    
+    def _cleanup_plugin_proxies(self) -> None:
+        """清理插件代理方法"""
+        # 这里可以添加清理逻辑，但由于我们是直接设置属性，不需要特别清理
+        pass
     def _on_initialize(self) -> None:
         """初始化适配器"""
         self._logger.info("Initializing PTrade Complete Adapter")
@@ -392,19 +430,38 @@ class PTradeAdapter(BasePlugin):
         # 注册所有150+ API
         self._register_all_apis()
         
+        # 设置插件代理机制
+        self._setup_plugin_proxies()
+        
         # 监听插件系统事件
-        if hasattr(self, '_event_bus'):
+        if self._event_bus_ref is not None:
             self._setup_event_listeners()
         
         self._logger.info(f"PTrade Complete Adapter initialized with {len(self._api_registry.list_all_apis())} APIs")
+    
+    def set_plugin_manager(self, plugin_manager) -> None:
+        """设置插件管理器引用"""
+        self._plugin_manager = plugin_manager
+        
+        # 获取插件
+        if self._plugin_manager:
+            self._data_plugin = self._plugin_manager.get_plugin("csv_data_plugin")
+            if not self._data_plugin:
+                self._logger.warning("CSV data plugin not found or not loaded")
+            
+            self._indicators_plugin = self._plugin_manager.get_plugin("technical_indicators_plugin")
+            if not self._indicators_plugin:
+                self._logger.warning("Technical indicators plugin not found or not loaded")
+        else:
+            self._logger.warning("No plugin manager available, plugin access may be limited")
     
     def _on_start(self) -> None:
         """启动适配器"""
         self._logger.info("Starting PTrade Adapter")
         
         # 发布适配器启动事件
-        if hasattr(self, '_event_bus'):
-            self._event_bus.publish(
+        if self._event_bus_ref is not None:
+            self._event_bus_ref.publish(
                 "ptrade.adapter.started",
                 data={'adapter': self, 'context': self._ptrade_context},
                 source="ptrade_adapter"
@@ -417,6 +474,9 @@ class PTradeAdapter(BasePlugin):
         # 清理资源
         self._cleanup_strategy()
         
+        # 清理插件代理
+        self._cleanup_plugin_proxies()
+        
         # 清理事件监听器
         self._cleanup_event_listeners()
     
@@ -425,8 +485,8 @@ class PTradeAdapter(BasePlugin):
         current_mode = self.get_current_mode()
         if not current_mode:
             raise PTradeAPIError(f"No mode set for PTrade adapter")
-            
-        if not self._api_registry.is_api_available(api_name, current_mode):
+        
+        if isinstance(current_mode, PTradeMode) and not self._api_registry.is_api_available(api_name, current_mode):
             available_modes = self._api_registry.get_api_modes(api_name)
             mode_names = [m.value for m in available_modes]
             raise PTradeAPIError(
@@ -670,35 +730,35 @@ class PTradeAdapter(BasePlugin):
     # API 实现开始 - 策略生命周期函数
     # =========================================
     
-    def _api_initialize(self, *args, **kwargs):
+    def _api_initialize(self, *args: Any, **kwargs: Any) -> None:
         """策略初始化函数 - 由策略实现"""
         # 这是一个占位符，实际的initialize函数由策略代码提供
         pass
     
-    def _api_handle_data(self, *args, **kwargs):
+    def _api_handle_data(self, *args: Any, **kwargs: Any) -> None:
         """主策略逻辑函数 - 由策略实现"""
         # 这是一个占位符，实际的handle_data函数由策略代码提供
         pass
     
-    def _api_before_trading_start(self, *args, **kwargs):
+    def _api_before_trading_start(self, *args: Any, **kwargs: Any) -> None:
         """盘前处理函数 - 由策略实现"""
         pass
     
-    def _api_after_trading_end(self, *args, **kwargs):
+    def _api_after_trading_end(self, *args: Any, **kwargs: Any) -> None:
         """盘后处理函数 - 由策略实现"""
         pass
     
-    def _api_tick_data(self, *args, **kwargs):
+    def _api_tick_data(self, *args: Any, **kwargs: Any) -> None:
         """tick级别处理函数 - 由策略实现"""
         self._check_api_availability('tick_data')
         pass
     
-    def _api_on_order_response(self, *args, **kwargs):
+    def _api_on_order_response(self, *args: Any, **kwargs: Any) -> None:
         """委托回报函数 - 由策略实现"""
         self._check_api_availability('on_order_response')
         pass
     
-    def _api_on_trade_response(self, *args, **kwargs):
+    def _api_on_trade_response(self, *args: Any, **kwargs: Any) -> None:
         """成交回报函数 - 由策略实现"""
         self._check_api_availability('on_trade_response')
         pass
@@ -710,12 +770,16 @@ class PTradeAdapter(BasePlugin):
     def _api_set_universe(self, securities: List[str]) -> None:
         """设置股票池"""
         self._check_api_availability('set_universe')
+        if self._ptrade_context is None:
+            raise PTradeAPIError("PTrade context is not initialized")
         self._ptrade_context.universe = securities
         self._logger.info(f"Universe set to {len(securities)} securities")
     
     def _api_set_benchmark(self, benchmark: str) -> None:
         """设置基准"""
         self._check_api_availability('set_benchmark')
+        if self._ptrade_context is None:
+            raise PTradeAPIError("PTrade context is not initialized")
         self._ptrade_context.benchmark = benchmark
         self._logger.info(f"Benchmark set to {benchmark}")
     
@@ -723,8 +787,10 @@ class PTradeAdapter(BasePlugin):
                            min_commission: float = 5.0, type: str = "STOCK") -> None:
         """设置佣金费率"""
         self._check_api_availability('set_commission')
+        if self._ptrade_context is None:
+            raise PTradeAPIError("PTrade context is not initialized")
         self._commission_rate = commission_ratio
-        if self._ptrade_context.commission:
+        if self._ptrade_context.commission is not None:
             self._ptrade_context.commission.cost = commission_ratio
             self._ptrade_context.commission.min_trade_cost = min_commission
         self._logger.info(f"Commission rate set to {commission_ratio}")
@@ -744,7 +810,9 @@ class PTradeAdapter(BasePlugin):
     def _api_set_volume_ratio(self, volume_ratio: float = 0.25) -> None:
         """设置成交比例"""
         self._check_api_availability('set_volume_ratio')
-        if self._ptrade_context.slippage:
+        if self._ptrade_context is None:
+            raise PTradeAPIError("PTrade context is not initialized")
+        if self._ptrade_context.slippage is not None:
             self._ptrade_context.slippage.volume_limit = volume_ratio
         self._logger.info(f"Volume ratio set to {volume_ratio}")
     
@@ -754,25 +822,25 @@ class PTradeAdapter(BasePlugin):
         # TODO: 实现限制模式逻辑
         self._logger.info(f"Limit mode set to {limit_mode}")
     
-    def _api_set_yesterday_position(self, poslist: List[Dict]) -> None:
+    def _api_set_yesterday_position(self, poslist: List[Dict[str, Any]]) -> None:
         """设置底仓"""
         self._check_api_availability('set_yesterday_position')
         # TODO: 实现底仓设置逻辑
         self._logger.info(f"Set yesterday positions: {len(poslist)} positions")
     
-    def _api_set_parameters(self, **kwargs) -> None:
+    def _api_set_parameters(self, **kwargs: Any) -> None:
         """设置策略配置参数"""
         self._check_api_availability('set_parameters')
         # TODO: 实现参数设置逻辑
         self._logger.info(f"Set parameters: {kwargs}")
     
-    def _api_run_daily(self, func: Callable, time: str = '9:31') -> None:
+    def _api_run_daily(self, func: Callable[..., Any], time: str = '9:31') -> None:
         """按日周期处理"""
         self._check_api_availability('run_daily')
         # TODO: 实现定时任务逻辑
         self._logger.info(f"Scheduled daily function at {time}")
     
-    def _api_run_interval(self, func: Callable, seconds: int = 10) -> None:
+    def _api_run_interval(self, func: Callable[..., Any], seconds: int = 10) -> None:
         """按设定周期处理"""
         self._check_api_availability('run_interval')
         # TODO: 实现定时任务逻辑
@@ -803,7 +871,7 @@ class PTradeAdapter(BasePlugin):
             target_date = current_date + pd.Timedelta(days=day + offset)
         else:
             target_date = pd.to_datetime(day) + pd.Timedelta(days=offset)
-        return target_date.strftime('%Y-%m-%d')
+        return str(target_date.strftime('%Y-%m-%d'))
     
     def _api_get_all_trades_days(self, date: Optional[str] = None) -> List[str]:
         """获取全部交易日期"""
@@ -832,7 +900,7 @@ class PTradeAdapter(BasePlugin):
     # API 实现 - 市场信息函数
     # =========================================
     
-    def _api_get_market_list(self) -> List[Dict]:
+    def _api_get_market_list(self) -> List[Dict[str, Any]]:
         """获取市场列表"""
         self._check_api_availability('get_market_list')
         # TODO: 实现市场列表获取
@@ -841,7 +909,7 @@ class PTradeAdapter(BasePlugin):
             {'market_code': 'XSHE', 'market_name': '深圳证券交易所'}
         ]
     
-    def _api_get_market_detail(self, finance_mic: str) -> Dict:
+    def _api_get_market_detail(self, finance_mic: str) -> Dict[str, Any]:
         """获取市场详细信息"""
         self._check_api_availability('get_market_detail')
         # TODO: 实现市场详情获取
@@ -865,47 +933,54 @@ class PTradeAdapter(BasePlugin):
                         fill: str = 'nan',
                         is_dict: bool = False,
                         start_date: Optional[str] = None,
-                        end_date: Optional[str] = None) -> Union[pd.DataFrame, Dict]:
+                        end_date: Optional[str] = None) -> Union[pd.DataFrame, Dict[str, Any]]:
         """获取历史行情数据"""
         self._check_api_availability('get_history')
+        
+        if self._ptrade_context is None:
+            raise PTradeAPIError("PTrade context is not initialized")
         
         securities = security_list or self._ptrade_context.universe
         if not securities:
             raise PTradeAPIError("No securities specified and no universe set")
         
-        # 创建模拟数据
-        dates = pd.date_range(end=pd.Timestamp.now(), periods=count, freq='D')
+        # 处理字段参数
+        if isinstance(field, str):
+            field = [field]
+        
+        # 从数据插件获取历史数据
+        if not self._data_plugin:
+            raise PTradeAPIError("Data plugin not available")
+        
+        result_df = self._data_plugin.get_multiple_history_data(
+            securities, count, start_date, end_date
+        )
+        
+        if result_df.empty:
+            # 如果没有数据，返回空结果
+            if is_dict:
+                return {security: {f: [] for f in field} for security in securities}
+            else:
+                return pd.DataFrame()
         
         if is_dict:
+            # 转换为字典格式
             result = {}
             for security in securities:
-                result[security] = {
-                    'open': np.random.randn(count) * 0.01 + 10,
-                    'high': np.random.randn(count) * 0.01 + 10.5,
-                    'low': np.random.randn(count) * 0.01 + 9.5,
-                    'close': np.random.randn(count) * 0.01 + 10,
-                    'volume': np.random.randint(1000, 10000, count),
-                    'money': np.random.randint(1000000, 10000000, count),
-                    'price': np.random.randn(count) * 0.01 + 10
-                }
+                security_data = result_df[result_df['security'] == security]
+                result[security] = {}
+                for f in field:
+                    if f in security_data.columns:
+                        result[security][f] = security_data[f].tolist()
+                    else:
+                        result[security][f] = []
         else:
             # 返回DataFrame格式
-            data = []
-            for security in securities:
-                for date in dates:
-                    data.append({
-                        'security': security,
-                        'date': date,
-                        'open': np.random.randn() * 0.01 + 10,
-                        'high': np.random.randn() * 0.01 + 10.5,
-                        'low': np.random.randn() * 0.01 + 9.5,
-                        'close': np.random.randn() * 0.01 + 10,
-                        'volume': np.random.randint(1000, 10000),
-                        'money': np.random.randint(1000000, 10000000),
-                        'price': np.random.randn() * 0.01 + 10
-                    })
+            # 只保留请求的字段
+            available_fields = ['security', 'date'] + [f for f in field if f in result_df.columns]
+            result = result_df[available_fields].copy()
             
-            result = pd.DataFrame(data)
+            # 设置索引
             result.set_index(['security', 'date'], inplace=True)
         
         return result
@@ -921,29 +996,28 @@ class PTradeAdapter(BasePlugin):
         
         securities = security if isinstance(security, list) else [security]
         
-        # 创建模拟价格数据
-        if count:
-            dates = pd.date_range(end=pd.Timestamp.now(), periods=count, freq='D')
-        else:
-            start_dt = pd.to_datetime(start_date) if start_date else datetime.now() - pd.Timedelta(days=365)
-            end_dt = pd.to_datetime(end_date) if end_date else datetime.now()
-            dates = pd.date_range(start=start_dt, end=end_dt, freq='D')
+        # 处理字段参数
+        if fields is None:
+            fields = ['open', 'high', 'low', 'close', 'volume']
+        elif isinstance(fields, str):
+            fields = [fields]
         
-        data = []
-        for sec in securities:
-            for date in dates:
-                data.append({
-                    'security': sec,
-                    'date': date,
-                    'open': np.random.randn() * 0.01 + 10,
-                    'high': np.random.randn() * 0.01 + 10.5,
-                    'low': np.random.randn() * 0.01 + 9.5,
-                    'close': np.random.randn() * 0.01 + 10,
-                    'volume': np.random.randint(1000, 10000)
-                })
+        # 从数据插件获取历史数据
+        if not self._data_plugin:
+            raise PTradeAPIError("Data plugin not available")
         
-        df = pd.DataFrame(data)
-        return df.set_index(['security', 'date'])
+        result_df = self._data_plugin.get_multiple_history_data(
+            securities, count or 100, start_date, end_date
+        )
+        
+        if result_df.empty:
+            return pd.DataFrame()
+        
+        # 只保留请求的字段
+        available_fields = ['security', 'date'] + [f for f in fields if f in result_df.columns]
+        result = result_df[available_fields].copy()
+        
+        return result.set_index(['security', 'date'])
     
     def _api_get_snapshot(self, security_list: List[str]) -> pd.DataFrame:
         """获取行情快照"""
@@ -969,8 +1043,11 @@ class PTradeAdapter(BasePlugin):
         self._check_api_availability('order')
         
         # 风控检查
-        if not self._validate_order(security, amount, limit_price):
+        if not self._api_validate_order(security, amount, limit_price):
             return None
+        
+        if self._ptrade_context is None or self._ptrade_context.blotter is None:
+            raise PTradeAPIError("PTrade context or blotter is not initialized")
         
         # 创建订单
         order_id = self._ptrade_context.blotter.create_order(security, amount, limit_price)
@@ -983,6 +1060,8 @@ class PTradeAdapter(BasePlugin):
     def _api_cancel_order(self, order_id: str) -> bool:
         """撤单"""
         self._check_api_availability('cancel_order')
+        if self._ptrade_context is None or self._ptrade_context.blotter is None:
+            raise PTradeAPIError("PTrade context or blotter is not initialized")
         return self._ptrade_context.blotter.cancel_order(order_id)
     
     # =========================================
@@ -993,44 +1072,191 @@ class PTradeAdapter(BasePlugin):
                      long: int = 26, m: int = 9) -> pd.DataFrame:
         """获取MACD指标"""
         self._check_api_availability('get_MACD')
-        # TODO: 实现MACD计算
-        periods = len(close)
-        return pd.DataFrame({
-            'MACD': np.random.randn(periods) * 0.1,
-            'MACD_signal': np.random.randn(periods) * 0.1,
-            'MACD_hist': np.random.randn(periods) * 0.05
-        })
+        
+        # 优先使用技术指标插件
+        if self._indicators_plugin:
+            try:
+                return self._indicators_plugin.calculate_macd(close, short, long, m)
+            except Exception as e:
+                self._logger.warning(f"Technical indicators plugin failed, falling back to internal implementation: {e}")
+        
+        # 回退到内部实现
+        try:
+            # 确保数据是Series格式
+            close_series = pd.Series(close)
+            
+            # 计算快速和慢速EMA
+            exp1 = close_series.ewm(span=short).mean()
+            exp2 = close_series.ewm(span=long).mean()
+            
+            # 计算MACD线
+            macd_line = exp1 - exp2
+            
+            # 计算信号线
+            signal_line = macd_line.ewm(span=m).mean()
+            
+            # 计算MACD柱状图
+            histogram = macd_line - signal_line
+            
+            # 返回结果DataFrame
+            result = pd.DataFrame({
+                'MACD': macd_line,
+                'MACD_signal': signal_line,
+                'MACD_hist': histogram * 2  # PTrade通常将柱状图乘以2
+            })
+            
+            return result
+            
+        except Exception as e:
+            self._logger.error(f"Error calculating MACD: {e}")
+            periods = len(close)
+            return pd.DataFrame({
+                'MACD': np.random.randn(periods) * 0.1,
+                'MACD_signal': np.random.randn(periods) * 0.1,
+                'MACD_hist': np.random.randn(periods) * 0.05
+            })
     
     def _api_get_kdj(self, high: np.ndarray, low: np.ndarray, close: np.ndarray,
                     n: int = 9, m1: int = 3, m2: int = 3) -> pd.DataFrame:
         """获取KDJ指标"""
         self._check_api_availability('get_KDJ')
-        # TODO: 实现KDJ计算
-        periods = len(close)
-        return pd.DataFrame({
-            'K': np.random.uniform(0, 100, periods),
-            'D': np.random.uniform(0, 100, periods),
-            'J': np.random.uniform(0, 100, periods)
-        })
+        
+        # 优先使用技术指标插件
+        if self._indicators_plugin:
+            try:
+                return self._indicators_plugin.calculate_kdj(high, low, close, n, m1, m2)
+            except Exception as e:
+                self._logger.warning(f"Technical indicators plugin failed, falling back to internal implementation: {e}")
+        
+        # 回退到内部实现
+        try:
+            # 确保数据是Series格式
+            high_series = pd.Series(high)
+            low_series = pd.Series(low)
+            close_series = pd.Series(close)
+            
+            # 计算最高价和最低价的滚动窗口
+            highest = high_series.rolling(window=n).max()
+            lowest = low_series.rolling(window=n).min()
+            
+            # 计算RSV
+            rsv = (close_series - lowest) / (highest - lowest) * 100
+            
+            # 计算K值
+            k = rsv.ewm(alpha=1/m1).mean()
+            
+            # 计算D值
+            d = k.ewm(alpha=1/m2).mean()
+            
+            # 计算J值
+            j = 3 * k - 2 * d
+            
+            result = pd.DataFrame({
+                'K': k,
+                'D': d,
+                'J': j
+            })
+            
+            return result
+            
+        except Exception as e:
+            self._logger.error(f"Error calculating KDJ: {e}")
+            periods = len(close)
+            return pd.DataFrame({
+                'K': np.random.uniform(0, 100, periods),
+                'D': np.random.uniform(0, 100, periods),
+                'J': np.random.uniform(0, 100, periods)
+            })
     
     def _api_get_rsi(self, close: np.ndarray, n: int = 6) -> pd.DataFrame:
         """获取RSI指标"""
         self._check_api_availability('get_RSI')
-        # TODO: 实现RSI计算
-        periods = len(close)
-        return pd.DataFrame({
-            'RSI': np.random.uniform(0, 100, periods)
-        })
+        
+        # 优先使用技术指标插件
+        if self._indicators_plugin:
+            try:
+                return self._indicators_plugin.calculate_rsi(close, n)
+            except Exception as e:
+                self._logger.warning(f"Technical indicators plugin failed, falling back to internal implementation: {e}")
+        
+        # 回退到内部实现
+        try:
+            # 确保数据是Series格式
+            close_series = pd.Series(close)
+            
+            # 计算价格变化
+            delta = close_series.diff()
+            
+            # 分离上涨和下跌
+            gain = delta.where(delta > 0, 0)
+            loss = -delta.where(delta < 0, 0)
+            
+            # 计算平均收益和平均损失
+            avg_gain = gain.rolling(window=n).mean()
+            avg_loss = loss.rolling(window=n).mean()
+            
+            # 计算RSI
+            rs = avg_gain / avg_loss
+            rsi = 100 - (100 / (1 + rs))
+            
+            result = pd.DataFrame({
+                'RSI': rsi
+            })
+            
+            return result
+            
+        except Exception as e:
+            self._logger.error(f"Error calculating RSI: {e}")
+            periods = len(close)
+            return pd.DataFrame({
+                'RSI': np.random.uniform(0, 100, periods)
+            })
     
     def _api_get_cci(self, high: np.ndarray, low: np.ndarray, close: np.ndarray,
                     n: int = 14) -> pd.DataFrame:
         """获取CCI指标"""
         self._check_api_availability('get_CCI')
-        # TODO: 实现CCI计算
-        periods = len(close)
-        return pd.DataFrame({
-            'CCI': np.random.uniform(-100, 100, periods)
-        })
+        
+        # 优先使用技术指标插件
+        if self._indicators_plugin:
+            try:
+                return self._indicators_plugin.calculate_cci(high, low, close, n)
+            except Exception as e:
+                self._logger.warning(f"Technical indicators plugin failed, falling back to internal implementation: {e}")
+        
+        # 回退到内部实现
+        try:
+            # 确保数据是Series格式
+            high_series = pd.Series(high)
+            low_series = pd.Series(low)
+            close_series = pd.Series(close)
+            
+            # 计算典型价格
+            typical_price = (high_series + low_series + close_series) / 3
+            
+            # 计算移动平均
+            ma = typical_price.rolling(window=n).mean()
+            
+            # 计算平均绝对偏差
+            mad = typical_price.rolling(window=n).apply(
+                lambda x: abs(x - x.mean()).mean()
+            )
+            
+            # 计算CCI
+            cci = (typical_price - ma) / (0.015 * mad)
+            
+            result = pd.DataFrame({
+                'CCI': cci
+            })
+            
+            return result
+            
+        except Exception as e:
+            self._logger.error(f"Error calculating CCI: {e}")
+            periods = len(close)
+            return pd.DataFrame({
+                'CCI': np.random.randn(periods) * 50
+            })
     
     # =========================================
     # 其他工具函数实现
@@ -1049,15 +1275,99 @@ class PTradeAdapter(BasePlugin):
         self._check_api_availability('is_trade')
         return self.get_current_mode() == PTradeMode.TRADING
     
-    def _api_check_limit(self, security: str, query_date: Optional[str] = None) -> Dict:
+    def _api_check_limit(self, security: str, query_date: Optional[str] = None) -> Dict[str, Any]:
         """代码涨跌停状态判断"""
         self._check_api_availability('check_limit')
-        # TODO: 实现涨跌停检查
-        return {security: {'limit_up': False, 'limit_down': False}}
+        
+        try:
+            # 获取股票的历史数据
+            current_data = self._api_get_current_data()
+            
+            if security not in current_data:
+                return {security: {
+                    'limit_up': False,
+                    'limit_down': False,
+                    'limit_up_price': None,
+                    'limit_down_price': None,
+                    'current_price': None
+                }}
+            
+            data = current_data[security]
+            current_price = data.get('last_price', 0)
+            pre_close = data.get('pre_close', 0)
+            
+            if pre_close == 0:
+                return {security: {
+                    'limit_up': False,
+                    'limit_down': False,
+                    'limit_up_price': None,
+                    'limit_down_price': None,
+                    'current_price': current_price
+                }}
+            
+            # 计算涨跌停价格
+            # 普通股票涨跌停幅度为10%
+            limit_ratio = 0.10
+            
+            # 特殊处理：科创板和创业板注册制股票涨跌停幅度为20%
+            if security.startswith('688') or security.startswith('300'):
+                limit_ratio = 0.20
+            
+            # ST股票涨跌停幅度为5%
+            if 'ST' in security:
+                limit_ratio = 0.05
+            
+            limit_up_price = round(pre_close * (1 + limit_ratio), 2)
+            limit_down_price = round(pre_close * (1 - limit_ratio), 2)
+            
+            # 判断是否涨跌停
+            is_limit_up = abs(current_price - limit_up_price) < 0.01
+            is_limit_down = abs(current_price - limit_down_price) < 0.01
+            
+            return {security: {
+                'limit_up': is_limit_up,
+                'limit_down': is_limit_down,
+                'limit_up_price': limit_up_price,
+                'limit_down_price': limit_down_price,
+                'current_price': current_price
+            }}
+            
+        except Exception as e:
+            self._logger.error(f"Error checking limit for {security}: {e}")
+            return {security: {'limit_up': False, 'limit_down': False}}
     
-    # =========================================
-    # 占位符函数 - 为完整性保留
-    # =========================================
+    def _api_get_current_data(self) -> Dict[str, Dict[str, float]]:
+        """获取当前市场数据"""
+        # 模拟当前市场数据
+        return self._current_data
+    
+    def _get_current_price(self, security: str) -> float:
+        """获取证券当前价格"""
+        # 从数据插件获取当前价格
+        if self._data_plugin:
+            return self._data_plugin.get_current_price(security)
+        else:
+            # 如果数据插件不可用，返回默认价格
+            return 10.0
+    
+    def _generate_price_series(self, base_price: float, length: int) -> np.ndarray:
+        """生成价格序列"""
+        # 使用几何布朗运动模拟价格变化
+        dt = 1.0  # 时间步长
+        mu = 0.0001  # 漂移率
+        sigma = 0.02  # 波动率
+        
+        # 生成随机增量
+        random_increments = np.random.normal(0, 1, length)
+        
+        # 计算价格变化
+        price_changes = mu * dt + sigma * np.sqrt(dt) * random_increments
+        
+        # 计算累积价格
+        log_returns = np.cumsum(price_changes)
+        prices = base_price * np.exp(log_returns)
+        
+        return prices
     
     # 为了保持150+ API的完整性，这里需要实现所有其他API的占位符函数
     # 由于空间限制，这里只展示几个关键的占位符函数示例
@@ -1084,9 +1394,13 @@ class PTradeAdapter(BasePlugin):
     # 辅助方法
     # =========================================
     
-    def _validate_order(self, security: str, amount: int, 
+    def _api_validate_order(self, security: str, amount: int, 
                        limit_price: Optional[float]) -> bool:
         """验证订单"""
+        
+        if self._ptrade_context is None:
+            self._logger.warning("PTrade context is not initialized")
+            return False
         
         # 检查资金充足性（买入订单）
         if amount > 0:
@@ -1111,6 +1425,9 @@ class PTradeAdapter(BasePlugin):
     
     def _execute_order(self, order_id: str) -> None:
         """执行订单"""
+        if self._ptrade_context is None or self._ptrade_context.blotter is None:
+            raise PTradeAPIError("PTrade context or blotter is not initialized")
+        
         order = self._ptrade_context.blotter.get_order(order_id)
         if not order:
             return
@@ -1163,6 +1480,144 @@ class PTradeAdapter(BasePlugin):
         self._logger.info(f"Order executed: {order_id}, {security}, {amount} @ {execution_price}")
     
     # =========================================
+    # 策略执行和生命周期管理
+    # =========================================
+    
+    def run_strategy(self, data: Optional[Dict[str, Any]] = None) -> None:
+        """
+        运行策略主循环
+        
+        Args:
+            data: 市场数据，如果为None则使用模拟数据
+        """
+        if self._ptrade_context is None:
+            raise PTradeAPIError("PTrade context is not initialized")
+        
+        if not self._strategy_module:
+            raise PTradeAPIError("No strategy loaded")
+        
+        # 更新当前时间
+        self._ptrade_context.current_dt = datetime.now()
+        
+        # 如果没有提供数据，生成模拟数据
+        if data is None:
+            data = self._generate_market_data()
+        
+        # 执行盘前处理
+        if self._strategy_hooks['before_trading_start']:
+            try:
+                self._strategy_hooks['before_trading_start'](self._ptrade_context, data)
+            except Exception as e:
+                self._logger.error(f"Error in before_trading_start: {e}")
+        
+        # 执行主策略逻辑
+        if self._strategy_hooks['handle_data']:
+            try:
+                self._strategy_hooks['handle_data'](self._ptrade_context, data)
+            except Exception as e:
+                self._logger.error(f"Error in handle_data: {e}")
+        
+        # 执行盘后处理
+        if self._strategy_hooks['after_trading_end']:
+            try:
+                self._strategy_hooks['after_trading_end'](self._ptrade_context, data)
+            except Exception as e:
+                self._logger.error(f"Error in after_trading_end: {e}")
+        
+        # 更新投资组合价值
+        self._ptrade_context.portfolio.update_portfolio_value()
+        
+        # 发布策略运行事件
+        if self._event_bus_ref is not None:
+            self._event_bus_ref.publish(
+                "ptrade.strategy.run",
+                data={
+                    'portfolio_value': self._ptrade_context.portfolio.portfolio_value,
+                    'cash': self._ptrade_context.portfolio.cash,
+                    'returns': self._ptrade_context.portfolio.returns,
+                    'positions_count': len(self._ptrade_context.portfolio.positions)
+                },
+                source="ptrade_adapter"
+            )
+    
+    def _generate_market_data(self) -> Dict[str, Any]:
+        """生成模拟市场数据"""
+        if self._ptrade_context is None or not self._ptrade_context.universe:
+            return {}
+        
+        # 从数据插件获取市场快照
+        if self._data_plugin:
+            snapshot = self._data_plugin.get_market_snapshot(self._ptrade_context.universe)
+        else:
+            # 如果数据插件不可用，使用默认数据
+            snapshot = {}
+            for security in self._ptrade_context.universe:
+                price = 10.0
+                snapshot[security] = {
+                    'last_price': price,
+                    'pre_close': price,
+                    'open': price,
+                    'high': price,
+                    'low': price,
+                    'volume': 100000,
+                    'money': price * 100000,
+                    'datetime': datetime.now(),
+                    'price': price
+                }
+        
+        # 更新当前数据缓存
+        self._current_data = snapshot
+        
+        return snapshot
+    
+    def get_strategy_performance(self) -> Dict[str, Any]:
+        """获取策略性能统计"""
+        if self._ptrade_context is None:
+            return {}
+        
+        portfolio = self._ptrade_context.portfolio
+        
+        # 计算基本性能指标
+        return {
+            'portfolio_value': portfolio.portfolio_value,
+            'cash': portfolio.cash,
+            'positions_value': portfolio.positions_value,
+            'returns': portfolio.returns,
+            'pnl': portfolio.pnl,
+            'positions_count': len(portfolio.positions),
+            'total_trades': len(self._ptrade_context.blotter.orders) if self._ptrade_context.blotter else 0,
+            'winning_trades': len([o for o in self._ptrade_context.blotter.orders.values() if o.status == 'filled' and o.filled > 0]) if self._ptrade_context.blotter else 0,
+            'starting_cash': portfolio._starting_cash,
+            'current_datetime': self._ptrade_context.current_dt
+        }
+    
+    def execute_strategy_hook(self, hook_name: str, *args: Any, **kwargs: Any) -> Any:
+        """
+        执行策略钩子函数
+        
+        Args:
+            hook_name: 钩子名称
+            *args: 位置参数
+            **kwargs: 关键字参数
+            
+        Returns:
+            钩子函数返回值
+        """
+        if hook_name not in self._strategy_hooks:
+            raise PTradeAPIError(f"Unknown strategy hook: {hook_name}")
+        
+        hook_func = self._strategy_hooks[hook_name]
+        if not hook_func:
+            self._logger.warning(f"Strategy hook {hook_name} is not implemented")
+            return None
+        
+        try:
+            return hook_func(*args, **kwargs)
+        except Exception as e:
+            self._logger.error(f"Error executing strategy hook {hook_name}: {e}")
+            raise PTradeAPIError(f"Strategy hook {hook_name} failed: {e}")
+    
+    # =========================================
     # 策略加载和管理
     # =========================================
     
@@ -1203,7 +1658,8 @@ class PTradeAdapter(BasePlugin):
             # 执行策略初始化
             if self._strategy_hooks['initialize']:
                 self._strategy_hooks['initialize'](self._ptrade_context)
-                self._ptrade_context.initialized = True
+                if self._ptrade_context:
+                    self._ptrade_context.initialized = True
             
             self._logger.info(f"PTrade strategy loaded successfully: {strategy_path}")
             return True
@@ -1216,7 +1672,11 @@ class PTradeAdapter(BasePlugin):
         """向策略模块注入PTrade API"""
         
         # 注入全局对象 - 直接设置为context.g的引用
-        strategy_module.g = self._ptrade_context.g
+        if self._ptrade_context is not None:
+            setattr(strategy_module, 'g', self._ptrade_context.g)
+        else:
+            # 如果上下文不存在，创建一个空的全局对象
+            setattr(strategy_module, 'g', types.SimpleNamespace())
         
         # 获取策略钩子函数名称列表
         strategy_hook_names = set(self._strategy_hooks.keys())
@@ -1235,9 +1695,9 @@ class PTradeAdapter(BasePlugin):
         
         self._logger.debug(f"Injected {len(self._api_registry.list_all_apis())} PTrade APIs")
     
-    def _create_api_wrapper(self, api_func: Callable, api_name: str) -> Callable:
+    def _create_api_wrapper(self, api_func: Callable[..., Any], api_name: str) -> Callable[..., Any]:
         """创建API包装器函数"""
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 # 自动注入适配器引用作为第一个参数
                 return api_func(*args, **kwargs)
@@ -1266,132 +1726,132 @@ class PTradeAdapter(BasePlugin):
     # 以下是所有其他API的占位符实现，确保150+ API的完整性
     # 实际项目中应该根据具体需求实现这些函数
     
-    def _api_get_individual_entrust(self, stocks=None, data_count=50, start_pos=0, search_direction=1):
+    def _api_get_individual_entrust(self, stocks: Optional[List[str]] = None, data_count: int = 50, start_pos: int = 0, search_direction: int = 1) -> pd.DataFrame:
         """获取逐笔委托行情"""
         self._check_api_availability('get_individual_entrust')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_individual_transaction(self, stocks=None, data_count=50, start_pos=0, search_direction=1):
+    def _api_get_individual_transaction(self, stocks: Optional[List[str]] = None, data_count: int = 50, start_pos: int = 0, search_direction: int = 1) -> pd.DataFrame:
         """获取逐笔成交行情"""
         self._check_api_availability('get_individual_transaction')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_tick_direction(self, symbols=None, query_date=0, start_pos=0, search_direction=1, data_count=50):
+    def _api_get_tick_direction(self, symbols: Optional[List[str]] = None, query_date: int = 0, start_pos: int = 0, search_direction: int = 1, data_count: int = 50) -> pd.DataFrame:
         """获取分时成交行情"""
         self._check_api_availability('get_tick_direction')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_sort_msg(self, sort_type_grp=None, sort_field_name=None, sort_type=1, data_count=100):
+    def _api_get_sort_msg(self, sort_type_grp: Optional[str] = None, sort_field_name: Optional[str] = None, sort_type: int = 1, data_count: int = 100) -> pd.DataFrame:
         """获取板块、行业的涨幅排名"""
         self._check_api_availability('get_sort_msg')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_etf_info(self, etf_code):
+    def _api_get_etf_info(self, etf_code: str) -> pd.DataFrame:
         """获取ETF信息"""
         self._check_api_availability('get_etf_info')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_etf_stock_info(self, etf_code, security):
+    def _api_get_etf_stock_info(self, etf_code: str, security: str) -> pd.DataFrame:
         """获取ETF成分券信息"""
         self._check_api_availability('get_etf_stock_info')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_gear_price(self, sids):
+    def _api_get_gear_price(self, sids: List[str]) -> pd.DataFrame:
         """获取指定代码的档位行情价格"""
         self._check_api_availability('get_gear_price')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_cb_info(self):
+    def _api_get_cb_info(self) -> pd.DataFrame:
         """获取可转债基础信息"""
         self._check_api_availability('get_cb_info')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_stock_name(self, stocks):
+    def _api_get_stock_name(self, stocks: List[str]) -> pd.DataFrame:
         """获取股票名称"""
         self._check_api_availability('get_stock_name')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_stock_info(self, stocks, field=None):
+    def _api_get_stock_info(self, stocks: List[str], field: Optional[List[str]] = None) -> pd.DataFrame:
         """获取股票基础信息"""
         self._check_api_availability('get_stock_info')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_stock_status(self, stocks, query_type='ST', query_date=None):
+    def _api_get_stock_status(self, stocks: List[str], query_type: str = 'ST', query_date: Optional[str] = None) -> pd.DataFrame:
         """获取股票状态信息"""
         self._check_api_availability('get_stock_status')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_stock_exrights(self, stock_code, date=None):
+    def _api_get_stock_exrights(self, stock_code: str, date: Optional[str] = None) -> pd.DataFrame:
         """获取股票除权除息信息"""
         self._check_api_availability('get_stock_exrights')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_stock_blocks(self, stock_code):
+    def _api_get_stock_blocks(self, stock_code: str) -> pd.DataFrame:
         """获取股票所属板块信息"""
         self._check_api_availability('get_stock_blocks')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_index_stocks(self, index_code, date=None):
+    def _api_get_index_stocks(self, index_code: str, date: Optional[str] = None) -> pd.DataFrame:
         """获取指数成份股"""
         self._check_api_availability('get_index_stocks')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_etf_stock_list(self, etf_code):
+    def _api_get_etf_stock_list(self, etf_code: str) -> pd.DataFrame:
         """获取ETF成分券列表"""
         self._check_api_availability('get_etf_stock_list')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_industry_stocks(self, industry_code):
+    def _api_get_industry_stocks(self, industry_code: str) -> pd.DataFrame:
         """获取行业成份股"""
         self._check_api_availability('get_industry_stocks')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_ashares(self, date=None):
+    def _api_get_ashares(self, date: Optional[str] = None) -> pd.DataFrame:
         """获取指定日期A股代码列表"""
         self._check_api_availability('get_Ashares')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_etf_list(self):
+    def _api_get_etf_list(self) -> pd.DataFrame:
         """获取ETF代码"""
         self._check_api_availability('get_etf_list')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_ipo_stocks(self):
+    def _api_get_ipo_stocks(self) -> pd.DataFrame:
         """获取当日IPO申购标的"""
         self._check_api_availability('get_ipo_stocks')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_trades_file(self, save_path=''):
+    def _api_get_trades_file(self, save_path: str = '') -> pd.DataFrame:
         """获取对账数据文件"""
         self._check_api_availability('get_trades_file')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_convert_position_from_csv(self, path):
+    def _api_convert_position_from_csv(self, path: str) -> pd.DataFrame:
         """获取设置底仓的参数列表"""
         self._check_api_availability('convert_position_from_csv')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_user_name(self):
+    def _api_get_user_name(self) -> str:
         """获取登录终端的资金账号"""
         self._check_api_availability('get_user_name')
         return "test_user"  # TODO: 实现
     
-    def _api_get_deliver(self, start_date, end_date):
+    def _api_get_deliver(self, start_date: str, end_date: str) -> pd.DataFrame:
         """获取历史交割单信息"""
         self._check_api_availability('get_deliver')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_fundjour(self, start_date, end_date):
+    def _api_get_fundjour(self, start_date: str, end_date: str) -> pd.DataFrame:
         """获取历史资金流水信息"""
         self._check_api_availability('get_fundjour')
         return pd.DataFrame()  # TODO: 实现
     
-    def _api_get_research_path(self):
+    def _api_get_research_path(self) -> str:
         """获取研究路径"""
         self._check_api_availability('get_research_path')
         return "/home/research/"  # TODO: 实现
     
-    def _api_get_trade_name(self):
+    def _api_get_trade_name(self) -> str:
         """获取交易名称"""
         self._check_api_availability('get_trade_name')
         return "test_trade"  # TODO: 实现
@@ -1400,6 +1860,9 @@ class PTradeAdapter(BasePlugin):
     def _api_order_target(self, security: str, target_amount: int) -> Optional[str]:
         """目标数量下单"""
         self._check_api_availability('order_target')
+        if self._ptrade_context is None:
+            raise PTradeAPIError("PTrade context is not initialized")
+        
         current_amount = 0
         if security in self._ptrade_context.portfolio.positions:
             current_amount = self._ptrade_context.portfolio.positions[security].amount
@@ -1413,25 +1876,58 @@ class PTradeAdapter(BasePlugin):
     def _api_order_value(self, security: str, value: float) -> Optional[str]:
         """按金额下单"""
         self._check_api_availability('order_value')
-        # TODO: 获取当前价格
-        current_price = 10.0  # 模拟价格
+        
+        if value == 0:
+            return None
+        
+        # 获取当前价格
+        current_price = self._get_current_price(security)
+        if current_price <= 0:
+            self._logger.warning(f"Invalid price for security {security}: {current_price}")
+            return None
+        
+        # 计算数量，买入为正，卖出为负
         amount = int(value / current_price)
+        if amount == 0:
+            return None
         
         return self._api_order(security, amount)
     
     def _api_order_target_value(self, security: str, target_value: float) -> Optional[str]:
         """指定持仓市值买卖"""
         self._check_api_availability('order_target_value')
-        # TODO: 实现目标市值下单
-        return None
+        
+        if self._ptrade_context is None:
+            raise PTradeAPIError("PTrade context is not initialized")
+        
+        # 获取当前价格
+        current_price = self._get_current_price(security)
+        if current_price <= 0:
+            self._logger.warning(f"Invalid price for security {security}: {current_price}")
+            return None
+        
+        # 计算目标数量
+        target_amount = int(target_value / current_price) if target_value > 0 else 0
+        
+        # 获取当前持仓
+        current_amount = 0
+        if security in self._ptrade_context.portfolio.positions:
+            current_amount = self._ptrade_context.portfolio.positions[security].amount
+        
+        # 计算需要调整的数量
+        order_amount = target_amount - current_amount
+        if order_amount == 0:
+            return None
+        
+        return self._api_order(security, order_amount)
     
-    def _api_order_market(self, security: str, amount: int, market_type=None, limit_price=None) -> Optional[str]:
+    def _api_order_market(self, security: str, amount: int, market_type: Optional[str] = None, limit_price: Optional[float] = None) -> Optional[str]:
         """按市价进行委托"""
         self._check_api_availability('order_market')
         # TODO: 实现市价下单
         return self._api_order(security, amount)
     
-    def _api_ipo_stocks_order(self, market_type=None, black_stocks=None) -> Dict:
+    def _api_ipo_stocks_order(self, market_type: Optional[str] = None, black_stocks: Optional[List[str]] = None) -> Dict[str, Any]:
         """新股一键申购"""
         self._check_api_availability('ipo_stocks_order')
         # TODO: 实现新股申购
@@ -1443,37 +1939,71 @@ class PTradeAdapter(BasePlugin):
         # TODO: 实现盘后委托
         return None
     
-    def _api_after_trading_cancel_order(self, order_param) -> bool:
+    def _api_after_trading_cancel_order(self, order_param: Any) -> bool:
         """盘后固定价委托撤单"""
         self._check_api_availability('after_trading_cancel_order')
         # TODO: 实现盘后撤单
         return False
     
-    def _api_etf_basket_order(self, etf_code: str, amount: int, price_style=None, position=True, info=None) -> Optional[str]:
+    def _api_etf_basket_order(self, etf_code: str, amount: int, price_style: Optional[str] = None, position: bool = True, info: Optional[Any] = None) -> Optional[str]:
         """ETF成分券篮子下单"""
         self._check_api_availability('etf_basket_order')
         # TODO: 实现ETF篮子下单
         return None
     
-    def _api_etf_purchase_redemption(self, etf_code: str, amount: int, limit_price=None) -> Optional[str]:
+    def _api_etf_purchase_redemption(self, etf_code: str, amount: int, limit_price: Optional[float] = None) -> Optional[str]:
         """ETF基金申赎接口"""
         self._check_api_availability('etf_purchase_redemption')
         # TODO: 实现ETF申赎
         return None
     
-    def _api_get_positions(self, security_list: List[str]) -> Dict:
+    def _api_get_positions(self, security_list: List[str]) -> Dict[str, Any]:
         """获取多支股票持仓信息"""
         self._check_api_availability('get_positions')
-        # TODO: 实现多股票持仓查询
-        return {}
+        
+        if self._ptrade_context is None:
+            raise PTradeAPIError("PTrade context is not initialized")
+        
+        positions = {}
+        for security in security_list:
+            if security in self._ptrade_context.portfolio.positions:
+                position = self._ptrade_context.portfolio.positions[security]
+                positions[security] = {
+                    'sid': position.sid,
+                    'amount': position.amount,
+                    'enable_amount': position.enable_amount,
+                    'cost_basis': position.cost_basis,
+                    'last_sale_price': position.last_sale_price,
+                    'market_value': position.market_value,
+                    'pnl': position.pnl,
+                    'returns': position.returns,
+                    'today_amount': position.today_amount,
+                    'business_type': position.business_type
+                }
+            else:
+                # 如果没有持仓，返回0持仓信息
+                positions[security] = {
+                    'sid': security,
+                    'amount': 0,
+                    'enable_amount': 0,
+                    'cost_basis': 0.0,
+                    'last_sale_price': 0.0,
+                    'market_value': 0.0,
+                    'pnl': 0.0,
+                    'returns': 0.0,
+                    'today_amount': 0,
+                    'business_type': 'stock'
+                }
+        
+        return positions
     
-    def _api_order_tick(self, sid: str, amount: int, priceGear='1', limit_price=None) -> Optional[str]:
+    def _api_order_tick(self, sid: str, amount: int, priceGear: str = '1', limit_price: Optional[float] = None) -> Optional[str]:
         """tick行情触发买卖"""
         self._check_api_availability('order_tick')
         # TODO: 实现tick下单
         return None
     
-    def _api_cancel_order_ex(self, order_param) -> bool:
+    def _api_cancel_order_ex(self, order_param: Any) -> bool:
         """撤单扩展"""
         self._check_api_availability('cancel_order_ex')
         # TODO: 实现扩展撤单
@@ -1485,60 +2015,105 @@ class PTradeAdapter(BasePlugin):
         # TODO: 实现债转股
         return None
     
-    def _api_get_open_orders(self, security=None) -> List[Order]:
+    def _api_get_open_orders(self, security: Optional[str] = None) -> List[Order]:
         """获取未完成订单"""
         self._check_api_availability('get_open_orders')
-        # TODO: 实现未完成订单查询
-        return []
+        
+        if self._ptrade_context is None or self._ptrade_context.blotter is None:
+            raise PTradeAPIError("PTrade context or blotter is not initialized")
+        
+        open_orders = []
+        for order in self._ptrade_context.blotter.orders.values():
+            # 只返回未完成的订单（非filled、cancelled、rejected状态）
+            if order.status in ['new', 'submitted', 'partially_filled']:
+                if security is None or order.symbol == security:
+                    open_orders.append(order)
+        
+        return open_orders
     
     def _api_get_order(self, order_id: str) -> Optional[Order]:
         """获取指定订单"""
         self._check_api_availability('get_order')
+        if self._ptrade_context is None or self._ptrade_context.blotter is None:
+            raise PTradeAPIError("PTrade context or blotter is not initialized")
         return self._ptrade_context.blotter.get_order(order_id)
     
-    def _api_get_orders(self, security=None) -> List[Order]:
+    def _api_get_orders(self, security: Optional[str] = None) -> List[Order]:
         """获取全部订单"""
         self._check_api_availability('get_orders')
-        # TODO: 实现全部订单查询
-        return list(self._ptrade_context.blotter.orders.values())
+        
+        if self._ptrade_context is None or self._ptrade_context.blotter is None:
+            raise PTradeAPIError("PTrade context or blotter is not initialized")
+        
+        orders = []
+        for order in self._ptrade_context.blotter.orders.values():
+            if security is None or order.symbol == security:
+                orders.append(order)
+        
+        # 按时间排序，最新的在前
+        orders.sort(key=lambda o: o.dt, reverse=True)
+        return orders
     
-    def _api_get_all_orders(self, security=None) -> List[Dict]:
+    def _api_get_all_orders(self, security: Optional[str] = None) -> List[Dict[str, Any]]:
         """获取账户当日全部订单"""
         self._check_api_availability('get_all_orders')
         # TODO: 实现账户全部订单查询
         return []
     
-    def _api_get_trades(self, security=None) -> List[Dict]:
+    def _api_get_trades(self, security: Optional[str] = None) -> List[Dict[str, Any]]:
         """获取当日成交订单"""
         self._check_api_availability('get_trades')
-        # TODO: 实现成交订单查询
-        return []
+        
+        if self._ptrade_context is None or self._ptrade_context.blotter is None:
+            raise PTradeAPIError("PTrade context or blotter is not initialized")
+        
+        trades = []
+        for order in self._ptrade_context.blotter.orders.values():
+            # 只返回已成交的订单
+            if order.status == 'filled' and order.filled != 0:
+                if security is None or order.symbol == security:
+                    trades.append({
+                        'order_id': order.id,
+                        'security': order.symbol,
+                        'amount': order.filled,
+                        'price': order.limit or 0.0,
+                        'filled_amount': order.filled,
+                        'commission': 0.0,  # 计算手续费
+                        'datetime': order.dt,
+                        'side': 'buy' if order.amount > 0 else 'sell'
+                    })
+        
+        # 按时间排序
+        trades.sort(key=lambda t: t['datetime'], reverse=True)
+        return trades
     
     def _api_get_position(self, security: str) -> Optional[Position]:
         """获取持仓信息"""
         self._check_api_availability('get_position')
+        if self._ptrade_context is None:
+            raise PTradeAPIError("PTrade context is not initialized")
         return self._ptrade_context.portfolio.positions.get(security)
     
     # 其他工具函数占位符
-    def _api_send_email(self, send_email_info, get_email_info, smtp_code, info='', path='', subject='') -> bool:
+    def _api_send_email(self, send_email_info: str, get_email_info: str, smtp_code: str, info: str = '', path: str = '', subject: str = '') -> bool:
         """发送邮箱信息"""
         self._check_api_availability('send_email')
         # TODO: 实现邮件发送
         return True
     
-    def _api_send_qywx(self, corp_id, secret, agent_id, info='', path='', toparty='', touser='', totag='') -> bool:
+    def _api_send_qywx(self, corp_id: str, secret: str, agent_id: str, info: str = '', path: str = '', toparty: str = '', touser: str = '', totag: str = '') -> bool:
         """发送企业微信信息"""
         self._check_api_availability('send_qywx')
         # TODO: 实现企业微信发送
         return True
     
-    def _api_permission_test(self, account=None, end_date=None) -> bool:
+    def _api_permission_test(self, account: Optional[str] = None, end_date: Optional[str] = None) -> bool:
         """权限校验"""
         self._check_api_availability('permission_test')
         # TODO: 实现权限检查
         return True
     
-    def _api_create_dir(self, user_path=None) -> bool:
+    def _api_create_dir(self, user_path: Optional[str] = None) -> bool:
         """创建文件路径"""
         self._check_api_availability('create_dir')
         # TODO: 实现目录创建
@@ -1548,7 +2123,7 @@ class PTradeAdapter(BasePlugin):
     # 公共接口
     # =========================================
     
-    def get_context(self) -> Optional[PTradeContext]:
+    def get_ptrade_context(self) -> Optional[PTradeContext]:
         """获取PTrade上下文"""
         return self._ptrade_context
     
@@ -1558,6 +2133,7 @@ class PTradeAdapter(BasePlugin):
     
     def get_api_stats(self) -> Dict[str, Any]:
         """获取API统计信息"""
+        current_mode = self.get_current_mode()
         return {
             'total_apis': len(self._api_registry.list_all_apis()),
             'lifecycle_apis': len(self._api_registry.get_apis_by_category('lifecycle')),
@@ -1566,7 +2142,7 @@ class PTradeAdapter(BasePlugin):
             'trading_apis': len(self._api_registry.get_apis_by_category('trading')),
             'calculations_apis': len(self._api_registry.get_apis_by_category('calculations')),
             'utils_apis': len(self._api_registry.get_apis_by_category('utils')),
-            'current_mode': self.get_current_mode().value if self.get_current_mode() else None,
+            'current_mode': current_mode.value if current_mode else None,
             'strategy_loaded': self._strategy_module is not None,
             'portfolio_value': self._ptrade_context.portfolio.portfolio_value if self._ptrade_context else 0
         }
@@ -1587,9 +2163,9 @@ class PTradeAdapter(BasePlugin):
     
     def _cleanup_event_listeners(self) -> None:
         """清理事件监听器"""
-        for listener_id in self._event_listeners:
-            if hasattr(self, '_event_bus'):
-                self._event_bus.unsubscribe(listener_id)
+        if self._event_bus_ref is not None:
+            for listener_id in self._event_listeners:
+                self._event_bus_ref.unsubscribe(listener_id)
         self._event_listeners.clear()
     
     def _setup_event_listeners(self) -> None:
@@ -1597,10 +2173,10 @@ class PTradeAdapter(BasePlugin):
         # 监听插件系统事件
         pass
     
-    def __enter__(self):
+    def __enter__(self) -> 'PTradeAdapter':
         """上下文管理器入口"""
         return self
     
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Optional[type], exc_val: Optional[Exception], exc_tb: Optional[Any]) -> None:
         """上下文管理器出口"""
         self.shutdown()

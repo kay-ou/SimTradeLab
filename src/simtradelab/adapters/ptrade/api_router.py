@@ -180,7 +180,7 @@ class HealthChecker:
         """检查单个端点的健康状态"""
         try:
             adapter = endpoint.adapter
-            if not adapter or adapter.get_state() != PluginState.STARTED:
+            if not adapter or adapter.get_status()['state'] != PluginState.STARTED:
                 endpoint.health_status = HealthStatus.UNHEALTHY
                 return
             
@@ -442,7 +442,7 @@ class APIRouter(BasePlugin):
         Returns:
             适配器ID
         """
-        adapter_id = f"{adapter.get_metadata().name}_{id(adapter)}"
+        adapter_id = f"{adapter.metadata.name}_{id(adapter)}"
         
         if adapter_id in self._adapters:
             raise APIRouterError(f"Adapter {adapter_id} already registered")
@@ -522,7 +522,7 @@ class APIRouter(BasePlugin):
                     if not any(ep.adapter_id == adapter_id for ep in route.endpoints):
                         route.endpoints.append(endpoint)
     
-    def call_api(self, api_name: str, *args, session_id: Optional[str] = None, **kwargs) -> Any:
+    def call_api(self, api_name: str, *args: Any, session_id: Optional[str] = None, **kwargs: Any) -> Any:
         """
         调用API
         
@@ -613,7 +613,7 @@ class APIRouter(BasePlugin):
         # 所有重试都失败了
         raise RouteError(f"API call failed after {route.retry_count + 1} attempts: {last_error}")
     
-    def _execute_api_call(self, endpoint: APIEndpoint, api_name: str, *args, **kwargs) -> Any:
+    def _execute_api_call(self, endpoint: APIEndpoint, api_name: str, *args: Any, **kwargs: Any) -> Any:
         """执行API调用"""
         endpoint.current_connections += 1
         endpoint.total_requests += 1
@@ -623,7 +623,7 @@ class APIRouter(BasePlugin):
             adapter = endpoint.adapter
             
             # 检查适配器状态
-            if adapter.get_state() != PluginState.STARTED:
+            if adapter.get_status()['state'] != PluginState.STARTED:
                 raise RouteError(f"Adapter {endpoint.adapter_id} is not started")
             
             # 检查API可用性
@@ -685,7 +685,7 @@ class APIRouter(BasePlugin):
     
     def _setup_session_cleanup(self) -> None:
         """设置会话清理"""
-        def cleanup_sessions():
+        def cleanup_sessions() -> None:
             while True:
                 try:
                     now = datetime.now()
@@ -799,7 +799,7 @@ class APIRouter(BasePlugin):
     
     def _get_error_distribution(self, failed_metrics: List[APICallMetrics]) -> Dict[str, int]:
         """获取错误分布"""
-        error_counts = defaultdict(int)
+        error_counts: Dict[str, int] = defaultdict(int)
         for metrics in failed_metrics:
             error_type = type(Exception(metrics.error_message or "unknown")).__name__
             error_counts[error_type] += 1

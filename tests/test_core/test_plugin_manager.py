@@ -755,3 +755,184 @@ class TestPluginManagerThreadSafety:
         stats = plugin_manager.get_stats()
         assert stats['registered'] >= 0
         assert stats['loaded'] >= 0
+
+
+class TestPluginManagerErrorHandling:
+    """测试插件管理器错误处理"""
+    
+    def test_plugin_manager_discovery_error_handling(self):
+        """测试插件发现错误处理"""
+        manager = PluginManager()
+        
+        # 测试不存在的目录
+        with pytest.raises(PluginDiscoveryError, match="does not exist"):
+            manager.load_plugins_from_directory("/nonexistent/directory")
+        
+        # 测试文件而非目录
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".py") as temp_file:
+            with pytest.raises(PluginDiscoveryError, match="is not a directory"):
+                manager.load_plugins_from_directory(temp_file.name)
+    
+    def test_plugin_manager_load_from_invalid_file(self):
+        """测试从无效文件加载插件"""
+        manager = PluginManager()
+        
+        # 创建一个无效的Python文件
+        import tempfile
+        import os
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            invalid_file = os.path.join(temp_dir, "invalid.py")
+            with open(invalid_file, 'w') as f:
+                f.write("invalid python syntax !!!")
+            
+            # 应该记录警告但不崩溃
+            with patch.object(manager._logger, 'warning') as mock_warning:
+                loaded = manager.load_plugins_from_directory(temp_dir)
+                assert len(loaded) == 0
+                # 应该记录语法错误警告
+                mock_warning.assert_called()
+    
+    def test_plugin_manager_package_loading(self):
+        """测试从包加载插件"""
+        manager = PluginManager()
+        
+        import tempfile
+        import os
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 创建一个包目录
+            pkg_dir = os.path.join(temp_dir, "test_package")
+            os.makedirs(pkg_dir)
+            
+            # 创建__init__.py文件
+            init_file = os.path.join(pkg_dir, "__init__.py")
+            with open(init_file, 'w') as f:
+                f.write("""
+from simtradelab.plugins.base import BasePlugin, PluginMetadata
+
+class TestPackagePlugin(BasePlugin):
+    METADATA = PluginMetadata(name="test_package_plugin", version="1.0.0")
+    
+    def _on_initialize(self):
+        pass
+    
+    def _on_start(self):
+        pass
+    
+    def _on_stop(self):
+        pass
+""")
+            
+            # 加载包
+            loaded = manager.load_plugins_from_directory(temp_dir)
+            assert len(loaded) == 1
+            assert "test_package_plugin" in loaded
+            assert "test_package_plugin" in manager._plugins
+    
+    def test_plugin_manager_skip_dunder_files(self):
+        """测试跳过双下划线文件"""
+        manager = PluginManager()
+        
+        import tempfile
+        import os
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 创建__init__.py文件
+            init_file = os.path.join(temp_dir, "__init__.py")
+            with open(init_file, 'w') as f:
+                f.write("# This should be skipped")
+            
+            # 创建__pycache__目录
+            pycache_dir = os.path.join(temp_dir, "__pycache__")
+            os.makedirs(pycache_dir)
+            
+            # 加载插件
+            loaded = manager.load_plugins_from_directory(temp_dir)
+            assert len(loaded) == 0
+    
+    def test_plugin_manager_builtin_event_handlers(self):
+        """测试内置事件处理器"""
+        manager = PluginManager()
+        
+        # 测试插件加载事件
+        from simtradelab.core.event_bus import Event
+        
+        with patch.object(manager._logger, 'debug') as mock_debug:
+            manager._on_plugin_loaded(Event("plugin.loaded", data={"plugin_name": "test"}))
+            mock_debug.assert_called_with("Plugin loaded event: test")
+        
+        # 测试插件启动事件
+        with patch.object(manager._logger, 'debug') as mock_debug:
+            manager._on_plugin_started(Event("plugin.started", data={"plugin_name": "test"}))
+            mock_debug.assert_called_with("Plugin started event: test")
+        
+        # 测试插件停止事件
+        with patch.object(manager._logger, 'debug') as mock_debug:
+            manager._on_plugin_stopped(Event("plugin.stopped", data={"plugin_name": "test"}))
+            mock_debug.assert_called_with("Plugin stopped event: test")
+        
+        # 测试插件卸载事件
+        with patch.object(manager._logger, 'debug') as mock_debug:
+            manager._on_plugin_unloaded(Event("plugin.unloaded", data={"plugin_name": "test"}))
+            mock_debug.assert_called_with("Plugin unloaded event: test")
+    
+    def test_plugin_manager_context_manager(self):
+        """测试插件管理器上下文管理器"""
+        with PluginManager() as manager:
+            # 注册插件
+            manager.register_plugin(TestPluginA)
+            assert len(manager._plugins) == 1
+        
+        # 退出上下文管理器后应该关闭
+        assert len(manager._plugins) == 0
+    
+    def test_plugin_manager_error_handling_in_load_unload(self):
+        """测试加载卸载过程中的错误处理"""
+        manager = PluginManager()
+        
+        # 注册一个会在卸载时失败的插件
+        class FailingUnloadPlugin(BasePlugin):
+            METADATA = PluginMetadata(name="failing_unload", version="1.0.0")
+            
+            def _on_initialize(self):
+                pass
+            
+            def _on_start(self):
+                pass
+            
+            def _on_stop(self):
+                raise RuntimeError("Stop failed")
+        
+        manager.register_plugin(FailingUnloadPlugin)
+        manager.load_plugin("failing_unload")
+        manager.start_plugin("failing_unload")
+        
+        # 卸载应该记录错误但不崩溃
+        with patch.object(manager._logger, 'error') as mock_error:
+            result = manager.unload_plugin("failing_unload")
+            assert result is False
+            mock_error.assert_called()
+    
+    def test_plugin_manager_plugin_without_metadata(self):
+        """测试没有元数据的插件"""
+        manager = PluginManager()
+        
+        class NoMetadataPlugin(BasePlugin):
+            def _on_initialize(self):
+                pass
+            
+            def _on_start(self):
+                pass
+            
+            def _on_stop(self):
+                pass
+        
+        # 应该使用默认元数据
+        plugin_name = manager.register_plugin(NoMetadataPlugin)
+        assert plugin_name == "NoMetadataPlugin"
+        
+        plugin_info = manager.get_plugin_info(plugin_name)
+        assert plugin_info['name'] == "NoMetadataPlugin"
+        assert plugin_info['version'] == "1.0.0"
