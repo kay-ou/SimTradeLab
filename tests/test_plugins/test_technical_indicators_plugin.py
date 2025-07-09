@@ -409,9 +409,16 @@ class TestPTradeAdapterIntegration:
     @pytest.fixture
     def adapter(self, mock_plugin_manager):
         """创建测试适配器"""
+        from simtradelab.core.event_bus import EventBus
+
         metadata = PTradeAdapter.METADATA
         config = PluginConfig(config={"initial_cash": 1000000})
         adapter = PTradeAdapter(metadata, config)
+
+        # 设置事件总线
+        event_bus = EventBus()
+        adapter.set_event_bus(event_bus)
+
         adapter.set_plugin_manager(mock_plugin_manager)
         adapter.initialize()
         return adapter
@@ -434,8 +441,8 @@ class TestPTradeAdapterIntegration:
             [10.0, 10.1, 10.2, 9.9, 10.3, 10.4, 10.1, 10.5, 10.6, 10.0]
         )
 
-        # 通过PTrade API调用
-        result = adapter._api_get_macd(close_data)
+        # 通过PTrade API调用 - 使用路由器方法
+        result = adapter._api_router.get_MACD(close_data)
 
         assert isinstance(result, pd.DataFrame)
         assert list(result.columns) == ["MACD", "MACD_signal", "MACD_hist"]
@@ -455,8 +462,8 @@ class TestPTradeAdapterIntegration:
             [10.0, 10.1, 10.2, 9.9, 10.3, 10.4, 10.1, 10.5, 10.6, 10.0]
         )
 
-        # 通过PTrade API调用
-        result = adapter._api_get_kdj(high_data, low_data, close_data)
+        # 通过PTrade API调用 - 使用路由器方法
+        result = adapter._api_router.get_KDJ(high_data, low_data, close_data)
 
         assert isinstance(result, pd.DataFrame)
         assert list(result.columns) == ["K", "D", "J"]
@@ -468,8 +475,8 @@ class TestPTradeAdapterIntegration:
             [10.0, 10.1, 10.2, 9.9, 10.3, 10.4, 10.1, 10.5, 10.6, 10.0]
         )
 
-        # 通过PTrade API调用
-        result = adapter._api_get_rsi(close_data)
+        # 通过PTrade API调用 - 使用路由器方法
+        result = adapter._api_router.get_RSI(close_data)
 
         assert isinstance(result, pd.DataFrame)
         assert list(result.columns) == ["RSI"]
@@ -485,8 +492,8 @@ class TestPTradeAdapterIntegration:
             [10.0, 10.1, 10.2, 9.9, 10.3, 10.4, 10.1, 10.5, 10.6, 10.0]
         )
 
-        # 通过PTrade API调用
-        result = adapter._api_get_cci(high_data, low_data, close_data)
+        # 通过PTrade API调用 - 使用路由器方法
+        result = adapter._api_router.get_CCI(high_data, low_data, close_data)
 
         assert isinstance(result, pd.DataFrame)
         assert list(result.columns) == ["CCI"]
@@ -502,8 +509,8 @@ class TestPTradeAdapterIntegration:
             [10.0, 10.1, 10.2, 9.9, 10.3, 10.4, 10.1, 10.5, 10.6, 10.0]
         )
 
-        # 应该回退到内部实现
-        result = adapter._api_get_macd(close_data)
+        # 应该回退到内部实现 - 使用路由器方法
+        result = adapter._api_router.get_MACD(close_data)
 
         assert isinstance(result, pd.DataFrame)
         assert list(result.columns) == ["MACD", "MACD_signal", "MACD_hist"]
@@ -518,11 +525,11 @@ class TestPTradeAdapterIntegration:
             [10.0, 10.1, 10.2, 9.9, 10.3, 10.4, 10.1, 10.5, 10.6, 10.0]
         )
 
-        # 第一次计算
-        result1 = adapter._api_get_macd(close_data)
+        # 第一次计算 - 直接通过插件调用
+        result1 = adapter._indicators_plugin.calculate_macd(close_data)
 
         # 第二次计算（应该使用缓存）
-        result2 = adapter._api_get_macd(close_data)
+        result2 = adapter._indicators_plugin.calculate_macd(close_data)
 
         # 结果应该相同
         pd.testing.assert_frame_equal(result1, result2)

@@ -4,6 +4,6 @@ PTrade 兼容层适配器
 """
 
 from .adapter import PTradeAdapter, PTradeMode
-from .api_router import APIRouter
+from .api_router import BaseAPIRouter
 
-__all__ = ["PTradeAdapter", "PTradeMode", "APIRouter"]
+__all__ = ["PTradeAdapter", "PTradeMode", "BaseAPIRouter"]

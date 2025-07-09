@@ -1,946 +1,1367 @@
 # -*- coding: utf-8 -*-
 """
-PTrade API 路由系统
+PTrade API 路由器
 
-提供智能的API路由、负载均衡、故障转移和性能监控功能。
-支持多个PTrade适配器实例之间的动态路由和负载分配。
+根据运行模式（回测、实盘交易、研究）将API调用路由到不同的实现。
+符合 SimTradeLab v4.0 架构的模式感知适配器设计。
 """
-
-import asyncio
-import hashlib
 import logging
-import statistics
-import threading
-import time
-import weakref
-from collections import defaultdict, deque
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from ...core.event_bus import Event, EventBus, EventPriority
-from ...exceptions import SimTradeLabError
-from ...plugins.base import BasePlugin, PluginConfig, PluginMetadata, PluginState
-from .adapter import PTradeAdapter, PTradeMode
+import numpy as np
+import pandas as pd
+
+from ...core.event_bus import EventBus
+
+if TYPE_CHECKING:
+    from .adapter import Order, Position, PTradeContext
 
 
-class APIRouterError(SimTradeLabError):
-    """API路由器异常"""
+class BaseAPIRouter(ABC):
+    """API路由器基类 - 定义完整的 PTrade API 接口"""
 
-    pass
+    def __init__(self, context: "PTradeContext", event_bus: Optional[EventBus] = None):
+        self.context = context
+        self.event_bus = event_bus
+        self._logger = logging.getLogger(self.__class__.__name__)
+
+    # ==========================================
+    # 交易相关 API (核心方法)
+    # ==========================================
+
+    @abstractmethod
+    def order(
+        self, security: str, amount: int, limit_price: Optional[float] = None
+    ) -> Optional[str]:
+        """下单"""
+        pass
+
+    @abstractmethod
+    def order_value(
+        self, security: str, value: float, limit_price: Optional[float] = None
+    ) -> Optional[str]:
+        """按价值下单"""
+        pass
+
+    @abstractmethod
+    def cancel_order(self, order_id: str) -> bool:
+        """撤单"""
+        pass
+
+    @abstractmethod
+    def get_position(self, security: str) -> Optional["Position"]:
+        """获取持仓信息"""
+        pass
+
+    @abstractmethod
+    def get_positions(self, security_list: List[str]) -> Dict[str, Any]:
+        """获取多支股票持仓信息"""
+        pass
+
+    @abstractmethod
+    def get_open_orders(self, security: Optional[str] = None) -> List["Order"]:
+        """获取未完成订单"""
+        pass
+
+    @abstractmethod
+    def get_order(self, order_id: str) -> Optional["Order"]:
+        """获取指定订单"""
+        pass
+
+    @abstractmethod
+    def get_orders(self, security: Optional[str] = None) -> List["Order"]:
+        """获取全部订单"""
+        pass
+
+    @abstractmethod
+    def get_trades(self, security: Optional[str] = None) -> List[Dict[str, Any]]:
+        """获取当日成交订单"""
+        pass
+
+    # ==========================================
+    # 数据获取 API (核心方法)
+    # ==========================================
+
+    @abstractmethod
+    def get_history(
+        self,
+        count: int,
+        frequency: str = "1d",
+        field: Union[str, List[str]] = [
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "money",
+            "price",
+        ],
+        security_list: Optional[List[str]] = None,
+        fq: Optional[str] = None,
+        include: bool = False,
+        fill: str = "nan",
+        is_dict: bool = False,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Union[pd.DataFrame, Dict[str, Any]]:
+        """获取历史行情数据"""
+        pass
+
+    @abstractmethod
+    def get_price(
+        self,
+        security: Union[str, List[str]],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        frequency: str = "1d",
+        fields: Optional[Union[str, List[str]]] = None,
+        count: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """获取价格数据"""
+        pass
+
+    @abstractmethod
+    def get_snapshot(self, security_list: List[str]) -> pd.DataFrame:
+        """获取行情快照"""
+        pass
+
+    # ==========================================
+    # 设置函数 API
+    # ==========================================
+
+    @abstractmethod
+    def set_universe(self, securities: List[str]) -> None:
+        """设置股票池"""
+        pass
+
+    @abstractmethod
+    def set_benchmark(self, benchmark: str) -> None:
+        """设置基准"""
+        pass
+
+    # ==========================================
+    # 计算函数 API
+    # ==========================================
+
+    @abstractmethod
+    def get_MACD(
+        self, close: np.ndarray, short: int = 12, long: int = 26, m: int = 9
+    ) -> pd.DataFrame:
+        """获取MACD指标"""
+        pass
+
+    @abstractmethod
+    def get_KDJ(
+        self,
+        high: np.ndarray,
+        low: np.ndarray,
+        close: np.ndarray,
+        n: int = 9,
+        m1: int = 3,
+        m2: int = 3,
+    ) -> pd.DataFrame:
+        """获取KDJ指标"""
+        pass
+
+    @abstractmethod
+    def get_RSI(self, close: np.ndarray, n: int = 6) -> pd.DataFrame:
+        """获取RSI指标"""
+        pass
+
+    @abstractmethod
+    def get_CCI(
+        self, high: np.ndarray, low: np.ndarray, close: np.ndarray, n: int = 14
+    ) -> pd.DataFrame:
+        """获取CCI指标"""
+        pass
+
+    # ==========================================
+    # 工具函数 API
+    # ==========================================
+
+    @abstractmethod
+    def log(self, content: str, level: str = "info") -> None:
+        """日志记录"""
+        pass
+
+    @abstractmethod
+    def check_limit(
+        self, security: str, query_date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """代码涨跌停状态判断"""
+        pass
+
+    # ==========================================
+    # 模式相关的处理方法
+    # ==========================================
+
+    @abstractmethod
+    def handle_data(self, data: Dict[str, Any]) -> None:
+        """处理市场数据"""
+        pass
+
+    @abstractmethod
+    def is_mode_supported(self, api_name: str) -> bool:
+        """检查API是否在当前模式下支持"""
+        pass
+
+    def validate_and_execute(
+        self, api_name: str, method_func: Any, *args: Any, **kwargs: Any
+    ) -> Any:
+        """验证并执行API调用"""
+        if not self.is_mode_supported(api_name):
+            raise ValueError(f"API '{api_name}' is not supported in current mode")
+
+        try:
+            return method_func(*args, **kwargs)
+        except Exception as e:
+            self._logger.error(f"Error executing API '{api_name}': {e}")
+            raise
 
 
-class RouteError(APIRouterError):
-    """路由异常"""
+class BacktestAPIRouter(BaseAPIRouter):
+    """回测模式API路由器"""
 
-    pass
+    def __init__(
+        self,
+        context: "PTradeContext",
+        event_bus: Optional[EventBus] = None,
+        slippage_rate: float = 0.0,
+        commission_rate: float = 0.0,
+    ):
+        super().__init__(context, event_bus)
+        self._slippage_rate = slippage_rate
+        self._commission_rate = commission_rate
+        self._supported_apis = {
+            "order",
+            "order_value",
+            "cancel_order",
+            "get_position",
+            "get_positions",
+            "get_open_orders",
+            "get_order",
+            "get_orders",
+            "get_trades",
+            "get_history",
+            "get_price",
+            "get_snapshot",
+            "set_universe",
+            "set_benchmark",
+            "get_MACD",
+            "get_KDJ",
+            "get_RSI",
+            "get_CCI",
+            "log",
+            "check_limit",
+            "handle_data",
+        }
 
+    def is_mode_supported(self, api_name: str) -> bool:
+        """检查API是否在回测模式下支持"""
+        return api_name in self._supported_apis
 
-class LoadBalancerError(APIRouterError):
-    """负载均衡器异常"""
+    def order(
+        self, security: str, amount: int, limit_price: Optional[float] = None
+    ) -> Optional[str]:
+        """回测模式下单逻辑"""
+        if not self.context.blotter:
+            return None
+        
+        # 检查资金是否充足（仅对买入订单）
+        if amount > 0:  # 买入订单
+            price = limit_price or 10.0
+            execution_price = price * (1 + self._slippage_rate)
+            commission = abs(amount * execution_price * self._commission_rate)
+            required_cash = amount * execution_price + commission
+            
+            if self.context.portfolio.cash < required_cash:
+                self._logger.warning(f"Order rejected: insufficient cash for {security}")
+                return None
+            
+        order_id = self.context.blotter.create_order(security, amount, limit_price)
+        self._simulate_order_execution(order_id)
+        return order_id
 
-    pass
+    def order_value(
+        self, security: str, value: float, limit_price: Optional[float] = None
+    ) -> Optional[str]:
+        """按价值下单"""
+        # 获取当前价格
+        current_price = limit_price or 10.0  # 默认价格
+        
+        # 计算股数
+        amount = int(value / current_price)
+        if amount <= 0:
+            return None
+            
+        return self.order(security, amount, limit_price)
 
+    def cancel_order(self, order_id: str) -> bool:
+        """回测模式撤单"""
+        if self.context.blotter:
+            return self.context.blotter.cancel_order(order_id)
+        return False
 
-class HealthCheckError(APIRouterError):
-    """健康检查异常"""
+    def get_position(self, security: str) -> Optional["Position"]:
+        """获取持仓信息"""
+        return self.context.portfolio.positions.get(security)
 
-    pass
+    def get_positions(self, security_list: List[str]) -> Dict[str, Any]:
+        """获取多支股票持仓信息"""
+        positions = {}
+        for security in security_list:
+            position = self.get_position(security)
+            if position:
+                positions[security] = {
+                    "sid": position.sid,
+                    "amount": position.amount,
+                    "enable_amount": position.enable_amount,
+                    "cost_basis": position.cost_basis,
+                    "last_sale_price": position.last_sale_price,
+                    "market_value": position.market_value,
+                    "pnl": position.pnl,
+                    "returns": position.returns,
+                    "today_amount": position.today_amount,
+                    "business_type": position.business_type,
+                }
+            else:
+                positions[security] = {
+                    "sid": security,
+                    "amount": 0,
+                    "enable_amount": 0,
+                    "cost_basis": 0.0,
+                    "last_sale_price": 0.0,
+                    "market_value": 0.0,
+                    "pnl": 0.0,
+                    "returns": 0.0,
+                    "today_amount": 0,
+                    "business_type": "stock",
+                }
+        return positions
 
+    def get_open_orders(self, security: Optional[str] = None) -> List["Order"]:
+        """获取未完成订单"""
+        if not self.context.blotter:
+            return []
 
-class RoutingStrategy(Enum):
-    """路由策略"""
+        open_orders = []
+        for order in self.context.blotter.orders.values():
+            if order.status in ["new", "submitted", "partially_filled"]:
+                if security is None or order.symbol == security:
+                    open_orders.append(order)
+        return open_orders
 
-    ROUND_ROBIN = "round_robin"  # 轮询
-    WEIGHTED_ROUND_ROBIN = "weighted_rr"  # 加权轮询
-    LEAST_CONNECTIONS = "least_conn"  # 最少连接数
-    LEAST_RESPONSE_TIME = "least_rt"  # 最短响应时间
-    CONSISTENT_HASH = "consistent_hash"  # 一致性哈希
-    RANDOM = "random"  # 随机
-    FAILOVER = "failover"  # 故障转移
+    def get_order(self, order_id: str) -> Optional["Order"]:
+        """获取指定订单"""
+        if self.context.blotter:
+            return self.context.blotter.get_order(order_id)
+        return None
 
+    def get_orders(self, security: Optional[str] = None) -> List["Order"]:
+        """获取全部订单"""
+        if not self.context.blotter:
+            return []
 
-class HealthStatus(Enum):
-    """健康状态"""
+        orders = []
+        for order in self.context.blotter.orders.values():
+            if security is None or order.symbol == security:
+                orders.append(order)
 
-    HEALTHY = "healthy"
-    UNHEALTHY = "unhealthy"
-    DEGRADED = "degraded"
-    UNKNOWN = "unknown"
+        orders.sort(key=lambda o: o.dt, reverse=True)
+        return orders
 
+    def get_trades(self, security: Optional[str] = None) -> List[Dict[str, Any]]:
+        """获取当日成交订单"""
+        if not self.context.blotter:
+            return []
 
-@dataclass
-class APIEndpoint:
-    """API端点信息"""
+        trades = []
+        for order in self.context.blotter.orders.values():
+            if order.status == "filled" and order.filled != 0:
+                if security is None or order.symbol == security:
+                    trades.append(
+                        {
+                            "order_id": order.id,
+                            "security": order.symbol,
+                            "amount": order.filled,
+                            "price": order.limit or 0.0,
+                            "filled_amount": order.filled,
+                            "commission": 0.0,
+                            "datetime": order.dt,
+                            "side": "buy" if order.amount > 0 else "sell",
+                        }
+                    )
 
-    adapter_id: str
-    adapter: PTradeAdapter
-    weight: int = 1
-    max_connections: int = 100
-    timeout: float = 30.0
-    priority: int = 0  # 优先级，数字越小优先级越高
+        trades.sort(key=lambda t: t["datetime"], reverse=True)
+        return trades
 
-    # 运行时状态
-    current_connections: int = 0
-    total_requests: int = 0
-    successful_requests: int = 0
-    failed_requests: int = 0
-    total_response_time: float = 0.0
-    last_request_time: Optional[datetime] = None
-    health_status: HealthStatus = HealthStatus.UNKNOWN
-    last_health_check: Optional[datetime] = None
+    def get_history(
+        self,
+        count: int,
+        frequency: str = "1d",
+        field: Union[str, List[str]] = [
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "money",
+            "price",
+        ],
+        security_list: Optional[List[str]] = None,
+        fq: Optional[str] = None,
+        include: bool = False,
+        fill: str = "nan",
+        is_dict: bool = False,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Union[pd.DataFrame, Dict[str, Any]]:
+        """获取历史行情数据"""
+        # 这里需要与数据插件集成
+        # 暂时返回模拟数据
+        securities = security_list or self.context.universe or ["000001.XSHE"]
 
+        if isinstance(field, str):
+            field = [field]
 
-@dataclass
-class APIRoute:
-    """API路由配置"""
+        # 如果请求字典格式
+        if is_dict:
+            result = {}
+            for security in securities:
+                result[security] = {}
+                for f in field:
+                    # 生成模拟数据
+                    if f in ["open", "high", "low", "close", "price"]:
+                        base_price = 15.0 if security.startswith("000") else 20.0
+                        prices = [base_price + i * 0.1 for i in range(count)]
+                        result[security][f] = prices
+                    elif f == "volume":
+                        result[security][f] = [100000 + i * 1000 for i in range(count)]
+                    elif f == "money":
+                        result[security][f] = [1000000 + i * 10000 for i in range(count)]
+                    else:
+                        result[security][f] = [0.0] * count
+            return result
+        else:
+            # 返回DataFrame格式
+            data = []
+            for security in securities:
+                for i in range(count):
+                    row: Dict[str, Any] = {"security": security}
+                    date = pd.Timestamp.now() - pd.Timedelta(days=count-i-1)
+                    row["date"] = date
+                    
+                    base_price = 15.0 if security.startswith("000") else 20.0
+                    price = base_price + i * 0.1
+                    
+                    for f in field:
+                        if f in ["open", "high", "low", "close", "price"]:
+                            row[f] = price
+                        elif f == "volume":
+                            row[f] = 100000 + i * 1000
+                        elif f == "money":
+                            row[f] = 1000000 + i * 10000
+                        else:
+                            row[f] = 0.0
+                    
+                    data.append(row)
+            
+            df = pd.DataFrame(data)
+            if not df.empty:
+                df.set_index(["security", "date"], inplace=True)
+            return df
 
-    api_name: str
-    endpoints: List[APIEndpoint] = field(default_factory=list)
-    strategy: RoutingStrategy = RoutingStrategy.ROUND_ROBIN
-    sticky_session: bool = False  # 会话保持
-    retry_count: int = 3
-    circuit_breaker_threshold: float = 0.5  # 熔断阈值
-    circuit_breaker_timeout: float = 60.0  # 熔断恢复时间
+    def get_price(
+        self,
+        security: Union[str, List[str]],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        frequency: str = "1d",
+        fields: Optional[Union[str, List[str]]] = None,
+        count: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """获取价格数据"""
+        # 暂时返回模拟数据
+        return pd.DataFrame()
 
-    # 运行时状态
-    current_endpoint_index: int = 0
-    session_map: Dict[str, str] = field(
-        default_factory=dict
-    )  # session_id -> adapter_id
-    circuit_breaker_open: bool = False
-    circuit_breaker_last_failure: Optional[datetime] = None
+    def get_snapshot(self, security_list: List[str]) -> pd.DataFrame:
+        """获取行情快照"""
+        data = []
+        for security in security_list:
+            data.append(
+                {
+                    "security": security,
+                    "current_price": np.random.randn() * 0.01 + 10,
+                    "volume": np.random.randint(1000, 10000),
+                    "timestamp": pd.Timestamp.now(),
+                }
+            )
+        return pd.DataFrame(data).set_index("security")
 
+    def set_universe(self, securities: List[str]) -> None:
+        """设置股票池"""
+        self.context.universe = securities
+        self._logger.info(f"Universe set to {len(securities)} securities")
 
-@dataclass
-class APICallMetrics:
-    """API调用指标"""
+    def set_benchmark(self, benchmark: str) -> None:
+        """设置基准"""
+        self.context.benchmark = benchmark
+        self._logger.info(f"Benchmark set to {benchmark}")
 
-    api_name: str
-    adapter_id: str
-    start_time: datetime
-    end_time: Optional[datetime] = None
-    success: bool = False
-    error_message: Optional[str] = None
-    response_time: float = 0.0
+    def get_MACD(
+        self, close: np.ndarray, short: int = 12, long: int = 26, m: int = 9
+    ) -> pd.DataFrame:
+        """获取MACD指标"""
+        try:
+            close_series = pd.Series(close)
+            exp1 = close_series.ewm(span=short).mean()
+            exp2 = close_series.ewm(span=long).mean()
+            macd_line = exp1 - exp2
+            signal_line = macd_line.ewm(span=m).mean()
+            histogram = macd_line - signal_line
 
+            return pd.DataFrame(
+                {
+                    "MACD": macd_line,
+                    "MACD_signal": signal_line,
+                    "MACD_hist": histogram * 2,
+                }
+            )
+        except Exception as e:
+            self._logger.error(f"Error calculating MACD: {e}")
+            periods = len(close)
+            return pd.DataFrame(
+                {
+                    "MACD": np.random.randn(periods) * 0.1,
+                    "MACD_signal": np.random.randn(periods) * 0.1,
+                    "MACD_hist": np.random.randn(periods) * 0.05,
+                }
+            )
 
-class HealthChecker:
-    """健康检查器"""
+    def get_KDJ(
+        self,
+        high: np.ndarray,
+        low: np.ndarray,
+        close: np.ndarray,
+        n: int = 9,
+        m1: int = 3,
+        m2: int = 3,
+    ) -> pd.DataFrame:
+        """获取KDJ指标"""
+        try:
+            high_series = pd.Series(high)
+            low_series = pd.Series(low)
+            close_series = pd.Series(close)
 
-    def __init__(self, check_interval: float = 30.0):
-        self.check_interval = check_interval
-        self._running = False
-        self._check_thread: Optional[threading.Thread] = None
-        self._endpoints: List[APIEndpoint] = []
-        self._lock = threading.RLock()
-        self.logger = logging.getLogger(__name__)
+            highest = high_series.rolling(window=n).max()
+            lowest = low_series.rolling(window=n).min()
+            rsv = (close_series - lowest) / (highest - lowest) * 100
+            k = rsv.ewm(alpha=1 / m1).mean()
+            d = k.ewm(alpha=1 / m2).mean()
+            j = 3 * k - 2 * d
 
-    def add_endpoint(self, endpoint: APIEndpoint) -> None:
-        """添加需要健康检查的端点"""
-        with self._lock:
-            if endpoint not in self._endpoints:
-                self._endpoints.append(endpoint)
+            return pd.DataFrame({"K": k, "D": d, "J": j})
+        except Exception as e:
+            self._logger.error(f"Error calculating KDJ: {e}")
+            periods = len(close)
+            return pd.DataFrame(
+                {
+                    "K": np.random.uniform(0, 100, periods),
+                    "D": np.random.uniform(0, 100, periods),
+                    "J": np.random.uniform(0, 100, periods),
+                }
+            )
 
-    def remove_endpoint(self, endpoint: APIEndpoint) -> None:
-        """移除端点"""
-        with self._lock:
-            if endpoint in self._endpoints:
-                self._endpoints.remove(endpoint)
+    def get_RSI(self, close: np.ndarray, n: int = 6) -> pd.DataFrame:
+        """获取RSI指标"""
+        try:
+            close_series = pd.Series(close)
+            delta = close_series.diff()
+            gain = delta.where(delta > 0, 0)
+            loss = -delta.where(delta < 0, 0)
+            avg_gain = gain.rolling(window=n).mean()
+            avg_loss = loss.rolling(window=n).mean()
+            rs = avg_gain / avg_loss
+            rsi = 100 - (100 / (1 + rs))
 
-    def start(self) -> None:
-        """启动健康检查"""
-        if self._running:
+            return pd.DataFrame({"RSI": rsi})
+        except Exception as e:
+            self._logger.error(f"Error calculating RSI: {e}")
+            periods = len(close)
+            return pd.DataFrame({"RSI": np.random.uniform(0, 100, periods)})
+
+    def get_CCI(
+        self, high: np.ndarray, low: np.ndarray, close: np.ndarray, n: int = 14
+    ) -> pd.DataFrame:
+        """获取CCI指标"""
+        try:
+            high_series = pd.Series(high)
+            low_series = pd.Series(low)
+            close_series = pd.Series(close)
+
+            typical_price = (high_series + low_series + close_series) / 3
+            ma = typical_price.rolling(window=n).mean()
+            mad = typical_price.rolling(window=n).apply(
+                lambda x: abs(x - x.mean()).mean()
+            )
+            cci = (typical_price - ma) / (0.015 * mad)
+
+            return pd.DataFrame({"CCI": cci})
+        except Exception as e:
+            self._logger.error(f"Error calculating CCI: {e}")
+            periods = len(close)
+            return pd.DataFrame({"CCI": np.random.randn(periods) * 50})
+
+    def log(self, content: str, level: str = "info") -> None:
+        """日志记录"""
+        if hasattr(self._logger, level):
+            getattr(self._logger, level)(content)
+        else:
+            self._logger.info(content)
+
+    def check_limit(
+        self, security: str, query_date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """代码涨跌停状态判断"""
+        # 模拟涨跌停检查
+        return {
+            security: {
+                "limit_up": False,
+                "limit_down": False,
+                "limit_up_price": None,
+                "limit_down_price": None,
+                "current_price": 10.0,
+            }
+        }
+
+    def handle_data(self, data: Dict[str, Any]) -> None:
+        """回测模式数据处理"""
+        # 更新当前价格数据
+        for security, price_data in data.items():
+            if security in self.context.portfolio.positions:
+                position = self.context.portfolio.positions[security]
+                position.last_sale_price = price_data.get(
+                    "price", position.last_sale_price
+                )
+
+        # 更新投资组合价值
+        self.context.portfolio.update_portfolio_value()
+
+    def _simulate_order_execution(self, order_id: str) -> None:
+        """模拟订单执行"""
+        if not self.context.blotter:
             return
 
-        self._running = True
-        self._check_thread = threading.Thread(
-            target=self._health_check_loop, daemon=True
+        order = self.context.blotter.get_order(order_id)
+        if not order:
+            return
+
+        security = order.symbol
+        amount = order.amount
+        price = order.limit or 10.0
+
+        # 计算实际成交价格（包含滑点）
+        execution_price = price * (
+            1 + self._slippage_rate if amount > 0 else 1 - self._slippage_rate
         )
-        self._check_thread.start()
-        self.logger.info("Health checker started")
 
-    def stop(self) -> None:
-        """停止健康检查"""
-        self._running = False
-        if self._check_thread and self._check_thread.is_alive():
-            self._check_thread.join(timeout=5.0)
-        self.logger.info("Health checker stopped")
+        # 计算手续费
+        commission = abs(amount * execution_price * self._commission_rate)
 
-    def _health_check_loop(self) -> None:
-        """健康检查循环"""
-        while self._running:
-            try:
-                self._perform_health_checks()
-                time.sleep(self.check_interval)
-            except Exception as e:
-                self.logger.error(f"Health check loop error: {e}")
-
-    def _perform_health_checks(self) -> None:
-        """执行健康检查"""
-        with self._lock:
-            endpoints_copy = self._endpoints.copy()
-
-        for endpoint in endpoints_copy:
-            try:
-                self._check_endpoint_health(endpoint)
-            except Exception as e:
-                self.logger.error(
-                    f"Health check failed for endpoint {endpoint.adapter_id}: {e}"
-                )
-                endpoint.health_status = HealthStatus.UNHEALTHY
-
-    def _check_endpoint_health(self, endpoint: APIEndpoint) -> None:
-        """检查单个端点的健康状态"""
-        try:
-            adapter = endpoint.adapter
-            if not adapter or adapter.get_status()["state"] != PluginState.STARTED:
-                endpoint.health_status = HealthStatus.UNHEALTHY
+        # 检查资金是否充足（仅对买入订单）
+        portfolio = self.context.portfolio
+        if amount > 0:  # 买入订单
+            required_cash = amount * execution_price + commission
+            if portfolio.cash < required_cash:
+                # 资金不足，订单失败
+                order.status = "rejected"
+                self._logger.warning(f"Order {order_id} rejected: insufficient cash")
                 return
 
-            # 计算成功率
-            total_requests = endpoint.total_requests
-            if total_requests > 0:
-                success_rate = endpoint.successful_requests / total_requests
-                avg_response_time = (
-                    endpoint.total_response_time / endpoint.successful_requests
-                    if endpoint.successful_requests > 0
-                    else 0
+        # 更新持仓
+        if security in portfolio.positions:
+            position = portfolio.positions[security]
+            total_cost = (
+                position.amount * position.cost_basis + amount * execution_price
+            )
+            total_amount = position.amount + amount
+            if total_amount == 0:
+                del portfolio.positions[security]
+            else:
+                position.amount = total_amount
+                position.cost_basis = total_cost / total_amount
+                position.last_sale_price = execution_price
+        else:
+            if amount != 0:
+                # 动态导入Position类以避免循环导入
+                from .adapter import Position
+                
+                portfolio.positions[security] = Position(
+                    sid=security,
+                    enable_amount=amount,
+                    amount=amount,
+                    cost_basis=execution_price,
+                    last_sale_price=execution_price,
                 )
 
-                # 根据成功率和响应时间判断健康状态
-                if success_rate >= 0.95 and avg_response_time < 1.0:
-                    endpoint.health_status = HealthStatus.HEALTHY
-                elif success_rate >= 0.8 and avg_response_time < 3.0:
-                    endpoint.health_status = HealthStatus.DEGRADED
-                else:
-                    endpoint.health_status = HealthStatus.UNHEALTHY
-            else:
-                endpoint.health_status = HealthStatus.HEALTHY  # 新端点默认健康
+        # 更新现金
+        portfolio.cash -= amount * execution_price + commission
 
-            endpoint.last_health_check = datetime.now()
+        # 更新投资组合价值
+        portfolio.update_portfolio_value()
 
-        except Exception as e:
-            self.logger.error(f"Health check error for {endpoint.adapter_id}: {e}")
-            endpoint.health_status = HealthStatus.UNHEALTHY
-
-
-class LoadBalancer:
-    """负载均衡器"""
-
-    def __init__(self, strategy: RoutingStrategy = RoutingStrategy.ROUND_ROBIN):
-        self.strategy = strategy
-        self.logger = logging.getLogger(__name__)
-
-    def select_endpoint(
-        self, route: APIRoute, session_id: Optional[str] = None
-    ) -> Optional[APIEndpoint]:
-        """选择端点"""
-        healthy_endpoints = [
-            ep for ep in route.endpoints if ep.health_status == HealthStatus.HEALTHY
-        ]
-
-        if not healthy_endpoints:
-            # 如果没有健康的端点，尝试使用状态为DEGRADED的端点
-            degraded_endpoints = [
-                ep
-                for ep in route.endpoints
-                if ep.health_status == HealthStatus.DEGRADED
-            ]
-            if degraded_endpoints:
-                healthy_endpoints = degraded_endpoints
-            else:
-                return None
-
-        # 检查熔断器状态
-        if route.circuit_breaker_open:
-            if (
-                route.circuit_breaker_last_failure
-                and datetime.now() - route.circuit_breaker_last_failure
-                > timedelta(seconds=route.circuit_breaker_timeout)
-            ):
-                route.circuit_breaker_open = False
-                self.logger.info(f"Circuit breaker reset for route {route.api_name}")
-            else:
-                return None
-
-        # 会话保持
-        if route.sticky_session and session_id and session_id in route.session_map:
-            adapter_id = route.session_map[session_id]
-            for endpoint in healthy_endpoints:
-                if endpoint.adapter_id == adapter_id:
-                    return endpoint
-
-        # 根据策略选择端点
-        if self.strategy == RoutingStrategy.ROUND_ROBIN:
-            return self._round_robin_select(route, healthy_endpoints)
-        elif self.strategy == RoutingStrategy.WEIGHTED_ROUND_ROBIN:
-            return self._weighted_round_robin_select(route, healthy_endpoints)
-        elif self.strategy == RoutingStrategy.LEAST_CONNECTIONS:
-            return self._least_connections_select(healthy_endpoints)
-        elif self.strategy == RoutingStrategy.LEAST_RESPONSE_TIME:
-            return self._least_response_time_select(healthy_endpoints)
-        elif self.strategy == RoutingStrategy.CONSISTENT_HASH:
-            return self._consistent_hash_select(route, healthy_endpoints, session_id)
-        elif self.strategy == RoutingStrategy.RANDOM:
-            return self._random_select(healthy_endpoints)
-        elif self.strategy == RoutingStrategy.FAILOVER:
-            return self._failover_select(healthy_endpoints)
-        else:
-            return self._round_robin_select(route, healthy_endpoints)
-
-    def _round_robin_select(
-        self, route: APIRoute, endpoints: List[APIEndpoint]
-    ) -> APIEndpoint:
-        """轮询选择"""
-        if not endpoints:
-            raise LoadBalancerError("No available endpoints")
-
-        endpoint = endpoints[route.current_endpoint_index % len(endpoints)]
-        route.current_endpoint_index = (route.current_endpoint_index + 1) % len(
-            endpoints
-        )
-        return endpoint
-
-    def _weighted_round_robin_select(
-        self, route: APIRoute, endpoints: List[APIEndpoint]
-    ) -> APIEndpoint:
-        """加权轮询选择"""
-        if not endpoints:
-            raise LoadBalancerError("No available endpoints")
-
-        # 计算权重总和
-        total_weight = sum(ep.weight for ep in endpoints)
-        if total_weight <= 0:
-            return self._round_robin_select(route, endpoints)
-
-        # 基于权重选择
-        target = route.current_endpoint_index % total_weight
-        current_weight = 0
-
-        for endpoint in endpoints:
-            current_weight += endpoint.weight
-            if target < current_weight:
-                route.current_endpoint_index += 1
-                return endpoint
-
-        # 回退到轮询
-        return self._round_robin_select(route, endpoints)
-
-    def _least_connections_select(self, endpoints: List[APIEndpoint]) -> APIEndpoint:
-        """最少连接数选择"""
-        if not endpoints:
-            raise LoadBalancerError("No available endpoints")
-
-        return min(endpoints, key=lambda ep: ep.current_connections)
-
-    def _least_response_time_select(self, endpoints: List[APIEndpoint]) -> APIEndpoint:
-        """最短响应时间选择"""
-        if not endpoints:
-            raise LoadBalancerError("No available endpoints")
-
-        def avg_response_time(ep: APIEndpoint) -> float:
-            if ep.successful_requests > 0:
-                return ep.total_response_time / ep.successful_requests
-            return 0.0
-
-        return min(endpoints, key=avg_response_time)
-
-    def _consistent_hash_select(
-        self, route: APIRoute, endpoints: List[APIEndpoint], session_id: Optional[str]
-    ) -> APIEndpoint:
-        """一致性哈希选择"""
-        if not endpoints:
-            raise LoadBalancerError("No available endpoints")
-
-        # 使用API名称和会话ID计算哈希
-        hash_input = f"{route.api_name}:{session_id or ''}"
-        hash_value = int(hashlib.md5(hash_input.encode()).hexdigest(), 16)
-
-        return endpoints[hash_value % len(endpoints)]
-
-    def _random_select(self, endpoints: List[APIEndpoint]) -> APIEndpoint:
-        """随机选择"""
-        if not endpoints:
-            raise LoadBalancerError("No available endpoints")
-
-        import random
-
-        return random.choice(endpoints)
-
-    def _failover_select(self, endpoints: List[APIEndpoint]) -> APIEndpoint:
-        """故障转移选择（按优先级）"""
-        if not endpoints:
-            raise LoadBalancerError("No available endpoints")
-
-        # 按优先级排序，选择优先级最高的健康端点
-        sorted_endpoints = sorted(endpoints, key=lambda ep: ep.priority)
-        return sorted_endpoints[0]
-
-
-class APIRouter(BasePlugin):
-    """
-    PTrade API 路由器
-
-    提供智能API路由、负载均衡、故障转移和性能监控功能。
-    """
-
-    METADATA = PluginMetadata(
-        name="ptrade_api_router",
-        version="1.0.0",
-        description="PTrade API Router with Load Balancing and Failover",
-        author="SimTradeLab",
-        dependencies=["ptrade_complete_adapter"],
-        tags=["ptrade", "router", "load_balancer", "failover"],
-        category="infrastructure",
-        priority=5,  # 中等优先级
-    )
-
-    def __init__(self, metadata: PluginMetadata, config: Optional[PluginConfig] = None):
-        super().__init__(metadata, config)
-
-        # 路由表
-        self._routes: Dict[str, APIRoute] = {}
-        self._adapters: Dict[str, PTradeAdapter] = {}
-
-        # 负载均衡器
-        self._load_balancer = LoadBalancer(
-            strategy=RoutingStrategy(
-                self._config.config.get("routing_strategy", "round_robin")
-            )
-        )
-
-        # 健康检查器
-        self._health_checker = HealthChecker(
-            check_interval=self._config.config.get("health_check_interval", 30.0)
-        )
-
-        # 性能监控
-        self._metrics: List[APICallMetrics] = []
-        self._metrics_lock = threading.RLock()
-        self._max_metrics = self._config.config.get("max_metrics", 10000)
-
-        # 会话管理
-        self._sessions: Dict[str, datetime] = {}
-        self._session_timeout = self._config.config.get("session_timeout", 3600)  # 1小时
-
-        # 统计信息
-        self._stats = {
-            "total_requests": 0,
-            "successful_requests": 0,
-            "failed_requests": 0,
-            "total_response_time": 0.0,
-            "circuit_breaker_trips": 0,
-        }
-
-    def _on_initialize(self) -> None:
-        """初始化路由器"""
-        self._logger.info("Initializing PTrade API Router")
-
-        # 启动健康检查器
-        self._health_checker.start()
-
-        # 设置会话清理定时器
-        self._setup_session_cleanup()
-
-        self._logger.info("PTrade API Router initialized")
-
-    def _on_start(self) -> None:
-        """启动路由器"""
-        self._logger.info("Starting PTrade API Router")
-
-        # 发布路由器启动事件
-        if hasattr(self, "_event_bus"):
-            self._event_bus.publish(
-                "ptrade.router.started",
-                data={"router": self, "routes_count": len(self._routes)},
-                source="ptrade_router",
-            )
-
-    def _on_stop(self) -> None:
-        """停止路由器"""
-        self._logger.info("Stopping PTrade API Router")
-
-        # 停止健康检查器
-        self._health_checker.stop()
-
-        # 清理资源
-        self._cleanup_resources()
-
-    def register_adapter(
-        self,
-        adapter: PTradeAdapter,
-        weight: int = 1,
-        max_connections: int = 100,
-        priority: int = 0,
-    ) -> str:
-        """
-        注册PTrade适配器
-
-        Args:
-            adapter: PTrade适配器实例
-            weight: 权重
-            max_connections: 最大连接数
-            priority: 优先级
-
-        Returns:
-            适配器ID
-        """
-        adapter_id = f"{adapter.metadata.name}_{id(adapter)}"
-
-        if adapter_id in self._adapters:
-            raise APIRouterError(f"Adapter {adapter_id} already registered")
-
-        self._adapters[adapter_id] = adapter
-
-        # 创建端点
-        endpoint = APIEndpoint(
-            adapter_id=adapter_id,
-            adapter=adapter,
-            weight=weight,
-            max_connections=max_connections,
-            priority=priority,
-        )
-
-        # 添加到健康检查
-        self._health_checker.add_endpoint(endpoint)
-
-        # 为所有API创建路由
-        self._create_routes_for_adapter(adapter_id, endpoint)
+        # 更新订单状态
+        order.status = "filled"
+        order.filled = amount
 
         self._logger.info(
-            f"Registered adapter {adapter_id} with {len(self._routes)} routes"
-        )
-        return adapter_id
-
-    def unregister_adapter(self, adapter_id: str) -> bool:
-        """
-        注销PTrade适配器
-
-        Args:
-            adapter_id: 适配器ID
-
-        Returns:
-            是否成功注销
-        """
-        if adapter_id not in self._adapters:
-            return False
-
-        # 从所有路由中移除此适配器
-        for route in self._routes.values():
-            route.endpoints = [
-                ep for ep in route.endpoints if ep.adapter_id != adapter_id
-            ]
-
-        # 移除空路由
-        empty_routes = [
-            api_name for api_name, route in self._routes.items() if not route.endpoints
-        ]
-        for api_name in empty_routes:
-            del self._routes[api_name]
-
-        # 从健康检查中移除
-        adapter = self._adapters[adapter_id]
-        endpoints_to_remove = [
-            ep
-            for route in self._routes.values()
-            for ep in route.endpoints
-            if ep.adapter_id == adapter_id
-        ]
-        for endpoint in endpoints_to_remove:
-            self._health_checker.remove_endpoint(endpoint)
-
-        del self._adapters[adapter_id]
-
-        self._logger.info(f"Unregistered adapter {adapter_id}")
-        return True
-
-    def _create_routes_for_adapter(
-        self, adapter_id: str, endpoint: APIEndpoint
-    ) -> None:
-        """为适配器创建路由"""
-        adapter = self._adapters[adapter_id]
-
-        # 获取适配器支持的所有API
-        if hasattr(adapter, "_api_registry"):
-            api_names = adapter._api_registry.list_all_apis()
-
-            for api_name in api_names:
-                if api_name not in self._routes:
-                    # 创建新路由
-                    self._routes[api_name] = APIRoute(
-                        api_name=api_name,
-                        endpoints=[endpoint],
-                        strategy=self._load_balancer.strategy,
-                    )
-                else:
-                    # 添加到现有路由
-                    route = self._routes[api_name]
-                    if not any(ep.adapter_id == adapter_id for ep in route.endpoints):
-                        route.endpoints.append(endpoint)
-
-    def call_api(
-        self, api_name: str, *args: Any, session_id: Optional[str] = None, **kwargs: Any
-    ) -> Any:
-        """
-        调用API
-
-        Args:
-            api_name: API名称
-            *args: 位置参数
-            session_id: 会话ID（用于会话保持）
-            **kwargs: 关键字参数
-
-        Returns:
-            API调用结果
-        """
-        if api_name not in self._routes:
-            raise RouteError(f"No route found for API: {api_name}")
-
-        route = self._routes[api_name]
-        start_time = datetime.now()
-
-        # 更新会话
-        if session_id:
-            self._sessions[session_id] = start_time
-
-        # 重试逻辑
-        last_error = None
-        for attempt in range(route.retry_count + 1):
-            try:
-                # 选择端点
-                endpoint = self._load_balancer.select_endpoint(route, session_id)
-                if not endpoint:
-                    if route.circuit_breaker_open:
-                        raise RouteError(f"Circuit breaker is open for API: {api_name}")
-                    else:
-                        raise RouteError(f"No available endpoints for API: {api_name}")
-
-                # 检查连接数限制
-                if endpoint.current_connections >= endpoint.max_connections:
-                    if attempt < route.retry_count:
-                        continue
-                    raise RouteError(
-                        f"Endpoint {endpoint.adapter_id} connection limit exceeded"
-                    )
-
-                # 执行API调用
-                result = self._execute_api_call(endpoint, api_name, *args, **kwargs)
-
-                # 记录成功指标
-                end_time = datetime.now()
-                response_time = (end_time - start_time).total_seconds()
-
-                self._record_metrics(
-                    APICallMetrics(
-                        api_name=api_name,
-                        adapter_id=endpoint.adapter_id,
-                        start_time=start_time,
-                        end_time=end_time,
-                        success=True,
-                        response_time=response_time,
-                    )
-                )
-
-                self._update_endpoint_stats(endpoint, True, response_time)
-
-                # 更新会话映射
-                if route.sticky_session and session_id:
-                    route.session_map[session_id] = endpoint.adapter_id
-
-                return result
-
-            except Exception as e:
-                last_error = e
-                self._logger.warning(
-                    f"API call failed (attempt {attempt + 1}): {api_name} - {e}"
-                )
-
-                if endpoint:
-                    self._update_endpoint_stats(endpoint, False, 0.0)
-
-                    # 检查是否需要触发熔断器
-                    self._check_circuit_breaker(route, endpoint)
-
-                if attempt < route.retry_count:
-                    time.sleep(0.1 * (2**attempt))  # 指数退避
-                else:
-                    # 记录失败指标
-                    self._record_metrics(
-                        APICallMetrics(
-                            api_name=api_name,
-                            adapter_id=endpoint.adapter_id if endpoint else "unknown",
-                            start_time=start_time,
-                            end_time=datetime.now(),
-                            success=False,
-                            error_message=str(e),
-                        )
-                    )
-
-        # 所有重试都失败了
-        raise RouteError(
-            f"API call failed after {route.retry_count + 1} attempts: {last_error}"
+            f"Order executed: {order_id}, {security}, {amount} @ {execution_price}"
         )
 
-    def _execute_api_call(
-        self, endpoint: APIEndpoint, api_name: str, *args: Any, **kwargs: Any
-    ) -> Any:
-        """执行API调用"""
-        endpoint.current_connections += 1
-        endpoint.total_requests += 1
-        endpoint.last_request_time = datetime.now()
 
-        try:
-            adapter = endpoint.adapter
+class LiveTradingAPIRouter(BaseAPIRouter):
+    """实盘交易模式API路由器"""
 
-            # 检查适配器状态
-            if adapter.get_status()["state"] != PluginState.STARTED:
-                raise RouteError(f"Adapter {endpoint.adapter_id} is not started")
-
-            # 检查API可用性
-            if hasattr(adapter, "_check_api_availability"):
-                adapter._check_api_availability(api_name)
-
-            # 获取API函数
-            api_registry = getattr(adapter, "_api_registry", None)
-            if not api_registry:
-                raise RouteError(
-                    f"No API registry found in adapter {endpoint.adapter_id}"
-                )
-
-            api_func = api_registry.get_api(api_name)
-            if not api_func:
-                raise RouteError(
-                    f"API {api_name} not found in adapter {endpoint.adapter_id}"
-                )
-
-            # 执行API调用
-            result = api_func(*args, **kwargs)
-            return result
-
-        finally:
-            endpoint.current_connections -= 1
-
-    def _update_endpoint_stats(
-        self, endpoint: APIEndpoint, success: bool, response_time: float
-    ) -> None:
-        """更新端点统计信息"""
-        if success:
-            endpoint.successful_requests += 1
-            endpoint.total_response_time += response_time
-        else:
-            endpoint.failed_requests += 1
-
-        # 更新全局统计
-        self._stats["total_requests"] += 1
-        if success:
-            self._stats["successful_requests"] += 1
-            self._stats["total_response_time"] += response_time
-        else:
-            self._stats["failed_requests"] += 1
-
-    def _check_circuit_breaker(self, route: APIRoute, endpoint: APIEndpoint) -> None:
-        """检查熔断器"""
-        if endpoint.total_requests < 10:  # 最少10个请求才考虑熔断
-            return
-
-        error_rate = endpoint.failed_requests / endpoint.total_requests
-        if error_rate >= route.circuit_breaker_threshold:
-            route.circuit_breaker_open = True
-            route.circuit_breaker_last_failure = datetime.now()
-            self._stats["circuit_breaker_trips"] += 1
-            self._logger.warning(
-                f"Circuit breaker opened for route {route.api_name}, error rate: {error_rate:.2%}"
-            )
-
-    def _record_metrics(self, metrics: APICallMetrics) -> None:
-        """记录指标"""
-        with self._metrics_lock:
-            self._metrics.append(metrics)
-
-            # 限制指标数量
-            if len(self._metrics) > self._max_metrics:
-                self._metrics = self._metrics[-self._max_metrics :]
-
-    def _setup_session_cleanup(self) -> None:
-        """设置会话清理"""
-
-        def cleanup_sessions() -> None:
-            while True:
-                try:
-                    now = datetime.now()
-                    expired_sessions = [
-                        session_id
-                        for session_id, last_access in self._sessions.items()
-                        if (now - last_access).total_seconds() > self._session_timeout
-                    ]
-
-                    for session_id in expired_sessions:
-                        del self._sessions[session_id]
-
-                        # 清理路由中的会话映射
-                        for route in self._routes.values():
-                            if session_id in route.session_map:
-                                del route.session_map[session_id]
-
-                    if expired_sessions:
-                        self._logger.debug(
-                            f"Cleaned up {len(expired_sessions)} expired sessions"
-                        )
-
-                    time.sleep(300)  # 每5分钟清理一次
-
-                except Exception as e:
-                    self._logger.error(f"Session cleanup error: {e}")
-
-        cleanup_thread = threading.Thread(target=cleanup_sessions, daemon=True)
-        cleanup_thread.start()
-
-    def _cleanup_resources(self) -> None:
-        """清理资源"""
-        self._routes.clear()
-        self._adapters.clear()
-        self._sessions.clear()
-
-        with self._metrics_lock:
-            self._metrics.clear()
-
-    # =========================================
-    # 公共接口
-    # =========================================
-
-    def get_route_stats(self, api_name: Optional[str] = None) -> Dict[str, Any]:
-        """获取路由统计信息"""
-        if api_name:
-            if api_name not in self._routes:
-                return {}
-
-            route = self._routes[api_name]
-            return {
-                "api_name": api_name,
-                "endpoints_count": len(route.endpoints),
-                "strategy": route.strategy.value,
-                "circuit_breaker_open": route.circuit_breaker_open,
-                "endpoints": [
-                    {
-                        "adapter_id": ep.adapter_id,
-                        "weight": ep.weight,
-                        "health_status": ep.health_status.value,
-                        "current_connections": ep.current_connections,
-                        "total_requests": ep.total_requests,
-                        "successful_requests": ep.successful_requests,
-                        "failed_requests": ep.failed_requests,
-                        "avg_response_time": ep.total_response_time
-                        / ep.successful_requests
-                        if ep.successful_requests > 0
-                        else 0,
-                        "success_rate": ep.successful_requests / ep.total_requests
-                        if ep.total_requests > 0
-                        else 0,
-                    }
-                    for ep in route.endpoints
-                ],
-            }
-        else:
-            return {
-                "total_routes": len(self._routes),
-                "total_adapters": len(self._adapters),
-                "global_stats": self._stats.copy(),
-                "routes": [self.get_route_stats(name) for name in self._routes.keys()],
-            }
-
-    def get_performance_metrics(
-        self, api_name: Optional[str] = None, time_window: Optional[timedelta] = None
-    ) -> Dict[str, Any]:
-        """获取性能指标"""
-        with self._metrics_lock:
-            metrics = self._metrics.copy()
-
-        # 时间窗口过滤
-        if time_window:
-            cutoff_time = datetime.now() - time_window
-            metrics = [m for m in metrics if m.start_time >= cutoff_time]
-
-        # API过滤
-        if api_name:
-            metrics = [m for m in metrics if m.api_name == api_name]
-
-        if not metrics:
-            return {}
-
-        # 计算统计信息
-        successful_metrics = [m for m in metrics if m.success]
-        failed_metrics = [m for m in metrics if not m.success]
-
-        response_times = [m.response_time for m in successful_metrics]
-
-        return {
-            "total_calls": len(metrics),
-            "successful_calls": len(successful_metrics),
-            "failed_calls": len(failed_metrics),
-            "success_rate": len(successful_metrics) / len(metrics) if metrics else 0,
-            "avg_response_time": statistics.mean(response_times)
-            if response_times
-            else 0,
-            "min_response_time": min(response_times) if response_times else 0,
-            "max_response_time": max(response_times) if response_times else 0,
-            "p95_response_time": statistics.quantiles(response_times, n=20)[18]
-            if len(response_times) >= 20
-            else (max(response_times) if response_times else 0),
-            "error_distribution": self._get_error_distribution(failed_metrics),
+    def __init__(self, context: "PTradeContext", event_bus: Optional[EventBus] = None):
+        super().__init__(context, event_bus)
+        self._supported_apis = {
+            "order",
+            "order_value",
+            "cancel_order",
+            "get_position",
+            "get_positions",
+            "get_open_orders",
+            "get_order",
+            "get_orders",
+            "get_trades",
+            "get_history",
+            "get_price",
+            "get_snapshot",
+            "set_universe",
+            "set_benchmark",
+            "get_MACD",
+            "get_KDJ",
+            "get_RSI",
+            "get_CCI",
+            "log",
+            "check_limit",
+            "handle_data",
         }
 
-    def _get_error_distribution(
-        self, failed_metrics: List[APICallMetrics]
-    ) -> Dict[str, int]:
-        """获取错误分布"""
-        error_counts: Dict[str, int] = defaultdict(int)
-        for metrics in failed_metrics:
-            error_type = type(Exception(metrics.error_message or "unknown")).__name__
-            error_counts[error_type] += 1
-        return dict(error_counts)
+    def is_mode_supported(self, api_name: str) -> bool:
+        """检查API是否在实盘交易模式下支持"""
+        return api_name in self._supported_apis
 
-    def update_routing_strategy(self, strategy: RoutingStrategy) -> None:
-        """更新路由策略"""
-        self._load_balancer.strategy = strategy
-        for route in self._routes.values():
-            route.strategy = strategy
+    def order(
+        self, security: str, amount: int, limit_price: Optional[float] = None
+    ) -> Optional[str]:
+        """实盘交易下单逻辑"""
+        if self.event_bus:
+            self.event_bus.publish(
+                "trading.order.request",
+                data={
+                    "security": security,
+                    "amount": amount,
+                    "limit_price": limit_price,
+                },
+                source="ptrade_adapter",
+            )
+        return "live_order_placeholder"
 
-        self._logger.info(f"Updated routing strategy to {strategy.value}")
+    def order_value(
+        self, security: str, value: float, limit_price: Optional[float] = None
+    ) -> Optional[str]:
+        """按价值下单"""
+        # 获取当前价格
+        current_price = limit_price or 10.0  # 默认价格
+        
+        # 计算股数
+        amount = int(value / current_price)
+        if amount <= 0:
+            return None
+            
+        return self.order(security, amount, limit_price)
 
-    def reset_circuit_breaker(self, api_name: str) -> bool:
-        """重置熔断器"""
-        if api_name not in self._routes:
-            return False
-
-        route = self._routes[api_name]
-        route.circuit_breaker_open = False
-        route.circuit_breaker_last_failure = None
-
-        self._logger.info(f"Circuit breaker reset for API {api_name}")
+    def cancel_order(self, order_id: str) -> bool:
+        """实盘交易撤单"""
+        if self.event_bus:
+            self.event_bus.publish(
+                "trading.cancel_order.request",
+                data={"order_id": order_id},
+                source="ptrade_adapter",
+            )
         return True
 
-    def get_adapter_health(self) -> Dict[str, Dict[str, Any]]:
-        """获取适配器健康状态"""
-        health_status = {}
+    def get_position(self, security: str) -> Optional["Position"]:
+        """获取持仓信息"""
+        return self.context.portfolio.positions.get(security)
 
-        for route in self._routes.values():
-            for endpoint in route.endpoints:
-                if endpoint.adapter_id not in health_status:
-                    health_status[endpoint.adapter_id] = {
-                        "health_status": endpoint.health_status.value,
-                        "total_requests": endpoint.total_requests,
-                        "successful_requests": endpoint.successful_requests,
-                        "failed_requests": endpoint.failed_requests,
-                        "current_connections": endpoint.current_connections,
-                        "last_health_check": endpoint.last_health_check.isoformat()
-                        if endpoint.last_health_check
-                        else None,
-                        "avg_response_time": endpoint.total_response_time
-                        / endpoint.successful_requests
-                        if endpoint.successful_requests > 0
-                        else 0,
-                    }
+    def get_positions(self, security_list: List[str]) -> Dict[str, Any]:
+        """获取多支股票持仓信息"""
+        positions = {}
+        for security in security_list:
+            position = self.get_position(security)
+            if position:
+                positions[security] = {
+                    "sid": position.sid,
+                    "amount": position.amount,
+                    "enable_amount": position.enable_amount,
+                    "cost_basis": position.cost_basis,
+                    "last_sale_price": position.last_sale_price,
+                    "market_value": position.market_value,
+                    "pnl": position.pnl,
+                    "returns": position.returns,
+                    "today_amount": position.today_amount,
+                    "business_type": position.business_type,
+                }
+            else:
+                positions[security] = {
+                    "sid": security,
+                    "amount": 0,
+                    "enable_amount": 0,
+                    "cost_basis": 0.0,
+                    "last_sale_price": 0.0,
+                    "market_value": 0.0,
+                    "pnl": 0.0,
+                    "returns": 0.0,
+                    "today_amount": 0,
+                    "business_type": "stock",
+                }
+        return positions
 
-        return health_status
+    def get_open_orders(self, security: Optional[str] = None) -> List["Order"]:
+        """获取未完成订单"""
+        if not self.context.blotter:
+            return []
+
+        open_orders = []
+        for order in self.context.blotter.orders.values():
+            if order.status in ["new", "submitted", "partially_filled"]:
+                if security is None or order.symbol == security:
+                    open_orders.append(order)
+        return open_orders
+
+    def get_order(self, order_id: str) -> Optional["Order"]:
+        """获取指定订单"""
+        if self.context.blotter:
+            return self.context.blotter.get_order(order_id)
+        return None
+
+    def get_orders(self, security: Optional[str] = None) -> List["Order"]:
+        """获取全部订单"""
+        if not self.context.blotter:
+            return []
+
+        orders = []
+        for order in self.context.blotter.orders.values():
+            if security is None or order.symbol == security:
+                orders.append(order)
+
+        orders.sort(key=lambda o: o.dt, reverse=True)
+        return orders
+
+    def get_trades(self, security: Optional[str] = None) -> List[Dict[str, Any]]:
+        """获取当日成交订单"""
+        if not self.context.blotter:
+            return []
+
+        trades = []
+        for order in self.context.blotter.orders.values():
+            if order.status == "filled" and order.filled != 0:
+                if security is None or order.symbol == security:
+                    trades.append(
+                        {
+                            "order_id": order.id,
+                            "security": order.symbol,
+                            "amount": order.filled,
+                            "price": order.limit or 0.0,
+                            "filled_amount": order.filled,
+                            "commission": 0.0,
+                            "datetime": order.dt,
+                            "side": "buy" if order.amount > 0 else "sell",
+                        }
+                    )
+
+        trades.sort(key=lambda t: t["datetime"], reverse=True)
+        return trades
+
+    def get_history(
+        self,
+        count: int,
+        frequency: str = "1d",
+        field: Union[str, List[str]] = [
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "money",
+            "price",
+        ],
+        security_list: Optional[List[str]] = None,
+        fq: Optional[str] = None,
+        include: bool = False,
+        fill: str = "nan",
+        is_dict: bool = False,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Union[pd.DataFrame, Dict[str, Any]]:
+        """获取历史行情数据"""
+        # 实盘交易模式需要从实时数据源获取
+        securities = security_list or self.context.universe or ["000001.XSHE"]
+
+        if isinstance(field, str):
+            field = [field]
+
+        if is_dict:
+            return {security: {f: [] for f in field} for security in securities}
+        else:
+            return pd.DataFrame()
+
+    def get_price(
+        self,
+        security: Union[str, List[str]],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        frequency: str = "1d",
+        fields: Optional[Union[str, List[str]]] = None,
+        count: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """获取价格数据"""
+        # 实盘交易模式需要从实时数据源获取
+        return pd.DataFrame()
+
+    def get_snapshot(self, security_list: List[str]) -> pd.DataFrame:
+        """获取行情快照"""
+        # 实盘交易模式需要从实时数据源获取
+        data = []
+        for security in security_list:
+            data.append(
+                {
+                    "security": security,
+                    "current_price": np.random.randn() * 0.01 + 10,
+                    "volume": np.random.randint(1000, 10000),
+                    "timestamp": pd.Timestamp.now(),
+                }
+            )
+        return pd.DataFrame(data).set_index("security")
+
+    def set_universe(self, securities: List[str]) -> None:
+        """设置股票池"""
+        self.context.universe = securities
+        self._logger.info(f"Universe set to {len(securities)} securities")
+
+    def set_benchmark(self, benchmark: str) -> None:
+        """设置基准"""
+        self.context.benchmark = benchmark
+        self._logger.info(f"Benchmark set to {benchmark}")
+
+    def get_MACD(
+        self, close: np.ndarray, short: int = 12, long: int = 26, m: int = 9
+    ) -> pd.DataFrame:
+        """获取MACD指标"""
+        try:
+            close_series = pd.Series(close)
+            exp1 = close_series.ewm(span=short).mean()
+            exp2 = close_series.ewm(span=long).mean()
+            macd_line = exp1 - exp2
+            signal_line = macd_line.ewm(span=m).mean()
+            histogram = macd_line - signal_line
+
+            return pd.DataFrame(
+                {
+                    "MACD": macd_line,
+                    "MACD_signal": signal_line,
+                    "MACD_hist": histogram * 2,
+                }
+            )
+        except Exception as e:
+            self._logger.error(f"Error calculating MACD: {e}")
+            periods = len(close)
+            return pd.DataFrame(
+                {
+                    "MACD": np.random.randn(periods) * 0.1,
+                    "MACD_signal": np.random.randn(periods) * 0.1,
+                    "MACD_hist": np.random.randn(periods) * 0.05,
+                }
+            )
+
+    def get_KDJ(
+        self,
+        high: np.ndarray,
+        low: np.ndarray,
+        close: np.ndarray,
+        n: int = 9,
+        m1: int = 3,
+        m2: int = 3,
+    ) -> pd.DataFrame:
+        """获取KDJ指标"""
+        try:
+            high_series = pd.Series(high)
+            low_series = pd.Series(low)
+            close_series = pd.Series(close)
+
+            highest = high_series.rolling(window=n).max()
+            lowest = low_series.rolling(window=n).min()
+            rsv = (close_series - lowest) / (highest - lowest) * 100
+            k = rsv.ewm(alpha=1 / m1).mean()
+            d = k.ewm(alpha=1 / m2).mean()
+            j = 3 * k - 2 * d
+
+            return pd.DataFrame({"K": k, "D": d, "J": j})
+        except Exception as e:
+            self._logger.error(f"Error calculating KDJ: {e}")
+            periods = len(close)
+            return pd.DataFrame(
+                {
+                    "K": np.random.uniform(0, 100, periods),
+                    "D": np.random.uniform(0, 100, periods),
+                    "J": np.random.uniform(0, 100, periods),
+                }
+            )
+
+    def get_RSI(self, close: np.ndarray, n: int = 6) -> pd.DataFrame:
+        """获取RSI指标"""
+        try:
+            close_series = pd.Series(close)
+            delta = close_series.diff()
+            gain = delta.where(delta > 0, 0)
+            loss = -delta.where(delta < 0, 0)
+            avg_gain = gain.rolling(window=n).mean()
+            avg_loss = loss.rolling(window=n).mean()
+            rs = avg_gain / avg_loss
+            rsi = 100 - (100 / (1 + rs))
+
+            return pd.DataFrame({"RSI": rsi})
+        except Exception as e:
+            self._logger.error(f"Error calculating RSI: {e}")
+            periods = len(close)
+            return pd.DataFrame({"RSI": np.random.uniform(0, 100, periods)})
+
+    def get_CCI(
+        self, high: np.ndarray, low: np.ndarray, close: np.ndarray, n: int = 14
+    ) -> pd.DataFrame:
+        """获取CCI指标"""
+        try:
+            high_series = pd.Series(high)
+            low_series = pd.Series(low)
+            close_series = pd.Series(close)
+
+            typical_price = (high_series + low_series + close_series) / 3
+            ma = typical_price.rolling(window=n).mean()
+            mad = typical_price.rolling(window=n).apply(
+                lambda x: abs(x - x.mean()).mean()
+            )
+            cci = (typical_price - ma) / (0.015 * mad)
+
+            return pd.DataFrame({"CCI": cci})
+        except Exception as e:
+            self._logger.error(f"Error calculating CCI: {e}")
+            periods = len(close)
+            return pd.DataFrame({"CCI": np.random.randn(periods) * 50})
+
+    def log(self, content: str, level: str = "info") -> None:
+        """日志记录"""
+        if hasattr(self._logger, level):
+            getattr(self._logger, level)(content)
+        else:
+            self._logger.info(content)
+
+    def check_limit(
+        self, security: str, query_date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """代码涨跌停状态判断"""
+        # 实盘交易模式需要从实时数据源获取
+        return {
+            security: {
+                "limit_up": False,
+                "limit_down": False,
+                "limit_up_price": None,
+                "limit_down_price": None,
+                "current_price": 10.0,
+            }
+        }
+
+    def handle_data(self, data: Dict[str, Any]) -> None:
+        """实盘交易数据处理"""
+        # 更新当前价格数据
+        for security, price_data in data.items():
+            if security in self.context.portfolio.positions:
+                position = self.context.portfolio.positions[security]
+                position.last_sale_price = price_data.get(
+                    "price", position.last_sale_price
+                )
+
+        # 更新投资组合价值
+        self.context.portfolio.update_portfolio_value()
+
+
+class ResearchAPIRouter(BaseAPIRouter):
+    """研究模式API路由器"""
+
+    def __init__(self, context: "PTradeContext", event_bus: Optional[EventBus] = None):
+        super().__init__(context, event_bus)
+        self._supported_apis = {
+            "get_history",
+            "get_price",
+            "get_snapshot",
+            "set_universe",
+            "set_benchmark",
+            "get_MACD",
+            "get_KDJ",
+            "get_RSI",
+            "get_CCI",
+            "log",
+            "check_limit",
+            "handle_data",
+        }
+
+    def is_mode_supported(self, api_name: str) -> bool:
+        """检查API是否在研究模式下支持"""
+        return api_name in self._supported_apis
+
+    def order(
+        self, security: str, amount: int, limit_price: Optional[float] = None
+    ) -> Optional[str]:
+        """研究模式不支持交易"""
+        raise NotImplementedError(
+            "Trading operations are not supported in research mode"
+        )
+
+    def order_value(
+        self, security: str, value: float, limit_price: Optional[float] = None
+    ) -> Optional[str]:
+        """研究模式不支持交易"""
+        raise NotImplementedError(
+            "Trading operations are not supported in research mode"
+        )
+
+    def cancel_order(self, order_id: str) -> bool:
+        """研究模式不支持交易"""
+        raise NotImplementedError(
+            "Trading operations are not supported in research mode"
+        )
+
+    def get_position(self, security: str) -> Optional["Position"]:
+        """研究模式不支持持仓查询"""
+        raise NotImplementedError("Position queries are not supported in research mode")
+
+    def get_positions(self, security_list: List[str]) -> Dict[str, Any]:
+        """研究模式不支持持仓查询"""
+        raise NotImplementedError("Position queries are not supported in research mode")
+
+    def get_open_orders(self, security: Optional[str] = None) -> List["Order"]:
+        """研究模式不支持订单查询"""
+        raise NotImplementedError("Order queries are not supported in research mode")
+
+    def get_order(self, order_id: str) -> Optional["Order"]:
+        """研究模式不支持订单查询"""
+        raise NotImplementedError("Order queries are not supported in research mode")
+
+    def get_orders(self, security: Optional[str] = None) -> List["Order"]:
+        """研究模式不支持订单查询"""
+        raise NotImplementedError("Order queries are not supported in research mode")
+
+    def get_trades(self, security: Optional[str] = None) -> List[Dict[str, Any]]:
+        """研究模式不支持交易查询"""
+        raise NotImplementedError("Trade queries are not supported in research mode")
+
+    def get_history(
+        self,
+        count: int,
+        frequency: str = "1d",
+        field: Union[str, List[str]] = [
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "money",
+            "price",
+        ],
+        security_list: Optional[List[str]] = None,
+        fq: Optional[str] = None,
+        include: bool = False,
+        fill: str = "nan",
+        is_dict: bool = False,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Union[pd.DataFrame, Dict[str, Any]]:
+        """获取历史行情数据"""
+        # 研究模式专注于数据分析
+        securities = security_list or self.context.universe or ["000001.XSHE"]
+
+        if isinstance(field, str):
+            field = [field]
+
+        if is_dict:
+            return {security: {f: [] for f in field} for security in securities}
+        else:
+            return pd.DataFrame()
+
+    def get_price(
+        self,
+        security: Union[str, List[str]],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        frequency: str = "1d",
+        fields: Optional[Union[str, List[str]]] = None,
+        count: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """获取价格数据"""
+        return pd.DataFrame()
+
+    def get_snapshot(self, security_list: List[str]) -> pd.DataFrame:
+        """获取行情快照"""
+        data = []
+        for security in security_list:
+            data.append(
+                {
+                    "security": security,
+                    "current_price": np.random.randn() * 0.01 + 10,
+                    "volume": np.random.randint(1000, 10000),
+                    "timestamp": pd.Timestamp.now(),
+                }
+            )
+        return pd.DataFrame(data).set_index("security")
+
+    def set_universe(self, securities: List[str]) -> None:
+        """设置股票池"""
+        self.context.universe = securities
+        self._logger.info(f"Research universe set to {len(securities)} securities")
+
+    def set_benchmark(self, benchmark: str) -> None:
+        """设置基准"""
+        self.context.benchmark = benchmark
+        self._logger.info(f"Research benchmark set to {benchmark}")
+
+    def get_MACD(
+        self, close: np.ndarray, short: int = 12, long: int = 26, m: int = 9
+    ) -> pd.DataFrame:
+        """获取MACD指标"""
+        try:
+            close_series = pd.Series(close)
+            exp1 = close_series.ewm(span=short).mean()
+            exp2 = close_series.ewm(span=long).mean()
+            macd_line = exp1 - exp2
+            signal_line = macd_line.ewm(span=m).mean()
+            histogram = macd_line - signal_line
+
+            return pd.DataFrame(
+                {
+                    "MACD": macd_line,
+                    "MACD_signal": signal_line,
+                    "MACD_hist": histogram * 2,
+                }
+            )
+        except Exception as e:
+            self._logger.error(f"Error calculating MACD: {e}")
+            periods = len(close)
+            return pd.DataFrame(
+                {
+                    "MACD": np.random.randn(periods) * 0.1,
+                    "MACD_signal": np.random.randn(periods) * 0.1,
+                    "MACD_hist": np.random.randn(periods) * 0.05,
+                }
+            )
+
+    def get_KDJ(
+        self,
+        high: np.ndarray,
+        low: np.ndarray,
+        close: np.ndarray,
+        n: int = 9,
+        m1: int = 3,
+        m2: int = 3,
+    ) -> pd.DataFrame:
+        """获取KDJ指标"""
+        try:
+            high_series = pd.Series(high)
+            low_series = pd.Series(low)
+            close_series = pd.Series(close)
+
+            highest = high_series.rolling(window=n).max()
+            lowest = low_series.rolling(window=n).min()
+            rsv = (close_series - lowest) / (highest - lowest) * 100
+            k = rsv.ewm(alpha=1 / m1).mean()
+            d = k.ewm(alpha=1 / m2).mean()
+            j = 3 * k - 2 * d
+
+            return pd.DataFrame({"K": k, "D": d, "J": j})
+        except Exception as e:
+            self._logger.error(f"Error calculating KDJ: {e}")
+            periods = len(close)
+            return pd.DataFrame(
+                {
+                    "K": np.random.uniform(0, 100, periods),
+                    "D": np.random.uniform(0, 100, periods),
+                    "J": np.random.uniform(0, 100, periods),
+                }
+            )
+
+    def get_RSI(self, close: np.ndarray, n: int = 6) -> pd.DataFrame:
+        """获取RSI指标"""
+        try:
+            close_series = pd.Series(close)
+            delta = close_series.diff()
+            gain = delta.where(delta > 0, 0)
+            loss = -delta.where(delta < 0, 0)
+            avg_gain = gain.rolling(window=n).mean()
+            avg_loss = loss.rolling(window=n).mean()
+            rs = avg_gain / avg_loss
+            rsi = 100 - (100 / (1 + rs))
+
+            return pd.DataFrame({"RSI": rsi})
+        except Exception as e:
+            self._logger.error(f"Error calculating RSI: {e}")
+            periods = len(close)
+            return pd.DataFrame({"RSI": np.random.uniform(0, 100, periods)})
+
+    def get_CCI(
+        self, high: np.ndarray, low: np.ndarray, close: np.ndarray, n: int = 14
+    ) -> pd.DataFrame:
+        """获取CCI指标"""
+        try:
+            high_series = pd.Series(high)
+            low_series = pd.Series(low)
+            close_series = pd.Series(close)
+
+            typical_price = (high_series + low_series + close_series) / 3
+            ma = typical_price.rolling(window=n).mean()
+            mad = typical_price.rolling(window=n).apply(
+                lambda x: abs(x - x.mean()).mean()
+            )
+            cci = (typical_price - ma) / (0.015 * mad)
+
+            return pd.DataFrame({"CCI": cci})
+        except Exception as e:
+            self._logger.error(f"Error calculating CCI: {e}")
+            periods = len(close)
+            return pd.DataFrame({"CCI": np.random.randn(periods) * 50})
+
+    def log(self, content: str, level: str = "info") -> None:
+        """日志记录"""
+        if hasattr(self._logger, level):
+            getattr(self._logger, level)(content)
+        else:
+            self._logger.info(content)
+
+    def check_limit(
+        self, security: str, query_date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """代码涨跌停状态判断"""
+        return {
+            security: {
+                "limit_up": False,
+                "limit_down": False,
+                "limit_up_price": None,
+                "limit_down_price": None,
+                "current_price": 10.0,
+            }
+        }
+
+    def handle_data(self, data: Dict[str, Any]) -> None:
+        """研究模式数据处理"""
+        # 研究模式主要用于数据分析，不涉及交易
+        pass

@@ -28,12 +28,7 @@ from .exceptions import (
 from .plugins.base import BasePlugin
 
 # PTrade 兼容层
-try:
-    from .adapters.ptrade import APIRouter, PTradeAdapter, PTradeMode
-
-    _PTRADE_AVAILABLE = True
-except ImportError:
-    _PTRADE_AVAILABLE = False
+from .adapters.ptrade import BaseAPIRouter, PTradeAdapter, PTradeMode
 
 __version__ = "1.0.0"
 __author__ = "SimTradeLab Team"
@@ -43,6 +38,10 @@ __all__ = [
     "BasePlugin",
     "EventBus",
     "PluginManager",
+    # PTrade 兼容层
+    "BaseAPIRouter",
+    "PTradeAdapter", 
+    "PTradeMode",
     # 异常系统
     "SimTradeLabError",
     "DataSourceError",
@@ -57,7 +56,3 @@ __all__ = [
     "ConfigurationError",
     "ReportGenerationError",
 ]
-
-# 动态添加PTrade适配器到导出列表
-if _PTRADE_AVAILABLE:
-    __all__.extend(["PTradeAdapter", "PTradeMode", "APIRouter"])
