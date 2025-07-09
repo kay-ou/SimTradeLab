@@ -1462,7 +1462,17 @@ class PTradeAdapter(BasePlugin):
         # 优先使用技术指标插件
         if self._indicators_plugin:
             try:
-                return self._indicators_plugin.calculate_macd(close, short, long, m)
+                # 临时更新插件配置以传递参数
+                original_params = self._indicators_plugin.macd_params.copy()
+                self._indicators_plugin.macd_params = {"short": short, "long": long, "m": m}
+                
+                try:
+                    result = self._indicators_plugin.calculate_macd(close)
+                    return result
+                finally:
+                    # 恢复原始配置
+                    self._indicators_plugin.macd_params = original_params
+                    
             except Exception as e:
                 self._logger.warning(
                     f"Technical indicators plugin failed, falling back to internal implementation: {e}"
@@ -1523,9 +1533,17 @@ class PTradeAdapter(BasePlugin):
         # 优先使用技术指标插件
         if self._indicators_plugin:
             try:
-                return self._indicators_plugin.calculate_kdj(
-                    high, low, close, n, m1, m2
-                )
+                # 临时更新插件配置以传递参数
+                original_params = self._indicators_plugin.kdj_params.copy()
+                self._indicators_plugin.kdj_params = {"n": n, "m1": m1, "m2": m2}
+                
+                try:
+                    result = self._indicators_plugin.calculate_kdj(high, low, close)
+                    return result
+                finally:
+                    # 恢复原始配置
+                    self._indicators_plugin.kdj_params = original_params
+                    
             except Exception as e:
                 self._logger.warning(
                     f"Technical indicators plugin failed, falling back to internal implementation: {e}"
@@ -1576,7 +1594,17 @@ class PTradeAdapter(BasePlugin):
         # 优先使用技术指标插件
         if self._indicators_plugin:
             try:
-                return self._indicators_plugin.calculate_rsi(close, n)
+                # 临时更新插件配置以传递参数
+                original_params = self._indicators_plugin.rsi_params.copy()
+                self._indicators_plugin.rsi_params = {"n": n}
+                
+                try:
+                    result = self._indicators_plugin.calculate_rsi(close)
+                    return result
+                finally:
+                    # 恢复原始配置
+                    self._indicators_plugin.rsi_params = original_params
+                    
             except Exception as e:
                 self._logger.warning(
                     f"Technical indicators plugin failed, falling back to internal implementation: {e}"
@@ -1620,7 +1648,17 @@ class PTradeAdapter(BasePlugin):
         # 优先使用技术指标插件
         if self._indicators_plugin:
             try:
-                return self._indicators_plugin.calculate_cci(high, low, close, n)
+                # 临时更新插件配置以传递参数
+                original_params = self._indicators_plugin.cci_params.copy()
+                self._indicators_plugin.cci_params = {"n": n}
+                
+                try:
+                    result = self._indicators_plugin.calculate_cci(high, low, close)
+                    return result
+                finally:
+                    # 恢复原始配置
+                    self._indicators_plugin.cci_params = original_params
+                    
             except Exception as e:
                 self._logger.warning(
                     f"Technical indicators plugin failed, falling back to internal implementation: {e}"
