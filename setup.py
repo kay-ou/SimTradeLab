@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 try:
-    from setuptools import setup, find_packages
+    from setuptools import find_packages, setup
 except ImportError:
     print("Error: setuptools is required to install SimTradeLab")
     print("Please install setuptools first: pip install setuptools")
@@ -20,6 +20,7 @@ except ImportError:
 
 # Determine the directory containing this setup.py file
 here = Path(__file__).parent.absolute()
+
 
 # Read version from __init__.py
 def get_version():
@@ -31,6 +32,7 @@ def get_version():
                     return line.split("=")[1].strip().strip('"').strip("'")
     return "1.0.0"
 
+
 # Read the README file
 def get_long_description():
     readme_file = here / "README.md"
@@ -39,10 +41,11 @@ def get_long_description():
             return f.read()
     return ""
 
+
 # Core dependencies (keep in sync with pyproject.toml)
 INSTALL_REQUIRES = [
     "pandas>=2.3.0,<3.0.0",
-    "numpy>=2.0.0,<3.0.0", 
+    "numpy>=2.0.0,<3.0.0",
     "matplotlib>=3.10.3,<4.0.0",
     "PyYAML>=6.0",
     "setuptools>=65.0",
@@ -58,7 +61,7 @@ EXTRAS_REQUIRE = {
     "dev": [
         "pytest>=8.2.1",
         "pytest-cov>=5.0.0",
-        "pytest-mock>=3.12.0", 
+        "pytest-mock>=3.12.0",
         "pytest-xdist>=3.6.0",
         "psutil>=6.0.0",
         "black>=23.0.0",
@@ -92,48 +95,49 @@ setup(
     author_email="kayou@duck.com",
     url="https://github.com/kay-ou/SimTradeLab",
     license="MIT",
-    
     # Package discovery
     packages=find_packages(where="src"),
     package_dir={"": "src"},
-    
     # Include data files
     include_package_data=True,
     package_data={
         "simtradelab": ["*.yaml", "*.yml"],
         "": ["*.md", "*.txt", "*.csv"],
     },
-    
     # Dependencies
     python_requires=">=3.10.0",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
-    
     # Entry points
     entry_points={
         "console_scripts": [
             "simtradelab=simtradelab.cli:main",
         ],
     },
-    
     # Classification
     classifiers=[
         "Development Status :: 4 - Beta",
-        "Intended Audience :: Financial and Insurance Industry", 
+        "Intended Audience :: Financial and Insurance Industry",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11", 
+        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Operating System :: OS Independent",
         "Topic :: Office/Business :: Financial :: Investment",
         "Topic :: Scientific/Engineering :: Information Analysis",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],
-    
-    keywords=["trading", "backtesting", "quantitative", "finance", "strategy", "akshare", "tushare"],
-    
+    keywords=[
+        "trading",
+        "backtesting",
+        "quantitative",
+        "finance",
+        "strategy",
+        "akshare",
+        "tushare",
+    ],
     # Additional metadata
     project_urls={
         "Homepage": "https://github.com/kay-ou/SimTradeLab",
@@ -141,7 +145,6 @@ setup(
         "Documentation": "https://github.com/kay-ou/SimTradeLab/blob/main/README.md",
         "Bug Reports": "https://github.com/kay-ou/SimTradeLab/issues",
     },
-    
     # Build options
     zip_safe=False,
 )

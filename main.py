@@ -5,15 +5,16 @@
 
 from simtradelab.engine import BacktestEngine
 
+
 def main():
     """
     主函数，配置并运行回测。
     """
     # --- 回测配置 ---
-    strategy_file = 'strategies/test_strategy.py'
-    data_path = 'data/sample_data.csv'  # 假设数据文件路径
-    start_date = '2023-01-13'  # 只测试有数据的日期
-    end_date = '2023-01-13'
+    strategy_file = "strategies/test_strategy.py"
+    data_path = "data/sample_data.csv"  # 假设数据文件路径
+    start_date = "2023-01-13"  # 只测试有数据的日期
+    end_date = "2023-01-13"
     initial_cash = 1000000.0
 
     # --- 启动引擎 ---
@@ -22,7 +23,7 @@ def main():
         data_path=data_path,
         start_date=start_date,
         end_date=end_date,
-        initial_cash=initial_cash
+        initial_cash=initial_cash,
     )
 
     engine.run()
@@ -31,7 +32,9 @@ def main():
     print("\n=== 详细回测结果 ===")
     print(f"最终现金: {engine.portfolio.cash:,.2f}")
     print(f"最终总价值: {engine.portfolio.total_value:,.2f}")
-    positions_count = len([p for p in engine.portfolio.positions.values() if p.amount > 0])
+    positions_count = len(
+        [p for p in engine.portfolio.positions.values() if p.amount > 0]
+    )
     print(f"持仓数量: {positions_count}")
 
     total_position_value = 0
@@ -49,9 +52,11 @@ def main():
     print(f"现金+持仓: {engine.portfolio.cash + total_position_value:,.2f}")
 
     # 计算收益
-    total_return = (engine.portfolio.total_value - engine.initial_cash) / engine.initial_cash * 100
+    total_return = (
+        (engine.portfolio.total_value - engine.initial_cash) / engine.initial_cash * 100
+    )
     print(f"总收益率: {total_return:.2f}%")
+
 
 if __name__ == "__main__":
     main()
-

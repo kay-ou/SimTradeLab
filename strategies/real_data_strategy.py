@@ -5,12 +5,13 @@
 演示如何使用真实数据源进行回测
 """
 
+
 def initialize(context):
     """初始化函数"""
     log.info("=== 真实数据源策略初始化开始 ===")
 
     # 设置基准 - 使用沪深300指数
-    set_benchmark('000300.SH')
+    set_benchmark("000300.SH")
     log.info("设置基准指数: 000300.SH (沪深300)")
 
     # 设置手续费
@@ -19,11 +20,11 @@ def initialize(context):
 
     # 初始化真实股票池 - 使用真实的A股代码
     g.stock_pool = [
-        '000001.SZ',  # 平安银行
-        '000002.SZ',  # 万科A
-        '600000.SH',  # 浦发银行
-        '600036.SH',  # 招商银行
-        '600519.SH',  # 贵州茅台
+        "000001.SZ",  # 平安银行
+        "000002.SZ",  # 万科A
+        "600000.SH",  # 浦发银行
+        "600036.SH",  # 招商银行
+        "600519.SH",  # 贵州茅台
     ]
 
     # 策略参数
@@ -40,7 +41,7 @@ def initialize(context):
 
 def handle_data(context, data):
     """主要交易逻辑 - 处理真实A股数据"""
-    current_date = context.current_dt.strftime('%Y-%m-%d')
+    current_date = context.current_dt.strftime("%Y-%m-%d")
     log.info(f"📊 处理真实A股数据: {current_date}")
 
     # 显示当前可用的真实股票数据
@@ -49,14 +50,19 @@ def handle_data(context, data):
 
     # 获取当前持仓
     positions = get_positions()
-    current_positions = len([stock for stock in g.stock_pool
-                           if stock in positions and positions[stock].get('amount', 0) > 0])
+    current_positions = len(
+        [
+            stock
+            for stock in g.stock_pool
+            if stock in positions and positions[stock].get("amount", 0) > 0
+        ]
+    )
 
     log.info(f"当前持仓数量: {current_positions}/{g.max_positions}")
 
     # 获取股票池的历史数据进行技术分析
     # 先尝试获取较少的历史数据，适应真实数据源的情况
-    hist_data = get_history(5, '1d', ['close', 'volume'], g.stock_pool)
+    hist_data = get_history(5, "1d", ["close", "volume"], g.stock_pool)
 
     if hist_data.empty:
         log.warning(f"{current_date}: 无法获取历史数据")
@@ -71,13 +77,13 @@ def handle_data(context, data):
             continue
 
         # 获取当前真实价格和成交量
-        current_price = data[stock]['close']
-        current_volume = data[stock]['volume']
+        current_price = data[stock]["close"]
+        current_volume = data[stock]["volume"]
 
         log.info(f"🏢 {stock}: 价格¥{current_price:.2f}, 成交量{current_volume:,}手")
 
         # 获取当前持仓
-        current_position = positions.get(stock, {}).get('amount', 0)
+        current_position = positions.get(stock, {}).get("amount", 0)
 
         # 尝试获取历史数据进行技术分析
         close_prices = None
@@ -86,16 +92,19 @@ def handle_data(context, data):
         if not hist_data.empty:
             # 处理不同格式的历史数据
             try:
-                if hasattr(hist_data.columns, 'levels') and len(hist_data.columns.levels) > 1:
+                if (
+                    hasattr(hist_data.columns, "levels")
+                    and len(hist_data.columns.levels) > 1
+                ):
                     # 多级索引格式
                     if stock in hist_data.columns.get_level_values(1):
-                        close_prices = hist_data['close'][stock].dropna()
+                        close_prices = hist_data["close"][stock].dropna()
                 else:
                     # 单级索引格式，尝试不同的访问方式
-                    if ('close', stock) in hist_data.columns:
-                        close_prices = hist_data[('close', stock)].dropna()
-                    elif f'close_{stock}' in hist_data.columns:
-                        close_prices = hist_data[f'close_{stock}'].dropna()
+                    if ("close", stock) in hist_data.columns:
+                        close_prices = hist_data[("close", stock)].dropna()
+                    elif f"close_{stock}" in hist_data.columns:
+                        close_prices = hist_data[f"close_{stock}"].dropna()
                     elif stock in hist_data.columns:
                         # 如果股票直接作为列名，假设是收盘价
                         close_prices = hist_data[stock].dropna()
@@ -111,22 +120,29 @@ def handle_data(context, data):
             ma20 = close_prices.tail(min(20, len(close_prices))).mean()
 
             # 计算价格变化率
-            price_change = (current_price - close_prices.iloc[-2]) / close_prices.iloc[-2] if len(close_prices) > 1 else 0
+            price_change = (
+                (current_price - close_prices.iloc[-2]) / close_prices.iloc[-2]
+                if len(close_prices) > 1
+                else 0
+            )
 
-            log.info(f"   📈 MA{min(5, len(close_prices))}: ¥{ma5:.2f}, MA{min(20, len(close_prices))}: ¥{ma20:.2f}, 涨跌: {price_change:.2%}")
+            log.info(
+                f"   📈 MA{min(5, len(close_prices))}: ¥{ma5:.2f}, MA{min(20, len(close_prices))}: ¥{ma20:.2f}, 涨跌: {price_change:.2%}"
+            )
 
             # 买入条件：价格上涨超过阈值且短期均线上穿长期均线
-            if (current_positions < g.max_positions and
-                current_position == 0 and
-                price_change > g.buy_threshold and
-                ma5 > ma20):
-
+            if (
+                current_positions < g.max_positions
+                and current_position == 0
+                and price_change > g.buy_threshold
+                and ma5 > ma20
+            ):
                 log.info(f"💰 买入信号: {stock} - 价格上涨{price_change:.2%}, MA5>MA20")
                 order_id = order(stock, 100)  # 买入100股
                 log.info(f"✅ 买入 {stock} 100股, 订单ID: {order_id}")
 
             # 卖出条件：价格下跌超过阈值
-            elif (current_position > 0 and price_change < g.sell_threshold):
+            elif current_position > 0 and price_change < g.sell_threshold:
                 log.info(f"📉 卖出信号: {stock} - 价格下跌{price_change:.2%}")
                 order_id = order(stock, -current_position)  # 全部卖出
                 log.info(f"✅ 卖出 {stock} {current_position}股, 订单ID: {order_id}")
@@ -134,7 +150,7 @@ def handle_data(context, data):
             # 历史数据不足，使用简单的买入持有策略
             log.info(f"   📊 {stock}: 使用简单策略（历史数据不足）")
 
-            if (current_positions < g.max_positions and current_position == 0):
+            if current_positions < g.max_positions and current_position == 0:
                 # 简单买入策略：如果还没有持仓且有空余仓位，就买入
                 log.info(f"💰 简单买入: {stock} - 当前价格¥{current_price:.2f}")
                 order_id = order(stock, 100)  # 买入100股
@@ -144,19 +160,21 @@ def handle_data(context, data):
     log.info("📋 当前真实股票持仓:")
     total_market_value = 0
     for stock in g.stock_pool:
-        if stock in positions and positions[stock].get('amount', 0) > 0:
+        if stock in positions and positions[stock].get("amount", 0) > 0:
             pos = positions[stock]
             if stock in data:
-                current_price = data[stock]['close']
-                market_value = pos['amount'] * current_price
-                cost_value = pos['amount'] * pos.get('cost_basis', current_price)
+                current_price = data[stock]["close"]
+                market_value = pos["amount"] * current_price
+                cost_value = pos["amount"] * pos.get("cost_basis", current_price)
                 profit_loss = market_value - cost_value
                 profit_rate = profit_loss / cost_value if cost_value > 0 else 0
                 total_market_value += market_value
 
-                log.info(f"   🏢 {stock}: {pos['amount']}股, "
-                        f"市值¥{market_value:.2f}, "
-                        f"盈亏¥{profit_loss:.2f}({profit_rate:.2%})")
+                log.info(
+                    f"   🏢 {stock}: {pos['amount']}股, "
+                    f"市值¥{market_value:.2f}, "
+                    f"盈亏¥{profit_loss:.2f}({profit_rate:.2%})"
+                )
 
     if total_market_value > 0:
         log.info(f"📊 总持仓市值: ¥{total_market_value:.2f}")
@@ -164,7 +182,7 @@ def handle_data(context, data):
 
 def after_trading_end(context, data):
     """交易结束后的处理"""
-    current_date = context.current_dt.strftime('%Y-%m-%d')
+    current_date = context.current_dt.strftime("%Y-%m-%d")
     log.info(f"📅 {current_date} 交易日结束")
 
     # 显示当日真实数据统计
@@ -177,9 +195,10 @@ def after_trading_end(context, data):
     log.info(f"📈 股票市值: ¥{stock_value:.2f}")
 
     # 计算当日收益
-    if hasattr(context, 'previous_value'):
-        daily_return = (portfolio_value - context.previous_value) / context.previous_value
+    if hasattr(context, "previous_value"):
+        daily_return = (
+            portfolio_value - context.previous_value
+        ) / context.previous_value
         log.info(f"📊 当日收益率: {daily_return:.2%}")
 
     context.previous_value = portfolio_value
-

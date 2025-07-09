@@ -7,4 +7,4 @@ SimTradeLab 数据插件模块
 
 from .csv_data_plugin import CSVDataPlugin
 
-__all__ = ['CSVDataPlugin']
+__all__ = ["CSVDataPlugin"]

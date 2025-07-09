@@ -5,8 +5,10 @@
 from datetime import datetime
 from typing import Optional
 
+
 class Logger:
     """模拟日志记录器，支持ptrade风格的时间戳格式"""
+
     LEVEL_INFO = "INFO"
 
     def __init__(self):
@@ -41,7 +43,7 @@ class Logger:
         """记录debug级别日志"""
         timestamp = self._format_timestamp()
         print(f"{timestamp} - DEBUG - {msg}")
-        
+
     def critical(self, msg: str) -> None:
         """记录critical级别日志"""
         timestamp = self._format_timestamp()

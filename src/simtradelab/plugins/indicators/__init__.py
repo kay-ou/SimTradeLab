@@ -7,4 +7,4 @@ SimTradeLab 技术指标插件模块
 
 from .technical_indicators_plugin import TechnicalIndicatorsPlugin
 
-__all__ = ['TechnicalIndicatorsPlugin']
+__all__ = ["TechnicalIndicatorsPlugin"]
