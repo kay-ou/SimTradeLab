@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-CSV数据源插件
+Mock数据源插件
 
-负责创建和管理CSV格式的股票数据，提供标准的数据访问接口。
+专门用于生成模拟数据，支持配置化的加载和移除。
+在开发测试阶段使用，生产环境可以通过配置禁用。
 """
 
-import logging
-import os
+import random
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -17,102 +16,147 @@ import pandas as pd
 from ..base import BasePlugin, PluginConfig, PluginMetadata
 
 
-class CSVDataPlugin(BasePlugin):
-    """CSV数据源插件"""
+class MockDataPlugin(BasePlugin):
+    """Mock数据源插件"""
 
     METADATA = PluginMetadata(
-        name="csv_data_plugin",
+        name="mock_data_plugin",
         version="1.0.0",
-        description="CSV Data Source Plugin for SimTradeLab",
+        description="Mock Data Source Plugin for Development and Testing",
         author="SimTradeLab",
         dependencies=[],
-        tags=["data", "csv", "stock"],
+        tags=["data", "mock", "testing", "development"],
         category="data_source",
-        priority=20,  # 较高优先级，确保在适配器之前加载
+        priority=15,  # 中等优先级，低于CSV插件但高于默认插件
     )
 
     def __init__(self, metadata: PluginMetadata, config: Optional[PluginConfig] = None):
         super().__init__(metadata, config)
 
-        # 数据存储目录
-        self._data_dir = Path(
-            self._config.config.get("data_dir", Path(__file__).parent / "data")
+        # 模拟数据配置
+        self._enabled = self._config.config.get("enabled", True)
+        self._seed = self._config.config.get("seed", 42)  # 随机种子确保可重复性
+        self._base_prices = self._config.config.get(
+            "base_prices",
+            {
+                "000001.SZ": 15.0,
+                "000002.SZ": 12.0,
+                "000858.SZ": 25.0,
+                "600000.SH": 8.0,
+                "600036.SH": 35.0,
+                "600519.SH": 1800.0,
+                "688001.SH": 50.0,
+                "300001.SZ": 30.0,
+            },
         )
-        self._data_dir.mkdir(parents=True, exist_ok=True)
+        self._volatility = self._config.config.get("volatility", 0.02)  # 日波动率
+        self._trend = self._config.config.get("trend", 0.0001)  # 趋势系数
 
         # 数据缓存
-        self._data_cache: Dict[str, pd.DataFrame] = {}
-        self._cache_timeout = self._config.config.get("cache_timeout", 300)  # 5分钟
-        self._cache_timestamps: Dict[str, datetime] = {}
+        self._data_cache: Dict[str, Any] = {}
+
+        # 设置随机种子
+        if self._seed is not None:
+            np.random.seed(self._seed)
+            random.seed(self._seed)
 
     def _on_initialize(self) -> None:
-        """初始化数据插件"""
-        self._logger.info("Initializing CSV Data Plugin")
+        """初始化Mock数据插件"""
+        if not self._enabled:
+            self._logger.info("Mock Data Plugin is disabled by configuration")
+            return
 
-        # 确保基础数据文件存在
-        self._ensure_base_data_files()
-
+        self._logger.info("Initializing Mock Data Plugin")
+        self._logger.info(f"Random seed: {self._seed}")
         self._logger.info(
-            f"CSV Data Plugin initialized with data directory: {self._data_dir}"
+            f"Base prices configured for {len(self._base_prices)} securities"
         )
+        self._logger.info(f"Volatility: {self._volatility}, Trend: {self._trend}")
 
-    def _ensure_base_data_files(self) -> None:
-        """确保基础数据文件存在"""
-        # 创建常用股票的历史数据文件
-        common_stocks = [
-            "000001.SZ",
-            "000002.SZ",
-            "000858.SZ",
-            "600000.SH",
-            "600036.SH",
-            "600519.SH",
-            "688001.SH",
-            "300001.SZ",
-        ]
+    def is_enabled(self) -> bool:
+        """检查插件是否启用"""
+        return self._enabled
 
-        for stock in common_stocks:
-            self._create_stock_data_file(stock)
+    def enable(self) -> None:
+        """启用Mock数据插件"""
+        self._enabled = True
+        self._logger.info("Mock Data Plugin enabled")
 
-    def _create_stock_data_file(self, security: str, days: int = 365) -> Path:
+    def disable(self) -> None:
+        """禁用Mock数据插件"""
+        self._enabled = False
+        self._data_cache.clear()
+        self._logger.info("Mock Data Plugin disabled and cache cleared")
+
+    def _get_base_price(self, security: str) -> float:
         """
-        创建单个股票的历史数据文件
+        根据证券代码获取基础价格
 
         Args:
             security: 证券代码
-            days: 历史数据天数
 
         Returns:
-            数据文件路径
+            基础价格
         """
-        file_path = self._data_dir / f"{security}.csv"
+        # 如果在配置中有指定价格，使用配置价格
+        if security in self._base_prices:
+            return self._base_prices[security]
 
-        # 如果文件已存在且不为空，不重新创建
-        if file_path.exists() and file_path.stat().st_size > 0:
-            return file_path
+        # 根据不同板块设置不同的基础价格
+        if security.startswith("688"):  # 科创板
+            return 50.0
+        elif security.startswith("300"):  # 创业板
+            return 30.0
+        elif security.startswith("600"):  # 沪市主板
+            return 20.0
+        elif security.startswith("000"):  # 深市主板
+            return 15.0
+        else:
+            return 10.0
+
+    def _generate_price_series(
+        self, security: str, days: int, start_date: Optional[datetime] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        生成价格序列
+
+        Args:
+            security: 证券代码
+            days: 天数
+            start_date: 起始日期
+
+        Returns:
+            价格数据列表
+        """
+        if not self._enabled:
+            raise RuntimeError("Mock Data Plugin is disabled")
 
         # 生成日期范围
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days)
+        if start_date is None:
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+        else:
+            end_date = start_date + timedelta(days=days)
+
         date_range = pd.date_range(start=start_date, end=end_date, freq="D")
-
         # 过滤掉周末（简单处理）
-        date_range = date_range[date_range.dayofweek < 5]
+        date_range = date_range[date_range.dayofweek < 5][:days]
 
-        # 基础价格（根据股票代码生成）
+        # 基础价格
         base_price = self._get_base_price(security)
 
         # 生成价格数据
         data = []
         current_price = base_price
 
-        for date in date_range:
-            # 价格变化（随机游走）
-            price_change = np.random.normal(0, 0.02)  # 2%的日波动率
+        for i, date in enumerate(date_range):
+            # 价格变化（随机游走 + 小趋势）
+            price_change = np.random.normal(self._trend, self._volatility)
             current_price *= 1 + price_change
 
             # 确保价格不会过低
-            if current_price < base_price * 0.3:
-                current_price = base_price * 0.3
+            if current_price < base_price * 0.1:
+                current_price = base_price * 0.1
 
             # 生成OHLC数据
             open_price = current_price * (1 + np.random.normal(0, 0.005))
@@ -141,34 +185,7 @@ class CSVDataPlugin(BasePlugin):
                 }
             )
 
-        # 保存到CSV文件
-        df = pd.DataFrame(data)
-        df.to_csv(file_path, index=False)
-
-        self._logger.info(f"Created data file for {security}: {file_path}")
-        return file_path
-
-    def _get_base_price(self, security: str) -> float:
-        """
-        根据证券代码获取基础价格
-
-        Args:
-            security: 证券代码
-
-        Returns:
-            基础价格
-        """
-        # 根据不同板块设置不同的基础价格
-        if security.startswith("688"):  # 科创板
-            return 50.0
-        elif security.startswith("300"):  # 创业板
-            return 30.0
-        elif security.startswith("600"):  # 沪市主板
-            return 20.0
-        elif security.startswith("000"):  # 深市主板
-            return 15.0
-        else:
-            return 10.0
+        return data
 
     def get_history_data(
         self,
@@ -189,27 +206,27 @@ class CSVDataPlugin(BasePlugin):
         Returns:
             历史数据DataFrame
         """
-        # 检查缓存
+        if not self._enabled:
+            raise RuntimeError("Mock Data Plugin is disabled")
+
+        # 生成缓存键
         cache_key = f"{security}_{count}_{start_date}_{end_date}"
+
+        # 检查缓存
         if cache_key in self._data_cache:
-            cache_time = self._cache_timestamps.get(cache_key)
-            if (
-                cache_time
-                and (datetime.now() - cache_time).seconds < self._cache_timeout
-            ):
-                return self._data_cache[cache_key].copy()
+            return self._data_cache[cache_key].copy()
 
-        file_path = self._data_dir / f"{security}.csv"
+        # 解析日期
+        start_dt = None
+        if start_date:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
 
-        # 如果文件不存在，创建它
-        if not file_path.exists():
-            self._create_stock_data_file(security)
+        # 生成数据
+        data = self._generate_price_series(security, count, start_dt)
 
-        # 读取CSV文件
-        df = pd.read_csv(file_path)
+        # 转换为DataFrame
+        df = pd.DataFrame(data)
         df["date"] = pd.to_datetime(df["date"])
-
-        # 按日期排序
         df = df.sort_values("date")
 
         # 应用日期过滤
@@ -224,7 +241,6 @@ class CSVDataPlugin(BasePlugin):
 
         # 缓存结果
         self._data_cache[cache_key] = df.copy()
-        self._cache_timestamps[cache_key] = datetime.now()
 
         return df
 
@@ -238,6 +254,9 @@ class CSVDataPlugin(BasePlugin):
         Returns:
             当前价格
         """
+        if not self._enabled:
+            raise RuntimeError("Mock Data Plugin is disabled")
+
         try:
             df = self.get_history_data(security, count=1)
             if not df.empty:
@@ -267,6 +286,9 @@ class CSVDataPlugin(BasePlugin):
         Returns:
             合并的历史数据DataFrame
         """
+        if not self._enabled:
+            raise RuntimeError("Mock Data Plugin is disabled")
+
         all_data = []
 
         for security in securities:
@@ -291,6 +313,9 @@ class CSVDataPlugin(BasePlugin):
         Returns:
             市场快照数据字典
         """
+        if not self._enabled:
+            raise RuntimeError("Mock Data Plugin is disabled")
+
         snapshot = {}
 
         for security in securities:
@@ -328,95 +353,6 @@ class CSVDataPlugin(BasePlugin):
 
         return snapshot
 
-    def create_custom_data_file(self, security: str, data: pd.DataFrame) -> Path:
-        """
-        创建自定义数据文件
-
-        Args:
-            security: 证券代码
-            data: 数据DataFrame
-
-        Returns:
-            数据文件路径
-        """
-        file_path = self._data_dir / f"{security}.csv"
-        data.to_csv(file_path, index=False)
-
-        # 清除缓存
-        self._clear_cache_for_security(security)
-
-        self._logger.info(f"Created custom data file for {security}: {file_path}")
-        return file_path
-
-    def list_available_securities(self) -> List[str]:
-        """
-        列出可用的证券代码
-
-        Returns:
-            证券代码列表
-        """
-        securities = []
-        for file_path in self._data_dir.glob("*.csv"):
-            security = file_path.stem
-            securities.append(security)
-
-        return sorted(securities)
-
-    def get_data_file_path(self, security: str) -> Path:
-        """
-        获取数据文件路径
-
-        Args:
-            security: 证券代码
-
-        Returns:
-            数据文件路径
-        """
-        return self._data_dir / f"{security}.csv"
-
-    def _clear_cache_for_security(self, security: str) -> None:
-        """清除指定证券的缓存"""
-        keys_to_remove = [
-            key for key in self._data_cache.keys() if key.startswith(security)
-        ]
-        for key in keys_to_remove:
-            del self._data_cache[key]
-            self._cache_timestamps.pop(key, None)
-
-    def cleanup_old_data(self, days: int = 30) -> None:
-        """
-        清理旧数据文件
-
-        Args:
-            days: 保留天数
-        """
-        cutoff_time = datetime.now() - timedelta(days=days)
-
-        for file_path in self._data_dir.glob("*.csv"):
-            if file_path.stat().st_mtime < cutoff_time.timestamp():
-                file_path.unlink()
-                self._logger.info(f"Cleaned up old data file: {file_path}")
-
-    def clear_cache(self) -> None:
-        """清除所有缓存"""
-        self._data_cache.clear()
-        self._cache_timestamps.clear()
-        self._logger.info("Cleared all data cache")
-
-    def get_cache_stats(self) -> Dict[str, Any]:
-        """获取缓存统计信息"""
-        return {
-            "cached_items": len(self._data_cache),
-            "cache_size_mb": sum(
-                df.memory_usage(deep=True).sum() for df in self._data_cache.values()
-            )
-            / (1024 * 1024),
-            "cache_timeout": self._cache_timeout,
-            "oldest_cache_time": min(self._cache_timestamps.values())
-            if self._cache_timestamps
-            else None,
-        }
-
     def get_fundamentals(
         self, securities: List[str], table: str, fields: List[str], date: str
     ) -> pd.DataFrame:
@@ -432,54 +368,8 @@ class CSVDataPlugin(BasePlugin):
         Returns:
             包含基本面数据的DataFrame
         """
-        # 创建基本面数据文件路径
-        fundamentals_dir = self._data_dir / "fundamentals"
-        fundamentals_dir.mkdir(parents=True, exist_ok=True)
-
-        # 构建文件名：table_date.csv
-        file_name = f"{table}_{date.replace('-', '')}.csv"
-        file_path = fundamentals_dir / file_name
-
-        # 如果文件不存在，创建模拟基本面数据
-        if not file_path.exists():
-            self._create_fundamentals_data_file(
-                securities, table, fields, date, file_path
-            )
-
-        # 读取基本面数据
-        try:
-            df = pd.read_csv(file_path)
-
-            # 过滤请求的股票和字段
-            if not df.empty:
-                # 过滤股票
-                if "code" in df.columns:
-                    df = df[df["code"].isin(securities)]
-
-                # 过滤字段
-                available_fields = [f for f in fields if f in df.columns]
-                if available_fields:
-                    columns_to_keep = ["code", "date"] + available_fields
-                    df = df[columns_to_keep]
-
-            return df
-
-        except Exception as e:
-            self._logger.error(f"Error reading fundamentals data: {e}")
-            # 返回空DataFrame但包含正确的列结构
-            columns = ["code", "date"] + fields
-            return pd.DataFrame(columns=columns)
-
-    def _create_fundamentals_data_file(
-        self,
-        securities: List[str],
-        table: str,
-        fields: List[str],
-        date: str,
-        file_path: Path,
-    ) -> None:
-        """创建基本面数据文件"""
-        import random
+        if not self._enabled:
+            raise RuntimeError("Mock Data Plugin is disabled")
 
         data = []
         for security in securities:
@@ -551,21 +441,78 @@ class CSVDataPlugin(BasePlugin):
 
             data.append(row)
 
-        # 创建DataFrame并保存
-        df = pd.DataFrame(data)
-        df.to_csv(file_path, index=False)
+        return pd.DataFrame(data)
 
-        self._logger.info(f"Created fundamentals data file: {file_path}")
+    def list_available_securities(self) -> List[str]:
+        """
+        列出可用的证券代码
+
+        Returns:
+            证券代码列表
+        """
+        if not self._enabled:
+            return []
+
+        return list(self._base_prices.keys())
+
+    def clear_cache(self) -> None:
+        """清除所有缓存"""
+        self._data_cache.clear()
+        self._logger.info("Cleared all mock data cache")
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """获取缓存统计信息"""
+        return {
+            "enabled": self._enabled,
+            "cached_items": len(self._data_cache),
+            "cache_size_mb": sum(
+                df.memory_usage(deep=True).sum() if hasattr(df, "memory_usage") else 0
+                for df in self._data_cache.values()
+            )
+            / (1024 * 1024),
+            "seed": self._seed,
+            "securities_count": len(self._base_prices),
+            "volatility": self._volatility,
+            "trend": self._trend,
+        }
+
+    def update_config(self, new_config: Dict[str, Any]) -> None:
+        """
+        更新插件配置
+
+        Args:
+            new_config: 新的配置字典
+        """
+        self._enabled = new_config.get("enabled", self._enabled)
+        self._seed = new_config.get("seed", self._seed)
+        self._base_prices.update(new_config.get("base_prices", {}))
+        self._volatility = new_config.get("volatility", self._volatility)
+        self._trend = new_config.get("trend", self._trend)
+
+        # 重新设置随机种子
+        if self._seed is not None:
+            np.random.seed(self._seed)
+            random.seed(self._seed)
+
+        # 清除缓存以使用新配置
+        self.clear_cache()
+
+        self._logger.info(
+            f"Mock Data Plugin configuration updated: enabled={self._enabled}"
+        )
 
     def _on_start(self) -> None:
-        """启动数据插件"""
-        self._logger.info("CSV Data Plugin started")
+        """启动Mock数据插件"""
+        if self._enabled:
+            self._logger.info("Mock Data Plugin started")
+        else:
+            self._logger.info("Mock Data Plugin is disabled, not starting")
 
     def _on_stop(self) -> None:
-        """停止数据插件"""
-        self._logger.info("CSV Data Plugin stopped")
+        """停止Mock数据插件"""
+        self._logger.info("Mock Data Plugin stopped")
 
     def _on_shutdown(self) -> None:
         """关闭时清理资源"""
         self.clear_cache()
-        self._logger.info("CSV Data Plugin shutdown completed")
+        self._logger.info("Mock Data Plugin shutdown completed")

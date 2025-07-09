@@ -24,7 +24,7 @@ from .routers import (
     LiveTradingAPIRouter,
     ResearchAPIRouter,
 )
-from .utils import PTradeAPIError, PTradeAdapterError, PTradeCompatibilityError
+from .utils import PTradeAdapterError, PTradeAPIError, PTradeCompatibilityError
 
 __all__ = [
     # 主要适配器

@@ -65,6 +65,7 @@ reports/
 *.log
 logs/
 
+*.csv
 web/uploads/
 cache/
 .roo/

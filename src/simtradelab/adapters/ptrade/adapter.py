@@ -13,18 +13,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import numpy as np
-
 from ...core.event_bus import EventBus
 from ...plugins.base import BasePlugin, PluginConfig, PluginMetadata
 from .context import PTradeContext, PTradeMode
 from .models import Portfolio
-from .routers import (
-    BacktestAPIRouter,
-    BaseAPIRouter,
-    LiveTradingAPIRouter,
-    ResearchAPIRouter,
-)
+from .routers import BacktestAPIRouter, LiveTradingAPIRouter, ResearchAPIRouter
 from .utils import PTradeAdapterError, PTradeAPIError, PTradeCompatibilityError
 
 
@@ -42,9 +35,8 @@ class PTradeAdapter(BasePlugin):
         description="PTrade API Compatibility Adapter",
         author="SimTradeLab",
         dependencies=[
-            "csv_data_plugin",
-            "technical_indicators_plugin",
-        ],  # 依赖CSV数据插件和技术指标插件
+            # 移除硬编码的插件依赖，改为通过服务发现机制
+        ],  # PTrade适配器不应该硬编码插件依赖
         tags=["ptrade", "compatibility", "adapter", "complete"],
         category="adapter",
         priority=10,  # 高优先级，确保早期加载
@@ -56,12 +48,14 @@ class PTradeAdapter(BasePlugin):
         # PTrade 适配器状态
         self._ptrade_context: Optional[PTradeContext] = None
         self._strategy_module: Optional[types.ModuleType] = None
-        self._api_router: Optional[BaseAPIRouter] = None  # 核心：API路由器
+        self._api_router: Optional[
+            Union[BacktestAPIRouter, LiveTradingAPIRouter, ResearchAPIRouter]
+        ] = None  # 核心：API路由器
         self._data_cache: Dict[str, Any] = {}
         self._current_data: Dict[str, Dict[str, float]] = {}
 
-        # 插件引用（在初始化时从插件管理器获取）
-        self._data_plugin = None
+        # 插件引用（通过服务发现动态获取）
+        self._available_data_plugins: List[Dict[str, Any]] = []  # 所有可用的数据源插件
         self._indicators_plugin = None
 
         # 设置PTrade支持的模式
@@ -81,6 +75,10 @@ class PTradeAdapter(BasePlugin):
         self._initial_cash = self._config.config.get("initial_cash", 1000000.0)
         self._commission_rate = self._config.config.get("commission_rate", 0.0003)
         self._slippage_rate = self._config.config.get("slippage_rate", 0.001)
+
+        # 数据源配置
+        self._use_mock_data = self._config.config.get("use_mock_data", False)
+        self._mock_data_enabled = self._config.config.get("mock_data_enabled", True)
 
         # 策略生命周期钩子
         self._strategy_hooks: Dict[str, Optional[Callable[..., Any]]] = {
@@ -108,7 +106,9 @@ class PTradeAdapter(BasePlugin):
         """
         self._event_bus_ref = event_bus
 
-    def _init_api_router(self) -> BaseAPIRouter:
+    def _init_api_router(
+        self,
+    ) -> Union[BacktestAPIRouter, LiveTradingAPIRouter, ResearchAPIRouter]:
         """根据当前模式初始化 API 路由器"""
         current_mode = self.get_current_mode()
 
@@ -118,17 +118,32 @@ class PTradeAdapter(BasePlugin):
                 "PTrade context must be initialized before API router"
             )
 
+        # 获取当前活跃的数据插件
+        active_data_plugin = self._get_active_data_plugin()
+
         if current_mode == PTradeMode.BACKTEST:
-            return BacktestAPIRouter(
+            router = BacktestAPIRouter(
                 self._ptrade_context,
                 self._event_bus_ref,
                 slippage_rate=self._slippage_rate,
                 commission_rate=self._commission_rate,
             )
+            # 传递活跃数据插件引用给回测模式路由器
+            if active_data_plugin:
+                router.set_data_plugin(active_data_plugin)
+            return router
         elif current_mode == PTradeMode.TRADING:
-            return LiveTradingAPIRouter(self._ptrade_context, self._event_bus_ref)
+            router = LiveTradingAPIRouter(self._ptrade_context, self._event_bus_ref)
+            # 传递活跃数据插件引用给实盘交易模式路由器
+            if active_data_plugin:
+                router.set_data_plugin(active_data_plugin)
+            return router
         elif current_mode == PTradeMode.RESEARCH:
-            return ResearchAPIRouter(self._ptrade_context, self._event_bus_ref)
+            router = ResearchAPIRouter(self._ptrade_context, self._event_bus_ref)
+            # 传递活跃数据插件引用给研究模式路由器
+            if active_data_plugin:
+                router.set_data_plugin(active_data_plugin)
+            return router
         else:
             raise PTradeAdapterError(f"Unsupported mode: {current_mode}")
 
@@ -136,6 +151,15 @@ class PTradeAdapter(BasePlugin):
         """模式切换时重新初始化API路由器"""
         if self._ptrade_context is not None:
             self._api_router = self._init_api_router()
+            # 获取当前活跃的数据插件并设置给API路由器
+            active_data_plugin = self._get_active_data_plugin()
+            if (
+                new_mode
+                in [PTradeMode.RESEARCH, PTradeMode.TRADING, PTradeMode.BACKTEST]
+                and active_data_plugin
+                and hasattr(self._api_router, "set_data_plugin")
+            ):
+                self._api_router.set_data_plugin(active_data_plugin)
             self._logger.info(f"API router switched to {new_mode.value} mode")
 
     def _setup_plugin_proxies(self) -> None:
@@ -193,23 +217,335 @@ class PTradeAdapter(BasePlugin):
         """设置插件管理器引用"""
         self._plugin_manager = plugin_manager
 
-        # 获取插件
-        if self._plugin_manager:
-            self._data_plugin = self._plugin_manager.get_plugin("csv_data_plugin")
-            if not self._data_plugin:
-                self._logger.warning("CSV data plugin not found or not loaded")
+        # 使用服务发现机制查找所有数据源插件
+        self._discover_data_source_plugins()
 
-            self._indicators_plugin = self._plugin_manager.get_plugin(
-                "technical_indicators_plugin"
-            )
-            if not self._indicators_plugin:
-                self._logger.warning(
-                    "Technical indicators plugin not found or not loaded"
+        # 查找技术指标插件
+        self._discover_indicator_plugins()
+
+    def _discover_data_source_plugins(self) -> None:
+        """通过服务发现机制查找所有数据源插件"""
+        if not self._plugin_manager:
+            self._logger.warning("Plugin manager not available for service discovery")
+            return
+
+        # 获取所有已加载的插件
+        all_plugins = self._plugin_manager.get_all_plugins()
+
+        # 查找实现了数据源接口的插件
+        data_source_plugins = []
+        for plugin_name, plugin_instance in all_plugins.items():
+            if self._is_data_source_plugin(plugin_instance):
+                data_source_plugins.append(
+                    {
+                        "name": plugin_name,
+                        "instance": plugin_instance,
+                        "priority": getattr(plugin_instance.metadata, "priority", 100),
+                        "category": getattr(
+                            plugin_instance.metadata, "category", "unknown"
+                        ),
+                    }
                 )
-        else:
-            self._logger.warning(
-                "No plugin manager available, plugin access may be limited"
+
+        # 按优先级排序（优先级高的排前面）
+        data_source_plugins.sort(key=lambda x: x["priority"], reverse=True)
+        self._available_data_plugins = data_source_plugins
+
+        self._logger.info(
+            f"Discovered {len(data_source_plugins)} data source plugins: "
+            f"{[p['name'] for p in data_source_plugins]}"
+        )
+
+    def _discover_indicator_plugins(self) -> None:
+        """发现技术指标插件"""
+        if not self._plugin_manager:
+            return
+
+        # 查找技术指标插件（可以根据category、名称或特定接口判断）
+        all_plugins = self._plugin_manager.get_all_plugins()
+        for plugin_name, plugin_instance in all_plugins.items():
+            # 检查多种条件来识别技术指标插件
+            is_indicators_plugin = (
+                # 通过名称识别
+                plugin_name == "technical_indicators_plugin"
+                # 通过category识别
+                or (
+                    hasattr(plugin_instance.metadata, "category")
+                    and plugin_instance.metadata.category in ["indicators", "analysis"]
+                )
+                # 通过标签识别
+                or (
+                    hasattr(plugin_instance.metadata, "tags")
+                    and "indicators" in plugin_instance.metadata.tags
+                )
+                # 通过方法识别
+                or (
+                    hasattr(plugin_instance, "calculate_macd")
+                    and hasattr(plugin_instance, "calculate_kdj")
+                    and hasattr(plugin_instance, "calculate_rsi")
+                    and hasattr(plugin_instance, "calculate_cci")
+                )
             )
+
+            if is_indicators_plugin:
+                self._indicators_plugin = plugin_instance
+                self._logger.info(f"Found technical indicators plugin: {plugin_name}")
+                break
+
+    def _is_data_source_plugin(self, plugin_instance: Any) -> bool:
+        """
+        判断插件是否为数据源插件
+
+        检查插件是否实现了数据源接口的核心方法
+        """
+        required_methods = [
+            "get_history_data",
+            "get_current_price",
+            "get_market_snapshot",
+            "get_multiple_history_data",
+        ]
+
+        return all(
+            hasattr(plugin_instance, method)
+            and callable(getattr(plugin_instance, method))
+            for method in required_methods
+        )
+
+    def _get_active_data_plugin(self) -> Optional[Any]:
+        """
+        获取当前活跃的数据插件
+
+        通过服务发现机制查找可用的数据源插件：
+        1. 如果配置为使用Mock数据，优先使用Mock插件
+        2. 否则按优先级使用发现的数据源插件
+        3. 如果都不可用，返回None
+        """
+        # 如果没有发现任何数据源插件，直接返回None
+        if not self._available_data_plugins:
+            self._logger.error("No data source plugins discovered")
+            return None
+
+        # 检查是否配置使用Mock数据
+        if self._use_mock_data:
+            # 查找Mock数据插件
+            for plugin_info in self._available_data_plugins:
+                plugin_instance = plugin_info["instance"]
+                if (
+                    hasattr(plugin_instance, "metadata")
+                    and plugin_instance.metadata.name == "mock_data_plugin"
+                ):
+                    # 检查Mock插件是否启用
+                    if (
+                        hasattr(plugin_instance, "is_enabled")
+                        and plugin_instance.is_enabled()
+                    ):
+                        self._logger.debug(
+                            "Using discovered mock data plugin as data source"
+                        )
+                        return plugin_instance
+                    elif self._mock_data_enabled:
+                        # 如果Mock插件存在但未启用，尝试启用
+                        if hasattr(plugin_instance, "enable"):
+                            plugin_instance.enable()
+                            self._logger.info("Enabled discovered mock data plugin")
+                            return plugin_instance
+
+        # 使用优先级最高的可用数据源插件（已按优先级排序）
+        for plugin_info in self._available_data_plugins:
+            plugin_instance = plugin_info["instance"]
+            plugin_name = plugin_info["name"]
+
+            # 跳过Mock插件（如果不是在Mock模式下）
+            if (
+                not self._use_mock_data
+                and hasattr(plugin_instance, "metadata")
+                and plugin_instance.metadata.name == "mock_data_plugin"
+            ):
+                continue
+
+            # 检查插件是否可用（已启动状态）
+            if (
+                hasattr(plugin_instance, "state")
+                and plugin_instance.state.value == "started"
+            ):
+                self._logger.debug(
+                    f"Using discovered data plugin '{plugin_name}' as data source"
+                )
+                return plugin_instance
+            elif (
+                hasattr(plugin_instance, "state")
+                and plugin_instance.state.value == "initialized"
+            ):
+                # 尝试启动插件
+                try:
+                    plugin_instance.start()
+                    self._logger.info(f"Started discovered data plugin '{plugin_name}'")
+                    return plugin_instance
+                except Exception as e:
+                    self._logger.warning(
+                        f"Failed to start data plugin '{plugin_name}': {e}"
+                    )
+                    continue
+
+        # 如果常规插件都不可用，检查是否可以使用Mock插件作为后备
+        if self._mock_data_enabled:
+            for plugin_info in self._available_data_plugins:
+                plugin_instance = plugin_info["instance"]
+                if (
+                    hasattr(plugin_instance, "metadata")
+                    and plugin_instance.metadata.name == "mock_data_plugin"
+                ):
+                    if hasattr(plugin_instance, "enable"):
+                        plugin_instance.enable()
+                        self._logger.warning(
+                            "No other data plugins available, falling back to mock data plugin"
+                        )
+                        return plugin_instance
+
+        self._logger.error("No usable data plugin found in discovered plugins")
+        return None
+
+    def switch_data_source(self, plugin_name: str) -> bool:
+        """
+        切换数据源插件
+
+        Args:
+            plugin_name: 目标插件名称
+
+        Returns:
+            是否成功切换
+        """
+        # 查找目标插件
+        target_plugin = None
+        for plugin_info in self._available_data_plugins:
+            if plugin_info["name"] == plugin_name:
+                target_plugin = plugin_info["instance"]
+                break
+
+        if not target_plugin:
+            self._logger.error(
+                f"Data plugin '{plugin_name}' not found in discovered plugins"
+            )
+            return False
+
+        try:
+            # 如果是Mock插件，使用Mock模式
+            if (
+                hasattr(target_plugin, "metadata")
+                and target_plugin.metadata.name == "mock_data_plugin"
+            ):
+                if hasattr(target_plugin, "enable"):
+                    target_plugin.enable()
+                self._use_mock_data = True
+                self._mock_data_enabled = True
+            else:
+                # 对于其他插件，确保Mock模式关闭
+                self._use_mock_data = False
+                # 启动目标插件（如果需要）
+                if (
+                    hasattr(target_plugin, "state")
+                    and target_plugin.state.value != "started"
+                ):
+                    target_plugin.start()
+
+            # 重新初始化API路由器以使用新的数据源
+            if self._ptrade_context:
+                self._api_router = self._init_api_router()
+
+            self._logger.info(f"Successfully switched to data plugin: {plugin_name}")
+            return True
+        except Exception as e:
+            self._logger.error(f"Failed to switch to data plugin '{plugin_name}': {e}")
+            return False
+
+    def get_data_source_status(self) -> Dict[str, Any]:
+        """
+        获取数据源状态信息
+
+        Returns:
+            数据源状态字典
+        """
+        active_plugin = self._get_active_data_plugin()
+
+        # 收集所有发现的数据源插件信息
+        discovered_plugins = []
+        mock_plugin_available = False
+        mock_plugin_enabled = False
+
+        for plugin_info in self._available_data_plugins:
+            plugin_instance = plugin_info["instance"]
+            plugin_name = plugin_info["name"]
+
+            plugin_status = {
+                "name": plugin_name,
+                "category": plugin_info["category"],
+                "priority": plugin_info["priority"],
+                "state": plugin_instance.state.value
+                if hasattr(plugin_instance, "state")
+                else "unknown",
+            }
+
+            # 检查是否为Mock插件
+            if (
+                hasattr(plugin_instance, "metadata")
+                and plugin_instance.metadata.name == "mock_data_plugin"
+            ):
+                mock_plugin_available = True
+                if hasattr(plugin_instance, "is_enabled"):
+                    mock_plugin_enabled = plugin_instance.is_enabled()
+                plugin_status["is_mock_plugin"] = True
+                plugin_status["enabled"] = mock_plugin_enabled
+            else:
+                plugin_status["is_mock_plugin"] = False
+
+            discovered_plugins.append(plugin_status)
+
+        return {
+            "active_data_source": active_plugin.__class__.__name__
+            if active_plugin
+            else "None",
+            "active_plugin_name": (
+                active_plugin.metadata.name
+                if active_plugin and hasattr(active_plugin, "metadata")
+                else "Unknown"
+            ),
+            "discovered_plugins_count": len(self._available_data_plugins),
+            "discovered_plugins": discovered_plugins,
+            "mock_plugin_available": mock_plugin_available,
+            "mock_plugin_enabled": mock_plugin_enabled,
+            "use_mock_data_config": self._use_mock_data,
+            "mock_data_enabled_config": self._mock_data_enabled,
+        }
+
+    def list_available_data_plugins(self) -> List[Dict[str, Any]]:
+        """
+        列出所有可用的数据源插件
+
+        Returns:
+            可用数据源插件列表
+        """
+        return [
+            {
+                "name": plugin_info["name"],
+                "category": plugin_info["category"],
+                "priority": plugin_info["priority"],
+                "state": plugin_info["instance"].state.value
+                if hasattr(plugin_info["instance"], "state")
+                else "unknown",
+                "metadata": {
+                    "version": plugin_info["instance"].metadata.version
+                    if hasattr(plugin_info["instance"], "metadata")
+                    else "unknown",
+                    "description": plugin_info["instance"].metadata.description
+                    if hasattr(plugin_info["instance"], "metadata")
+                    else "No description",
+                    "author": plugin_info["instance"].metadata.author
+                    if hasattr(plugin_info["instance"], "metadata")
+                    else "Unknown",
+                },
+            }
+            for plugin_info in self._available_data_plugins
+        ]
 
     def _on_start(self) -> None:
         """启动适配器"""
@@ -328,32 +664,21 @@ class PTradeAdapter(BasePlugin):
         if self._ptrade_context is None or not self._ptrade_context.universe:
             return {}
 
-        # 从数据插件获取市场快照
-        if self._data_plugin:
-            snapshot = self._data_plugin.get_market_snapshot(
+        # 使用活跃数据插件获取市场快照
+        active_data_plugin = self._get_active_data_plugin()
+        if not active_data_plugin:
+            raise RuntimeError("No data plugin available for market data generation")
+
+        try:
+            snapshot = active_data_plugin.get_market_snapshot(
                 self._ptrade_context.universe
             )
-        else:
-            # 如果数据插件不可用，使用默认数据
-            snapshot = {}
-            for security in self._ptrade_context.universe:
-                price = 10.0
-                snapshot[security] = {
-                    "last_price": price,
-                    "pre_close": price,
-                    "open": price,
-                    "high": price,
-                    "low": price,
-                    "volume": 100000,
-                    "money": price * 100000,
-                    "datetime": datetime.now(),
-                    "price": price,
-                }
-
-        # 更新当前数据缓存
-        self._current_data.update(snapshot)  # type: ignore[arg-type]
-
-        return snapshot
+            # 更新当前数据缓存
+            self._current_data.update(snapshot)
+            return snapshot
+        except Exception as e:
+            # 数据插件失败时抛出异常，不使用fallback
+            raise RuntimeError(f"Failed to generate market data: {e}")
 
     def _get_current_price(self, security: str) -> float:
         """获取股票当前价格"""
@@ -361,30 +686,22 @@ class PTradeAdapter(BasePlugin):
         if security in self._current_data:
             return self._current_data[security].get("last_price", 10.0)
 
-        # 从数据插件获取
-        if self._data_plugin:
-            try:
-                price = self._data_plugin.get_current_price(security)
-                if price is not None:
-                    return price
-            except Exception as e:
-                self._logger.warning(f"Failed to get current price for {security}: {e}")
+        # 使用活跃数据插件获取
+        active_data_plugin = self._get_active_data_plugin()
+        if not active_data_plugin:
+            raise RuntimeError(
+                f"No data plugin available for current price of {security}"
+            )
 
-        # 使用默认价格
-        base_price = 15.0 if security.startswith("000") else 20.0
-        return base_price
-
-    def _generate_price_series(self, base_price: float, length: int) -> np.ndarray:
-        """生成价格序列"""
-        # 生成随机价格序列
-        returns = np.random.normal(0, 0.01, length)
-        prices = [base_price]
-
-        for i in range(1, length):
-            new_price = prices[-1] * (1 + returns[i])
-            prices.append(max(new_price, 0.01))  # 确保价格为正
-
-        return np.array(prices)
+        try:
+            price = active_data_plugin.get_current_price(security)
+            if price is not None:
+                return price
+            else:
+                raise ValueError(f"No price data available for {security}")
+        except Exception as e:
+            # 数据插件失败时抛出异常，不使用fallback
+            raise RuntimeError(f"Failed to get current price for {security}: {e}")
 
     def get_strategy_performance(self) -> Dict[str, Any]:
         """获取策略性能统计"""
@@ -636,6 +953,7 @@ class PTradeAdapter(BasePlugin):
                 "portfolio_value": self._ptrade_context.portfolio.portfolio_value
                 if self._ptrade_context
                 else 0,
+                "data_source_status": self.get_data_source_status(),
             }
         else:
             return {
@@ -651,17 +969,13 @@ class PTradeAdapter(BasePlugin):
                 "portfolio_value": self._ptrade_context.portfolio.portfolio_value
                 if self._ptrade_context
                 else 0,
+                "data_source_status": self.get_data_source_status(),
             }
 
     def __enter__(self) -> "PTradeAdapter":
         """上下文管理器入口"""
         return self
 
-    def __exit__(
-        self,
-        exc_type: Optional[type],
-        exc_val: Optional[Exception],
-        exc_tb: Optional[Any],
-    ) -> None:
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore[no-untyped-def]
         """上下文管理器出口"""
         self.shutdown()

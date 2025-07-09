@@ -15,9 +15,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from simtradelab.adapters.ptrade.adapter import (
-    PTradeAdapter,
-)
+from simtradelab.adapters.ptrade.adapter import PTradeAdapter
 from simtradelab.adapters.ptrade.context import PTradeContext
 from simtradelab.adapters.ptrade.models import Blotter, Portfolio, Position
 from simtradelab.adapters.ptrade.utils import (
@@ -317,9 +315,7 @@ class TestPTradeAdapter:
         """
         )
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(strategy_code)
             strategy_path = f.name
 
@@ -348,9 +344,7 @@ class TestPTradeAdapter:
         """测试加载不存在的策略文件"""
         adapter.initialize()
 
-        with pytest.raises(
-            PTradeCompatibilityError, match="Strategy file not found"
-        ):
+        with pytest.raises(PTradeCompatibilityError, match="Strategy file not found"):
             adapter.load_strategy("/nonexistent/strategy.py")
 
     def test_api_get_history(self, adapter):
@@ -405,9 +399,7 @@ class TestPTradeAdapter:
         adapter.initialize()
 
         # 创建订单但不执行
-        order_id = adapter._ptrade_context.blotter.create_order(
-            "000001.SZ", 1000, 10.0
-        )
+        order_id = adapter._ptrade_context.blotter.create_order("000001.SZ", 1000, 10.0)
 
         # 撤销订单
         success = adapter._api_router.cancel_order(order_id)
@@ -448,9 +440,7 @@ class TestPTradeAdapter:
         """
         )
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(strategy_code)
             strategy_path = f.name
 
@@ -601,9 +591,7 @@ class TestPTradeExtendedTradingAPIs:
         assert len(open_orders) == 0
 
         # 手动创建未完成订单
-        order_id = adapter._ptrade_context.blotter.create_order(
-            "000002.SZ", 1000, 10.0
-        )
+        order_id = adapter._ptrade_context.blotter.create_order("000002.SZ", 1000, 10.0)
 
         # 获取未完成订单
         open_orders = adapter._api_router.get_open_orders()
@@ -658,9 +646,7 @@ class TestPTradeDataAPIs:
 
         assert isinstance(history, pd.DataFrame)
         assert history.shape[0] == 20  # 2个股票 x 10天
-        assert list(history.columns) == [
-            "open", "high", "low", "close", "volume"
-        ]
+        assert list(history.columns) == ["open", "high", "low", "close", "volume"]
         assert history.index.names == ["security", "date"]
 
         # 测试字典格式
@@ -699,9 +685,7 @@ class TestPTradeDataAPIs:
         assert price.shape[0] == 5
 
         # 测试多个股票
-        price_multi = adapter._api_router.get_price(
-            ["000001.SZ", "000002.SZ"], count=3
-        )
+        price_multi = adapter._api_router.get_price(["000001.SZ", "000002.SZ"], count=3)
         assert isinstance(price_multi, pd.DataFrame)
         assert price_multi.shape[0] == 6  # 2个股票 x 3天
 
@@ -765,9 +749,7 @@ class TestPTradeTechnicalIndicators:
         high_data = np.array(
             [10.2, 10.3, 10.4, 10.1, 10.5, 10.6, 10.3, 10.7, 10.8, 10.2]
         )
-        low_data = np.array(
-            [9.8, 9.9, 10.0, 9.7, 10.1, 10.2, 9.9, 10.3, 10.4, 9.8]
-        )
+        low_data = np.array([9.8, 9.9, 10.0, 9.7, 10.1, 10.2, 9.9, 10.3, 10.4, 9.8])
         close_data = np.array(
             [10.0, 10.1, 10.2, 9.9, 10.3, 10.4, 10.1, 10.5, 10.6, 10.0]
         )
@@ -795,9 +777,7 @@ class TestPTradeTechnicalIndicators:
         high_data = np.array(
             [10.2, 10.3, 10.4, 10.1, 10.5, 10.6, 10.3, 10.7, 10.8, 10.2]
         )
-        low_data = np.array(
-            [9.8, 9.9, 10.0, 9.7, 10.1, 10.2, 9.9, 10.3, 10.4, 9.8]
-        )
+        low_data = np.array([9.8, 9.9, 10.0, 9.7, 10.1, 10.2, 9.9, 10.3, 10.4, 9.8])
         close_data = np.array(
             [10.0, 10.1, 10.2, 9.9, 10.3, 10.4, 10.1, 10.5, 10.6, 10.0]
         )
@@ -844,9 +824,7 @@ class TestPTradeStrategyLifecycle:
         """
         )
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(strategy_code)
             strategy_path = f.name
 
@@ -883,9 +861,7 @@ class TestPTradeStrategyLifecycle:
         """
         )
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(strategy_code)
             strategy_path = f.name
 
@@ -923,9 +899,7 @@ class TestPTradeStrategyLifecycle:
         """
         )
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(strategy_code)
             strategy_path = f.name
 

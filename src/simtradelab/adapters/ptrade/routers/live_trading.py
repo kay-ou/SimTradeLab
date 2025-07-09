@@ -21,6 +21,7 @@ class LiveTradingAPIRouter(BaseAPIRouter):
 
     def __init__(self, context: "PTradeContext", event_bus: Optional[EventBus] = None):
         super().__init__(context, event_bus)
+        self._data_plugin = None  # 将在设置时从适配器获取
         self._supported_apis = {
             "order",
             "order_value",
@@ -58,6 +59,11 @@ class LiveTradingAPIRouter(BaseAPIRouter):
             "check_limit",
             "handle_data",
         }
+
+    def set_data_plugin(self, data_plugin: Any) -> None:
+        """设置数据插件引用"""
+        self._data_plugin = data_plugin
+        self._logger.info("Data plugin set for live trading mode")
 
     def is_mode_supported(self, api_name: str) -> bool:
         """检查API是否在实盘交易模式下支持"""
@@ -300,16 +306,57 @@ class LiveTradingAPIRouter(BaseAPIRouter):
         end_date: Optional[str] = None,
     ) -> Union[pd.DataFrame, Dict[str, Any]]:
         """获取历史行情数据"""
-        # 实盘交易模式需要从实时数据源获取
         securities = security_list or self.context.universe or ["000001.XSHE"]
 
         if isinstance(field, str):
             field = [field]
 
-        if is_dict:
-            return {security: {f: [] for f in field} for security in securities}
-        else:
-            return pd.DataFrame()
+        # 必须使用数据插件获取实际数据
+        if not self._data_plugin:
+            raise RuntimeError("Data plugin is not available for get_history")
+
+        try:
+            # 使用数据插件获取多股票历史数据
+            df = self._data_plugin.get_multiple_history_data(
+                securities=securities,
+                count=count,
+                start_date=start_date,
+                end_date=end_date,
+            )
+
+            # 如果请求字典格式，转换DataFrame为字典
+            if is_dict:
+                result = {}
+                for security in securities:
+                    result[security] = {}
+                    security_data = (
+                        df[df["security"] == security]
+                        if "security" in df.columns
+                        else df
+                    )
+
+                    for f in field:
+                        if f in security_data.columns:
+                            result[security][f] = security_data[f].tolist()
+                        else:
+                            result[security][f] = []
+                return result
+            else:
+                # 过滤请求的字段
+                available_fields = [f for f in field if f in df.columns]
+                if available_fields:
+                    df = (
+                        df[["security", "date"] + available_fields]
+                        if "security" in df.columns
+                        else df[["date"] + available_fields]
+                    )
+                if not df.empty:
+                    df.set_index(["security", "date"], inplace=True)
+                return df
+
+        except Exception as e:
+            # 数据插件失败时抛出异常，不使用fallback
+            raise RuntimeError(f"Failed to get history data: {e}")
 
     def get_price(
         self,
@@ -321,23 +368,82 @@ class LiveTradingAPIRouter(BaseAPIRouter):
         count: Optional[int] = None,
     ) -> pd.DataFrame:
         """获取价格数据"""
-        # 实盘交易模式需要从实时数据源获取
-        return pd.DataFrame()
+        # 处理输入参数
+        if isinstance(security, str):
+            securities = [security]
+        else:
+            securities = security
+
+        # 默认字段
+        if fields is None:
+            fields = ["open", "high", "low", "close", "volume"]
+        elif isinstance(fields, str):
+            fields = [fields]
+
+        # 默认获取10个交易日数据
+        if count is None:
+            count = 10
+
+        # 必须使用数据插件获取价格数据
+        if not self._data_plugin:
+            raise RuntimeError("Data plugin is not available for get_price")
+
+        try:
+            # 使用数据插件获取多股票历史数据
+            df = self._data_plugin.get_multiple_history_data(
+                securities=securities,
+                count=count,
+                start_date=start_date,
+                end_date=end_date,
+            )
+
+            # 过滤请求的字段
+            available_fields = [f for f in fields if f in df.columns]
+            if available_fields:
+                columns_to_keep = ["security", "date"] + available_fields
+                df = df[columns_to_keep]
+                if not df.empty:
+                    df.set_index(["security", "date"], inplace=True)
+            else:
+                # 如果没有请求的字段，创建空的DataFrame
+                df = pd.DataFrame(columns=["security", "date"] + fields)
+                df.set_index(["security", "date"], inplace=True)
+
+            return df
+
+        except Exception as e:
+            # 数据插件失败时抛出异常，不使用fallback
+            raise RuntimeError(f"Failed to get price data: {e}")
 
     def get_snapshot(self, security_list: List[str]) -> pd.DataFrame:
         """获取行情快照"""
-        # 实盘交易模式需要从实时数据源获取
-        data = []
-        for security in security_list:
-            data.append(
-                {
-                    "security": security,
-                    "current_price": np.random.randn() * 0.01 + 10,
-                    "volume": np.random.randint(1000, 10000),
-                    "timestamp": pd.Timestamp.now(),
-                }
-            )
-        return pd.DataFrame(data).set_index("security")
+        # 必须使用数据插件获取市场快照
+        if not self._data_plugin:
+            raise RuntimeError("Data plugin is not available for get_snapshot")
+
+        try:
+            snapshot_data = self._data_plugin.get_market_snapshot(security_list)
+            data = []
+            for security in security_list:
+                if security in snapshot_data:
+                    snapshot = snapshot_data[security]
+                    data.append(
+                        {
+                            "security": security,
+                            "current_price": snapshot.get("last_price", 10.0),
+                            "volume": snapshot.get("volume", 100000),
+                            "timestamp": snapshot.get("datetime", pd.Timestamp.now()),
+                        }
+                    )
+                else:
+                    # 如果没有数据，抛出异常而不是返回默认值
+                    raise ValueError(
+                        f"No snapshot data available for security: {security}"
+                    )
+            return pd.DataFrame(data).set_index("security")
+        except Exception as e:
+            # 数据插件失败时抛出异常，不使用fallback
+            raise RuntimeError(f"Failed to get snapshot data: {e}")
 
     def get_trading_day(self, date: str, offset: int = 0) -> str:
         """获取交易日期"""
@@ -447,41 +553,20 @@ class LiveTradingAPIRouter(BaseAPIRouter):
         self, stocks: List[str], table: str, fields: List[str], date: str
     ) -> pd.DataFrame:
         """获取财务数据信息"""
-        import random
+        # 尝试使用数据插件获取基本面数据
+        if self._data_plugin:
+            try:
+                df = self._data_plugin.get_fundamentals(stocks, table, fields, date)
+                if not df.empty:
+                    return df
+            except Exception as e:
+                self._logger.warning(
+                    f"Failed to get fundamentals data from plugin: {e}"
+                )
 
-        try:
-            # 模拟财务数据
-            data = []
-            for stock in stocks:
-                row = {"code": stock, "date": date}
-
-                # 根据不同的表格和字段生成模拟数据
-                for field in fields:
-                    if field in ["revenue", "total_revenue"]:  # 营业收入
-                        row[field] = random.uniform(1000000, 10000000)  # 1M-10M
-                    elif field in ["net_profit", "net_income"]:  # 净利润
-                        row[field] = random.uniform(100000, 1000000)  # 100K-1M
-                    elif field in ["total_assets"]:  # 总资产
-                        row[field] = random.uniform(10000000, 100000000)  # 10M-100M
-                    elif field in ["total_liab"]:  # 总负债
-                        row[field] = random.uniform(5000000, 50000000)  # 5M-50M
-                    elif field in ["pe_ratio"]:  # 市盈率
-                        row[field] = random.uniform(10, 50)
-                    elif field in ["pb_ratio"]:  # 市净率
-                        row[field] = random.uniform(1, 10)
-                    elif field in ["roe"]:  # 净资产收益率
-                        row[field] = random.uniform(0.05, 0.25)
-                    elif field in ["eps"]:  # 每股收益
-                        row[field] = random.uniform(0.1, 5.0)
-                    else:
-                        row[field] = random.uniform(0, 1000000)
-
-                data.append(row)
-
-            return pd.DataFrame(data)
-        except Exception as e:
-            self._logger.error(f"Error getting fundamentals: {e}")
-            return pd.DataFrame()
+        # 如果数据插件不可用或失败，返回空DataFrame
+        columns = ["code", "date"] + fields
+        return pd.DataFrame(columns=columns)
 
     def set_universe(self, securities: List[str]) -> None:
         """设置股票池"""
@@ -558,14 +643,7 @@ class LiveTradingAPIRouter(BaseAPIRouter):
             )
         except Exception as e:
             self._logger.error(f"Error calculating MACD: {e}")
-            periods = len(close)
-            return pd.DataFrame(
-                {
-                    "MACD": np.random.randn(periods) * 0.1,
-                    "MACD_signal": np.random.randn(periods) * 0.1,
-                    "MACD_hist": np.random.randn(periods) * 0.05,
-                }
-            )
+            raise RuntimeError(f"Failed to calculate MACD indicator: {e}")
 
     def get_KDJ(
         self,
@@ -592,14 +670,7 @@ class LiveTradingAPIRouter(BaseAPIRouter):
             return pd.DataFrame({"K": k, "D": d, "J": j})
         except Exception as e:
             self._logger.error(f"Error calculating KDJ: {e}")
-            periods = len(close)
-            return pd.DataFrame(
-                {
-                    "K": np.random.uniform(0, 100, periods),
-                    "D": np.random.uniform(0, 100, periods),
-                    "J": np.random.uniform(0, 100, periods),
-                }
-            )
+            raise RuntimeError(f"Failed to calculate KDJ indicator: {e}")
 
     def get_RSI(self, close: np.ndarray, n: int = 6) -> pd.DataFrame:
         """获取RSI指标"""
@@ -616,8 +687,7 @@ class LiveTradingAPIRouter(BaseAPIRouter):
             return pd.DataFrame({"RSI": rsi})
         except Exception as e:
             self._logger.error(f"Error calculating RSI: {e}")
-            periods = len(close)
-            return pd.DataFrame({"RSI": np.random.uniform(0, 100, periods)})
+            raise RuntimeError(f"Failed to calculate RSI indicator: {e}")
 
     def get_CCI(
         self, high: np.ndarray, low: np.ndarray, close: np.ndarray, n: int = 14
@@ -638,8 +708,7 @@ class LiveTradingAPIRouter(BaseAPIRouter):
             return pd.DataFrame({"CCI": cci})
         except Exception as e:
             self._logger.error(f"Error calculating CCI: {e}")
-            periods = len(close)
-            return pd.DataFrame({"CCI": np.random.randn(periods) * 50})
+            raise RuntimeError(f"Failed to calculate CCI indicator: {e}")
 
     def log(self, content: str, level: str = "info") -> None:
         """日志记录"""

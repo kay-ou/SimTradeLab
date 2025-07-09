@@ -24,22 +24,24 @@ from simtradelab.plugins.base import PluginConfig
 def create_mock_data_plugin():
     """创建模拟数据插件"""
     mock_plugin = MagicMock()
-    
-    def mock_get_multiple_history_data(securities, count, start_date=None, end_date=None):
+
+    def mock_get_multiple_history_data(
+        securities, count, start_date=None, end_date=None
+    ):
         # 返回模拟数据
         return MagicMock()
-    
+
     def mock_get_current_price(security):
         base_price = 15.0 if security.startswith("000") else 20.0
         return base_price
-    
+
     def mock_get_market_snapshot(securities):
         return {}
-    
+
     mock_plugin.get_multiple_history_data = mock_get_multiple_history_data
     mock_plugin.get_current_price = mock_get_current_price
     mock_plugin.get_market_snapshot = mock_get_market_snapshot
-    
+
     return mock_plugin
 
 
@@ -47,12 +49,12 @@ def setup_adapter_with_data_plugin(adapter):
     """设置适配器的数据插件"""
     mock_plugin_manager = MagicMock()
     mock_data_plugin = create_mock_data_plugin()
-    
+
     def mock_get_plugin(name):
         if name == "csv_data_plugin":
             return mock_data_plugin
         return None
-    
+
     mock_plugin_manager.get_plugin = mock_get_plugin
     adapter.set_plugin_manager(mock_plugin_manager)
     return adapter
@@ -293,6 +295,7 @@ class TestPTradeAdapter:
 
         # 默认应该使用回测路由器
         from simtradelab.adapters.ptrade.routers.backtest import BacktestAPIRouter
+
         assert isinstance(adapter._api_router, BacktestAPIRouter)
 
         # 测试路由器功能

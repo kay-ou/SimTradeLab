@@ -4,8 +4,9 @@ PTrade模型对象测试
 """
 
 import pytest
-from simtradelab.adapters.ptrade.models import Portfolio, Position, Blotter
+
 from simtradelab.adapters.ptrade.context import PTradeContext
+from simtradelab.adapters.ptrade.models import Blotter, Portfolio, Position
 
 
 class TestPTradeContext:
@@ -207,6 +208,6 @@ class TestBlotter:
         assert order.dt is not None  # 创建时间应该被设置
 
         # 验证可选属性
-        assert hasattr(order, 'dt')
-        assert hasattr(order, 'filled')
-        assert hasattr(order, 'status')
+        assert hasattr(order, "dt")
+        assert hasattr(order, "filled")
+        assert hasattr(order, "status")

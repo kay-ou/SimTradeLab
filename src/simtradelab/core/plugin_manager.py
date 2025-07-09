@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Set, Type, Union
 
 from ..exceptions import SimTradeLabError
 from ..plugins.base import BasePlugin, PluginConfig, PluginMetadata, PluginState
-from .event_bus import Event, EventBus, EventPriority
+from .event_bus import Event, EventBus
 
 
 class PluginManagerError(SimTradeLabError):
@@ -117,7 +117,10 @@ class PluginManager:
         try:
             # 获取插件元数据
             # 检查是否有自定义的元数据（不是从BasePlugin继承的）
-            if hasattr(plugin_class, "METADATA") and "METADATA" in plugin_class.__dict__:
+            if (
+                hasattr(plugin_class, "METADATA")
+                and "METADATA" in plugin_class.__dict__
+            ):
                 metadata = plugin_class.METADATA
             else:
                 # 如果没有元数据，创建默认的
@@ -650,6 +653,20 @@ class PluginManager:
                 results[plugin_name] = False
 
         return results
+
+    def get_all_plugins(self) -> Dict[str, BasePlugin]:
+        """
+        获取所有已加载的插件实例
+
+        Returns:
+            插件名称到插件实例的映射
+        """
+        with self._lock:
+            return {
+                name: registry.instance
+                for name, registry in self._plugins.items()
+                if registry.instance is not None
+            }
 
     def get_stats(self) -> Dict[str, Any]:
         """

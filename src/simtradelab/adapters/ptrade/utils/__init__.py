@@ -3,10 +3,10 @@
 PTrade工具模块
 """
 
-from .exceptions import PTradeAdapterError, PTradeCompatibilityError, PTradeAPIError
+from .exceptions import PTradeAdapterError, PTradeAPIError, PTradeCompatibilityError
 
 __all__ = [
     "PTradeAdapterError",
-    "PTradeCompatibilityError", 
+    "PTradeCompatibilityError",
     "PTradeAPIError",
 ]
