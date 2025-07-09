@@ -3,8 +3,8 @@
 PTrade API路由器
 """
 
-from .base import BaseAPIRouter
 from .backtest import BacktestAPIRouter
+from .base import BaseAPIRouter
 from .live_trading import LiveTradingAPIRouter
 from .research import ResearchAPIRouter
 

@@ -15,8 +15,8 @@ import pandas as pd
 from ....core.event_bus import EventBus
 
 if TYPE_CHECKING:
-    from ..models import Order, Position
     from ..context import PTradeContext
+    from ..models import Order, Position
 
 
 class BaseAPIRouter(ABC):

@@ -12,8 +12,8 @@ from ....core.event_bus import EventBus
 from .base import BaseAPIRouter
 
 if TYPE_CHECKING:
-    from ..models import Order, Position
     from ..context import PTradeContext
+    from ..models import Order, Position
 
 
 class LiveTradingAPIRouter(BaseAPIRouter):
@@ -85,12 +85,12 @@ class LiveTradingAPIRouter(BaseAPIRouter):
         """按价值下单"""
         # 获取当前价格
         current_price = limit_price or 10.0  # 默认价格
-        
+
         # 计算股数
         amount = int(value / current_price)
         if amount <= 0:
             return None
-            
+
         return self.order(security, amount, limit_price)
 
     def order_target(
@@ -101,12 +101,12 @@ class LiveTradingAPIRouter(BaseAPIRouter):
         current_amount = 0
         if security in self.context.portfolio.positions:
             current_amount = self.context.portfolio.positions[security].amount
-        
+
         # 计算需要交易的数量
         trade_amount = target_amount - current_amount
         if trade_amount == 0:
             return None
-            
+
         return self.order(security, trade_amount, limit_price)
 
     def order_target_value(
@@ -115,10 +115,10 @@ class LiveTradingAPIRouter(BaseAPIRouter):
         """指定持仓市值买卖"""
         # 获取当前价格
         current_price = limit_price or 10.0  # 默认价格
-        
+
         # 计算目标股数
         target_amount = int(target_value / current_price)
-        
+
         return self.order_target(security, target_amount, limit_price)
 
     def order_market(self, security: str, amount: int) -> Optional[str]:
@@ -341,30 +341,147 @@ class LiveTradingAPIRouter(BaseAPIRouter):
 
     def get_trading_day(self, date: str, offset: int = 0) -> str:
         """获取交易日期"""
-        # 实盘交易模式需要从实时数据源获取
-        return date
+        from datetime import datetime, timedelta
+
+        try:
+            # 解析输入日期
+            if isinstance(date, str):
+                base_date = datetime.strptime(date, "%Y-%m-%d")
+            else:
+                base_date = date
+
+            # 计算偏移
+            target_date = base_date + timedelta(days=offset)
+
+            # 简单的工作日逻辑(忽略节假日)
+            while target_date.weekday() > 4:  # 0-6: 周一到周日
+                if offset > 0:
+                    target_date += timedelta(days=1)
+                else:
+                    target_date -= timedelta(days=1)
+
+            return target_date.strftime("%Y-%m-%d")
+        except Exception as e:
+            self._logger.error(f"Error calculating trading day: {e}")
+            return date
 
     def get_all_trades_days(self) -> List[str]:
         """获取全部交易日期"""
-        # 实盘交易模式需要从实时数据源获取
-        return []
+        from datetime import datetime, timedelta
+
+        try:
+            # 生成过去一年的交易日（简化版）
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=365)
+
+            trading_days = []
+            current_date = start_date
+
+            while current_date <= end_date:
+                # 只包含工作日（简化版，忽略节假日）
+                if current_date.weekday() < 5:  # 0-4: 周一到周五
+                    trading_days.append(current_date.strftime("%Y-%m-%d"))
+                current_date += timedelta(days=1)
+
+            return trading_days
+        except Exception as e:
+            self._logger.error(f"Error getting all trading days: {e}")
+            return []
 
     def get_trade_days(self, start_date: str, end_date: str) -> List[str]:
         """获取指定范围交易日期"""
-        # 实盘交易模式需要从实时数据源获取
-        return []
+        from datetime import datetime, timedelta
+
+        try:
+            # 解析日期
+            start = datetime.strptime(start_date, "%Y-%m-%d")
+            end = datetime.strptime(end_date, "%Y-%m-%d")
+
+            trading_days = []
+            current_date = start
+
+            while current_date <= end:
+                # 只包含工作日（简化版，忽略节假日）
+                if current_date.weekday() < 5:  # 0-4: 周一到周五
+                    trading_days.append(current_date.strftime("%Y-%m-%d"))
+                current_date += timedelta(days=1)
+
+            return trading_days
+        except Exception as e:
+            self._logger.error(
+                f"Error getting trade days from {start_date} to {end_date}: {e}"
+            )
+            return []
 
     def get_stock_info(self, security_list: List[str]) -> Dict[str, Any]:
         """获取股票基础信息"""
-        # 实盘交易模式需要从实时数据源获取
-        return {}
+        stock_info = {}
+
+        for security in security_list:
+            # 模拟股票基本信息
+            if security.endswith(".XSHE"):  # 深圳证券交易所
+                market = "SZSE"
+                name = f"深圳股票{security[:6]}"
+            elif security.endswith(".XSHG"):  # 上海证券交易所
+                market = "SSE"
+                name = f"上海股票{security[:6]}"
+            else:
+                market = "Unknown"
+                name = f"股票{security}"
+
+            stock_info[security] = {
+                "symbol": security,
+                "display_name": name,
+                "name": name,
+                "market": market,
+                "type": "stock",
+                "lot_size": 100,  # 最小交易单位
+                "tick_size": 0.01,  # 最小价格变动单位
+                "start_date": "2010-01-01",
+                "end_date": "2099-12-31",
+            }
+
+        return stock_info
 
     def get_fundamentals(
         self, stocks: List[str], table: str, fields: List[str], date: str
     ) -> pd.DataFrame:
         """获取财务数据信息"""
-        # 实盘交易模式需要从实时数据源获取
-        return pd.DataFrame()
+        import random
+
+        try:
+            # 模拟财务数据
+            data = []
+            for stock in stocks:
+                row = {"code": stock, "date": date}
+
+                # 根据不同的表格和字段生成模拟数据
+                for field in fields:
+                    if field in ["revenue", "total_revenue"]:  # 营业收入
+                        row[field] = random.uniform(1000000, 10000000)  # 1M-10M
+                    elif field in ["net_profit", "net_income"]:  # 净利润
+                        row[field] = random.uniform(100000, 1000000)  # 100K-1M
+                    elif field in ["total_assets"]:  # 总资产
+                        row[field] = random.uniform(10000000, 100000000)  # 10M-100M
+                    elif field in ["total_liab"]:  # 总负债
+                        row[field] = random.uniform(5000000, 50000000)  # 5M-50M
+                    elif field in ["pe_ratio"]:  # 市盈率
+                        row[field] = random.uniform(10, 50)
+                    elif field in ["pb_ratio"]:  # 市净率
+                        row[field] = random.uniform(1, 10)
+                    elif field in ["roe"]:  # 净资产收益率
+                        row[field] = random.uniform(0.05, 0.25)
+                    elif field in ["eps"]:  # 每股收益
+                        row[field] = random.uniform(0.1, 5.0)
+                    else:
+                        row[field] = random.uniform(0, 1000000)
+
+                data.append(row)
+
+            return pd.DataFrame(data)
+        except Exception as e:
+            self._logger.error(f"Error getting fundamentals: {e}")
+            return pd.DataFrame()
 
     def set_universe(self, securities: List[str]) -> None:
         """设置股票池"""
@@ -389,12 +506,16 @@ class LiveTradingAPIRouter(BaseAPIRouter):
     def set_fixed_slippage(self, slippage: float) -> None:
         """设置固定滑点"""
         # 实盘交易模式下不支持设置固定滑点
-        self._logger.warning("Setting fixed slippage is not supported in live trading mode")
+        self._logger.warning(
+            "Setting fixed slippage is not supported in live trading mode"
+        )
 
     def set_volume_ratio(self, ratio: float) -> None:
         """设置成交比例"""
         # 实盘交易模式下不支持设置成交比例
-        self._logger.warning("Setting volume ratio is not supported in live trading mode")
+        self._logger.warning(
+            "Setting volume ratio is not supported in live trading mode"
+        )
 
     def set_limit_mode(self, mode: str) -> None:
         """设置回测成交数量限制模式"""
@@ -404,13 +525,16 @@ class LiveTradingAPIRouter(BaseAPIRouter):
     def set_yesterday_position(self, positions: Dict[str, Any]) -> None:
         """设置底仓"""
         # 实盘交易模式下不支持设置底仓
-        self._logger.warning("Setting yesterday position is not supported in live trading mode")
+        self._logger.warning(
+            "Setting yesterday position is not supported in live trading mode"
+        )
 
     def set_parameters(self, params: Dict[str, Any]) -> None:
         """设置策略配置参数"""
         # 存储在上下文中
-        if not hasattr(self.context, '_parameters'):
-            self.context._parameters = params
+        if not hasattr(self.context, "_parameters"):
+            self.context._parameters = {}
+        self.context._parameters.update(params)
         self._logger.info(f"Parameters set: {params}")
 
     def get_MACD(

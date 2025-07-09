@@ -43,6 +43,10 @@ class PTradeContext:
     universe: List[str] = field(default_factory=list)
     benchmark: Optional[str] = None
     current_dt: Optional[datetime] = None
+    _parameters: Dict[str, Any] = field(default_factory=dict)  # 策略参数
+    _volume_ratio: float = 0.25  # 成交比例
+    _limit_mode: str = "volume"  # 限制模式
+    _yesterday_position: Dict[str, Any] = field(default_factory=dict)  # 底仓
 
     def __post_init__(self) -> None:
         self.g = types.SimpleNamespace()  # 全局变量容器

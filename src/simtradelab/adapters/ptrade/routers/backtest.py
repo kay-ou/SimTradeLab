@@ -12,8 +12,8 @@ from ....core.event_bus import EventBus
 from .base import BaseAPIRouter
 
 if TYPE_CHECKING:
-    from ..models import Order, Position
     from ..context import PTradeContext
+    from ..models import Order, Position
 
 
 class BacktestAPIRouter(BaseAPIRouter):
@@ -83,18 +83,20 @@ class BacktestAPIRouter(BaseAPIRouter):
         """回测模式下单逻辑"""
         if not self.context.blotter:
             return None
-        
+
         # 检查资金是否充足（仅对买入订单）
         if amount > 0:  # 买入订单
             price = limit_price or 10.0
             execution_price = price * (1 + self._slippage_rate)
             commission = abs(amount * execution_price * self._commission_rate)
             required_cash = amount * execution_price + commission
-            
+
             if self.context.portfolio.cash < required_cash:
-                self._logger.warning(f"Order rejected: insufficient cash for {security}")
+                self._logger.warning(
+                    f"Order rejected: insufficient cash for {security}"
+                )
                 return None
-            
+
         order_id = self.context.blotter.create_order(security, amount, limit_price)
         self._simulate_order_execution(order_id)
         return order_id
@@ -105,12 +107,12 @@ class BacktestAPIRouter(BaseAPIRouter):
         """按价值下单"""
         # 获取当前价格
         current_price = limit_price or self._get_current_price(security)
-        
+
         # 计算股数
         amount = int(value / current_price)
         if amount <= 0:
             return None
-            
+
         return self.order(security, amount, limit_price)
 
     def order_target(
@@ -121,12 +123,12 @@ class BacktestAPIRouter(BaseAPIRouter):
         current_amount = 0
         if security in self.context.portfolio.positions:
             current_amount = self.context.portfolio.positions[security].amount
-        
+
         # 计算需要交易的数量
         trade_amount = target_amount - current_amount
         if trade_amount == 0:
             return None
-            
+
         return self.order(security, trade_amount, limit_price)
 
     def order_target_value(
@@ -135,10 +137,10 @@ class BacktestAPIRouter(BaseAPIRouter):
         """指定持仓市值买卖"""
         # 获取当前价格
         current_price = limit_price or self._get_current_price(security)
-        
+
         # 计算目标股数
         target_amount = int(target_value / current_price)
-        
+
         return self.order_target(security, target_amount, limit_price)
 
     def order_market(self, security: str, amount: int) -> Optional[str]:
@@ -180,7 +182,9 @@ class BacktestAPIRouter(BaseAPIRouter):
     def after_trading_cancel_order(self, order_id: str) -> bool:
         """盘后固定价委托撤单"""
         # 回测模式下不支持盘后交易，返回False
-        self._logger.warning("After trading cancel orders are not supported in backtest mode")
+        self._logger.warning(
+            "After trading cancel orders are not supported in backtest mode"
+        )
         return False
 
     def get_position(self, security: str) -> Optional["Position"]:
@@ -319,7 +323,9 @@ class BacktestAPIRouter(BaseAPIRouter):
                     elif f == "volume":
                         result[security][f] = [100000 + i * 1000 for i in range(count)]
                     elif f == "money":
-                        result[security][f] = [1000000 + i * 10000 for i in range(count)]
+                        result[security][f] = [
+                            1000000 + i * 10000 for i in range(count)
+                        ]
                     else:
                         result[security][f] = [0.0] * count
             return result
@@ -329,12 +335,12 @@ class BacktestAPIRouter(BaseAPIRouter):
             for security in securities:
                 for i in range(count):
                     row: Dict[str, Any] = {"security": security}
-                    date = pd.Timestamp.now() - pd.Timedelta(days=count-i-1)
+                    date = pd.Timestamp.now() - pd.Timedelta(days=count - i - 1)
                     row["date"] = date
-                    
+
                     base_price = 15.0 if security.startswith("000") else 20.0
                     price = base_price + i * 0.1
-                    
+
                     for f in field:
                         if f in ["open", "high", "low", "close", "price"]:
                             row[f] = price
@@ -344,9 +350,9 @@ class BacktestAPIRouter(BaseAPIRouter):
                             row[f] = 1000000 + i * 10000
                         else:
                             row[f] = 0.0
-                    
+
                     data.append(row)
-            
+
             df = pd.DataFrame(data)
             if not df.empty:
                 df.set_index(["security", "date"], inplace=True)
@@ -362,8 +368,59 @@ class BacktestAPIRouter(BaseAPIRouter):
         count: Optional[int] = None,
     ) -> pd.DataFrame:
         """获取价格数据"""
-        # 暂时返回模拟数据
-        return pd.DataFrame()
+        # 处理输入参数
+        if isinstance(security, str):
+            securities = [security]
+        else:
+            securities = security
+
+        # 默认字段
+        if fields is None:
+            fields = ["open", "high", "low", "close", "volume"]
+        elif isinstance(fields, str):
+            fields = [fields]
+
+        # 默认获取10个交易日数据
+        if count is None:
+            count = 10
+
+        # 生成模拟价格数据
+        data = []
+        for sec in securities:
+            base_price = 15.0 if sec.startswith("000") else 20.0
+
+            for i in range(count):
+                row = {"security": sec}
+                # 生成日期
+                date = pd.Timestamp.now() - pd.Timedelta(days=count - i - 1)
+                row["date"] = date
+
+                # 生成价格数据
+                price = base_price + i * 0.1 + np.random.randn() * 0.05
+                for field in fields:
+                    if field == "open":
+                        row[field] = price * 0.995
+                    elif field == "high":
+                        row[field] = price * 1.005
+                    elif field == "low":
+                        row[field] = price * 0.990
+                    elif field == "close":
+                        row[field] = price
+                    elif field == "volume":
+                        row[field] = np.random.randint(100000, 1000000)
+                    else:
+                        row[field] = price
+
+                data.append(row)
+
+        df = pd.DataFrame(data)
+        if not df.empty:
+            # 只包含请求的字段
+            columns_to_keep = ["security", "date"] + fields
+            df = df[columns_to_keep]
+            df.set_index(["security", "date"], inplace=True)
+
+        return df
 
     def get_snapshot(self, security_list: List[str]) -> pd.DataFrame:
         """获取行情快照"""
@@ -381,30 +438,147 @@ class BacktestAPIRouter(BaseAPIRouter):
 
     def get_trading_day(self, date: str, offset: int = 0) -> str:
         """获取交易日期"""
-        # 暂时返回模拟数据
-        return date
+        from datetime import datetime, timedelta
+
+        try:
+            # 解析输入日期
+            if isinstance(date, str):
+                base_date = datetime.strptime(date, "%Y-%m-%d")
+            else:
+                base_date = date
+
+            # 计算偏移
+            target_date = base_date + timedelta(days=offset)
+
+            # 简单的工作日逻辑(忽略节假日)
+            while target_date.weekday() > 4:  # 0-6: 周一到周日
+                if offset > 0:
+                    target_date += timedelta(days=1)
+                else:
+                    target_date -= timedelta(days=1)
+
+            return target_date.strftime("%Y-%m-%d")
+        except Exception as e:
+            self._logger.error(f"Error calculating trading day: {e}")
+            return date
 
     def get_all_trades_days(self) -> List[str]:
         """获取全部交易日期"""
-        # 暂时返回模拟数据
-        return []
+        from datetime import datetime, timedelta
+
+        try:
+            # 生成过去一年的交易日（简化版）
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=365)
+
+            trading_days = []
+            current_date = start_date
+
+            while current_date <= end_date:
+                # 只包含工作日（简化版，忽略节假日）
+                if current_date.weekday() < 5:  # 0-4: 周一到周五
+                    trading_days.append(current_date.strftime("%Y-%m-%d"))
+                current_date += timedelta(days=1)
+
+            return trading_days
+        except Exception as e:
+            self._logger.error(f"Error getting all trading days: {e}")
+            return []
 
     def get_trade_days(self, start_date: str, end_date: str) -> List[str]:
         """获取指定范围交易日期"""
-        # 暂时返回模拟数据
-        return []
+        from datetime import datetime, timedelta
+
+        try:
+            # 解析日期
+            start = datetime.strptime(start_date, "%Y-%m-%d")
+            end = datetime.strptime(end_date, "%Y-%m-%d")
+
+            trading_days = []
+            current_date = start
+
+            while current_date <= end:
+                # 只包含工作日（简化版，忽略节假日）
+                if current_date.weekday() < 5:  # 0-4: 周一到周五
+                    trading_days.append(current_date.strftime("%Y-%m-%d"))
+                current_date += timedelta(days=1)
+
+            return trading_days
+        except Exception as e:
+            self._logger.error(
+                f"Error getting trade days from {start_date} to {end_date}: {e}"
+            )
+            return []
 
     def get_stock_info(self, security_list: List[str]) -> Dict[str, Any]:
         """获取股票基础信息"""
-        # 暂时返回模拟数据
-        return {}
+        stock_info = {}
+
+        for security in security_list:
+            # 模拟股票基本信息
+            if security.endswith(".XSHE"):  # 深圳证券交易所
+                market = "SZSE"
+                name = f"深圳股票{security[:6]}"
+            elif security.endswith(".XSHG"):  # 上海证券交易所
+                market = "SSE"
+                name = f"上海股票{security[:6]}"
+            else:
+                market = "Unknown"
+                name = f"股票{security}"
+
+            stock_info[security] = {
+                "symbol": security,
+                "display_name": name,
+                "name": name,
+                "market": market,
+                "type": "stock",
+                "lot_size": 100,  # 最小交易单位
+                "tick_size": 0.01,  # 最小价格变动单位
+                "start_date": "2010-01-01",
+                "end_date": "2099-12-31",
+            }
+
+        return stock_info
 
     def get_fundamentals(
         self, stocks: List[str], table: str, fields: List[str], date: str
     ) -> pd.DataFrame:
         """获取财务数据信息"""
-        # 暂时返回模拟数据
-        return pd.DataFrame()
+        import random
+
+        try:
+            # 模拟财务数据
+            data = []
+            for stock in stocks:
+                row = {"code": stock, "date": date}
+
+                # 根据不同的表格和字段生成模拟数据
+                for field in fields:
+                    if field in ["revenue", "total_revenue"]:  # 营业收入
+                        row[field] = random.uniform(1000000, 10000000)  # 1M-10M
+                    elif field in ["net_profit", "net_income"]:  # 净利润
+                        row[field] = random.uniform(100000, 1000000)  # 100K-1M
+                    elif field in ["total_assets"]:  # 总资产
+                        row[field] = random.uniform(10000000, 100000000)  # 10M-100M
+                    elif field in ["total_liab"]:  # 总负债
+                        row[field] = random.uniform(5000000, 50000000)  # 5M-50M
+                    elif field in ["pe_ratio"]:  # 市盈率
+                        row[field] = random.uniform(10, 50)
+                    elif field in ["pb_ratio"]:  # 市净率
+                        row[field] = random.uniform(1, 10)
+                    elif field in ["roe"]:  # 净资产收益率
+                        row[field] = random.uniform(0.05, 0.25)
+                    elif field in ["eps"]:  # 每股收益
+                        row[field] = random.uniform(0.1, 5.0)
+                    else:
+                        row[field] = random.uniform(0, 1000000)
+
+                data.append(row)
+
+            return pd.DataFrame(data)
+        except Exception as e:
+            self._logger.error(f"Error getting fundamentals: {e}")
+            return pd.DataFrame()
 
     def set_universe(self, securities: List[str]) -> None:
         """设置股票池"""
@@ -433,31 +607,104 @@ class BacktestAPIRouter(BaseAPIRouter):
 
     def set_volume_ratio(self, ratio: float) -> None:
         """设置成交比例"""
-        # 暂时存储在上下文中
-        if not hasattr(self.context, '_volume_ratio'):
-            self.context._volume_ratio = ratio
+        # 验证参数范围
+        if not 0 < ratio <= 1:
+            raise ValueError("Volume ratio must be between 0 and 1")
+
+        # 存储在上下文中
+        self.context._volume_ratio = ratio
+
+        # 更新交易设置
+        if hasattr(self.context, "sim_params") and self.context.sim_params is not None:
+            self.context.sim_params.volume_ratio = ratio
+
         self._logger.info(f"Volume ratio set to {ratio}")
 
     def set_limit_mode(self, mode: str) -> None:
         """设置回测成交数量限制模式"""
-        # 暂时存储在上下文中
-        if not hasattr(self.context, '_limit_mode'):
-            self.context._limit_mode = mode
+        # 验证模式
+        valid_modes = ["volume", "order", "none"]
+        if mode not in valid_modes:
+            raise ValueError(
+                f"Invalid limit mode: {mode}. Must be one of {valid_modes}"
+            )
+
+        # 存储在上下文中
+        self.context._limit_mode = mode
+
+        # 更新交易设置
+        if hasattr(self.context, "sim_params") and self.context.sim_params is not None:
+            self.context.sim_params.limit_mode = mode
+
         self._logger.info(f"Limit mode set to {mode}")
 
     def set_yesterday_position(self, positions: Dict[str, Any]) -> None:
         """设置底仓"""
-        # 暂时存储在上下文中
-        if not hasattr(self.context, '_yesterday_position'):
-            self.context._yesterday_position = positions
+        # 验证底仓数据格式
+        for security, position_data in positions.items():
+            if not isinstance(position_data, dict):
+                raise ValueError(f"Position data for {security} must be a dictionary")
+
+            required_fields = ["amount", "cost_basis"]
+            for field in required_fields:
+                if field not in position_data:
+                    raise ValueError(f"Missing required field '{field}' for {security}")
+
+        # 存储在上下文中
+        self.context._yesterday_position = positions
+
+        # 初始化底仓到投资组合中
+        from ..models import Position
+
+        for security, position_data in positions.items():
+            position = Position(
+                sid=security,
+                amount=position_data["amount"],
+                enable_amount=position_data["amount"],
+                cost_basis=position_data["cost_basis"],
+                last_sale_price=position_data.get(
+                    "last_price", position_data["cost_basis"]
+                ),
+                today_amount=0,  # 底仓不是今日开仓
+            )
+            self.context.portfolio.positions[security] = position
+
+        # 更新投资组合价值
+        self.context.portfolio.update_portfolio_value()
+
         self._logger.info(f"Yesterday position set with {len(positions)} positions")
 
     def set_parameters(self, params: Dict[str, Any]) -> None:
         """设置策略配置参数"""
-        # 暂时存储在上下文中
-        if not hasattr(self.context, '_parameters'):
-            self.context._parameters = params
-        self._logger.info(f"Parameters set: {params}")
+        # 将参数存储在上下文中，支持动态更新
+        if not hasattr(self.context, "_parameters"):
+            self.context._parameters = {}
+
+        # 更新参数
+        self.context._parameters.update(params)
+
+        # 处理一些特殊参数
+        if "commission" in params:
+            self.set_commission(float(params["commission"]))
+
+        if "slippage" in params:
+            self.set_slippage(float(params["slippage"]))
+
+        if "universe" in params:
+            self.set_universe(params["universe"])
+
+        if "benchmark" in params:
+            self.set_benchmark(params["benchmark"])
+
+        self._logger.info(f"Parameters updated: {params}")
+
+        # 发布参数更新事件
+        if self.event_bus:
+            self.event_bus.publish(
+                "ptrade.parameters.updated",
+                data={"parameters": params},
+                source="ptrade_backtest_router",
+            )
 
     def get_MACD(
         self, close: np.ndarray, short: int = 12, long: int = 26, m: int = 9
@@ -646,7 +893,7 @@ class BacktestAPIRouter(BaseAPIRouter):
             if amount != 0:
                 # 动态导入Position类以避免循环导入
                 from ..models import Position
-                
+
                 portfolio.positions[security] = Position(
                     sid=security,
                     enable_amount=amount,
@@ -672,9 +919,12 @@ class BacktestAPIRouter(BaseAPIRouter):
     def _get_current_price(self, security: str) -> float:
         """获取股票当前价格"""
         # 从上下文获取价格数据
-        if hasattr(self.context, 'current_data') and security in self.context.current_data:
-            return self.context.current_data[security].get('price', 10.0)
-        
+        if (
+            hasattr(self.context, "current_data")
+            and security in self.context.current_data
+        ):
+            return self.context.current_data[security].get("price", 10.0)
+
         # 使用默认价格
         base_price = 15.0 if security.startswith("000") else 20.0
         return base_price
