@@ -16,14 +16,14 @@ import pandas as pd
 import pytest
 
 from simtradelab.adapters.ptrade.adapter import (
-    Blotter,
-    Portfolio,
-    Position,
     PTradeAdapter,
+)
+from simtradelab.adapters.ptrade.context import PTradeContext
+from simtradelab.adapters.ptrade.models import Blotter, Portfolio, Position
+from simtradelab.adapters.ptrade.utils import (
     PTradeAdapterError,
     PTradeAPIError,
     PTradeCompatibilityError,
-    PTradeContext,
 )
 from simtradelab.core.event_bus import EventBus
 from simtradelab.plugins.base import PluginConfig

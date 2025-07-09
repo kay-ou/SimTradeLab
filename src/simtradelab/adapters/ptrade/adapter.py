@@ -9,288 +9,23 @@ PTrade 兼容层适配器
 import importlib
 import importlib.util
 import types
-from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 
 from ...core.event_bus import EventBus
-from ...exceptions import SimTradeLabError
 from ...plugins.base import BasePlugin, PluginConfig, PluginMetadata
-from .api_router import (
+from .context import PTradeContext, PTradeMode
+from .models import Portfolio
+from .routers import (
     BacktestAPIRouter,
     BaseAPIRouter,
     LiveTradingAPIRouter,
     ResearchAPIRouter,
 )
-
-
-class PTradeAdapterError(SimTradeLabError):
-    """PTrade适配器异常"""
-
-    pass
-
-
-class PTradeCompatibilityError(PTradeAdapterError):
-    """PTrade兼容性异常"""
-
-    pass
-
-
-class PTradeAPIError(PTradeAdapterError):
-    """PTrade API调用异常"""
-
-    pass
-
-
-class PTradeMode(Enum):
-    """PTrade运行模式"""
-
-    RESEARCH = "research"  # 研究模式
-    BACKTEST = "backtest"  # 回测模式
-    TRADING = "trading"  # 交易模式
-    MARGIN_TRADING = "margin_trading"  # 融资融券交易模式
-
-
-@dataclass
-class Portfolio:
-    """投资组合对象 - 完全符合PTrade规范"""
-
-    # 股票账户基础属性 (8个)
-    cash: float  # 当前可用资金（不包含冻结资金）
-    portfolio_value: float = 0.0  # 当前持有的标的和现金的总价值
-    positions_value: float = 0.0  # 持仓价值
-    capital_used: float = 0.0  # 已使用的现金
-    returns: float = 0.0  # 当前的收益比例，相对于初始资金
-    pnl: float = 0.0  # 当前账户总资产-初始账户总资产
-    start_date: Optional[datetime] = None  # 开始时间
-    positions: Dict[str, "Position"] = field(default_factory=dict)  # 持仓字典
-
-    # 期权账户额外属性
-    margin: Optional[float] = None  # 保证金
-    risk_degree: Optional[float] = None  # 风险度
-
-    def __post_init__(self) -> None:
-        if self.start_date is None:
-            self.start_date = datetime.now()
-        # 保存起始资金用于计算收益率
-        self._starting_cash = self.cash
-        # 初始化时现金就是总资产
-        self.portfolio_value = self.cash
-
-    @property
-    def total_value(self) -> float:
-        """总资产"""
-        return self.portfolio_value
-
-    def update_portfolio_value(self) -> None:
-        """更新投资组合价值"""
-        self.positions_value = sum(pos.market_value for pos in self.positions.values())
-        self.portfolio_value = self.cash + self.positions_value
-        self.capital_used = self._starting_cash - self.cash
-        if self._starting_cash > 0:
-            self.returns = (
-                self.portfolio_value - self._starting_cash
-            ) / self._starting_cash
-            self.pnl = self.portfolio_value - self._starting_cash
-
-
-@dataclass
-class Position:
-    """持仓对象 - 完全符合PTrade规范"""
-
-    # 股票账户基础属性 (7个)
-    sid: str  # 标的代码
-    enable_amount: int  # 可用数量
-    amount: int  # 总持仓数量
-    last_sale_price: float  # 最新价格
-    cost_basis: float  # 持仓成本价格
-    today_amount: int = 0  # 今日开仓数量（且仅回测有效）
-    business_type: str = "stock"  # 持仓类型
-
-    # 期货账户扩展属性 (18个)
-    short_enable_amount: Optional[int] = None  # 空头仓可用数量
-    long_enable_amount: Optional[int] = None  # 多头仓可用数量
-    today_short_amount: Optional[int] = None  # 空头仓今仓数量
-    today_long_amount: Optional[int] = None  # 多头仓今仓数量
-    long_cost_basis: Optional[float] = None  # 多头仓持仓成本
-    short_cost_basis: Optional[float] = None  # 空头仓持仓成本
-    long_amount: Optional[int] = None  # 多头仓总持仓量
-    short_amount: Optional[int] = None  # 空头仓总持仓量
-    long_pnl: Optional[float] = None  # 多头仓浮动盈亏
-    short_pnl: Optional[float] = None  # 空头仓浮动盈亏
-    delivery_date: Optional[datetime] = None  # 交割日
-    margin_rate: Optional[float] = None  # 保证金比例
-    contract_multiplier: Optional[int] = None  # 合约乘数
-
-    # 期权账户扩展属性 (17个)
-    covered_enable_amount: Optional[int] = None  # 备兑仓可用数量
-    covered_cost_basis: Optional[float] = None  # 备兑仓持仓成本
-    covered_amount: Optional[int] = None  # 备兑仓总持仓量
-    covered_pnl: Optional[float] = None  # 备兑仓浮动盈亏
-    margin: Optional[float] = None  # 保证金
-    exercise_date: Optional[datetime] = None  # 行权日
-
-    def __post_init__(self) -> None:
-        self.security = self.sid
-
-    @property
-    def market_value(self) -> float:
-        """持仓市值"""
-        return self.amount * self.last_sale_price
-
-    @property
-    def pnl(self) -> float:
-        """持仓盈亏"""
-        return (self.last_sale_price - self.cost_basis) * self.amount
-
-    @property
-    def returns(self) -> float:
-        """持仓收益率"""
-        if self.cost_basis == 0:
-            return 0.0
-        return (self.last_sale_price - self.cost_basis) / self.cost_basis
-
-
-@dataclass
-class Order:
-    """订单对象 - 完全符合PTrade规范"""
-
-    id: str  # 订单号
-    dt: datetime  # 订单产生时间
-    symbol: str  # 标的代码（注意：标的代码尾缀为四位，上证为XSHG，深圳为XSHE）
-    amount: int  # 下单数量，买入是正数，卖出是负数
-    limit: Optional[float] = None  # 指定价格
-    status: str = "new"  # 订单状态
-    filled: int = 0  # 成交数量
-
-    def __post_init__(self) -> None:
-        self.security = self.symbol
-        self.limit_price = self.limit
-        self.created_at = self.dt
-
-
-@dataclass
-class SecurityUnitData:
-    """单位时间内股票数据对象 - 完全符合PTrade规范"""
-
-    dt: datetime  # 时间
-    open: float  # 时间段开始时价格
-    close: float  # 时间段结束时价格
-    price: float  # 结束时价格
-    low: float  # 最低价
-    high: float  # 最高价
-    volume: int  # 成交的股票数量
-    money: float  # 成交的金额
-
-
-class SimulationParameters:
-    """模拟参数对象"""
-
-    def __init__(self, capital_base: float, data_frequency: str = "1d"):
-        self.capital_base = capital_base
-        self.data_frequency = data_frequency
-
-
-class VolumeShareSlippage:
-    """滑点对象"""
-
-    def __init__(self, volume_limit: float = 0.025, price_impact: float = 0.1):
-        self.volume_limit = volume_limit
-        self.price_impact = price_impact
-
-
-class Commission:
-    """佣金费用对象"""
-
-    def __init__(
-        self, tax: float = 0.001, cost: float = 0.0003, min_trade_cost: float = 5.0
-    ):
-        self.tax = tax
-        self.cost = cost
-        self.min_trade_cost = min_trade_cost
-
-
-class Blotter:
-    """订单记录管理器"""
-
-    def __init__(self) -> None:
-        self.orders: Dict[str, Order] = {}
-        self.order_id_counter = 0
-        self.current_dt = datetime.now()  # 当前单位时间的开始时间
-
-    def create_order(
-        self, security: str, amount: int, limit_price: Optional[float] = None
-    ) -> str:
-        """创建订单"""
-        order_id = f"order_{self.order_id_counter}"
-        self.order_id_counter += 1
-
-        order = Order(
-            id=order_id,
-            dt=self.current_dt,
-            symbol=security,
-            amount=amount,
-            limit=limit_price,
-        )
-
-        self.orders[order_id] = order
-        return order_id
-
-    def get_order(self, order_id: str) -> Optional[Order]:
-        """获取订单"""
-        return self.orders.get(order_id)
-
-    def cancel_order(self, order_id: str) -> bool:
-        """撤销订单"""
-        if order_id in self.orders:
-            self.orders[order_id].status = "cancelled"
-            return True
-        return False
-
-
-class FutureParams:
-    """期货参数对象"""
-
-    def __init__(self, margin_rate: float = 0.1, contract_multiplier: int = 1):
-        self.margin_rate = margin_rate
-        self.contract_multiplier = contract_multiplier
-
-
-@dataclass
-class PTradeContext:
-    """PTrade策略上下文对象 - 完全符合PTrade规范"""
-
-    portfolio: Portfolio
-    capital_base: Optional[float] = None  # 起始资金
-    previous_date: Optional[datetime] = None  # 前一个交易日
-    sim_params: Optional[SimulationParameters] = None
-    initialized: bool = False  # 是否执行初始化
-    slippage: Optional[VolumeShareSlippage] = None
-    commission: Optional[Commission] = None
-    blotter: Optional[Blotter] = None
-    recorded_vars: Dict[str, Any] = field(default_factory=dict)  # 收益曲线值
-    universe: List[str] = field(default_factory=list)
-    benchmark: Optional[str] = None
-    current_dt: Optional[datetime] = None
-
-    def __post_init__(self) -> None:
-        self.g = types.SimpleNamespace()  # 全局变量容器
-
-        if self.blotter is None:
-            self.blotter = Blotter()
-
-        if self.sim_params is None and self.capital_base:
-            self.sim_params = SimulationParameters(self.capital_base)
-
-        if self.slippage is None:
-            self.slippage = VolumeShareSlippage()
-
-        if self.commission is None:
-            self.commission = Commission()
+from .utils import PTradeAdapterError, PTradeAPIError, PTradeCompatibilityError
 
 
 class PTradeAdapter(BasePlugin):
@@ -625,7 +360,7 @@ class PTradeAdapter(BasePlugin):
         # 先从缓存查找
         if security in self._current_data:
             return self._current_data[security].get("last_price", 10.0)
-        
+
         # 从数据插件获取
         if self._data_plugin:
             try:
@@ -634,7 +369,7 @@ class PTradeAdapter(BasePlugin):
                     return price
             except Exception as e:
                 self._logger.warning(f"Failed to get current price for {security}: {e}")
-        
+
         # 使用默认价格
         base_price = 15.0 if security.startswith("000") else 20.0
         return base_price
@@ -644,11 +379,11 @@ class PTradeAdapter(BasePlugin):
         # 生成随机价格序列
         returns = np.random.normal(0, 0.01, length)
         prices = [base_price]
-        
+
         for i in range(1, length):
             new_price = prices[-1] * (1 + returns[i])
             prices.append(max(new_price, 0.01))  # 确保价格为正
-        
+
         return np.array(prices)
 
     def get_strategy_performance(self) -> Dict[str, Any]:
