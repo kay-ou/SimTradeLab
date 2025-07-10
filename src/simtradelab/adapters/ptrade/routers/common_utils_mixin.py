@@ -133,3 +133,53 @@ class CommonUtilsMixin:
                 self._logger.info(f"Benchmark created and set to {benchmark}")
         else:
             self._logger.warning("No context available to set benchmark")
+
+    def is_trade(self, check_time: Optional[datetime] = None) -> bool:
+        """
+        业务代码场景判断 - 判断是否处于交易时间
+
+        Args:
+            check_time: 检查的时间点，如果为None则使用当前时间
+
+        Returns:
+            bool: True表示处于交易时间，False表示非交易时间
+        """
+        if check_time is None:
+            check_time = datetime.now()
+
+        # 获取时间信息
+        weekday = check_time.weekday()  # 0=周一, 6=周日
+
+        # 检查是否是工作日 (周一到周五)
+        if weekday > 4:  # 周六(5)和周日(6)
+            return False
+
+        # 获取当日的交易时间边界
+        current_date = check_time.date()
+
+        # A股交易时间：
+        # 上午：09:30:00 - 11:30:00
+        # 下午：13:00:00 - 15:00:00
+        morning_start = datetime.combine(
+            current_date, datetime.min.time().replace(hour=9, minute=30, second=0)
+        )
+        morning_end = datetime.combine(
+            current_date, datetime.min.time().replace(hour=11, minute=30, second=0)
+        )
+        afternoon_start = datetime.combine(
+            current_date, datetime.min.time().replace(hour=13, minute=0, second=0)
+        )
+        afternoon_end = datetime.combine(
+            current_date, datetime.min.time().replace(hour=15, minute=0, second=0)
+        )
+
+        # 检查是否在交易时间内
+        # 上午时段
+        if morning_start <= check_time <= morning_end:
+            return True
+
+        # 下午时段
+        if afternoon_start <= check_time <= afternoon_end:
+            return True
+
+        return False

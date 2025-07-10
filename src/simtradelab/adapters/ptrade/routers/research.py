@@ -3,9 +3,10 @@
 PTrade研究模式API路由器
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from ....core.event_bus import EventBus
+from ..scheduling.scheduler import PTradeScheduler
 from .base import BaseAPIRouter
 from .common_utils_mixin import CommonUtilsMixin
 from .data_retrieval_mixin import DataRetrievalMixin
@@ -29,6 +30,7 @@ class ResearchAPIRouter(
     def __init__(self, context: "PTradeContext", event_bus: Optional[EventBus] = None):
         super().__init__(context, event_bus)
         self._data_plugin = None  # 将在设置时从适配器获取
+        self._scheduler = PTradeScheduler(event_bus)  # 初始化调度器
         self._supported_apis = {
             # 数据获取API
             "get_history",
@@ -69,6 +71,12 @@ class ResearchAPIRouter(
             "log",
             "check_limit",
             "handle_data",
+            # 定时和回调API
+            "run_daily",
+            "run_interval",
+            "tick_data",
+            "on_order_response",
+            "on_trade_response",
         }
 
     def set_data_plugin(self, data_plugin: Any) -> None:
@@ -184,9 +192,212 @@ class ResearchAPIRouter(
         """研究模式不支持交易查询"""
         raise NotImplementedError("Trade queries are not supported in research mode")
 
-    # 这些方法现在由Mixin提供，无需在这里重复实现
-    # get_MACD, get_KDJ, get_RSI, get_CCI
-    # log, check_limit
+    # ==============================================
+    # 明确委托给Mixin的抽象方法实现
+    # 由于Python多重继承中抽象方法标记的持久性问题，
+    # 需要明确重写这些方法以消除抽象方法标记
+    # ==============================================
+
+    # 数据获取方法 - 委托给DataRetrievalMixin
+    def get_history(self, *args, **kwargs):
+        return DataRetrievalMixin.get_history(self, *args, **kwargs)
+
+    def get_price(self, *args, **kwargs):
+        return DataRetrievalMixin.get_price(self, *args, **kwargs)
+
+    def get_snapshot(self, *args, **kwargs):
+        return DataRetrievalMixin.get_snapshot(self, *args, **kwargs)
+
+    def get_stock_info(self, *args, **kwargs):
+        return DataRetrievalMixin.get_stock_info(self, *args, **kwargs)
+
+    def get_fundamentals(self, *args, **kwargs):
+        return DataRetrievalMixin.get_fundamentals(self, *args, **kwargs)
+
+    # 股票信息方法 - 委托给StockInfoMixin
+    def get_stock_name(self, *args, **kwargs):
+        return StockInfoMixin.get_stock_name(self, *args, **kwargs)
+
+    def get_stock_status(self, *args, **kwargs):
+        return StockInfoMixin.get_stock_status(self, *args, **kwargs)
+
+    def get_stock_exrights(self, *args, **kwargs):
+        return StockInfoMixin.get_stock_exrights(self, *args, **kwargs)
+
+    def get_stock_blocks(self, *args, **kwargs):
+        return StockInfoMixin.get_stock_blocks(self, *args, **kwargs)
+
+    def get_index_stocks(self, *args, **kwargs):
+        return StockInfoMixin.get_index_stocks(self, *args, **kwargs)
+
+    def get_industry_stocks(self, *args, **kwargs):
+        return StockInfoMixin.get_industry_stocks(self, *args, **kwargs)
+
+    def get_Ashares(self, *args, **kwargs):
+        return StockInfoMixin.get_Ashares(self, *args, **kwargs)
+
+    def get_etf_list(self, *args, **kwargs):
+        return StockInfoMixin.get_etf_list(self, *args, **kwargs)
+
+    def get_ipo_stocks(self, *args, **kwargs):
+        return StockInfoMixin.get_ipo_stocks(self, *args, **kwargs)
+
+    # 技术指标方法 - 委托给TechnicalIndicatorMixin
+    def get_MACD(self, *args, **kwargs):
+        return TechnicalIndicatorMixin.get_MACD(self, *args, **kwargs)
+
+    def get_KDJ(self, *args, **kwargs):
+        return TechnicalIndicatorMixin.get_KDJ(self, *args, **kwargs)
+
+    def get_RSI(self, *args, **kwargs):
+        return TechnicalIndicatorMixin.get_RSI(self, *args, **kwargs)
+
+    def get_CCI(self, *args, **kwargs):
+        return TechnicalIndicatorMixin.get_CCI(self, *args, **kwargs)
+
+    # 工具函数方法 - 委托给CommonUtilsMixin
+    def log(self, *args, **kwargs):
+        return CommonUtilsMixin.log(self, *args, **kwargs)
+
+    def check_limit(self, *args, **kwargs):
+        return CommonUtilsMixin.check_limit(self, *args, **kwargs)
+
+    def get_trading_day(self, *args, **kwargs):
+        return CommonUtilsMixin.get_trading_day(self, *args, **kwargs)
+
+    def get_all_trades_days(self, *args, **kwargs):
+        return CommonUtilsMixin.get_all_trades_days(self, *args, **kwargs)
+
+    def get_trade_days(self, *args, **kwargs):
+        return CommonUtilsMixin.get_trade_days(self, *args, **kwargs)
+
+    # 设置方法 - 委托给BaseAPIRouter或已实现
+    def set_universe(self, securities: List[str]) -> None:
+        """设置股票池"""
+        if hasattr(self.context, "universe"):
+            self.context.universe = securities
+        else:
+            setattr(self.context, "universe", securities)
+        self._logger.info(f"Universe set to {len(securities)} securities")
+
+    def set_benchmark(self, benchmark: str) -> None:
+        """设置基准"""
+        if hasattr(self.context, "benchmark"):
+            self.context.benchmark = benchmark
+        else:
+            setattr(self.context, "benchmark", benchmark)
+        self._logger.info(f"Benchmark set to {benchmark}")
+
+    # ==============================================
+    # 定时和回调API实现
+    # ==============================================
+
+    def run_daily(
+        self, func: Any, time_str: str = "09:30", *args: Any, **kwargs: Any
+    ) -> str:
+        """按日周期处理 - 每日定时执行指定函数"""
+        try:
+            # 启动调度器（如果尚未启动）
+            if not self._scheduler._running:
+                self._scheduler.start()
+
+            # 生成唯一任务ID
+            job_id = f"daily_{func.__name__}_{time_str.replace(':', '')}"
+
+            # 添加日常任务
+            actual_job_id = self._scheduler.add_daily_job(
+                job_id=job_id, func=func, time_str=time_str, args=args, kwargs=kwargs
+            )
+
+            self._logger.info(f"Added daily job {actual_job_id} at {time_str}")
+            return actual_job_id
+
+        except Exception as e:
+            self._logger.error(f"Error adding daily job: {e}")
+            raise RuntimeError(f"Failed to add daily job: {e}")
+
+    def run_interval(
+        self, func: Any, interval: Union[int, str], *args: Any, **kwargs: Any
+    ) -> str:
+        """按设定周期处理 - 按指定间隔重复执行函数"""
+        try:
+            # 启动调度器（如果尚未启动）
+            if not self._scheduler._running:
+                self._scheduler.start()
+
+            # 生成唯一任务ID
+            job_id = f"interval_{func.__name__}_{interval}"
+
+            # 添加间隔任务
+            actual_job_id = self._scheduler.add_interval_job(
+                job_id=job_id, func=func, interval=interval, args=args, kwargs=kwargs
+            )
+
+            self._logger.info(f"Added interval job {actual_job_id} every {interval}")
+            return actual_job_id
+
+        except Exception as e:
+            self._logger.error(f"Error adding interval job: {e}")
+            raise RuntimeError(f"Failed to add interval job: {e}")
+
+    def tick_data(self, func: Any) -> bool:
+        """tick级别处理 - 注册tick数据回调函数"""
+        try:
+            self._scheduler.add_tick_callback(func)
+            self._logger.info(f"Added tick data callback: {func.__name__}")
+            return True
+
+        except Exception as e:
+            self._logger.error(f"Error adding tick callback: {e}")
+            return False
+
+    def on_order_response(self, func: Any) -> bool:
+        """委托回报 - 注册订单状态变化回调函数"""
+        try:
+            self._scheduler.add_order_response_callback(func)
+            self._logger.info(f"Added order response callback: {func.__name__}")
+            return True
+
+        except Exception as e:
+            self._logger.error(f"Error adding order response callback: {e}")
+            return False
+
+    def on_trade_response(self, func: Any) -> bool:
+        """成交回报 - 注册成交确认回调函数"""
+        try:
+            self._scheduler.add_trade_response_callback(func)
+            self._logger.info(f"Added trade response callback: {func.__name__}")
+            return True
+
+        except Exception as e:
+            self._logger.error(f"Error adding trade response callback: {e}")
+            return False
+
+    # ==============================================
+    # 调度器生命周期管理
+    # ==============================================
+
+    def start_scheduler(self) -> None:
+        """启动调度器"""
+        if not self._scheduler._running:
+            self._scheduler.start()
+            self._logger.info("Scheduler started")
+
+    def stop_scheduler(self) -> None:
+        """停止调度器"""
+        if self._scheduler._running:
+            self._scheduler.stop()
+            self._logger.info("Scheduler stopped")
+
+    def get_scheduler_status(self) -> Dict[str, Any]:
+        """获取调度器状态"""
+        return {
+            "running": self._scheduler._running,
+            "jobs": self._scheduler.get_jobs(),
+            "tick_callbacks": len(self._scheduler._tick_callbacks),
+            "order_callbacks": len(self._scheduler._order_response_callbacks),
+            "trade_callbacks": len(self._scheduler._trade_response_callbacks),
+        }
 
     # 研究模式下的配置方法需要特殊处理（存储在context中）
     def set_commission(self, commission: float) -> None:

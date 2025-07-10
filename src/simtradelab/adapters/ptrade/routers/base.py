@@ -351,6 +351,39 @@ class BaseAPIRouter(ABC):
         pass
 
     # ==========================================
+    # 定时和回调 API (定时任务和事件回调)
+    # ==========================================
+
+    @abstractmethod
+    def run_daily(
+        self, func: Any, time_str: str = "09:30", *args: Any, **kwargs: Any
+    ) -> str:
+        """按日周期处理 - 每日定时执行指定函数"""
+        pass
+
+    @abstractmethod
+    def run_interval(
+        self, func: Any, interval: Union[int, str], *args: Any, **kwargs: Any
+    ) -> str:
+        """按设定周期处理 - 按指定间隔重复执行函数"""
+        pass
+
+    @abstractmethod
+    def tick_data(self, func: Any) -> bool:
+        """tick级别处理 - 注册tick数据回调函数"""
+        pass
+
+    @abstractmethod
+    def on_order_response(self, func: Any) -> bool:
+        """委托回报 - 注册订单状态变化回调函数"""
+        pass
+
+    @abstractmethod
+    def on_trade_response(self, func: Any) -> bool:
+        """成交回报 - 注册成交确认回调函数"""
+        pass
+
+    # ==========================================
     # 模式相关的处理方法
     # ==========================================
 
