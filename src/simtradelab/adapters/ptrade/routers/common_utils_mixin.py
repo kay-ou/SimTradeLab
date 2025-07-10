@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 
 class CommonUtilsMixin:
     """通用工具API混入类"""
+
     _data_plugin: Optional[Any] = None
 
     def __init__(self) -> None:
@@ -29,10 +30,10 @@ class CommonUtilsMixin:
         self, security: str, query_date: Optional[str] = None
     ) -> Dict[str, Any]:
         """代码涨跌停状态判断"""
-        if hasattr(self, '_data_plugin') and self._data_plugin:
-            if hasattr(self._data_plugin, 'check_limit_status'):
+        if hasattr(self, "_data_plugin") and self._data_plugin:
+            if hasattr(self._data_plugin, "check_limit_status"):
                 return self._data_plugin.check_limit_status(security, query_date)
-        
+
         # Fallback to default implementation
         return {
             security: {
@@ -46,11 +47,11 @@ class CommonUtilsMixin:
 
     def get_trading_day(self, date: str, offset: int = 0) -> str:
         """获取交易日期"""
-        if hasattr(self, '_data_plugin') and self._data_plugin:
-            if hasattr(self._data_plugin, 'get_trading_day'):
+        if hasattr(self, "_data_plugin") and self._data_plugin:
+            if hasattr(self._data_plugin, "get_trading_day"):
                 return self._data_plugin.get_trading_day(date, offset)
-        
-        # Fallback implementation  
+
+        # Fallback implementation
         try:
             # 解析输入日期
             if isinstance(date, str):
@@ -75,10 +76,10 @@ class CommonUtilsMixin:
 
     def get_all_trades_days(self) -> list[str]:
         """获取全部交易日期"""
-        if hasattr(self, '_data_plugin') and self._data_plugin:
-            if hasattr(self._data_plugin, 'get_all_trading_days'):
+        if hasattr(self, "_data_plugin") and self._data_plugin:
+            if hasattr(self._data_plugin, "get_all_trading_days"):
                 return self._data_plugin.get_all_trading_days()
-        
+
         # Fallback implementation
         try:
             # 生成过去一年的交易日（简化版）
@@ -101,10 +102,10 @@ class CommonUtilsMixin:
 
     def get_trade_days(self, start_date: str, end_date: str) -> list[str]:
         """获取指定范围交易日期"""
-        if hasattr(self, '_data_plugin') and self._data_plugin:
-            if hasattr(self._data_plugin, 'get_trading_days_range'):
+        if hasattr(self, "_data_plugin") and self._data_plugin:
+            if hasattr(self._data_plugin, "get_trading_days_range"):
                 return self._data_plugin.get_trading_days_range(start_date, end_date)
-        
+
         # Fallback implementation
         try:
             # 解析日期

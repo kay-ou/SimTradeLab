@@ -4,7 +4,6 @@ SimTradeLab 插件管理器
 提供插件注册、发现、基础加载卸载功能
 """
 
-import asyncio
 import importlib
 import importlib.util
 import inspect
@@ -12,7 +11,6 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Type, Union
 

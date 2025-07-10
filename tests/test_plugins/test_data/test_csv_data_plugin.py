@@ -8,13 +8,11 @@ CSV数据源插件测试
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch
 
-import numpy as np
 import pandas as pd
 import pytest
 
-from simtradelab.plugins.base import PluginConfig, PluginMetadata
+from simtradelab.plugins.base import PluginConfig
 from simtradelab.plugins.data.csv_data_plugin import CSVDataPlugin
 
 
@@ -270,7 +268,7 @@ class TestCSVDataPlugin:
         security = "000001.SZ"
 
         # 第一次调用
-        df1 = plugin.get_history_data(security, count=5)
+        plugin.get_history_data(security, count=5)
 
         # 等待超过缓存时间
         import time
@@ -475,23 +473,23 @@ class TestCSVDataPlugin:
         plugin.initialize()
 
         security = "TEST001.SZ"
-        
+
         # 验证业务价值：相同参数的多次调用应该返回一致的历史数据
         df1 = plugin.get_history_data(security, count=5)
         df2 = plugin.get_history_data(security, count=5)
-        
+
         # 数据应该一致（因为文件已生成和缓存）
         assert len(df1) == len(df2)
         assert list(df1.columns) == list(df2.columns)
-        
+
         # 验证数据格式正确性
         assert "date" in df1.columns
-        assert "open" in df1.columns  
+        assert "open" in df1.columns
         assert "close" in df1.columns
         assert "high" in df1.columns
         assert "low" in df1.columns
         assert "volume" in df1.columns
-        
+
         # 验证数据质量：价格应该合理
         assert all(df1["low"] <= df1["close"])
         assert all(df1["close"] <= df1["high"])

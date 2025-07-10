@@ -37,74 +37,96 @@ class TestLiveTradingAPIRouter:
     def router(self, context, event_bus):
         """创建实盘交易路由器实例"""
         from unittest.mock import MagicMock
+
         import numpy as np
         import pandas as pd
-        
+
         router = LiveTradingAPIRouter(context=context, event_bus=event_bus)
-        
+
         # 设置mock数据插件（与backtest router相同的设置）
         mock_data_plugin = MagicMock()
-        
+
         # 模拟get_multiple_history_data方法
-        def mock_get_multiple_history_data(securities, count, start_date=None, end_date=None):
-            dates = pd.date_range('2023-01-01', periods=count, freq='D')
+        def mock_get_multiple_history_data(
+            securities, count, start_date=None, end_date=None
+        ):
+            dates = pd.date_range("2023-01-01", periods=count, freq="D")
             all_data = []
-            
+
             for security in securities:
-                security_data = pd.DataFrame({
-                    'security': [security] * count,
-                    'date': dates,
-                    'open': np.random.rand(count),
-                    'high': np.random.rand(count),
-                    'low': np.random.rand(count),
-                    'close': np.random.rand(count),
-                    'volume': np.random.randint(1000, 10000, count),
-                })
+                security_data = pd.DataFrame(
+                    {
+                        "security": [security] * count,
+                        "date": dates,
+                        "open": np.random.rand(count),
+                        "high": np.random.rand(count),
+                        "low": np.random.rand(count),
+                        "close": np.random.rand(count),
+                        "volume": np.random.randint(1000, 10000, count),
+                    }
+                )
                 all_data.append(security_data)
-            
+
             if all_data:
                 result = pd.concat(all_data, ignore_index=True)
-                return result.sort_values(['security', 'date'])
+                return result.sort_values(["security", "date"])
             else:
                 return pd.DataFrame()
-        
-        mock_data_plugin.get_multiple_history_data.side_effect = mock_get_multiple_history_data
-        
+
+        mock_data_plugin.get_multiple_history_data.side_effect = (
+            mock_get_multiple_history_data
+        )
+
         # 模拟get_market_snapshot方法
         def mock_get_market_snapshot(securities):
             snapshot = {}
             for security in securities:
                 snapshot[security] = {
-                    'last_price': 15.0 if security.startswith('000001') else 20.0,
-                    'volume': 1000 if security.startswith('000001') else 2000,
-                    'datetime': pd.Timestamp.now()
+                    "last_price": 15.0 if security.startswith("000001") else 20.0,
+                    "volume": 1000 if security.startswith("000001") else 2000,
+                    "datetime": pd.Timestamp.now(),
                 }
             return snapshot
-        
+
         mock_data_plugin.get_market_snapshot.side_effect = mock_get_market_snapshot
-        
+
         # 模拟get_stock_basic_info方法 (回退到基本信息生成)
-        mock_data_plugin.get_stock_basic_info.side_effect = Exception("Plugin method not available")
-        
+        mock_data_plugin.get_stock_basic_info.side_effect = Exception(
+            "Plugin method not available"
+        )
+
         # 模拟get_fundamentals方法 (回退到空DataFrame)
-        mock_data_plugin.get_fundamentals.side_effect = Exception("Plugin method not available")
-        
+        mock_data_plugin.get_fundamentals.side_effect = Exception(
+            "Plugin method not available"
+        )
+
         # 模拟交易日相关方法
         mock_data_plugin.get_trading_day.return_value = "2024-01-01"
-        mock_data_plugin.get_trading_days_range.return_value = ["2023-12-25", "2023-12-26", "2023-12-27", "2023-12-28", "2023-12-29"]
-        mock_data_plugin.get_all_trading_days.return_value = ["2023-01-03"] + [f"2023-{i:02d}-{j:02d}" for i in range(1, 13) for j in range(1, 29) if j % 7 not in [0, 6]]  # 模拟250个工作日
-        
+        mock_data_plugin.get_trading_days_range.return_value = [
+            "2023-12-25",
+            "2023-12-26",
+            "2023-12-27",
+            "2023-12-28",
+            "2023-12-29",
+        ]
+        mock_data_plugin.get_all_trading_days.return_value = ["2023-01-03"] + [
+            f"2023-{i:02d}-{j:02d}"
+            for i in range(1, 13)
+            for j in range(1, 29)
+            if j % 7 not in [0, 6]
+        ]  # 模拟250个工作日
+
         # 模拟涨跌停检查方法
         mock_data_plugin.check_limit_status.return_value = {
             "000001.XSHE": {
                 "limit_up": False,
-                "limit_down": False, 
+                "limit_down": False,
                 "limit_up_price": 16.5,
                 "limit_down_price": 13.5,
-                "current_price": 15.0
+                "current_price": 15.0,
             }
         }
-        
+
         router.set_data_plugin(mock_data_plugin)
         return router
 

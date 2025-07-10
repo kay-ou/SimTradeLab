@@ -36,18 +36,20 @@ class TestScheduleJob:
             strategy_executed = True
             # 模拟策略逻辑：计算收益并调整仓位
             portfolio_return = 0.025  # 2.5%收益
-            strategy_results.append({
-                "return": portfolio_return,
-                "action": "rebalance",
-                "timestamp": datetime.now()
-            })
+            strategy_results.append(
+                {
+                    "return": portfolio_return,
+                    "action": "rebalance",
+                    "timestamp": datetime.now(),
+                }
+            )
             return portfolio_return
 
         job = ScheduleJob(
-            job_id="morning_strategy", 
-            func=morning_strategy, 
-            job_type="daily", 
-            run_time="09:30"
+            job_id="morning_strategy",
+            func=morning_strategy,
+            job_type="daily",
+            run_time="09:30",
         )
 
         # 验证业务价值：策略任务配置正确
@@ -55,7 +57,7 @@ class TestScheduleJob:
         assert job.job_type == "daily"
         assert job.run_time == "09:30"
         assert job.enabled is True
-        
+
         # 验证核心能力：策略可以执行并产生交易决策
         result = job.run()
         assert strategy_executed is True
@@ -65,22 +67,23 @@ class TestScheduleJob:
 
     def test_market_open_timing_accuracy(self):
         """测试市场开盘时间调度准确性 - 确保策略在正确时机执行"""
+
         def market_open_strategy():
             """开盘策略：分析隔夜消息面并调整持仓"""
             return {"news_sentiment": "positive", "position_adjustment": "+5%"}
 
         job = ScheduleJob(
-            job_id="market_open_strategy", 
-            func=market_open_strategy, 
-            job_type="daily", 
-            run_time="09:30"
+            job_id="market_open_strategy",
+            func=market_open_strategy,
+            job_type="daily",
+            run_time="09:30",
         )
 
         # 验证业务价值：开盘策略在正确时间执行
         assert job.next_run is not None
         assert job.next_run.hour == 9
         assert job.next_run.minute == 30
-        
+
         # 验证策略执行能力
         result = job.run()
         assert result["news_sentiment"] == "positive"
@@ -89,36 +92,35 @@ class TestScheduleJob:
     def test_high_frequency_monitoring(self):
         """测试高频监控任务 - 风险管理的核心需求"""
         risk_alerts = []
-        
+
         def risk_monitor():
             """风险监控：每分钟检查组合风险指标"""
             # 模拟风险计算
             portfolio_var = 0.15  # 15% VaR
-            max_drawdown = 0.08   # 8% 最大回撤
-            
+            max_drawdown = 0.08  # 8% 最大回撤
+
             if portfolio_var > 0.20 or max_drawdown > 0.10:
-                risk_alerts.append({
-                    "var": portfolio_var,
-                    "drawdown": max_drawdown,
-                    "alert_level": "high",
-                    "timestamp": datetime.now()
-                })
+                risk_alerts.append(
+                    {
+                        "var": portfolio_var,
+                        "drawdown": max_drawdown,
+                        "alert_level": "high",
+                        "timestamp": datetime.now(),
+                    }
+                )
                 return "RISK_ALERT"
             return "NORMAL"
 
         # 测试1分钟间隔的风险监控
         job = ScheduleJob(
-            job_id="risk_monitor", 
-            func=risk_monitor, 
-            job_type="interval", 
-            interval=60
+            job_id="risk_monitor", func=risk_monitor, job_type="interval", interval=60
         )
 
         now = datetime.now()
         assert job.next_run is not None
         time_diff = (job.next_run - now).total_seconds()
         assert 59 <= time_diff <= 61  # 允许1秒误差
-        
+
         # 验证风险监控功能
         result = job.run()
         assert result == "NORMAL"  # 当前风险水平正常
@@ -127,21 +129,25 @@ class TestScheduleJob:
     def test_strategy_rebalancing_intervals(self):
         """测试策略重平衡间隔 - 投资组合管理的关键功能"""
         rebalance_actions = []
-        
+
         def portfolio_rebalance():
             """投资组合重平衡：每5分钟检查并调整权重"""
             # 模拟重平衡逻辑
             current_weights = {"stock_a": 0.6, "stock_b": 0.4}
             target_weights = {"stock_a": 0.5, "stock_b": 0.5}
-            
-            rebalance_needed = abs(current_weights["stock_a"] - target_weights["stock_a"]) > 0.05
-            
+
+            rebalance_needed = (
+                abs(current_weights["stock_a"] - target_weights["stock_a"]) > 0.05
+            )
+
             if rebalance_needed:
-                rebalance_actions.append({
-                    "from_weights": current_weights,
-                    "to_weights": target_weights,
-                    "timestamp": datetime.now()
-                })
+                rebalance_actions.append(
+                    {
+                        "from_weights": current_weights,
+                        "to_weights": target_weights,
+                        "timestamp": datetime.now(),
+                    }
+                )
                 return "REBALANCED"
             return "NO_ACTION"
 
@@ -157,7 +163,7 @@ class TestScheduleJob:
         assert job.next_run is not None
         time_diff = (job.next_run - now).total_seconds()
         assert 299 <= time_diff <= 301  # 5分钟 = 300秒
-        
+
         # 验证重平衡功能
         result = job.run()
         assert result == "REBALANCED"  # 权重偏差超过阈值，触发重平衡
@@ -166,29 +172,29 @@ class TestScheduleJob:
     def test_trading_strategy_execution_flow(self):
         """测试交易策略执行流程 - 对量化交易系统的核心验证"""
         strategy_decisions = []
-        
+
         def momentum_strategy():
             """动量策略：基于动量因子做出交易决策"""
             # 模拟动量计算
             momentum_score = 0.75  # 正动量
             confidence = 0.85
-            
+
             decision = {
                 "signal": "BUY" if momentum_score > 0.5 else "SELL",
                 "strength": momentum_score,
                 "confidence": confidence,
-                "timestamp": datetime.now()
+                "timestamp": datetime.now(),
             }
-            
+
             strategy_decisions.append(decision)
             return decision
 
         # 创建交易策略任务
         job = ScheduleJob(
-            job_id="momentum_strategy", 
-            func=momentum_strategy, 
+            job_id="momentum_strategy",
+            func=momentum_strategy,
             job_type="daily",
-            run_time="14:30"  # 下午收盘前执行
+            run_time="14:30",  # 下午收盘前执行
         )
 
         # 模拟过去时间来触发执行
@@ -197,16 +203,16 @@ class TestScheduleJob:
 
         # 执行策略并验证结果
         result = job.run()
-        
+
         # 验证业务价值：策略产生了有意义的交易信号
         assert result["signal"] == "BUY"
         assert result["strength"] == 0.75
         assert result["confidence"] == 0.85
         assert len(strategy_decisions) == 1
-        
+
         # 验证任务执行时间更新
         assert job.last_run is not None
-        
+
         # 禁用后不应该执行
         job.enabled = False
         job.next_run = datetime.now() - timedelta(hours=1)
@@ -215,27 +221,27 @@ class TestScheduleJob:
     def test_strategy_with_parameters(self):
         """测试带参数的策略执行 - 验证参数化策略的灵活性"""
         executed_strategies = []
-        
+
         def mean_reversion_strategy(lookback_days, threshold_std=2.0):
             """均值回归策略：使用可配置参数"""
             # 模拟均值回归计算
             z_score = -2.5  # 价格偏离均值-2.5个标准差
-            
+
             if abs(z_score) > threshold_std:
                 signal = "BUY" if z_score < -threshold_std else "SELL"
                 position_size = min(abs(z_score) / threshold_std * 0.1, 0.2)  # 最多20%仓位
             else:
                 signal = "HOLD"
                 position_size = 0
-                
+
             strategy_result = {
                 "lookback_days": lookback_days,
                 "threshold_std": threshold_std,
                 "z_score": z_score,
                 "signal": signal,
-                "position_size": position_size
+                "position_size": position_size,
             }
-            
+
             executed_strategies.append(strategy_result)
             return strategy_result
 
@@ -248,7 +254,7 @@ class TestScheduleJob:
         )
 
         result = job.run()
-        
+
         # 验证业务价值：策略正确使用参数并产生交易信号
         assert result["lookback_days"] == 20
         assert result["threshold_std"] == 2.0
@@ -295,39 +301,39 @@ class TestPTradeScheduler:
         """测试自动化交易系统集成 - 全流程业务场景"""
         executed_strategies = []
         risk_alerts = []
-        
+
         def intraday_momentum_strategy():
             """日内动量策略：每30秒分析动量并交易"""
             # 模拟动量分析
             momentum_score = 0.82
             volume_surge = True
             price_breakout = True
-            
+
             if momentum_score > 0.8 and volume_surge and price_breakout:
                 strategy_action = {
                     "signal": "STRONG_BUY",
                     "position_size": 0.15,  # 15%仓位
-                    "stop_loss": 0.03,      # 3%止损
-                    "take_profit": 0.08,    # 8%止盈
-                    "timestamp": datetime.now()
+                    "stop_loss": 0.03,  # 3%止损
+                    "take_profit": 0.08,  # 8%止盈
+                    "timestamp": datetime.now(),
                 }
                 executed_strategies.append(strategy_action)
                 return strategy_action
             return {"signal": "HOLD"}
-        
+
         def risk_monitoring():
             """风险监控：检查组合风险指标"""
             portfolio_beta = 1.25
             max_drawdown = 0.12
             var_95 = 0.18
-            
+
             if max_drawdown > 0.15 or var_95 > 0.20:
                 risk_alert = {
                     "level": "HIGH",
                     "beta": portfolio_beta,
                     "drawdown": max_drawdown,
                     "var": var_95,
-                    "action_required": "REDUCE_POSITION"
+                    "action_required": "REDUCE_POSITION",
                 }
                 risk_alerts.append(risk_alert)
                 return risk_alert
@@ -335,29 +341,25 @@ class TestPTradeScheduler:
 
         # 添加多个交易策略
         scheduler.add_interval_job(
-            job_id="momentum_strategy",
-            func=intraday_momentum_strategy,
-            interval="30s"
+            job_id="momentum_strategy", func=intraday_momentum_strategy, interval="30s"
         )
-        
+
         scheduler.add_interval_job(
-            job_id="risk_monitor",
-            func=risk_monitoring,
-            interval="1m"
+            job_id="risk_monitor", func=risk_monitoring, interval="1m"
         )
 
         # 验证系统集成
         assert "momentum_strategy" in scheduler._jobs
         assert "risk_monitor" in scheduler._jobs
         assert len(scheduler._jobs) == 2
-        
+
         # 执行策略并验证结果
         momentum_job = scheduler._jobs["momentum_strategy"]
         risk_job = scheduler._jobs["risk_monitor"]
-        
+
         momentum_result = momentum_job.run()
         risk_result = risk_job.run()
-        
+
         # 验证业务价值：系统生成了完整的交易信号和风险评估
         assert momentum_result["signal"] == "STRONG_BUY"
         assert momentum_result["position_size"] == 0.15
@@ -369,39 +371,39 @@ class TestPTradeScheduler:
         """测试实时市场数据处理 - 量化交易的关键能力"""
         received_ticks = []
         trading_signals = []
-        
+
         def tick_processor(tick_data):
             """实时tick数据处理：生成交易信号"""
             received_ticks.append(tick_data)
-            
+
             # 模拟简单的动量策略
             price = tick_data.get("price", 0)
             volume = tick_data.get("volume", 0)
-            
+
             if price > 15.0 and volume > 5000:
                 signal = {
                     "symbol": tick_data["symbol"],
                     "action": "BUY",
                     "reason": "price_volume_breakout",
-                    "timestamp": datetime.now()
+                    "timestamp": datetime.now(),
                 }
                 trading_signals.append(signal)
 
         # 添加tick回调
         scheduler.add_tick_callback(tick_processor)
         assert len(scheduler._tick_callbacks) == 1
-        
+
         # 模拟市场数据
         tick_data = {
-            "symbol": "000001.XSHE", 
-            "price": 15.5, 
+            "symbol": "000001.XSHE",
+            "price": 15.5,
             "volume": 6000,
-            "timestamp": datetime.now()
+            "timestamp": datetime.now(),
         }
-        
+
         # 触发数据处理
         scheduler.trigger_tick_data(tick_data)
-        
+
         # 验证业务价值：系统正确处理了tick数据并生成交易信号
         assert len(received_ticks) == 1
         assert received_ticks[0] == tick_data
@@ -413,36 +415,36 @@ class TestPTradeScheduler:
         """测试订单执行确认流程 - 交易系统的核心功能"""
         order_confirmations = []
         portfolio_updates = []
-        
+
         def order_confirmation_handler(order_data):
             """订单确认处理：更新组合状态"""
             order_confirmations.append(order_data)
-            
+
             # 模拟组合更新逻辑
             if order_data.get("status") == "filled":
                 portfolio_update = {
                     "symbol": order_data["symbol"],
                     "new_position": order_data["quantity"],
                     "avg_cost": order_data["fill_price"],
-                    "cash_used": order_data["quantity"] * order_data["fill_price"]
+                    "cash_used": order_data["quantity"] * order_data["fill_price"],
                 }
                 portfolio_updates.append(portfolio_update)
-        
+
         scheduler.add_order_response_callback(order_confirmation_handler)
         assert len(scheduler._order_response_callbacks) == 1
-        
+
         # 模拟订单成交回报
         order_data = {
-            "order_id": "ORD_20241201_001", 
+            "order_id": "ORD_20241201_001",
             "symbol": "000001.XSHE",
             "status": "filled",
             "quantity": 1000,
             "fill_price": 15.25,
-            "timestamp": datetime.now()
+            "timestamp": datetime.now(),
         }
-        
+
         scheduler.trigger_order_response(order_data)
-        
+
         # 验证业务价值：订单确认触发组合更新
         assert len(order_confirmations) == 1
         assert order_confirmations[0]["order_id"] == "ORD_20241201_001"
@@ -454,40 +456,40 @@ class TestPTradeScheduler:
         """测试交易结算处理 - 资金管理的关键环节"""
         trade_settlements = []
         risk_metrics = []
-        
+
         def trade_settlement_handler(trade_data):
             """交易结算处理：计算盈亏和风险指标"""
             trade_settlements.append(trade_data)
-            
+
             # 模拟盈亏计算
             quantity = trade_data.get("quantity", 0)
             price = trade_data.get("price", 0)
             trade_value = quantity * price
-            
+
             # 模拟风险计量
             risk_metric = {
                 "trade_id": trade_data.get("trade_id"),
                 "trade_value": trade_value,
                 "position_concentration": trade_value / 1000000,  # 假设100万组合
-                "risk_level": "low" if trade_value < 50000 else "medium"
+                "risk_level": "low" if trade_value < 50000 else "medium",
             }
             risk_metrics.append(risk_metric)
-        
+
         scheduler.add_trade_response_callback(trade_settlement_handler)
         assert len(scheduler._trade_response_callbacks) == 1
-        
+
         # 模拟交易数据
         trade_data = {
-            "trade_id": "TRD_20241201_001", 
+            "trade_id": "TRD_20241201_001",
             "symbol": "000001.XSHE",
             "quantity": 2000,
             "price": 15.30,
             "side": "buy",
-            "timestamp": datetime.now()
+            "timestamp": datetime.now(),
         }
-        
+
         scheduler.trigger_trade_response(trade_data)
-        
+
         # 验证业务价值：交易结算正确计算风险指标
         assert len(trade_settlements) == 1
         assert trade_settlements[0]["trade_id"] == "TRD_20241201_001"
@@ -499,31 +501,29 @@ class TestPTradeScheduler:
     def test_strategy_lifecycle_management(self, scheduler):
         """测试策略生命周期管理 - 策略的动态管理能力"""
         strategy_execution_log = []
-        
+
         def alpha_strategy():
             """模拟Alpha策略"""
             alpha_score = 0.65
-            strategy_execution_log.append({
-                "strategy": "alpha",
-                "score": alpha_score,
-                "timestamp": datetime.now()
-            })
+            strategy_execution_log.append(
+                {"strategy": "alpha", "score": alpha_score, "timestamp": datetime.now()}
+            )
             return alpha_score
 
         def beta_strategy():
             """模拟Beta策略"""
             beta_score = -0.45  # 做空信号
-            strategy_execution_log.append({
-                "strategy": "beta", 
-                "score": beta_score,
-                "timestamp": datetime.now()
-            })
+            strategy_execution_log.append(
+                {"strategy": "beta", "score": beta_score, "timestamp": datetime.now()}
+            )
             return beta_score
 
         # 添加多个策略
-        alpha_job_id = scheduler.add_daily_job("alpha_strategy", alpha_strategy, "09:30")
+        alpha_job_id = scheduler.add_daily_job(
+            "alpha_strategy", alpha_strategy, "09:30"
+        )
         beta_job_id = scheduler.add_daily_job("beta_strategy", beta_strategy, "14:00")
-        
+
         assert alpha_job_id == "alpha_strategy"
         assert beta_job_id == "beta_strategy"
         assert len(scheduler._jobs) == 2
@@ -537,11 +537,11 @@ class TestPTradeScheduler:
         # 测试移除不存在的策略
         removed_nonexistent = scheduler.remove_job("gamma_strategy")
         assert removed_nonexistent is False
-        
+
         # 执行剩余策略
         alpha_job = scheduler._jobs["alpha_strategy"]
         result = alpha_job.run()
-        
+
         # 验证业务价值：系统可以动态管理策略组合
         assert result == 0.65
         assert len(strategy_execution_log) == 1

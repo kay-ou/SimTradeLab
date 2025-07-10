@@ -492,7 +492,7 @@ class BacktestAPIRouter(
         # 更新持仓
         if security in portfolio.positions:
             position = portfolio.positions[security]
-            
+
             if amount > 0:  # 买入：更新成本基础
                 total_cost = (
                     position.amount * position.cost_basis + amount * execution_price
@@ -548,11 +548,15 @@ class BacktestAPIRouter(
         # 从上下文获取价格数据
         if (
             hasattr(self.context, "current_data")
-            and security in self.context.current_data # type: ignore[attr-defined]
+            and security in self.context.current_data  # type: ignore[attr-defined]
         ):
-            price_data = self.context.current_data[security] # type: ignore[attr-defined]
+            price_data = self.context.current_data[security]  # type: ignore[attr-defined]
             # 尝试多种价格字段格式
-            price = price_data.get("price") or price_data.get("close") or price_data.get("last_price", 10.0)
+            price = (
+                price_data.get("price")
+                or price_data.get("close")
+                or price_data.get("last_price", 10.0)
+            )
             return float(price)
 
         # 使用默认价格

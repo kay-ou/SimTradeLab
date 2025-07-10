@@ -19,21 +19,31 @@ from simtradelab.core.event_bus import EventBus
 class ConcreteAPIRouter(BaseAPIRouter):
     """具体实现的API路由器用于测试"""
 
-    def __init__(self, context: PTradeContext, event_bus: Optional[EventBus] = None) -> None:
+    def __init__(
+        self, context: PTradeContext, event_bus: Optional[EventBus] = None
+    ) -> None:
         super().__init__(context, event_bus)
         self._supported_apis = {"get_history", "get_price", "order", "log"}
 
     # 交易相关API实现（简化版）
-    def order(self, security: str, amount: int, limit_price: Optional[float] = None) -> str:
+    def order(
+        self, security: str, amount: int, limit_price: Optional[float] = None
+    ) -> str:
         return f"order_{security}_{amount}"
 
-    def order_value(self, security: str, value: float, limit_price: Optional[float] = None) -> str:
+    def order_value(
+        self, security: str, value: float, limit_price: Optional[float] = None
+    ) -> str:
         return f"order_value_{security}_{value}"
 
-    def order_target(self, security: str, target_amount: int, limit_price: Optional[float] = None) -> str:
+    def order_target(
+        self, security: str, target_amount: int, limit_price: Optional[float] = None
+    ) -> str:
         return f"order_target_{security}_{target_amount}"
 
-    def order_target_value(self, security: str, target_value: float, limit_price: Optional[float] = None) -> str:
+    def order_target_value(
+        self, security: str, target_value: float, limit_price: Optional[float] = None
+    ) -> str:
         return f"order_target_value_{security}_{target_value}"
 
     def order_market(self, security: str, amount: int) -> str:
@@ -51,7 +61,9 @@ class ConcreteAPIRouter(BaseAPIRouter):
     def ipo_stocks_order(self, amount_per_stock: int = 10000) -> List[Any]:
         return []
 
-    def after_trading_order(self, security: str, amount: int, limit_price: float) -> str:
+    def after_trading_order(
+        self, security: str, amount: int, limit_price: float
+    ) -> str:
         return f"after_trading_order_{security}"
 
     def after_trading_cancel_order(self, order_id: str) -> bool:
@@ -77,10 +89,10 @@ class ConcreteAPIRouter(BaseAPIRouter):
 
     # 数据获取API实现（简化版）
     def get_history(
-        self, 
-        count: int, 
-        frequency: str = "1d", 
-        field: Optional[Union[str, List[str]]] = None, 
+        self,
+        count: int,
+        frequency: str = "1d",
+        field: Optional[Union[str, List[str]]] = None,
         security_list: Optional[List[str]] = None,
         fq: Optional[str] = None,
         include: bool = True,
@@ -88,19 +100,19 @@ class ConcreteAPIRouter(BaseAPIRouter):
         is_dict: bool = False,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> Union[Any, Dict[str, Any]]:
         return f"history_data_{count}_{frequency}"
 
     def get_price(
-        self, 
-        security: Union[str, List[str]], 
+        self,
+        security: Union[str, List[str]],
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         frequency: str = "1d",
         fields: Optional[Union[str, List[str]]] = None,
         count: Optional[int] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> Any:
         if isinstance(security, list):
             security_str = ",".join(security)
@@ -123,7 +135,9 @@ class ConcreteAPIRouter(BaseAPIRouter):
     def get_stock_info(self, security_list: List[str]) -> Dict[str, Dict[str, str]]:
         return {sec: {"name": f"Stock_{sec}"} for sec in security_list}
 
-    def get_fundamentals(self, stocks: List[str], table: str, fields: List[str], date: str) -> str:
+    def get_fundamentals(
+        self, stocks: List[str], table: str, fields: List[str], date: str
+    ) -> str:
         return f"fundamentals_{table}_{date}"
 
     # 股票信息API实现（简化版）
@@ -186,7 +200,9 @@ class ConcreteAPIRouter(BaseAPIRouter):
     def get_MACD(self, close: Any, short: int = 12, long: int = 26, m: int = 9) -> str:
         return "macd_result"
 
-    def get_KDJ(self, high: Any, low: Any, close: Any, n: int = 9, m1: int = 3, m2: int = 3) -> str:
+    def get_KDJ(
+        self, high: Any, low: Any, close: Any, n: int = 9, m1: int = 3, m2: int = 3
+    ) -> str:
         return "kdj_result"
 
     def get_RSI(self, close: Any, n: int = 6) -> str:
@@ -199,14 +215,20 @@ class ConcreteAPIRouter(BaseAPIRouter):
     def log(self, content: str, level: str = "info") -> None:
         pass
 
-    def check_limit(self, security: str, query_date: Optional[str] = None) -> Dict[str, Dict[str, bool]]:
+    def check_limit(
+        self, security: str, query_date: Optional[str] = None
+    ) -> Dict[str, Dict[str, bool]]:
         return {security: {"limit_up": False, "limit_down": False}}
 
     # 定时和回调API实现（简化版）
-    def run_daily(self, func: Any, time_str: str = "09:30", *args: Any, **kwargs: Any) -> str:
+    def run_daily(
+        self, func: Any, time_str: str = "09:30", *args: Any, **kwargs: Any
+    ) -> str:
         return f"daily_job_{func.__name__}"
 
-    def run_interval(self, func: Any, interval: Union[int, str], *args: Any, **kwargs: Any) -> str:
+    def run_interval(
+        self, func: Any, interval: Union[int, str], *args: Any, **kwargs: Any
+    ) -> str:
         return f"interval_job_{func.__name__}"
 
     def tick_data(self, func: Any) -> bool:
@@ -249,14 +271,18 @@ class TestBaseAPIRouter:
         """创建路由器实例"""
         return ConcreteAPIRouter(context=context, event_bus=event_bus)
 
-    def test_router_initialization(self, router: ConcreteAPIRouter, context: PTradeContext, event_bus: EventBus) -> None:
+    def test_router_initialization(
+        self, router: ConcreteAPIRouter, context: PTradeContext, event_bus: EventBus
+    ) -> None:
         """测试路由器初始化"""
         assert router.context is context
         assert router.event_bus is event_bus
         assert hasattr(router, "_logger")
         assert router._logger is not None
 
-    def test_router_initialization_without_event_bus(self, context: PTradeContext) -> None:
+    def test_router_initialization_without_event_bus(
+        self, context: PTradeContext
+    ) -> None:
         """测试无事件总线的路由器初始化"""
         router = ConcreteAPIRouter(context=context)
         assert router.context is context
@@ -271,7 +297,9 @@ class TestBaseAPIRouter:
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
             BaseAPIRouter(context=context)  # type: ignore[abstract]
 
-    def test_validate_and_execute_supported_api(self, router: ConcreteAPIRouter) -> None:
+    def test_validate_and_execute_supported_api(
+        self, router: ConcreteAPIRouter
+    ) -> None:
         """测试验证并执行支持的API"""
 
         # 模拟一个支持的API方法
@@ -284,7 +312,9 @@ class TestBaseAPIRouter:
 
         assert result == "executed_000001.XSHE_100"
 
-    def test_validate_and_execute_unsupported_api(self, router: ConcreteAPIRouter) -> None:
+    def test_validate_and_execute_unsupported_api(
+        self, router: ConcreteAPIRouter
+    ) -> None:
         """测试验证并执行不支持的API"""
 
         def mock_method() -> str:
@@ -293,7 +323,9 @@ class TestBaseAPIRouter:
         with pytest.raises(ValueError, match="API 'unsupported_api' is not supported"):
             router.validate_and_execute("unsupported_api", mock_method)
 
-    def test_validate_and_execute_with_exception(self, router: ConcreteAPIRouter) -> None:
+    def test_validate_and_execute_with_exception(
+        self, router: ConcreteAPIRouter
+    ) -> None:
         """测试验证并执行时的异常处理"""
 
         def error_method() -> None:
@@ -554,7 +586,9 @@ class TestBaseAPIRouter:
         get_history_sig = inspect.signature(router.get_history)
         assert "count" in get_history_sig.parameters
 
-    def test_error_handling_in_validate_and_execute(self, router: ConcreteAPIRouter) -> None:
+    def test_error_handling_in_validate_and_execute(
+        self, router: ConcreteAPIRouter
+    ) -> None:
         """测试validate_and_execute中的错误处理"""
 
         def error_method() -> None:
@@ -564,7 +598,9 @@ class TestBaseAPIRouter:
         with pytest.raises(ValueError, match="Validation error"):
             router.validate_and_execute("get_history", error_method)
 
-    def test_context_modification_through_router(self, router: ConcreteAPIRouter) -> None:
+    def test_context_modification_through_router(
+        self, router: ConcreteAPIRouter
+    ) -> None:
         """测试通过路由器修改上下文"""
         # 测试通过路由器方法修改上下文
         original_universe = router.context.universe.copy()

@@ -90,31 +90,31 @@ class DataRetrievalMixin:
                 if available_fields:
                     # 创建包含请求字段的DataFrame
                     result_df = df[available_fields]
-                    
+
                     # 如果有security列并且是多股票数据，设置multi-level index
-                    if 'security' in df.columns and len(securities) > 1:
+                    if "security" in df.columns and len(securities) > 1:
                         # 创建multi-level index: (security, row_index)
                         result_df = result_df.copy()
-                        result_df['security'] = df['security']
-                        result_df = result_df.set_index('security')
-                        
+                        result_df["security"] = df["security"]
+                        result_df = result_df.set_index("security")
+
                         # 为每个股票分组并重新组织数据
                         grouped_data = []
                         for security in securities:
-                            security_data = df[df['security'] == security]
+                            security_data = df[df["security"] == security]
                             if not security_data.empty:
                                 # 只保留请求的字段
                                 security_result = security_data[available_fields].copy()
                                 # 添加security作为index level
                                 security_result.index = pd.MultiIndex.from_product(
                                     [[security], range(len(security_result))],
-                                    names=['security', 'row']
+                                    names=["security", "row"],
                                 )
                                 grouped_data.append(security_result)
-                        
+
                         if grouped_data:
                             result_df = pd.concat(grouped_data)
-                    
+
                     return result_df
                 else:
                     # 如果没有可用字段，返回空DataFrame，列为请求的字段
@@ -290,5 +290,5 @@ class DataRetrievalMixin:
             for field in fields:
                 row[field] = 0.0
             data.append(row)
-        
+
         return pd.DataFrame(data, columns=columns)

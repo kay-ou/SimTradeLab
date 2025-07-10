@@ -16,6 +16,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from ..exceptions import SimTradeLabError
+from .events.cloud_event import CloudEvent
 
 
 class EventBusError(SimTradeLabError):
@@ -272,7 +273,7 @@ class EventBus:
         async_publish: bool = False,
     ) -> Union[List[Any], asyncio.Future]:
         """
-        发布事件
+        发布事件（向后兼容方法）
 
         Args:
             event_type: 事件类型
@@ -288,29 +289,97 @@ class EventBus:
         Raises:
             EventPublishError: 发布失败时抛出
         """
+        # 转换为CloudEvent并发布
+        cloud_event = CloudEvent(
+            type=event_type,
+            source=source or "unknown",
+            data=data,
+            priority=priority.value,
+            tags=metadata or {},
+        )
+
+        return self.publish_cloud_event(cloud_event, async_publish=async_publish)
+
+    def publish_cloud_event(
+        self,
+        cloud_event: CloudEvent,
+        async_publish: bool = False,
+    ) -> Union[List[Any], asyncio.Future]:
+        """
+        发布CloudEvent事件
+
+        Args:
+            cloud_event: CloudEvent事件实例
+            async_publish: 是否异步发布
+
+        Returns:
+            同步模式返回处理结果列表，异步模式返回Future
+
+        Raises:
+            EventPublishError: 发布失败时抛出
+        """
         if not self._running:
             raise EventPublishError("EventBus is not running")
 
-        event = Event(
-            type=event_type,
-            data=data,
-            source=source,
-            priority=priority,
-            metadata=metadata or {},
+        # 记录事件历史（转换为旧格式兼容）
+        legacy_event = Event(
+            type=cloud_event.type,
+            data=cloud_event.data,
+            source=cloud_event.source,
+            timestamp=cloud_event.time.timestamp(),
+            priority=EventPriority(min(cloud_event.priority, 4)),  # 转换优先级
+            metadata=cloud_event.tags,
+            event_id=cloud_event.id,
         )
 
-        # 记录事件历史
-        self._event_history.append(event)
+        self._event_history.append(legacy_event)
         self._stats["events_published"] += 1
 
         try:
             if async_publish:
-                return self._executor.submit(self._process_event, event)
+                return self._executor.submit(self._process_cloud_event, cloud_event)
             else:
-                return self._process_event(event)
+                return self._process_cloud_event(cloud_event)
         except Exception as e:
             self._stats["events_failed"] += 1
-            raise EventPublishError(f"Failed to publish event {event_type}: {e}")
+            raise EventPublishError(
+                f"Failed to publish CloudEvent {cloud_event.type}: {e}"
+            )
+
+    async def publish_cloud_event_async(
+        self,
+        cloud_event: CloudEvent,
+    ) -> List[Any]:
+        """
+        异步发布CloudEvent事件
+
+        Args:
+            cloud_event: CloudEvent事件实例
+
+        Returns:
+            处理结果列表
+        """
+        # 记录事件历史（转换为旧格式兼容）
+        legacy_event = Event(
+            type=cloud_event.type,
+            data=cloud_event.data,
+            source=cloud_event.source,
+            timestamp=cloud_event.time.timestamp(),
+            priority=EventPriority(min(cloud_event.priority, 4)),
+            metadata=cloud_event.tags,
+            event_id=cloud_event.id,
+        )
+
+        self._event_history.append(legacy_event)
+        self._stats["events_published"] += 1
+
+        try:
+            return await self._process_cloud_event_async(cloud_event)
+        except Exception as e:
+            self._stats["events_failed"] += 1
+            raise EventPublishError(
+                f"Failed to publish async CloudEvent {cloud_event.type}: {e}"
+            )
 
     async def publish_async(
         self,
@@ -321,7 +390,7 @@ class EventBus:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> List[Any]:
         """
-        异步发布事件
+        异步发布事件（向后兼容方法）
 
         Args:
             event_type: 事件类型
@@ -333,23 +402,239 @@ class EventBus:
         Returns:
             处理结果列表
         """
-        event = Event(
+        # 转换为CloudEvent并异步发布
+        cloud_event = CloudEvent(
             type=event_type,
+            source=source or "unknown",
             data=data,
-            source=source,
-            priority=priority,
-            metadata=metadata or {},
+            priority=priority.value,
+            tags=metadata or {},
         )
 
-        # 记录事件历史
-        self._event_history.append(event)
-        self._stats["events_published"] += 1
+        return await self.publish_cloud_event_async(cloud_event)
+
+    def _process_cloud_event(self, cloud_event: CloudEvent) -> List[Any]:
+        """
+        处理CloudEvent事件（同步）
+
+        Args:
+            cloud_event: CloudEvent事件实例
+
+        Returns:
+            处理结果列表
+        """
+        results = []
+
+        # 应用全局过滤器（转换为旧格式兼容）
+        legacy_event = Event(
+            type=cloud_event.type,
+            data=cloud_event.data,
+            source=cloud_event.source,
+            timestamp=cloud_event.time.timestamp(),
+            priority=EventPriority(min(cloud_event.priority, 4)),
+            metadata=cloud_event.tags,
+            event_id=cloud_event.id,
+        )
+
+        if not self._global_filters.apply(legacy_event):
+            return results
+
+        with self._lock:
+            subscriptions = self._subscriptions.get(cloud_event.type, []).copy()
+
+        # 需要移除的一次性订阅
+        to_remove = []
+
+        for subscription in subscriptions:
+            try:
+                # 检查弱引用是否还有效
+                if subscription.subscription_id in self._weak_refs:
+                    weak_ref = self._weak_refs[subscription.subscription_id]
+                    if weak_ref() is None:
+                        to_remove.append(subscription.subscription_id)
+                        continue
+
+                # 应用订阅级过滤器
+                if subscription.filter_func and not subscription.filter_func(
+                    legacy_event
+                ):
+                    continue
+
+                # 处理事件 - 支持CloudEvent和旧Event格式
+                if subscription.async_handler:
+                    # 异步处理函数在同步模式下跳过
+                    self._logger.warning(
+                        f"Skipping async handler for {cloud_event.type} in sync mode"
+                    )
+                    continue
+                else:
+                    # 检查处理器是否支持CloudEvent
+                    if self._handler_supports_cloud_event(subscription.handler):
+                        result = subscription.handler(cloud_event)
+                    else:
+                        # 使用旧格式兼容
+                        result = subscription.handler(legacy_event)
+                    results.append(result)
+
+                self._stats["events_processed"] += 1
+
+                # 如果是一次性订阅，标记移除
+                if subscription.once:
+                    to_remove.append(subscription.subscription_id)
+
+            except Exception as e:
+                self._stats["events_failed"] += 1
+                self._logger.error(
+                    f"Handler failed for CloudEvent {cloud_event.type}: {e}"
+                )
+                results.append(None)
+
+        # 移除一次性订阅和失效的弱引用
+        for sub_id in to_remove:
+            self.unsubscribe(sub_id)
+
+        return results
+
+    async def _process_cloud_event_async(self, cloud_event: CloudEvent) -> List[Any]:
+        """
+        处理CloudEvent事件（异步）
+
+        Args:
+            cloud_event: CloudEvent事件实例
+
+        Returns:
+            处理结果列表
+        """
+        results = []
+
+        # 应用全局过滤器（转换为旧格式兼容）
+        legacy_event = Event(
+            type=cloud_event.type,
+            data=cloud_event.data,
+            source=cloud_event.source,
+            timestamp=cloud_event.time.timestamp(),
+            priority=EventPriority(min(cloud_event.priority, 4)),
+            metadata=cloud_event.tags,
+            event_id=cloud_event.id,
+        )
+
+        if not self._global_filters.apply(legacy_event):
+            return results
+
+        with self._lock:
+            subscriptions = self._subscriptions.get(cloud_event.type, []).copy()
+
+        # 需要移除的一次性订阅
+        to_remove = []
+
+        # 收集所有任务
+        tasks = []
+        sync_results = []
+
+        for subscription in subscriptions:
+            try:
+                # 检查弱引用是否还有效
+                if subscription.subscription_id in self._weak_refs:
+                    weak_ref = self._weak_refs[subscription.subscription_id]
+                    if weak_ref() is None:
+                        to_remove.append(subscription.subscription_id)
+                        continue
+
+                # 应用订阅级过滤器
+                if subscription.filter_func and not subscription.filter_func(
+                    legacy_event
+                ):
+                    continue
+
+                # 处理事件
+                if subscription.async_handler:
+                    # 检查处理器是否支持CloudEvent
+                    if self._handler_supports_cloud_event(subscription.handler):
+                        task = asyncio.create_task(subscription.handler(cloud_event))
+                    else:
+                        task = asyncio.create_task(subscription.handler(legacy_event))
+                    tasks.append(task)
+                else:
+                    # 检查处理器是否支持CloudEvent
+                    if self._handler_supports_cloud_event(subscription.handler):
+                        result = subscription.handler(cloud_event)
+                    else:
+                        result = subscription.handler(legacy_event)
+                    sync_results.append(result)
+
+                # 如果是一次性订阅，标记移除
+                if subscription.once:
+                    to_remove.append(subscription.subscription_id)
+
+            except Exception as e:
+                self._stats["events_failed"] += 1
+                self._logger.error(
+                    f"Handler failed for CloudEvent {cloud_event.type}: {e}"
+                )
+                sync_results.append(None)
+
+        # 等待所有异步任务完成
+        if tasks:
+            async_results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in async_results:
+                if isinstance(result, Exception):
+                    self._stats["events_failed"] += 1
+                    self._logger.error(
+                        f"Async handler failed for CloudEvent "
+                        f"{cloud_event.type}: {result}"
+                    )
+                    results.append(None)
+                else:
+                    results.append(result)
+                    self._stats["events_processed"] += 1
+
+        # 添加同步结果
+        results.extend(sync_results)
+        self._stats["events_processed"] += len(sync_results)
+
+        # 移除一次性订阅和失效的弱引用
+        for sub_id in to_remove:
+            self.unsubscribe(sub_id)
+
+        return results
+
+    def _handler_supports_cloud_event(self, handler: Callable) -> bool:
+        """
+        检查处理器是否支持CloudEvent参数
+
+        Args:
+            handler: 事件处理器
+
+        Returns:
+            是否支持CloudEvent
+        """
+        import inspect
 
         try:
-            return await self._process_event_async(event)
-        except Exception as e:
-            self._stats["events_failed"] += 1
-            raise EventPublishError(f"Failed to publish async event {event_type}: {e}")
+            sig = inspect.signature(handler)
+            params = list(sig.parameters.values())
+
+            if not params:
+                return False
+
+            # 检查第一个参数的类型注解
+            first_param = params[0]
+            if (
+                first_param.annotation
+                and first_param.annotation != inspect.Parameter.empty
+            ):
+                # 检查是否注解为CloudEvent类型
+                return first_param.annotation is CloudEvent or (
+                    hasattr(first_param.annotation, "__name__")
+                    and first_param.annotation.__name__ == "CloudEvent"
+                )
+
+            # 如果没有类型注解，默认假设支持旧格式
+            return False
+
+        except Exception:
+            # 如果检查失败，默认使用旧格式
+            return False
 
     def _process_event(self, event: Event) -> List[Any]:
         """
@@ -641,9 +926,23 @@ def subscribe(event_type: str, **kwargs) -> Callable:
     return decorator
 
 
-def publish(event_type: str, **kwargs) -> List[Any]:
+def publish_cloud_event(cloud_event: CloudEvent, **kwargs) -> List[Any]:
     """
-    发布事件到默认事件总线
+    发布CloudEvent到默认事件总线
+
+    Args:
+        cloud_event: CloudEvent事件实例
+        **kwargs: 发布参数
+
+    Returns:
+        处理结果列表
+    """
+    return default_event_bus.publish_cloud_event(cloud_event, **kwargs)
+
+
+def emit(event_type: str, **kwargs) -> List[Any]:
+    """
+    发布事件到默认事件总线（emit别名）
 
     Args:
         event_type: 事件类型

@@ -287,16 +287,23 @@ class TestDataRetrievalMixin:
     def test_get_history_as_dict(self, mixin):
         """测试获取历史数据字典格式"""
         # DataRetrievalMixin expects DataFrame from data plugin, then converts to dict
-        expected_df = pd.DataFrame({
-            "security": ["000001.XSHE", "000001.XSHE", "000002.XSHE", "000002.XSHE"],
-            "close": [10.1, 10.2, 20.1, 20.2],
-            "volume": [1000, 1100, 2000, 2100],
-        })
-        
+        expected_df = pd.DataFrame(
+            {
+                "security": [
+                    "000001.XSHE",
+                    "000001.XSHE",
+                    "000002.XSHE",
+                    "000002.XSHE",
+                ],
+                "close": [10.1, 10.2, 20.1, 20.2],
+                "volume": [1000, 1100, 2000, 2100],
+            }
+        )
+
         mixin._data_plugin.get_multiple_history_data.return_value = expected_df
 
         result = mixin.get_history(count=2, field=["close", "volume"], is_dict=True)
-        
+
         # Check the result is a dictionary with expected structure
         assert isinstance(result, dict)
         assert "000001.XSHE" in result
@@ -340,7 +347,7 @@ class TestDataRetrievalMixin:
         mixin._data_plugin.get_market_snapshot.return_value = snapshot_data
 
         result = mixin.get_snapshot(["000001.XSHE", "000002.XSHE"])
-        
+
         assert isinstance(result, pd.DataFrame)
         assert result.shape[0] == 2
         assert "current_price" in result.columns
@@ -348,6 +355,7 @@ class TestDataRetrievalMixin:
 
     def test_get_stock_info_success(self, mixin):
         """测试获取股票信息成功"""
+
         # DataRetrievalMixin uses get_stock_basic_info method
         def mock_get_stock_basic_info(security):
             if security == "000001.XSHE":
@@ -360,7 +368,7 @@ class TestDataRetrievalMixin:
         mixin._data_plugin.get_stock_basic_info.side_effect = mock_get_stock_basic_info
 
         result = mixin.get_stock_info(["000001.XSHE", "000002.XSHE"])
-        
+
         assert isinstance(result, dict)
         assert "000001.XSHE" in result
         assert "000002.XSHE" in result

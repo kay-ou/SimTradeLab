@@ -6,13 +6,12 @@ AkShare数据源插件测试
 """
 
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
+from simtradelab.plugins.base import PluginConfig, PluginMetadata
 from simtradelab.plugins.data_sources.akshare.config import AkShareDataPluginConfig
 from simtradelab.plugins.data_sources.akshare.plugin import AkShareDataSource
-from simtradelab.plugins.base import PluginMetadata, PluginConfig
 
 
 class ConcreteAkShareDataSource(AkShareDataSource):
@@ -25,7 +24,7 @@ class ConcreteAkShareDataSource(AkShareDataSource):
         super(AkShareDataSource, self).__init__(metadata, plugin_config)
         self._akshare_config = config
 
-    @property 
+    @property
     def akshare_config(self) -> AkShareDataPluginConfig:
         """获取AkShare配置"""
         return self._akshare_config
@@ -68,22 +67,30 @@ class TestAkShareDataPluginConfig:
         """测试空符号列表验证"""
         with pytest.raises(ValueError):
             AkShareDataPluginConfig(
-                symbols=[], start_date="2023-01-01", end_date="2023-12-31"  # 空列表应该失败
+                symbols=[],  # 空列表应该失败
+                start_date="2023-01-01",
+                end_date="2023-12-31",
             )
 
     def test_config_validation_required_fields(self) -> None:
         """测试必填字段验证"""
         # 缺少symbols
         with pytest.raises((ValueError, TypeError)):
-            AkShareDataPluginConfig(start_date="2023-01-01", end_date="2023-12-31")  # type: ignore[call-arg]
+            AkShareDataPluginConfig(
+                start_date="2023-01-01", end_date="2023-12-31"
+            )  # type: ignore[call-arg]
 
         # 缺少start_date
         with pytest.raises((ValueError, TypeError)):
-            AkShareDataPluginConfig(symbols=["000001"], end_date="2023-12-31")  # type: ignore[call-arg]
+            AkShareDataPluginConfig(
+                symbols=["000001"], end_date="2023-12-31"
+            )  # type: ignore[call-arg]
 
         # 缺少end_date
         with pytest.raises((ValueError, TypeError)):
-            AkShareDataPluginConfig(symbols=["000001"], start_date="2023-01-01")  # type: ignore[call-arg]
+            AkShareDataPluginConfig(
+                symbols=["000001"], start_date="2023-01-01"
+            )  # type: ignore[call-arg]
 
     def test_config_symbols_validation(self) -> None:
         """测试符号列表验证"""
@@ -159,12 +166,16 @@ class TestAkShareDataSource:
         """创建AkShare数据源插件实例"""
         return ConcreteAkShareDataSource(config)
 
-    def test_plugin_initialization(self, plugin: ConcreteAkShareDataSource, config: AkShareDataPluginConfig) -> None:
+    def test_plugin_initialization(
+        self, plugin: ConcreteAkShareDataSource, config: AkShareDataPluginConfig
+    ) -> None:
         """测试插件初始化"""
         assert plugin.akshare_config == config
         # 由于是placeholder实现，主要检查不抛出异常
 
-    def test_plugin_get_data_placeholder(self, plugin: ConcreteAkShareDataSource) -> None:
+    def test_plugin_get_data_placeholder(
+        self, plugin: ConcreteAkShareDataSource
+    ) -> None:
         """测试获取数据占位符方法"""
         # 由于是placeholder实现，主要检查方法存在且可调用
         result = plugin.get_data()  # type: ignore[func-returns-value]
@@ -195,7 +206,9 @@ class TestAkShareDataSource:
         assert plugin.akshare_config.start_date == "2023-07-01"
         assert plugin.akshare_config.end_date == "2023-07-31"
 
-    def test_plugin_get_data_output(self, plugin: ConcreteAkShareDataSource, capsys: Any) -> None:
+    def test_plugin_get_data_output(
+        self, plugin: ConcreteAkShareDataSource, capsys: Any
+    ) -> None:
         """测试获取数据的输出"""
         plugin.get_data()
 
@@ -238,13 +251,12 @@ class TestAkShareDataSource:
         plugin = ConcreteAkShareDataSource(config)
         assert len(plugin.akshare_config.symbols) == 1
 
-    def test_placeholder_implementation_note(self, plugin: ConcreteAkShareDataSource) -> None:
+    def test_placeholder_implementation_note(
+        self, plugin: ConcreteAkShareDataSource
+    ) -> None:
         """测试占位符实现说明"""
         # 这个测试主要是为了文档目的，说明当前是占位符实现
-        assert (
-            plugin.__class__.__doc__
-            == "具体实现的AkShare数据源，用于测试"
-        )
+        assert plugin.__class__.__doc__ == "具体实现的AkShare数据源，用于测试"
 
         # 验证get_data方法确实是占位符
         result = plugin.get_data()  # type: ignore[func-returns-value]
@@ -266,7 +278,9 @@ class TestAkShareDataSource:
         # - handle_rate_limits()
         # 等方法
 
-    def test_error_handling_placeholder(self, plugin: ConcreteAkShareDataSource) -> None:
+    def test_error_handling_placeholder(
+        self, plugin: ConcreteAkShareDataSource
+    ) -> None:
         """测试错误处理占位符"""
         # 由于是占位符实现，主要检查不会抛出异常
         try:
@@ -307,7 +321,7 @@ class TestAkShareDataSource:
         # 测试符号列表必须是字符串列表
         with pytest.raises((ValueError, TypeError)):
             AkShareDataPluginConfig(
-                symbols=[123, 456],  # type: ignore[list-item] # 数字而不是字符串
+                symbols=[123, 456],  # type: ignore[list-item] 数字而不是字符串
                 start_date="2023-01-01",
                 end_date="2023-12-31",
             )
@@ -316,11 +330,13 @@ class TestAkShareDataSource:
         with pytest.raises((ValueError, TypeError)):
             AkShareDataPluginConfig(
                 symbols=["000001"],
-                start_date=20230101,  # type: ignore[arg-type] # 数字而不是字符串
+                start_date=20230101,  # type: ignore[arg-type] 数字而不是字符串
                 end_date="2023-12-31",
             )
 
-    def test_plugin_state_management_placeholder(self, plugin: ConcreteAkShareDataSource) -> None:
+    def test_plugin_state_management_placeholder(
+        self, plugin: ConcreteAkShareDataSource
+    ) -> None:
         """测试插件状态管理占位符"""
         # 由于继承自BasePlugin，检查基本状态
         # 注意：实际实现可能需要状态管理
