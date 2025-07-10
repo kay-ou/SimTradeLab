@@ -53,7 +53,7 @@ class TechnicalIndicatorsPlugin(BasePlugin):
 
         self._logger.info(
             "Technical Indicators Plugin initialized with indicators: "
-            f"MACD, KDJ, RSI, CCI"
+            "MACD, KDJ, RSI, CCI"
         )
 
     def _register_indicators(self) -> None:
@@ -119,7 +119,8 @@ class TechnicalIndicatorsPlugin(BasePlugin):
         """计算KDJ指标"""
         params = self.kdj_params
         n, m1, m2 = params["n"], params["m1"], params["m2"]
-        cache_key = f"kdj_{hash(high.tobytes())}_{hash(low.tobytes())}_{hash(close.tobytes())}_{n}_{m1}_{m2}"
+        cache_key = f"kdj_{hash(high.tobytes())}_{hash(low.tobytes())}_"
+        f"{hash(close.tobytes())}_{n}_{m1}_{m2}"
 
         # 检查缓存
         if self._is_cache_valid(cache_key):
@@ -210,7 +211,8 @@ class TechnicalIndicatorsPlugin(BasePlugin):
     ) -> pd.DataFrame:
         """计算CCI指标"""
         n = self.cci_params["n"]
-        cache_key = f"cci_{hash(high.tobytes())}_{hash(low.tobytes())}_{hash(close.tobytes())}_{n}"
+        cache_key = f"cci_{hash(high.tobytes())}_{hash(low.tobytes())}_"
+        f"{hash(close.tobytes())}_{n}"
 
         # 检查缓存
         if self._is_cache_valid(cache_key):

@@ -201,6 +201,55 @@ class BaseAPIRouter(ABC):
         pass
 
     # ==========================================
+    # 股票信息获取 API
+    # ==========================================
+
+    @abstractmethod
+    def get_stock_name(self, security: str) -> str:
+        """获取股票名称"""
+        pass
+
+    @abstractmethod
+    def get_stock_status(self, security: str) -> Dict[str, Any]:
+        """获取股票状态信息"""
+        pass
+
+    @abstractmethod
+    def get_stock_exrights(self, security: str) -> pd.DataFrame:
+        """获取股票除权除息信息"""
+        pass
+
+    @abstractmethod
+    def get_stock_blocks(self, security: str) -> List[str]:
+        """获取股票所属板块信息"""
+        pass
+
+    @abstractmethod
+    def get_index_stocks(self, index_code: str) -> List[str]:
+        """获取指数成份股"""
+        pass
+
+    @abstractmethod
+    def get_industry_stocks(self, industry_code: str) -> List[str]:
+        """获取行业成份股"""
+        pass
+
+    @abstractmethod
+    def get_Ashares(self, date: str) -> List[str]:
+        """获取指定日期A股代码列表"""
+        pass
+
+    @abstractmethod
+    def get_etf_list(self) -> List[str]:
+        """获取ETF代码列表"""
+        pass
+
+    @abstractmethod
+    def get_ipo_stocks(self, date: str) -> List[str]:
+        """获取当日IPO申购标的"""
+        pass
+
+    # ==========================================
     # 设置函数 API
     # ==========================================
 
