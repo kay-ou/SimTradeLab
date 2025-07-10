@@ -71,10 +71,17 @@ class PTradeAdapter(BasePlugin):
         # 默认回测模式
         self._current_mode = PTradeMode.BACKTEST
 
-        # 配置选项
+        # 配置选项 - 支持PTrade兼容的键名
         self._initial_cash = self._config.config.get("initial_cash", 1000000.0)
-        self._commission_rate = self._config.config.get("commission_rate", 0.0003)
-        self._slippage_rate = self._config.config.get("slippage_rate", 0.001)
+        # 支持PTrade标准键名和兼容键名
+        self._commission_rate = (
+            self._config.config.get("commission_rate") or 
+            self._config.config.get("commission", 0.0003)
+        )
+        self._slippage_rate = (
+            self._config.config.get("slippage_rate") or 
+            self._config.config.get("slippage", 0.001)
+        )
 
         # 数据源配置
         self._use_mock_data = self._config.config.get("use_mock_data", False)

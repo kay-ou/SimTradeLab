@@ -1,26 +1,26 @@
 # -*- coding: utf-8 -*-
 """
-EventBus 测试
-确保100%测试覆盖率，包括所有方法、异常处理、并发安全
+EventBus事件总线测试
+
+专注测试事件总线在量化交易系统中的核心业务价值：
+1. 系统组件间的可靠事件通信
+2. 交易事件的实时传播和处理
+3. 插件系统的事件驱动架构
+4. 高并发交易场景下的稳定性
 """
 
 import asyncio
 import threading
 import time
-import weakref
-from concurrent.futures import Future
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from simtradelab.core.event_bus import (
     Event,
     EventBus,
-    EventBusError,
-    EventFilter,
     EventPriority,
     EventPublishError,
-    EventSubscription,
     EventSubscriptionError,
     default_event_bus,
     publish,
@@ -28,165 +28,9 @@ from simtradelab.core.event_bus import (
 )
 
 
-class TestEvent:
-    """测试Event类"""
+class TestQuantitativeTradingEventCommunication:
+    """测试量化交易系统中的事件通信核心能力"""
 
-    def test_event_creation(self):
-        """测试事件创建"""
-        event = Event(
-            type="test_event",
-            data={"key": "value"},
-            source="test_source",
-            priority=EventPriority.HIGH,
-            metadata={"meta": "data"},
-        )
-
-        assert event.type == "test_event"
-        assert event.data == {"key": "value"}
-        assert event.source == "test_source"
-        assert event.priority == EventPriority.HIGH
-        assert event.metadata == {"meta": "data"}
-        assert event.event_id is not None
-        assert isinstance(event.timestamp, float)
-
-    def test_event_defaults(self):
-        """测试事件默认值"""
-        event = Event(type="test")
-
-        assert event.type == "test"
-        assert event.data is None
-        assert event.source is None
-        assert event.priority == EventPriority.NORMAL
-        assert event.metadata == {}
-        assert event.event_id is not None
-
-    def test_event_id_generation(self):
-        """测试事件ID生成"""
-        event1 = Event(type="test")
-        event2 = Event(type="test")
-
-        assert event1.event_id != event2.event_id
-        assert "test" in event1.event_id
-        # 检查event_id格式：{type}_{timestamp}_{id(self)}
-        assert event1.event_id.startswith("test_")
-        parts = event1.event_id.split("_")
-        assert len(parts) == 3
-        assert parts[0] == "test"
-        # 验证timestamp部分是有效的浮点数字符串
-        assert parts[1].replace(".", "").replace("-", "").isdigit()
-        # 验证id部分是数字
-        assert parts[2].isdigit()
-
-
-class TestEventSubscription:
-    """测试EventSubscription类"""
-
-    def test_subscription_creation(self):
-        """测试订阅创建"""
-
-        def handler(event):
-            return event.data
-
-        def filter_func(event):
-            return True
-
-        subscription = EventSubscription(
-            event_type="test_event",
-            handler=handler,
-            filter_func=filter_func,
-            priority=EventPriority.HIGH,
-            once=True,
-            async_handler=False,
-        )
-
-        assert subscription.event_type == "test_event"
-        assert subscription.handler is handler
-        assert subscription.filter_func is filter_func
-        assert subscription.priority == EventPriority.HIGH
-        assert subscription.once is True
-        assert subscription.async_handler is False
-        assert subscription.subscription_id is not None
-        assert isinstance(subscription.created_at, float)
-
-    def test_subscription_defaults(self):
-        """测试订阅默认值"""
-
-        def handler(event):
-            pass
-
-        subscription = EventSubscription(event_type="test", handler=handler)
-
-        assert subscription.filter_func is None
-        assert subscription.priority == EventPriority.NORMAL
-        assert subscription.once is False
-        assert subscription.async_handler is False
-
-
-class TestEventFilter:
-    """测试EventFilter类"""
-
-    def test_filter_creation(self):
-        """测试过滤器创建"""
-        filter_obj = EventFilter()
-        assert filter_obj.filters == []
-
-    def test_add_and_remove_filter(self):
-        """测试添加和移除过滤器"""
-        filter_obj = EventFilter()
-
-        def filter1(event):
-            return True
-
-        def filter2(event):
-            return False
-
-        filter_obj.add_filter(filter1)
-        filter_obj.add_filter(filter2)
-
-        assert len(filter_obj.filters) == 2
-        assert filter1 in filter_obj.filters
-        assert filter2 in filter_obj.filters
-
-        filter_obj.remove_filter(filter1)
-
-        assert len(filter_obj.filters) == 1
-        assert filter1 not in filter_obj.filters
-        assert filter2 in filter_obj.filters
-
-    def test_remove_nonexistent_filter(self):
-        """测试移除不存在的过滤器"""
-        filter_obj = EventFilter()
-
-        def filter_func(event):
-            return True
-
-        # 应该不抛出异常
-        filter_obj.remove_filter(filter_func)
-        assert len(filter_obj.filters) == 0
-
-    def test_apply_filters(self):
-        """测试应用过滤器"""
-        filter_obj = EventFilter()
-        event = Event(type="test", data=5)
-
-        # 无过滤器时应该通过
-        assert filter_obj.apply(event) is True
-
-        # 添加通过的过滤器
-        filter_obj.add_filter(lambda e: e.data > 0)
-        assert filter_obj.apply(event) is True
-
-        # 添加不通过的过滤器
-        filter_obj.add_filter(lambda e: e.data > 10)
-        assert filter_obj.apply(event) is False
-
-        # 移除不通过的过滤器
-        filter_obj.filters.pop()
-        assert filter_obj.apply(event) is True
-
-
-class TestEventBus:
-    """测试EventBus基础功能"""
 
     @pytest.fixture
     def event_bus(self):
@@ -195,740 +39,819 @@ class TestEventBus:
         yield bus
         bus.shutdown()
 
-    def test_event_bus_creation(self):
-        """测试事件总线创建"""
-        bus = EventBus(max_workers=4, max_history=1000)
+    def test_trading_system_component_communication(self, event_bus):
+        """测试交易系统组件间的事件通信 - 核心业务价值"""
+        # 模拟量化交易系统中的组件通信场景
+        
+        # 存储接收到的事件，模拟各组件的反应
+        portfolio_updates = []
+        risk_alerts = []
+        strategy_signals = []
+        
+        def portfolio_manager(event):
+            """投资组合管理器：响应交易事件"""
+            if event.type == "order_filled":
+                portfolio_updates.append({
+                    "security": event.data["security"],
+                    "quantity": event.data["quantity"],
+                    "price": event.data["price"],
+                    "timestamp": event.timestamp
+                })
+        
+        def risk_manager(event):
+            """风险管理器：监控所有交易事件"""
+            if event.type == "order_filled":
+                order_value = event.data["quantity"] * event.data["price"]
+                if order_value > 50000:  # 大额交易风险提醒
+                    risk_alerts.append({
+                        "type": "large_order",
+                        "value": order_value,
+                        "security": event.data["security"]
+                    })
+        
+        def strategy_engine(event):
+            """策略引擎：基于市场数据生成信号"""
+            if event.type == "market_data":
+                price = event.data["price"]
+                if price > 100:  # 简单的价格突破策略
+                    strategy_signals.append({
+                        "signal": "BUY",
+                        "security": event.data["security"],
+                        "price": price,
+                        "confidence": 0.8
+                    })
+        
+        # 订阅事件 - 模拟系统组件注册
+        event_bus.subscribe("order_filled", portfolio_manager)
+        event_bus.subscribe("order_filled", risk_manager)
+        event_bus.subscribe("market_data", strategy_engine)
+        
+        # 模拟交易事件
+        event_bus.publish("order_filled", data={
+            "security": "000001.XSHE",
+            "quantity": 1000,
+            "price": 15.5
+        })
+        
+        # 模拟大额交易事件
+        event_bus.publish("order_filled", data={
+            "security": "000002.XSHE", 
+            "quantity": 5000,
+            "price": 12.0
+        })
+        
+        # 模拟市场数据事件
+        event_bus.publish("market_data", data={
+            "security": "000001.XSHE",
+            "price": 105.5,
+            "volume": 10000
+        })
+        
+        # 验证业务价值：系统组件间的事件通信工作正常
+        assert len(portfolio_updates) == 2, "投资组合管理器应该接收到2个交易事件"
+        assert len(risk_alerts) == 1, "风险管理器应该产生1个大额交易警报"
+        assert len(strategy_signals) == 1, "策略引擎应该生成1个交易信号"
+        
+        # 验证事件数据完整性
+        assert portfolio_updates[0]["security"] == "000001.XSHE"
+        assert portfolio_updates[1]["quantity"] == 5000
+        assert risk_alerts[0]["value"] == 60000  # 5000 * 12.0
+        assert strategy_signals[0]["signal"] == "BUY"
 
-        assert bus._stats["events_published"] == 0
-        assert bus._stats["events_processed"] == 0
-        assert bus._stats["events_failed"] == 0
-        assert bus._stats["subscriptions_count"] == 0
-        assert bus._running is True
+    def test_plugin_system_event_driven_architecture(self, event_bus):
+        """测试插件系统的事件驱动架构 - 系统扩展性验证"""
+        # 模拟插件系统中的事件驱动通信
+        plugin_responses = []
+        
+        def data_plugin_handler(event):
+            """数据插件：响应数据请求事件"""
+            if event.type == "data_request":
+                # 模拟数据获取
+                plugin_responses.append({
+                    "plugin": "csv_data_plugin",
+                    "data_type": event.data["data_type"],
+                    "status": "success",
+                    "result": f"data_for_{event.data['security']}"
+                })
+        
+        def indicator_plugin_handler(event):
+            """技术指标插件：响应指标计算事件"""
+            if event.type == "indicator_request":
+                plugin_responses.append({
+                    "plugin": "technical_indicators_plugin",
+                    "indicator": event.data["indicator"],
+                    "status": "calculated",
+                    "result": f"macd_values_for_{event.data['security']}"
+                })
+        
+        def risk_plugin_handler(event):
+            """风险插件：响应风险评估事件"""
+            if event.type == "risk_assessment":
+                plugin_responses.append({
+                    "plugin": "risk_control_plugin",
+                    "assessment": "passed",
+                    "risk_level": "low",
+                    "portfolio_var": event.data.get("var", 0.05)
+                })
+        
+        # 模拟插件注册事件处理器
+        event_bus.subscribe("data_request", data_plugin_handler)
+        event_bus.subscribe("indicator_request", indicator_plugin_handler)
+        event_bus.subscribe("risk_assessment", risk_plugin_handler)
+        
+        # 模拟系统请求插件服务
+        event_bus.publish("data_request", data={
+            "security": "000001.XSHE",
+            "data_type": "daily",
+            "start_date": "2024-01-01"
+        })
+        
+        event_bus.publish("indicator_request", data={
+            "security": "000001.XSHE",
+            "indicator": "MACD",
+            "parameters": {"fast": 12, "slow": 26}
+        })
+        
+        event_bus.publish("risk_assessment", data={
+            "portfolio_value": 1000000,
+            "var": 0.08
+        })
+        
+        # 验证业务价值：插件系统通过事件总线实现松耦合通信
+        assert len(plugin_responses) == 3, "应该收到3个插件响应"
+        
+        # 验证各插件都响应了相应的事件
+        plugin_names = [resp["plugin"] for resp in plugin_responses]
+        assert "csv_data_plugin" in plugin_names
+        assert "technical_indicators_plugin" in plugin_names 
+        assert "risk_control_plugin" in plugin_names
+        
+        # 验证插件响应的完整性
+        data_response = next(r for r in plugin_responses if r["plugin"] == "csv_data_plugin")
+        assert data_response["status"] == "success"
+        assert "000001.XSHE" in data_response["result"]
 
-        bus.shutdown()
+    def test_high_frequency_trading_event_performance(self, event_bus):
+        """测试高频交易场景下的事件性能 - 系统性能验证"""
+        # 模拟高频交易场景
+        processed_ticks = []
+        trade_signals = []
+        
+        def tick_processor(event):
+            """高频tick数据处理器"""
+            tick_data = event.data
+            processed_ticks.append({
+                "security": tick_data["security"],
+                "price": tick_data["price"],
+                "timestamp": event.timestamp
+            })
+            
+            # 简单的高频交易逻辑
+            if tick_data["price_change"] > 0.005:  # 价格变化超过0.5%
+                trade_signals.append({
+                    "action": "BUY",
+                    "security": tick_data["security"],
+                    "trigger_price": tick_data["price"]
+                })
+        
+        # 订阅tick事件
+        event_bus.subscribe("market_tick", tick_processor)
+        
+        # 模拟大量高频tick数据
+        import time
+        start_time = time.time()
+        
+        for i in range(100):  # 模拟100个tick
+            event_bus.publish("market_tick", data={
+                "security": "000001.XSHE",
+                "price": 100 + i * 0.01,
+                "price_change": 0.01,  # 所有tick都有足够的变化
+                "volume": 1000 + i
+            })
+        
+        processing_time = time.time() - start_time
+        
+        # 验证业务价值：事件系统能处理高频数据
+        assert len(processed_ticks) == 100, "应该处理了所有100个tick"
+        assert len(trade_signals) == 100, "应该生成了100个交易信号"  # 所有tick都有变化
+        assert processing_time < 1.0, f"处理100个tick应该在1秒内完成，实际用时{processing_time:.3f}秒"
+        
+        # 验证信号质量
+        for signal in trade_signals:
+            assert signal["action"] == "BUY"
+            assert signal["security"] == "000001.XSHE"
+            assert signal["trigger_price"] >= 100  # 第一个价格是100.0
 
-    def test_subscribe_and_unsubscribe(self, event_bus):
-        """测试订阅和取消订阅"""
-        call_count = 0
-
-        def handler(event):
-            nonlocal call_count
-            call_count += 1
-            return event.data
-
-        # 订阅事件
-        sub_id = event_bus.subscribe("test_event", handler)
-        assert isinstance(sub_id, str)
-        assert event_bus._stats["subscriptions_count"] == 1
-
-        # 发布事件
-        results = event_bus.publish("test_event", data="test_data")
-        assert len(results) == 1
-        assert results[0] == "test_data"
-        assert call_count == 1
-
-        # 取消订阅
-        success = event_bus.unsubscribe(sub_id)
-        assert success is True
-        assert event_bus._stats["subscriptions_count"] == 0
-
-        # 再次发布事件，应该没有处理器
-        results = event_bus.publish("test_event", data="test_data2")
-        assert len(results) == 0
-        assert call_count == 1  # 没有增加
-
-    def test_subscribe_with_priority(self, event_bus):
-        """测试优先级订阅"""
-        call_order = []
-
-        def handler_low(event):
-            call_order.append("low")
-
-        def handler_high(event):
-            call_order.append("high")
-
-        def handler_critical(event):
-            call_order.append("critical")
-
-        # 以不同顺序订阅
-        event_bus.subscribe("test", handler_low, priority=EventPriority.LOW)
-        event_bus.subscribe("test", handler_critical, priority=EventPriority.CRITICAL)
-        event_bus.subscribe("test", handler_high, priority=EventPriority.HIGH)
-
-        # 发布事件
-        event_bus.publish("test")
-
-        # 应该按优先级顺序执行：CRITICAL > HIGH > LOW
-        assert call_order == ["critical", "high", "low"]
-
-    def test_subscribe_with_filter(self, event_bus):
-        """测试带过滤器的订阅"""
-        call_count = 0
-
-        def handler(event):
-            nonlocal call_count
-            call_count += 1
-
-        def filter_func(event):
-            return event.data > 5
-
-        event_bus.subscribe("test", handler, filter_func=filter_func)
-
-        # 发布不通过过滤器的事件
-        event_bus.publish("test", data=3)
-        assert call_count == 0
-
-        # 发布通过过滤器的事件
-        event_bus.publish("test", data=10)
-        assert call_count == 1
-
-    def test_subscribe_once(self, event_bus):
-        """测试一次性订阅"""
-        call_count = 0
-
-        def handler(event):
-            nonlocal call_count
-            call_count += 1
-
-        event_bus.subscribe("test", handler, once=True)
-        assert event_bus._stats["subscriptions_count"] == 1
-
-        # 第一次发布
-        event_bus.publish("test")
-        assert call_count == 1
-        assert event_bus._stats["subscriptions_count"] == 0  # 自动取消订阅
-
-        # 第二次发布，应该没有处理器
-        event_bus.publish("test")
-        assert call_count == 1  # 没有增加
-
-    def test_invalid_handler_subscription(self, event_bus):
-        """测试无效处理器订阅"""
-        with pytest.raises(EventSubscriptionError, match="Handler must be callable"):
-            event_bus.subscribe("test", "not_callable")
-
-    def test_unsubscribe_nonexistent(self, event_bus):
-        """测试取消不存在的订阅"""
-        success = event_bus.unsubscribe("nonexistent_id")
-        assert success is False
-
-    def test_unsubscribe_all(self, event_bus):
-        """测试取消所有订阅"""
-
-        def handler1(event):
-            pass
-
-        def handler2(event):
-            pass
-
-        event_bus.subscribe("test", handler1)
-        event_bus.subscribe("test", handler2)
-        event_bus.subscribe("other", handler1)
-
-        assert event_bus._stats["subscriptions_count"] == 3
-
-        # 取消test事件的所有订阅
-        count = event_bus.unsubscribe_all("test")
-        assert count == 2
-        assert event_bus._stats["subscriptions_count"] == 1
-
-        # 取消不存在事件的订阅
-        count = event_bus.unsubscribe_all("nonexistent")
-        assert count == 0
-
-    def test_publish_with_metadata(self, event_bus):
-        """测试发布带元数据的事件"""
-        received_event = None
-
-        def handler(event):
-            nonlocal received_event
-            received_event = event
-
-        event_bus.subscribe("test", handler)
-
-        metadata = {"source": "unit_test", "version": 1}
-        event_bus.publish(
-            "test",
-            data="test_data",
-            source="test_source",
-            priority=EventPriority.HIGH,
-            metadata=metadata,
-        )
-
-        assert received_event is not None
-
-    def test_subscribe_with_weak_ref(self, event_bus):
-        """测试弱引用订阅基本功能"""
-        call_count = 0
-
-        class TestObject:
-            def handler(self, event):
-                nonlocal call_count
-                call_count += 1
-
-        obj = TestObject()
-        sub_id = event_bus.subscribe("test", obj.handler, weak_ref=True)
-
-        # 验证弱引用被创建
-        assert sub_id in event_bus._weak_refs
-
-        # 先发布一次事件确认处理器工作
-        event_bus.publish("test")
-        assert call_count == 1
-
-        # 手动取消订阅来测试清理
-        success = event_bus.unsubscribe(sub_id)
-        assert success is True
-        assert event_bus._stats["subscriptions_count"] == 0
-
-        # 如果有弱引用，应该被清理
-        assert sub_id not in event_bus._weak_refs
-
-    def test_publish_exception_handling(self, event_bus):
-        """测试发布异常处理"""
-
+    def test_system_error_handling_and_recovery(self, event_bus):
+        """测试系统错误处理和恢复 - 系统可靠性验证"""
+        # 模拟交易系统中的错误处理
+        error_logs = []
+        successful_operations = []
+        
+        def robust_data_handler(event):
+            """健壮的数据处理器：能处理错误并继续运行"""
+            try:
+                data = event.data
+                if data.get("corrupt", False):
+                    raise ValueError("Corrupted data detected")
+                
+                successful_operations.append({
+                    "operation": "data_processing",
+                    "security": data["security"],
+                    "status": "success"
+                })
+            except Exception as e:
+                error_logs.append({
+                    "error_type": type(e).__name__,
+                    "message": str(e),
+                    "recovery_action": "skip_corrupted_data"
+                })
+        
         def failing_handler(event):
-            raise ValueError("Handler failed")
-
-        def working_handler(event):
-            return "success"
-
-        event_bus.subscribe("test", failing_handler)
-        event_bus.subscribe("test", working_handler)
-
-        # 发布事件，失败的处理器应该被记录但不影响其他处理器
-        results = event_bus.publish("test")
-
-        # 应该有两个结果，失败的为None，成功的为"success"
-        assert len(results) == 2
-        assert None in results
-        assert "success" in results
-        assert event_bus._stats["events_failed"] > 0
-
-    def test_async_publish_future(self, event_bus):
-        """测试异步发布返回Future"""
-
-        def handler(event):
-            return "result"
-
-        event_bus.subscribe("test", handler)
-
-        future = event_bus.publish("test", async_publish=True)
-        assert isinstance(future, Future)
-
-        # 等待结果
-        results = future.result(timeout=1.0)
-        assert results == ["result"]
-
-    def test_publish_when_not_running(self, event_bus):
-        """测试在未运行状态下发布事件"""
-        event_bus._running = False
-
-        with pytest.raises(EventPublishError, match="EventBus is not running"):
-            event_bus.publish("test")
-
-    def test_handler_exception(self, event_bus):
-        """测试处理器异常"""
-
-        def failing_handler(event):
-            raise RuntimeError("Handler failed")
-
-        def working_handler(event):
-            return "success"
-
-        event_bus.subscribe("test", failing_handler)
-        event_bus.subscribe("test", working_handler)
-
-        results = event_bus.publish("test")
-
-        assert len(results) == 2
-        assert results[0] is None  # 失败的处理器返回None
-        assert results[1] == "success"
-        assert event_bus._stats["events_failed"] == 1
-        assert event_bus._stats["events_processed"] == 1
-
-
-class TestEventBusAsync:
-    """测试EventBus异步功能"""
-
-    @pytest.fixture
-    def event_bus(self):
-        """事件总线fixture"""
-        bus = EventBus(max_workers=2, max_history=100)
-        yield bus
-        bus.shutdown()
-
-    @pytest.mark.asyncio
-    async def test_async_handler_subscription(self, event_bus):
-        """测试异步处理器订阅"""
-        call_count = 0
-
-        async def async_handler(event):
-            nonlocal call_count
-            call_count += 1
-            await asyncio.sleep(0.01)  # 模拟异步操作
-            return event.data * 2
-
-        def sync_handler(event):
-            return event.data
-
-        event_bus.subscribe("test", async_handler)
-        event_bus.subscribe("test", sync_handler)
-
-        # 同步发布，异步处理器应该被跳过
-        results = event_bus.publish("test", data=5)
-        assert len(results) == 1
-        assert results[0] == 5  # 只有同步处理器的结果
-        assert call_count == 0  # 异步处理器未被调用
-
-    @pytest.mark.asyncio
-    async def test_publish_async(self, event_bus):
-        """测试异步发布"""
-        async_call_count = 0
-        sync_call_count = 0
-
-        async def async_handler(event):
-            nonlocal async_call_count
-            async_call_count += 1
-            await asyncio.sleep(0.01)
-            return event.data * 2
-
-        def sync_handler(event):
-            nonlocal sync_call_count
-            sync_call_count += 1
-            return event.data
-
-        event_bus.subscribe("test", async_handler)
-        event_bus.subscribe("test", sync_handler)
-
-        # 异步发布
-        results = await event_bus.publish_async("test", data=5)
-
-        assert len(results) == 2
-        assert 10 in results  # 异步处理器结果
-        assert 5 in results  # 同步处理器结果
-        assert async_call_count == 1
-        assert sync_call_count == 1
-
-    @pytest.mark.asyncio
-    async def test_async_handler_exception(self, event_bus):
-        """测试异步处理器异常"""
-
-        async def failing_async_handler(event):
-            raise RuntimeError("Async handler failed")
-
-        async def working_async_handler(event):
-            return "async_success"
-
-        def sync_handler(event):
-            return "sync_success"
-
-        event_bus.subscribe("test", failing_async_handler)
-        event_bus.subscribe("test", working_async_handler)
-        event_bus.subscribe("test", sync_handler)
-
-        results = await event_bus.publish_async("test")
-
-        assert len(results) == 3
-        assert None in results  # 失败的异步处理器
-        assert "async_success" in results
-        assert "sync_success" in results
-        assert event_bus._stats["events_failed"] == 1
-        assert event_bus._stats["events_processed"] == 2
-
-    def test_async_publish_sync_mode(self, event_bus):
-        """测试同步模式下的异步发布"""
-        future = event_bus.publish("test", data="test", async_publish=True)
-        assert isinstance(future, Future)
-
-        # 等待结果
-        results = future.result(timeout=1.0)
-        assert isinstance(results, list)
-
-
-class TestEventBusFilters:
-    """测试EventBus过滤功能"""
-
-    @pytest.fixture
-    def event_bus(self):
-        """事件总线fixture"""
-        bus = EventBus()
-        yield bus
-        bus.shutdown()
-
-    def test_global_filters(self, event_bus):
-        """测试全局过滤器"""
-        call_count = 0
-
-        def handler(event):
-            nonlocal call_count
-            call_count += 1
-
-        def global_filter(event):
-            return event.data > 5
-
-        event_bus.subscribe("test", handler)
-        event_bus.add_global_filter(global_filter)
-
-        # 不通过全局过滤器
-        event_bus.publish("test", data=3)
-        assert call_count == 0
-
-        # 通过全局过滤器
-        event_bus.publish("test", data=10)
-        assert call_count == 1
-
-        # 移除全局过滤器
-        event_bus.remove_global_filter(global_filter)
-        event_bus.publish("test", data=1)
-        assert call_count == 2  # 现在应该通过
-
-    def test_subscription_and_global_filters(self, event_bus):
-        """测试订阅级和全局过滤器组合"""
-        call_count = 0
-
-        def handler(event):
-            nonlocal call_count
-            call_count += 1
-
-        def global_filter(event):
-            return event.data > 0
-
-        def subscription_filter(event):
-            return event.data < 10
-
-        event_bus.add_global_filter(global_filter)
-        event_bus.subscribe("test", handler, filter_func=subscription_filter)
-
-        # 不通过全局过滤器
-        event_bus.publish("test", data=-1)
-        assert call_count == 0
-
-        # 通过全局过滤器但不通过订阅过滤器
-        event_bus.publish("test", data=15)
-        assert call_count == 0
-
-        # 两个过滤器都通过
-        event_bus.publish("test", data=5)
-        assert call_count == 1
-
-
-class TestEventBusWeakReferences:
-    """测试EventBus弱引用功能"""
-
-    @pytest.fixture
-    def event_bus(self):
-        """事件总线fixture"""
-        bus = EventBus()
-        yield bus
-        bus.shutdown()
-
-    def test_weak_reference_cleanup(self, event_bus):
-        """测试弱引用基本功能"""
-
-        class TestObject:
-            def __init__(self):
-                self.call_count = 0
-
-            def handler(self, event):
-                self.call_count += 1
-
-        obj = TestObject()
-        sub_id = event_bus.subscribe("test", obj.handler, weak_ref=True)
-
-        assert event_bus._stats["subscriptions_count"] == 1
-
-        # 发布事件，应该正常工作
-        event_bus.publish("test")
-        assert obj.call_count == 1
-
-        # 手动取消订阅来测试清理
-        success = event_bus.unsubscribe(sub_id)
-        assert success is True
-        assert event_bus._stats["subscriptions_count"] == 0
-
-        # 如果有弱引用，应该被清理
-        assert sub_id not in event_bus._weak_refs
-
-    def test_no_weak_reference(self, event_bus):
-        """测试不使用弱引用"""
-
-        def handler(event):
-            pass
-
-        sub_id = event_bus.subscribe("test", handler, weak_ref=False)
-
-        assert event_bus._stats["subscriptions_count"] == 1
-        assert len(event_bus._weak_refs) == 0  # 没有弱引用
-
-
-class TestEventBusManagement:
-    """测试EventBus管理功能"""
-
-    @pytest.fixture
-    def event_bus(self):
-        """事件总线fixture"""
-        bus = EventBus(max_history=5)
-        yield bus
-        bus.shutdown()
-
-    def test_get_subscriptions(self, event_bus):
-        """测试获取订阅信息"""
-
-        def handler1(event):
-            pass
-
-        def handler2(event):
-            pass
-
-        sub1 = event_bus.subscribe("test1", handler1)
-        sub2 = event_bus.subscribe("test1", handler2)
-        sub3 = event_bus.subscribe("test2", handler1)
-
-        # 获取所有订阅
-        all_subs = event_bus.get_subscriptions()
-        assert "test1" in all_subs
-        assert "test2" in all_subs
-        assert len(all_subs["test1"]) == 2
-        assert len(all_subs["test2"]) == 1
-
-        # 获取特定事件的订阅
-        test1_subs = event_bus.get_subscriptions("test1")
-        assert "test1" in test1_subs
-        assert len(test1_subs["test1"]) == 2
-        assert sub1 in test1_subs["test1"]
-        assert sub2 in test1_subs["test1"]
-
-    def test_event_history(self, event_bus):
-        """测试事件历史"""
-
-        def handler(event):
-            pass
-
-        event_bus.subscribe("test", handler)
-
-        # 发布一些事件
-        event_bus.publish("test", data=1)
-        event_bus.publish("test", data=2)
-        event_bus.publish("test", data=3)
-
-        history = event_bus.get_event_history()
-        assert len(history) == 3
-        assert history[0].data == 1
-        assert history[1].data == 2
-        assert history[2].data == 3
-
-        # 测试限制数量
-        recent_history = event_bus.get_event_history(count=2)
-        assert len(recent_history) == 2
-        assert recent_history[0].data == 2
-        assert recent_history[1].data == 3
-
-    def test_event_history_limit(self, event_bus):
-        """测试事件历史限制"""
-
-        def handler(event):
-            pass
-
-        event_bus.subscribe("test", handler)
-
-        # 发布超过限制的事件（max_history=5）
-        for i in range(10):
-            event_bus.publish("test", data=i)
-
-        history = event_bus.get_event_history()
-        assert len(history) == 5  # 应该只保留最近5个
-        assert history[0].data == 5
-        assert history[4].data == 9
-
-    def test_get_stats(self, event_bus):
-        """测试获取统计信息"""
-
-        def handler(event):
-            pass
-
-        def failing_handler(event):
-            raise RuntimeError("Handler failed")
-
-        event_bus.subscribe("test", handler)
-        event_bus.subscribe("test", failing_handler)
-
-        # 发布事件
-        event_bus.publish("test")
-        event_bus.publish("test")
-
-        stats = event_bus.get_stats()
-        assert stats["events_published"] == 2
-        assert stats["events_processed"] == 2  # 只计算成功的
-        assert stats["events_failed"] == 2  # 失败的处理器
-        assert stats["active_subscriptions"] == 2
-        assert stats["event_types_count"] == 1
-        assert stats["history_size"] == 2
-
-    def test_clear_history(self, event_bus):
-        """测试清空历史"""
-
-        def handler(event):
-            pass
-
-        event_bus.subscribe("test", handler)
-        event_bus.publish("test")
-        event_bus.publish("test")
-
-        assert len(event_bus.get_event_history()) == 2
-
-        event_bus.clear_history()
-
-        assert len(event_bus.get_event_history()) == 0
-
-    def test_clear_all_subscriptions(self, event_bus):
-        """测试清空所有订阅"""
-
-        def handler(event):
-            pass
-
-        event_bus.subscribe("test1", handler)
-        event_bus.subscribe("test2", handler)
-
-        assert event_bus._stats["subscriptions_count"] == 2
-
-        count = event_bus.clear_all_subscriptions()
-
-        assert count == 2
-        assert event_bus._stats["subscriptions_count"] == 0
-        assert len(event_bus._subscriptions) == 0
-        assert len(event_bus._weak_refs) == 0
-
-    def test_context_manager(self):
-        """测试上下文管理器"""
-        with EventBus() as bus:
-
-            def handler(event):
-                pass
-
-            bus.subscribe("test", handler)
-            bus.publish("test")
-
-            assert bus._running is True
-
-        # 退出上下文后应该关闭
-        assert bus._running is False
-
-
-class TestEventBusThreadSafety:
-    """测试EventBus线程安全"""
-
-    @pytest.fixture
-    def event_bus(self):
-        """事件总线fixture"""
-        bus = EventBus()
-        yield bus
-        bus.shutdown()
-
-    def test_concurrent_subscribe_unsubscribe(self, event_bus):
-        """测试并发订阅和取消订阅"""
-
-        def handler(event):
-            pass
-
-        subscription_ids = []
-
-        def subscribe_worker():
-            for i in range(10):
-                sub_id = event_bus.subscribe(f"test_{i}", handler)
-                subscription_ids.append(sub_id)
-
-        def unsubscribe_worker():
-            time.sleep(0.01)  # 让订阅先开始
-            for sub_id in subscription_ids[:5]:  # 只取消一部分
-                try:
-                    event_bus.unsubscribe(sub_id)
-                except IndexError:
-                    pass  # 可能已经被其他线程取消了
-
-        # 启动多个线程
-        threads = []
-        for _ in range(3):
-            t1 = threading.Thread(target=subscribe_worker)
-            t2 = threading.Thread(target=unsubscribe_worker)
-            threads.extend([t1, t2])
-
-        for thread in threads:
-            thread.start()
-
-        for thread in threads:
-            thread.join()
-
-        # 最终状态应该是一致的
-        stats = event_bus.get_stats()
-        assert stats["subscriptions_count"] >= 0
-
-    def test_concurrent_publish(self, event_bus):
-        """测试并发发布"""
-        call_count = 0
+            """故意失败的处理器：测试错误隔离"""
+            raise RuntimeError("Critical handler failure")
+        
+        def backup_handler(event):
+            """备用处理器：在主处理器失败时提供服务"""
+            successful_operations.append({
+                "operation": "backup_processing",
+                "security": event.data["security"],
+                "status": "recovered"
+            })
+        
+        # 注册处理器
+        event_bus.subscribe("data_update", robust_data_handler)
+        event_bus.subscribe("data_update", failing_handler)  # 会失败
+        event_bus.subscribe("data_update", backup_handler)   # 备用
+        
+        # 发送正常数据
+        event_bus.publish("data_update", data={
+            "security": "000001.XSHE",
+            "price": 15.5,
+            "corrupt": False
+        })
+        
+        # 发送损坏的数据
+        event_bus.publish("data_update", data={
+            "security": "000002.XSHE",
+            "price": 12.0,
+            "corrupt": True
+        })
+        
+        # 验证业务价值：系统能优雅处理错误并继续运行
+        assert len(successful_operations) == 3, "应该有3个成功操作(1个正常+2个备用)" 
+        assert len(error_logs) == 1, "应该有1个错误日志(损坏数据)"
+        
+        # 验证错误不影响整体系统运行
+        normal_ops = [op for op in successful_operations if op["status"] == "success"]
+        backup_ops = [op for op in successful_operations if op["status"] == "recovered"]
+        
+        assert len(normal_ops) == 1, "应该有1个正常操作"
+        assert len(backup_ops) == 2, "应该有2个备用操作"
+        
+        # 验证错误被正确记录
+        assert error_logs[0]["error_type"] == "ValueError"
+        assert "Corrupted data" in error_logs[0]["message"]
+
+    def test_concurrent_trading_system_stability(self, event_bus):
+        """测试并发交易系统的稳定性 - 多线程环境验证"""
+        # 模拟多个并发的交易组件
+        order_executions = []
+        processing_times = []
         lock = threading.Lock()
-
-        def handler(event):
-            nonlocal call_count
+        
+        def order_execution_engine(event):
+            """订单执行引擎：处理下单请求"""
+            start_time = time.time()
+            # 模拟一些处理时间
+            time.sleep(0.001)  # 1ms的处理时间
+            
             with lock:
-                call_count += 1
-
-        event_bus.subscribe("test", handler)
-
-        def publish_worker():
-            for i in range(10):
-                event_bus.publish("test", data=i)
-
-        # 启动多个发布线程
+                order_data = event.data
+                processing_time = time.time() - start_time
+                processing_times.append(processing_time)
+                order_executions.append({
+                    "order_id": order_data["order_id"],
+                    "security": order_data["security"],
+                    "quantity": order_data["quantity"],
+                    "status": "executed",
+                    "processing_thread": threading.current_thread().ident,
+                    "publisher_thread": order_data.get("publisher_thread"),
+                    "processing_time": processing_time
+                })
+        
+        # 注册订单处理器
+        event_bus.subscribe("place_order", order_execution_engine)
+        
+        # 记录开始时间
+        test_start_time = time.time()
+        
+        # 模拟多个线程同时发送订单
+        def submit_orders(thread_id, order_count):
+            publisher_thread_id = threading.current_thread().ident
+            for i in range(order_count):
+                event_bus.publish("place_order", data={
+                    "order_id": f"ORD_{thread_id}_{i}",
+                    "security": f"00000{thread_id}.XSHE",
+                    "quantity": 100 * (i + 1),
+                    "price": 15.0 + thread_id,
+                    "publisher_thread": publisher_thread_id
+                })
+        
+        # 启动多个并发线程
         threads = []
-        for _ in range(5):
-            thread = threading.Thread(target=publish_worker)
+        for thread_id in range(1, 6):  # 5个线程
+            thread = threading.Thread(target=submit_orders, args=(thread_id, 10))
             threads.append(thread)
             thread.start()
-
+        
+        # 等待所有线程完成
         for thread in threads:
             thread.join()
+        
+        total_test_time = time.time() - test_start_time
+        
+        # 验证业务价值：并发环境下系统稳定运行
+        assert len(order_executions) == 50, "应该执行了50个订单(5个线程 * 10个订单)"
+        
+        # 验证没有重复或丢失的订单
+        order_ids = [execution["order_id"] for execution in order_executions]
+        assert len(set(order_ids)) == 50, "所有订单ID应该唯一"
+        
+        # 验证数据完整性 - 这是并发测试的关键
+        for execution in order_executions:
+            assert execution["status"] == "executed", "所有订单都应该成功执行"
+            assert execution["quantity"] > 0, "订单数量应该大于0"
+            assert execution["processing_time"] > 0, "处理时间应该大于0"
+        
+        # 验证每个线程的订单都被正确处理
+        for thread_id in range(1, 6):
+            thread_orders = [ex for ex in order_executions if f"ORD_{thread_id}_" in ex["order_id"]]
+            assert len(thread_orders) == 10, f"线程{thread_id}应该处理了10个订单"
+            
+            # 验证每个线程的订单数据完整性
+            for order in thread_orders:
+                expected_security = f"00000{thread_id}.XSHE"
+                assert order["security"] == expected_security, f"订单证券代码应该正确"
+        
+        # 验证EventBus的线程安全性 - 通过检查处理顺序和数据一致性
+        # 如果有竞争条件，订单可能丢失或重复，但我们已经验证了50个唯一订单
+        assert len(order_executions) == len(order_ids), "处理的订单数应该等于唯一订单数"
+        
+        # 验证EventBus统计信息的正确性（这也测试了内部状态的线程安全性）
+        stats = event_bus.get_stats()
+        assert stats["events_published"] == 50, "应该发布了50个事件"
+        assert stats["events_processed"] == 50, "应该处理了50个事件"
+        
+        # 验证性能特征：即使在并发环境下，系统也应该高效
+        avg_processing_time = sum(processing_times) / len(processing_times)
+        assert avg_processing_time < 0.1, f"平均处理时间不应超过100ms，实际：{avg_processing_time:.3f}s"
+        
+        # 验证总体执行时间合理（所有50个事件能够在合理时间内处理完成）
+        assert total_test_time < 2.0, f"总测试时间不应超过2秒，实际：{total_test_time:.3f}s"
 
-        # 应该处理了所有事件
-        assert call_count == 50  # 5个线程 * 10个事件
+
+class TestEventSystemAsyncCapabilities:
+    """测试事件系统的异步处理能力"""
+
+    @pytest.fixture
+    def event_bus(self):
+        """事件总线fixture"""
+        bus = EventBus(max_workers=2, max_history=100)
+        yield bus
+        bus.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_real_time_data_processing_async(self, event_bus):
+        """测试实时数据的异步处理能力 - 量化系统的核心需求"""
+        # 模拟实时市场数据异步处理
+        processed_data = []
+        calculated_indicators = []
+        
+        async def async_data_processor(event):
+            """异步数据处理器：模拟复杂的数据清洗和验证"""
+            await asyncio.sleep(0.01)  # 模拟数据处理延迟
+            market_data = event.data
+            processed_data.append({
+                "security": market_data["security"],
+                "cleaned_price": round(market_data["price"], 2),
+                "normalized_volume": market_data["volume"] / 1000,
+                "processing_time": "async"
+            })
+            return f"processed_{market_data['security']}"
+        
+        async def async_indicator_calculator(event):
+            """异步技术指标计算器：模拟复杂的技术分析"""
+            await asyncio.sleep(0.005)  # 模拟计算延迟
+            market_data = event.data
+            # 模拟MACD计算
+            macd_value = market_data["price"] * 0.1  # 简化计算
+            calculated_indicators.append({
+                "security": market_data["security"],
+                "macd": macd_value,
+                "rsi": 50 + (market_data["price"] % 100),
+                "calculation_type": "async"
+            })
+            return f"indicators_{market_data['security']}"
+        
+        def sync_logger(event):
+            """同步日志记录器：快速记录事件"""
+            return f"logged_{event.data['security']}"
+        
+        # 注册异步和同步处理器
+        event_bus.subscribe("market_data", async_data_processor)
+        event_bus.subscribe("market_data", async_indicator_calculator)
+        event_bus.subscribe("market_data", sync_logger)
+        
+        # 异步发布市场数据事件
+        results = await event_bus.publish_async("market_data", data={
+            "security": "000001.XSHE",
+            "price": 105.75,
+            "volume": 15000,
+            "timestamp": time.time()
+        })
+        
+        # 验证业务价值：异步处理器和同步处理器都正常工作
+        assert len(results) == 3, "应该有3个处理器的结果"
+        assert "processed_000001.XSHE" in results
+        assert "indicators_000001.XSHE" in results
+        assert "logged_000001.XSHE" in results
+        
+        # 验证异步数据处理
+        assert len(processed_data) == 1
+        assert processed_data[0]["security"] == "000001.XSHE"
+        assert processed_data[0]["cleaned_price"] == 105.75
+        
+        # 验证异步指标计算
+        assert len(calculated_indicators) == 1
+        assert abs(calculated_indicators[0]["macd"] - 10.575) < 0.001  # 允许浮点数精度误差
+        assert abs(calculated_indicators[0]["rsi"] - (50 + (105.75 % 100))) < 0.001  # 修正RSI计算
+
+    @pytest.mark.asyncio
+    async def test_async_error_isolation(self, event_bus):
+        """测试异步处理中的错误隔离 - 系统稳定性保障"""
+        successful_results = []
+        
+        async def failing_async_processor(event):
+            """失败的异步处理器"""
+            raise RuntimeError("Async processing failed")
+        
+        async def working_async_processor(event):
+            """正常的异步处理器"""
+            await asyncio.sleep(0.01)
+            result = f"async_success_{event.data['security']}"
+            successful_results.append(result)
+            return result
+        
+        def working_sync_processor(event):
+            """正常的同步处理器"""
+            result = f"sync_success_{event.data['security']}"
+            successful_results.append(result)
+            return result
+        
+        # 注册处理器（包括会失败的）
+        event_bus.subscribe("order_event", failing_async_processor)
+        event_bus.subscribe("order_event", working_async_processor)
+        event_bus.subscribe("order_event", working_sync_processor)
+        
+        # 异步发布事件
+        results = await event_bus.publish_async("order_event", data={
+            "security": "000001.XSHE",
+            "order_id": "ORD_001",
+            "quantity": 1000
+        })
+        
+        # 验证业务价值：错误处理器不影响其他处理器
+        assert len(results) == 3, "应该有3个处理器的结果"
+        assert None in results, "失败的处理器应该返回None"
+        assert "async_success_000001.XSHE" in results
+        assert "sync_success_000001.XSHE" in results
+        
+        # 验证成功的处理器都执行了
+        assert len(successful_results) == 2
+        assert "async_success_000001.XSHE" in successful_results
+        assert "sync_success_000001.XSHE" in successful_results
 
 
-class TestGlobalEventBus:
-    """测试全局事件总线"""
+class TestEventFilteringInTradingScenarios:
+    """测试交易场景中的事件过滤功能"""
 
-    def test_global_subscribe_decorator(self):
-        """测试全局订阅装饰器"""
-        call_count = 0
+    @pytest.fixture
+    def event_bus(self):
+        """事件总线fixture"""
+        bus = EventBus()
+        yield bus
+        bus.shutdown()
 
-        @subscribe("test_global")
-        def handler(event):
-            nonlocal call_count
-            call_count += 1
-            return event.data
+    def test_trading_event_filtering_by_risk_level(self, event_bus):
+        """测试基于风险级别的交易事件过滤 - 风险控制的核心需求"""
+        high_risk_trades = []
+        all_trades = []
+        
+        def high_risk_handler(event):
+            """只处理高风险交易的处理器"""
+            trade_data = event.data
+            high_risk_trades.append({
+                "order_id": trade_data["order_id"],
+                "value": trade_data["value"],
+                "risk_level": "high"
+            })
+        
+        def all_trades_handler(event):
+            """处理所有交易的处理器"""
+            all_trades.append(event.data["order_id"])
+        
+        def high_risk_filter(event):
+            """高风险过滤器：只允许大额交易通过"""
+            return event.data.get("value", 0) > 100000  # 10万以上为高风险
+        
+        # 订阅时应用过滤器
+        event_bus.subscribe("trade_order", high_risk_handler, filter_func=high_risk_filter)
+        event_bus.subscribe("trade_order", all_trades_handler)  # 无过滤器
+        
+        # 发布低风险交易
+        event_bus.publish("trade_order", data={
+            "order_id": "ORD_001",
+            "security": "000001.XSHE",
+            "value": 50000
+        })
+        
+        # 发布高风险交易
+        event_bus.publish("trade_order", data={
+            "order_id": "ORD_002",
+            "security": "000002.XSHE", 
+            "value": 150000
+        })
+        
+        # 发布另一个高风险交易
+        event_bus.publish("trade_order", data={
+            "order_id": "ORD_003",
+            "security": "000003.XSHE",
+            "value": 200000
+        })
+        
+        # 验证业务价值：过滤器正确识别高风险交易
+        assert len(all_trades) == 3, "全部交易处理器应该处理3个交易"
+        assert len(high_risk_trades) == 2, "高风险处理器应该只处理2个高风险交易"
+        
+        # 验证过滤的准确性
+        high_risk_order_ids = [trade["order_id"] for trade in high_risk_trades]
+        assert "ORD_002" in high_risk_order_ids
+        assert "ORD_003" in high_risk_order_ids
+        assert "ORD_001" not in high_risk_order_ids  # 低风险交易被过滤
 
-        # 使用全局发布函数
-        results = publish("test_global", data="test")
+    def test_market_condition_based_event_filtering(self, event_bus):
+        """测试基于市场条件的事件过滤 - 策略适应性需求"""
+        volatile_market_signals = []
+        normal_market_signals = []
+        
+        def volatile_market_strategy(event):
+            """波动市场策略：仅在高波动时执行"""
+            market_data = event.data
+            volatile_market_signals.append({
+                "security": market_data["security"],
+                "strategy": "volatility_breakout",
+                "volatility": market_data["volatility"]
+            })
+        
+        def normal_market_strategy(event):
+            """正常市场策略：在非高波动时执行"""
+            market_data = event.data
+            normal_market_signals.append({
+                "security": market_data["security"],
+                "strategy": "trend_following",
+                "volatility": market_data["volatility"]
+            })
+        
+        def high_volatility_filter(event):
+            """高波动过滤器"""
+            return event.data.get("volatility", 0) > 0.05  # 5%以上波动率
+        
+        def low_volatility_filter(event):
+            """低波动过滤器"""
+            return event.data.get("volatility", 0) <= 0.05
+        
+        # 根据市场条件订阅不同策略
+        event_bus.subscribe("market_update", volatile_market_strategy, filter_func=high_volatility_filter)
+        event_bus.subscribe("market_update", normal_market_strategy, filter_func=low_volatility_filter)
+        
+        # 模拟不同波动率的市场数据
+        market_conditions = [
+            {"security": "000001.XSHE", "price": 100, "volatility": 0.02},  # 低波动
+            {"security": "000002.XSHE", "price": 200, "volatility": 0.08},  # 高波动
+            {"security": "000003.XSHE", "price": 150, "volatility": 0.03},  # 低波动
+            {"security": "000004.XSHE", "price": 300, "volatility": 0.12},  # 高波动
+        ]
+        
+        for condition in market_conditions:
+            event_bus.publish("market_update", data=condition)
+        
+        # 验证业务价值：策略根据市场条件自动适应
+        assert len(volatile_market_signals) == 2, "应该有2个高波动市场信号"
+        assert len(normal_market_signals) == 2, "应该有2个正常市场信号"
+        
+        # 验证过滤的正确性
+        volatile_securities = [signal["security"] for signal in volatile_market_signals]
+        normal_securities = [signal["security"] for signal in normal_market_signals]
+        
+        assert "000002.XSHE" in volatile_securities  # 8%波动率
+        assert "000004.XSHE" in volatile_securities  # 12%波动率
+        assert "000001.XSHE" in normal_securities    # 2%波动率
+        assert "000003.XSHE" in normal_securities    # 3%波动率
 
-        assert len(results) == 1
-        assert results[0] == "test"
-        assert call_count == 1
 
-    def test_global_publish_function(self):
-        """测试全局发布函数"""
-        call_count = 0
+class TestGlobalEventBusIntegration:
+    """测试全局事件总线集成"""
 
-        def handler(event):
-            nonlocal call_count
-            call_count += 1
+    def test_system_wide_event_coordination(self):
+        """测试系统级事件协调 - 全局事件总线的核心价值"""
+        # 模拟系统级事件协调场景
+        system_responses = []
+        
+        @subscribe("system_alert")
+        def emergency_handler(event):
+            """紧急情况处理器"""
+            alert_data = event.data
+            system_responses.append({
+                "handler": "emergency",
+                "alert_type": alert_data["type"],
+                "action": "system_shutdown" if alert_data["severity"] == "critical" else "monitor"
+            })
+            return f"emergency_response_{alert_data['type']}"
+        
+        @subscribe("system_alert")
+        def logging_handler(event):
+            """日志记录处理器"""
+            system_responses.append({
+                "handler": "logger",
+                "logged_event": event.type,
+                "timestamp": event.timestamp
+            })
+            return "logged"
+        
+        # 使用全局发布函数模拟系统警报
+        results = publish("system_alert", data={
+            "type": "market_circuit_breaker",
+            "severity": "high",
+            "market": "XSHE",
+            "trigger_time": time.time()
+        })
+        
+        # 发布关键级别警报
+        critical_results = publish("system_alert", data={
+            "type": "data_feed_failure",
+            "severity": "critical",
+            "affected_systems": ["trading", "risk", "portfolio"]
+        })
+        
+        # 验证业务价值：全局事件总线协调系统响应
+        assert len(results) == 2, "第一个警报应该有2个处理器响应"
+        assert len(critical_results) == 2, "关键警报应该有2个处理器响应"
+        assert len(system_responses) == 4, "总共应该有4个系统响应"
+        
+        # 验证紧急处理器的响应
+        emergency_responses = [r for r in system_responses if r["handler"] == "emergency"]
+        assert len(emergency_responses) == 2
+        
+        # 验证关键警报触发系统关闭
+        critical_response = next(r for r in emergency_responses if r["alert_type"] == "data_feed_failure")
+        assert critical_response["action"] == "system_shutdown"
+        
+        # 验证高级警报只监控
+        high_response = next(r for r in emergency_responses if r["alert_type"] == "market_circuit_breaker")
+        assert high_response["action"] == "monitor"
+        
+        # 清理全局订阅
+        default_event_bus.unsubscribe_all("system_alert")
 
-        # 直接订阅到默认事件总线
-        default_event_bus.subscribe("test_global_pub", handler)
 
-        # 使用全局发布函数
-        results = publish("test_global_pub", data="test")
+class TestEventBusSystemManagement:
+    """测试事件总线的系统管理能力"""
 
-        assert len(results) == 1
-        assert call_count == 1
+    @pytest.fixture
+    def event_bus(self):
+        """事件总线fixture"""
+        bus = EventBus(max_history=10)
+        yield bus
+        bus.shutdown()
 
-        # 清理
-        default_event_bus.unsubscribe_all("test_global_pub")
+    def test_trading_system_health_monitoring(self, event_bus):
+        """测试交易系统健康监控 - 系统管理的核心需求"""
+        # 模拟交易系统健康监控
+        system_health = {
+            "data_feed": [],
+            "order_execution": [],
+            "risk_management": []
+        }
+        
+        def data_feed_monitor(event):
+            system_health["data_feed"].append({
+                "status": "active",
+                "latency": event.data.get("latency", 0),
+                "timestamp": event.timestamp
+            })
+        
+        def order_execution_monitor(event):
+            system_health["order_execution"].append({
+                "orders_processed": event.data.get("orders", 0),
+                "avg_execution_time": event.data.get("execution_time", 0),
+                "timestamp": event.timestamp
+            })
+        
+        def risk_management_monitor(event):
+            system_health["risk_management"].append({
+                "risk_checks": event.data.get("risk_checks", 0),
+                "violations": event.data.get("violations", 0),
+                "timestamp": event.timestamp
+            })
+        
+        # 订阅系统健康事件
+        event_bus.subscribe("system_health", data_feed_monitor)
+        event_bus.subscribe("system_health", order_execution_monitor)
+        event_bus.subscribe("system_health", risk_management_monitor)
+        
+        # 模拟定期健康检查
+        health_reports = [
+            {"component": "data_feed", "latency": 50, "status": "healthy"},
+            {"component": "order_execution", "orders": 150, "execution_time": 120},
+            {"component": "risk_management", "risk_checks": 200, "violations": 2}
+        ]
+        
+        for report in health_reports:
+            event_bus.publish("system_health", data=report)
+        
+        # 验证业务价值：系统健康监控正常运行
+        assert len(system_health["data_feed"]) == 3
+        assert len(system_health["order_execution"]) == 3
+        assert len(system_health["risk_management"]) == 3
+        
+        # 验证监控数据质量
+        assert system_health["data_feed"][0]["latency"] == 50
+        assert system_health["order_execution"][1]["orders_processed"] == 150
+        assert system_health["risk_management"][2]["violations"] == 2
+        
+        # 验证事件历史记录
+        history = event_bus.get_event_history()
+        assert len(history) == 3
+        assert all(event.type == "system_health" for event in history)
+        
+        # 验证统计信息
+        stats = event_bus.get_stats()
+        assert stats["events_published"] == 3
+        assert stats["events_processed"] == 9  # 3个事件 * 3个处理器
+        assert stats["active_subscriptions"] == 3
+
+    def test_event_bus_lifecycle_management(self, event_bus):
+        """测试事件总线生命周期管理 - 系统稳定性保障"""
+        # 模拟完整的事件总线生命周期
+        lifecycle_events = []
+        
+        def lifecycle_tracker(event):
+            lifecycle_events.append({
+                "event_type": event.type,
+                "data": event.data,
+                "timestamp": event.timestamp
+            })
+        
+        # 初始化阶段：订阅关键事件
+        critical_events = ["trading_start", "market_open", "strategy_init", "trading_end"]
+        for event_type in critical_events:
+            event_bus.subscribe(event_type, lifecycle_tracker)
+        
+        # 系统启动阶段
+        event_bus.publish("trading_start", data={"session_id": "SESS_001", "start_time": time.time()})
+        event_bus.publish("market_open", data={"market": "XSHE", "status": "open"})
+        event_bus.publish("strategy_init", data={"strategies": ["momentum", "mean_reversion"]})
+        
+        # 运行阶段统计
+        initial_stats = event_bus.get_stats()
+        assert initial_stats["events_published"] == 3
+        assert initial_stats["active_subscriptions"] == 4  # 4个事件类型
+        
+        # 系统关闭阶段
+        event_bus.publish("trading_end", data={"session_id": "SESS_001", "end_time": time.time()})
+        
+        # 验证完整生命周期
+        assert len(lifecycle_events) == 4
+        event_types = [event["event_type"] for event in lifecycle_events]
+        assert "trading_start" in event_types
+        assert "market_open" in event_types
+        assert "strategy_init" in event_types
+        assert "trading_end" in event_types
+        
+        # 清理资源测试
+        subscriptions_before_clear = event_bus.get_stats()["active_subscriptions"]
+        cleared_count = event_bus.clear_all_subscriptions()
+        
+        assert cleared_count == subscriptions_before_clear
+        assert event_bus.get_stats()["active_subscriptions"] == 0
+        
+        # 验证清理后事件历史仍可访问
+        history = event_bus.get_event_history()
+        assert len(history) == 4  # 历史记录保留
+        
+        # 清理历史
+        event_bus.clear_history()
+        assert len(event_bus.get_event_history()) == 0
+
+

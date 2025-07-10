@@ -3,7 +3,7 @@
 PTrade实盘交易模式API路由器
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from ....core.event_bus import EventBus
 from .base import BaseAPIRouter
@@ -373,3 +373,159 @@ class LiveTradingAPIRouter(
 
         # 更新投资组合价值
         self.context.portfolio.update_portfolio_value()
+
+    # ==========================================
+    # 数据获取方法 - 委托给DataRetrievalMixin
+    # ==========================================
+    def get_history(self, *args, **kwargs):
+        return DataRetrievalMixin.get_history(self, *args, **kwargs)
+
+    def get_price(self, *args, **kwargs):
+        return DataRetrievalMixin.get_price(self, *args, **kwargs)
+
+    def get_snapshot(self, *args, **kwargs):
+        return DataRetrievalMixin.get_snapshot(self, *args, **kwargs)
+
+    def get_stock_info(self, *args, **kwargs):
+        return DataRetrievalMixin.get_stock_info(self, *args, **kwargs)
+
+    def get_fundamentals(self, *args, **kwargs):
+        return DataRetrievalMixin.get_fundamentals(self, *args, **kwargs)
+
+    # ==========================================
+    # 股票信息方法 - 委托给StockInfoMixin
+    # ==========================================
+    def get_stock_name(self, *args, **kwargs):
+        return StockInfoMixin.get_stock_name(self, *args, **kwargs)
+
+    def get_stock_status(self, *args, **kwargs):
+        return StockInfoMixin.get_stock_status(self, *args, **kwargs)
+
+    def get_stock_exrights(self, *args, **kwargs):
+        return StockInfoMixin.get_stock_exrights(self, *args, **kwargs)
+
+    def get_stock_blocks(self, *args, **kwargs):
+        return StockInfoMixin.get_stock_blocks(self, *args, **kwargs)
+
+    def get_index_stocks(self, *args, **kwargs):
+        return StockInfoMixin.get_index_stocks(self, *args, **kwargs)
+
+    def get_industry_stocks(self, *args, **kwargs):
+        return StockInfoMixin.get_industry_stocks(self, *args, **kwargs)
+
+    def get_Ashares(self, *args, **kwargs):
+        return StockInfoMixin.get_Ashares(self, *args, **kwargs)
+
+    def get_etf_list(self, *args, **kwargs):
+        return StockInfoMixin.get_etf_list(self, *args, **kwargs)
+
+    def get_ipo_stocks(self, *args, **kwargs):
+        return StockInfoMixin.get_ipo_stocks(self, *args, **kwargs)
+
+    # ==========================================
+    # 技术指标方法 - 委托给TechnicalIndicatorMixin
+    # ==========================================
+    def get_MACD(self, *args, **kwargs):
+        return TechnicalIndicatorMixin.get_MACD(self, *args, **kwargs)
+
+    def get_KDJ(self, *args, **kwargs):
+        return TechnicalIndicatorMixin.get_KDJ(self, *args, **kwargs)
+
+    def get_RSI(self, *args, **kwargs):
+        return TechnicalIndicatorMixin.get_RSI(self, *args, **kwargs)
+
+    def get_CCI(self, *args, **kwargs):
+        return TechnicalIndicatorMixin.get_CCI(self, *args, **kwargs)
+
+    # ==========================================
+    # 通用工具方法 - 委托给CommonUtilsMixin
+    # ==========================================
+    def get_trading_day(self, *args, **kwargs):
+        return CommonUtilsMixin.get_trading_day(self, *args, **kwargs)
+
+    def get_all_trades_days(self, *args, **kwargs):
+        return CommonUtilsMixin.get_all_trades_days(self, *args, **kwargs)
+
+    def get_trade_days(self, *args, **kwargs):
+        return CommonUtilsMixin.get_trade_days(self, *args, **kwargs)
+
+    def set_universe(self, *args, **kwargs):
+        return CommonUtilsMixin.set_universe(self, *args, **kwargs)
+
+    def set_benchmark(self, *args, **kwargs):
+        return CommonUtilsMixin.set_benchmark(self, *args, **kwargs)
+
+    def log(self, *args, **kwargs):
+        return CommonUtilsMixin.log(self, *args, **kwargs)
+
+    def check_limit(self, *args, **kwargs):
+        return CommonUtilsMixin.check_limit(self, *args, **kwargs)
+
+    # ==========================================
+    # 定时和回调 API 实现
+    # ==========================================
+
+    def run_daily(
+        self, func: Any, time_str: str = "09:30", *args: Any, **kwargs: Any
+    ) -> str:
+        """按日周期处理 - 每日定时执行指定函数"""
+        self._logger.warning(
+            "run_daily scheduling should be handled by external scheduler in live trading mode"
+        )
+        # 在实盘模式下，定时任务应该由外部调度系统处理
+        job_id = f"daily_{id(func)}_{time_str}"
+        if not hasattr(self.context, "_daily_functions"):
+            setattr(self.context, "_daily_functions", {})
+        getattr(self.context, "_daily_functions")[job_id] = {
+            "func": func,
+            "time": time_str,
+            "args": args,
+            "kwargs": kwargs,
+        }
+        return job_id
+
+    def run_interval(
+        self, func: Any, interval: Union[int, str], *args: Any, **kwargs: Any
+    ) -> str:
+        """按设定周期处理 - 按指定间隔重复执行函数"""
+        self._logger.warning(
+            "run_interval scheduling should be handled by external scheduler in live trading mode"
+        )
+        # 在实盘模式下，定时任务应该由外部调度系统处理
+        job_id = f"interval_{id(func)}_{interval}"
+        if not hasattr(self.context, "_interval_functions"):
+            setattr(self.context, "_interval_functions", {})
+        getattr(self.context, "_interval_functions")[job_id] = {
+            "func": func,
+            "interval": interval,
+            "args": args,
+            "kwargs": kwargs,
+        }
+        return job_id
+
+    def tick_data(self, func: Any) -> bool:
+        """tick级别处理 - 注册tick数据回调函数"""
+        # 在实盘模式下支持tick数据处理
+        if not hasattr(self.context, "_tick_callbacks"):
+            setattr(self.context, "_tick_callbacks", [])
+        getattr(self.context, "_tick_callbacks").append(func)
+        self._logger.info("Tick data callback registered for live trading")
+        return True
+
+    def on_order_response(self, func: Any) -> bool:
+        """委托回报 - 注册订单状态变化回调函数"""
+        # 在实盘模式下，订单回调非常重要
+        if not hasattr(self.context, "_order_response_callbacks"):
+            setattr(self.context, "_order_response_callbacks", [])
+        getattr(self.context, "_order_response_callbacks").append(func)
+        self._logger.info("Order response callback registered for live trading")
+        return True
+
+    def on_trade_response(self, func: Any) -> bool:
+        """成交回报 - 注册成交确认回调函数"""
+        # 在实盘模式下，成交回调非常重要
+        if not hasattr(self.context, "_trade_response_callbacks"):
+            setattr(self.context, "_trade_response_callbacks", [])
+        getattr(self.context, "_trade_response_callbacks").append(func)
+        self._logger.info("Trade response callback registered for live trading")
+        return True

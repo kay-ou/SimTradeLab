@@ -22,6 +22,9 @@ class TechnicalIndicatorMixin:
         self, close: np.ndarray, short: int = 12, long: int = 26, m: int = 9
     ) -> pd.DataFrame:
         """获取MACD指标"""
+        if len(close) == 0:
+            raise RuntimeError("Cannot calculate MACD with empty data")
+            
         try:
             close_series = pd.Series(close)
             exp1 = close_series.ewm(span=short).mean()

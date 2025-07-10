@@ -25,17 +25,17 @@ class StockInfoMixin:
         if not self._data_plugin:
             raise RuntimeError("Data plugin is not available for get_stock_name")
 
-        try:
-            if hasattr(self._data_plugin, "get_stock_name"):
+        if hasattr(self._data_plugin, "get_stock_name"):
+            try:
                 return self._data_plugin.get_stock_name(security)
-            else:
-                raise NotImplementedError(
-                    f"Data plugin {type(self._data_plugin).__name__} "
-                    "does not support get_stock_name"
-                )
-        except Exception as e:
-            self._logger.error(f"Error getting stock name for {security}: {e}")
-            raise RuntimeError(f"Failed to get stock name for {security}: {e}")
+            except Exception as e:
+                self._logger.error(f"Error getting stock name for {security}: {e}")
+                raise RuntimeError(f"Failed to get stock name for {security}: {e}")
+        else:
+            raise NotImplementedError(
+                f"Data plugin {type(self._data_plugin).__name__} "
+                "does not support get_stock_name"
+            )
 
     def get_stock_status(self, security: str) -> Dict[str, Any]:
         """获取股票状态信息"""

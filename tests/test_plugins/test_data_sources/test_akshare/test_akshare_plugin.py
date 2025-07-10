@@ -243,7 +243,7 @@ class TestAkShareDataSource:
         # 这个测试主要是为了文档目的，说明当前是占位符实现
         assert (
             plugin.__class__.__doc__
-            == "A placeholder for the AkShare data source plugin."
+            == "具体实现的AkShare数据源，用于测试"
         )
 
         # 验证get_data方法确实是占位符

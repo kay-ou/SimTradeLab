@@ -525,8 +525,8 @@ class TestBaseAPIRouter:
         """测试事件总线访问"""
         # 路由器应该能访问事件总线
         assert router.event_bus is not None
-        assert hasattr(router.event_bus, "emit")
-        assert hasattr(router.event_bus, "on")
+        assert hasattr(router.event_bus, "publish")
+        assert hasattr(router.event_bus, "subscribe")
 
     def test_logger_functionality(self, router: ConcreteAPIRouter) -> None:
         """测试日志功能"""

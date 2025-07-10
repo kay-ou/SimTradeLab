@@ -88,12 +88,37 @@ class DataRetrievalMixin:
                 # 过滤请求的字段
                 available_fields = [f for f in field if f in df.columns]
                 if available_fields:
-                    df = (
-                        df[["security", "date"] + available_fields]
-                        if "security" in df.columns
-                        else df[["date"] + available_fields]
-                    )
-                return df
+                    # 创建包含请求字段的DataFrame
+                    result_df = df[available_fields]
+                    
+                    # 如果有security列并且是多股票数据，设置multi-level index
+                    if 'security' in df.columns and len(securities) > 1:
+                        # 创建multi-level index: (security, row_index)
+                        result_df = result_df.copy()
+                        result_df['security'] = df['security']
+                        result_df = result_df.set_index('security')
+                        
+                        # 为每个股票分组并重新组织数据
+                        grouped_data = []
+                        for security in securities:
+                            security_data = df[df['security'] == security]
+                            if not security_data.empty:
+                                # 只保留请求的字段
+                                security_result = security_data[available_fields].copy()
+                                # 添加security作为index level
+                                security_result.index = pd.MultiIndex.from_product(
+                                    [[security], range(len(security_result))],
+                                    names=['security', 'row']
+                                )
+                                grouped_data.append(security_result)
+                        
+                        if grouped_data:
+                            result_df = pd.concat(grouped_data)
+                    
+                    return result_df
+                else:
+                    # 如果没有可用字段，返回空DataFrame，列为请求的字段
+                    return pd.DataFrame(columns=field)
 
         except Exception as e:
             # 数据插件失败时抛出异常，不使用fallback
@@ -138,17 +163,31 @@ class DataRetrievalMixin:
                 end_date=end_date,
             )
 
+            # 对于多个股票，需要为每个股票取count行数据
+            if "security" in df.columns and len(securities) > 1:
+                # 多股票情况：为每个股票取count行
+                result_dfs = []
+                for security in securities:
+                    security_data = df[df["security"] == security]
+                    if len(security_data) > count:
+                        security_data = security_data.tail(count)
+                    result_dfs.append(security_data)
+                df = pd.concat(result_dfs, ignore_index=True)
+            else:
+                # 单股票情况：限制总行数为count
+                if len(df) > count:
+                    df = df.tail(count)
+
             # 过滤请求的字段
             available_fields = [f for f in fields if f in df.columns]
             if available_fields:
-                columns_to_keep = ["security", "date"] + available_fields
-                df = df[columns_to_keep]
-                if not df.empty:
-                    df.set_index(["security", "date"], inplace=True)
+                df = df[available_fields]
+                if not df.empty and "security" in df.columns:
+                    # 设置index为security，方便多股票数据的访问
+                    df.set_index("security", inplace=True)
             else:
                 # 如果没有请求的字段，创建空的DataFrame
-                df = pd.DataFrame(columns=["security", "date"] + fields)
-                df.set_index(["security", "date"], inplace=True)
+                df = pd.DataFrame(columns=fields)
 
             return df
 
@@ -242,6 +281,14 @@ class DataRetrievalMixin:
                     f"Failed to get fundamentals data from plugin: {e}"
                 )
 
-        # 如果数据插件不可用或失败，返回空DataFrame
+        # 如果数据插件不可用或失败，返回基本的空DataFrame结构
         columns = ["code", "date"] + fields
-        return pd.DataFrame(columns=columns)
+        data = []
+        for stock in stocks:
+            row = {"code": stock, "date": date}
+            # 为每个字段设置默认值
+            for field in fields:
+                row[field] = 0.0
+            data.append(row)
+        
+        return pd.DataFrame(data, columns=columns)

@@ -3,7 +3,7 @@
 PTrade回测模式API路由器
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from ....core.event_bus import EventBus
 from .base import BaseAPIRouter
@@ -123,6 +123,16 @@ class BacktestAPIRouter(
             if self.context.portfolio.cash < required_cash:
                 self._logger.warning(
                     f"Order rejected: insufficient cash for {security}"
+                )
+                return None
+        else:  # 卖出订单 (amount < 0)
+            # 检查是否有足够持仓
+            current_position = self.context.portfolio.positions.get(security)
+            if not current_position or current_position.amount < abs(amount):
+                self._logger.warning(
+                    f"Order rejected: insufficient position for {security}. "
+                    f"Current: {current_position.amount if current_position else 0}, "
+                    f"Requested: {abs(amount)}"
                 )
                 return None
 
@@ -482,16 +492,27 @@ class BacktestAPIRouter(
         # 更新持仓
         if security in portfolio.positions:
             position = portfolio.positions[security]
-            total_cost = (
-                position.amount * position.cost_basis + amount * execution_price
-            )
-            total_amount = position.amount + amount
-            if total_amount == 0:
-                del portfolio.positions[security]
-            else:
+            
+            if amount > 0:  # 买入：更新成本基础
+                total_cost = (
+                    position.amount * position.cost_basis + amount * execution_price
+                )
+                total_amount = position.amount + amount
                 position.amount = total_amount
                 position.cost_basis = total_cost / total_amount
-                position.last_sale_price = execution_price
+                # 更新最新价格（市场价格）
+                position.last_sale_price = price  # 使用原始市场价格，而不是执行价格
+            else:  # 卖出：保持原成本基础，只减少数量
+                total_amount = position.amount + amount  # amount是负数
+                if total_amount <= 0:
+                    # 如果完全卖出，删除持仓前更新价格
+                    position.last_sale_price = price
+                    del portfolio.positions[security]
+                else:
+                    # 部分卖出，更新数量和价格
+                    position.amount = total_amount
+                    position.last_sale_price = price  # 使用原始市场价格
+                    # 成本基础保持不变
         else:
             if amount != 0:
                 # 动态导入Position类以避免循环导入
@@ -502,11 +523,14 @@ class BacktestAPIRouter(
                     enable_amount=amount,
                     amount=amount,
                     cost_basis=execution_price,
-                    last_sale_price=execution_price,
+                    last_sale_price=price,  # 使用原始市场价格
                 )
 
         # 更新现金
-        portfolio.cash -= amount * execution_price + commission
+        if amount > 0:  # 买入订单：减少现金
+            portfolio.cash -= amount * execution_price + commission
+        else:  # 卖出订单：增加现金，但扣除手续费
+            portfolio.cash += abs(amount) * execution_price - commission
 
         # 更新投资组合价值
         portfolio.update_portfolio_value()
@@ -524,11 +548,166 @@ class BacktestAPIRouter(
         # 从上下文获取价格数据
         if (
             hasattr(self.context, "current_data")
-            and security in self.context.current_data
+            and security in self.context.current_data # type: ignore[attr-defined]
         ):
-            price = self.context.current_data[security].get("price", 10.0)
+            price_data = self.context.current_data[security] # type: ignore[attr-defined]
+            # 尝试多种价格字段格式
+            price = price_data.get("price") or price_data.get("close") or price_data.get("last_price", 10.0)
             return float(price)
 
         # 使用默认价格
         base_price = 15.0 if security.startswith("000") else 20.0
         return base_price
+
+    # ==========================================
+    # 数据获取方法 - 委托给DataRetrievalMixin
+    # ==========================================
+    def get_history(self, *args, **kwargs):
+        return DataRetrievalMixin.get_history(self, *args, **kwargs)
+
+    def get_price(self, *args, **kwargs):
+        return DataRetrievalMixin.get_price(self, *args, **kwargs)
+
+    def get_snapshot(self, *args, **kwargs):
+        return DataRetrievalMixin.get_snapshot(self, *args, **kwargs)
+
+    def get_stock_info(self, *args, **kwargs):
+        return DataRetrievalMixin.get_stock_info(self, *args, **kwargs)
+
+    def get_fundamentals(self, *args, **kwargs):
+        return DataRetrievalMixin.get_fundamentals(self, *args, **kwargs)
+
+    # ==========================================
+    # 股票信息方法 - 委托给StockInfoMixin
+    # ==========================================
+    def get_stock_name(self, *args, **kwargs):
+        return StockInfoMixin.get_stock_name(self, *args, **kwargs)
+
+    def get_stock_status(self, *args, **kwargs):
+        return StockInfoMixin.get_stock_status(self, *args, **kwargs)
+
+    def get_stock_exrights(self, *args, **kwargs):
+        return StockInfoMixin.get_stock_exrights(self, *args, **kwargs)
+
+    def get_stock_blocks(self, *args, **kwargs):
+        return StockInfoMixin.get_stock_blocks(self, *args, **kwargs)
+
+    def get_index_stocks(self, *args, **kwargs):
+        return StockInfoMixin.get_index_stocks(self, *args, **kwargs)
+
+    def get_industry_stocks(self, *args, **kwargs):
+        return StockInfoMixin.get_industry_stocks(self, *args, **kwargs)
+
+    def get_Ashares(self, *args, **kwargs):
+        return StockInfoMixin.get_Ashares(self, *args, **kwargs)
+
+    def get_etf_list(self, *args, **kwargs):
+        return StockInfoMixin.get_etf_list(self, *args, **kwargs)
+
+    def get_ipo_stocks(self, *args, **kwargs):
+        return StockInfoMixin.get_ipo_stocks(self, *args, **kwargs)
+
+    # ==========================================
+    # 技术指标方法 - 委托给TechnicalIndicatorMixin
+    # ==========================================
+    def get_MACD(self, *args, **kwargs):
+        return TechnicalIndicatorMixin.get_MACD(self, *args, **kwargs)
+
+    def get_KDJ(self, *args, **kwargs):
+        return TechnicalIndicatorMixin.get_KDJ(self, *args, **kwargs)
+
+    def get_RSI(self, *args, **kwargs):
+        return TechnicalIndicatorMixin.get_RSI(self, *args, **kwargs)
+
+    def get_CCI(self, *args, **kwargs):
+        return TechnicalIndicatorMixin.get_CCI(self, *args, **kwargs)
+
+    # ==========================================
+    # 通用工具方法 - 委托给CommonUtilsMixin
+    # ==========================================
+    def get_trading_day(self, *args, **kwargs):
+        return CommonUtilsMixin.get_trading_day(self, *args, **kwargs)
+
+    def get_all_trades_days(self, *args, **kwargs):
+        return CommonUtilsMixin.get_all_trades_days(self, *args, **kwargs)
+
+    def get_trade_days(self, *args, **kwargs):
+        return CommonUtilsMixin.get_trade_days(self, *args, **kwargs)
+
+    def set_universe(self, *args, **kwargs):
+        return CommonUtilsMixin.set_universe(self, *args, **kwargs)
+
+    def set_benchmark(self, *args, **kwargs):
+        return CommonUtilsMixin.set_benchmark(self, *args, **kwargs)
+
+    def log(self, *args, **kwargs):
+        return CommonUtilsMixin.log(self, *args, **kwargs)
+
+    def check_limit(self, *args, **kwargs):
+        return CommonUtilsMixin.check_limit(self, *args, **kwargs)
+
+    # ==========================================
+    # 定时和回调 API 实现
+    # ==========================================
+
+    def run_daily(
+        self, func: Any, time_str: str = "09:30", *args: Any, **kwargs: Any
+    ) -> str:
+        """按日周期处理 - 每日定时执行指定函数"""
+        self._logger.warning(
+            "run_daily is not fully supported in backtest mode, function will be stored but not scheduled"
+        )
+        # 在回测模式下，我们只是记录这个函数，实际的执行由回测引擎控制
+        job_id = f"daily_{id(func)}_{time_str}"
+        if not hasattr(self.context, "_daily_functions"):
+            setattr(self.context, "_daily_functions", {})
+        getattr(self.context, "_daily_functions")[job_id] = {
+            "func": func,
+            "time": time_str,
+            "args": args,
+            "kwargs": kwargs,
+        }
+        return job_id
+
+    def run_interval(
+        self, func: Any, interval: Union[int, str], *args: Any, **kwargs: Any
+    ) -> str:
+        """按设定周期处理 - 按指定间隔重复执行函数"""
+        self._logger.warning(
+            "run_interval is not fully supported in backtest mode, function will be stored but not scheduled"
+        )
+        # 在回测模式下，我们只是记录这个函数
+        job_id = f"interval_{id(func)}_{interval}"
+        if not hasattr(self.context, "_interval_functions"):
+            setattr(self.context, "_interval_functions", {})
+        getattr(self.context, "_interval_functions")[job_id] = {
+            "func": func,
+            "interval": interval,
+            "args": args,
+            "kwargs": kwargs,
+        }
+        return job_id
+
+    def tick_data(self, func: Any) -> bool:
+        """tick级别处理 - 注册tick数据回调函数"""
+        self._logger.warning(
+            "tick_data is not supported in backtest mode as it uses bar data"
+        )
+        # 回测模式通常使用K线数据而不是tick数据
+        return False
+
+    def on_order_response(self, func: Any) -> bool:
+        """委托回报 - 注册订单状态变化回调函数"""
+        if not hasattr(self.context, "_order_response_callbacks"):
+            setattr(self.context, "_order_response_callbacks", [])
+        getattr(self.context, "_order_response_callbacks").append(func)
+        self._logger.info("Order response callback registered")
+        return True
+
+    def on_trade_response(self, func: Any) -> bool:
+        """成交回报 - 注册成交确认回调函数"""
+        if not hasattr(self.context, "_trade_response_callbacks"):
+            setattr(self.context, "_trade_response_callbacks", [])
+        getattr(self.context, "_trade_response_callbacks").append(func)
+        self._logger.info("Trade response callback registered")
+        return True
