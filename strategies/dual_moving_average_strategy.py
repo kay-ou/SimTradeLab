@@ -90,7 +90,8 @@ def handle_data(context, data):
                     g.signal_count += 1
                     log.info(f"🟢 金叉买入信号 (第{g.signal_count}次)，买入 {max_shares} 股")
                     log.info(
-                        f"   MA{g.short_window}({ma_short:.2f}) 上穿 MA{g.long_window}({ma_long:.2f})"
+                        f"   MA{g.short_window}({ma_short:.2f}) 上穿 "
+                        f"MA{g.long_window}({ma_long:.2f})"
                     )
 
         elif death_cross and current_shares > 0:
@@ -101,7 +102,8 @@ def handle_data(context, data):
                 g.signal_count += 1
                 log.info(f"🔴 死叉卖出信号 (第{g.signal_count}次)，卖出 {current_shares} 股")
                 log.info(
-                    f"   MA{g.short_window}({ma_short:.2f}) 下穿 MA{g.long_window}({ma_long:.2f})"
+                    f"   MA{g.short_window}({ma_short:.2f}) 下穿 "
+                    f"MA{g.long_window}({ma_long:.2f})"
                 )
 
         else:

@@ -98,7 +98,8 @@ def _check_grid_trading(context, current_price):
                         grid_info["amount"] = g.base_amount
                         g.total_trades += 1
                         log.info(
-                            f"🟢 网格买入: 价格 {grid_price:.2f}, 数量 {g.base_amount}股 (第{g.total_trades}次交易)"
+                            f"🟢 网格买入: 价格 {grid_price:.2f}, "
+                            f"数量 {g.base_amount}股 (第{g.total_trades}次交易)"
                         )
 
         elif not grid_info["is_buy_level"] and not grid_info["executed"]:
@@ -110,7 +111,8 @@ def _check_grid_trading(context, current_price):
                     grid_info["amount"] = -g.base_amount
                     g.total_trades += 1
                     log.info(
-                        f"🔴 网格卖出: 价格 {grid_price:.2f}, 数量 {g.base_amount}股 (第{g.total_trades}次交易)"
+                        f"🔴 网格卖出: 价格 {grid_price:.2f}, "
+                        f"数量 {g.base_amount}股 (第{g.total_trades}次交易)"
                     )
 
 
@@ -191,5 +193,6 @@ def after_trading_end(context, data):
             current_price = current_position["last_sale_price"]
             deviation = (current_price - g.center_price) / g.center_price
             log.info(
-                f"价格偏离中心: {deviation:.2%} (中心价{g.center_price:.2f} -> 当前价{current_price:.2f})"
+                f"价格偏离中心: {deviation:.2%} "
+                f"(中心价{g.center_price:.2f} -> 当前价{current_price:.2f})"
             )

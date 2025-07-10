@@ -144,7 +144,8 @@ def after_trading_end(context, data):
             )
             log.info(
                 f"  {stock}: {pos.amount}股, 成本{pos.cost_basis:.2f}, "
-                f"现价{pos.last_sale_price:.2f}, 盈亏{pnl:.2f}({pnl_pct:.2f}%)"
+                f"现价{pos.last_sale_price:.2f}, "
+                f"盈亏{pnl:.2f}({pnl_pct:.2f}%)"
             )
 
 
@@ -158,7 +159,8 @@ def log_portfolio_status(context):
     position_ratio = (total_value - cash) / total_value * 100 if total_value > 0 else 0
 
     log.info(
-        f"[{current_time}] 资产: {total_value:.2f}, 现金: {cash:.2f}, 持仓比例: {position_ratio:.1f}%"
+        f"[{current_time}] 资产: {total_value:.2f}, "
+        f"现金: {cash:.2f}, 持仓比例: {position_ratio:.1f}%"
     )
 
     # 显示当前价格和均线
