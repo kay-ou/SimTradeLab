@@ -2,7 +2,7 @@ from typing import List
 
 from pydantic import Field
 
-from simtradelab.plugins.config.validator import BasePluginConfig
+from simtradelab.plugins.config.base_config import BasePluginConfig
 
 
 class AkShareDataPluginConfig(BasePluginConfig):

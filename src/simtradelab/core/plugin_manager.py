@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Set, Type, Union
 
 from ..exceptions import SimTradeLabError
 from ..plugins.base import BasePlugin, PluginConfig, PluginMetadata, PluginState
+from ..plugins.config.validator import ConfigValidator
 from .event_bus import Event, EventBus
 
 
@@ -230,6 +231,24 @@ class PluginManager:
             try:
                 # 使用提供的配置或注册时的配置
                 plugin_config = config or registry.config or PluginConfig()
+
+                # 如果插件定义了配置模型，则进行配置验证
+                if hasattr(registry.plugin_class, 'config_model') and registry.plugin_class.config_model is not None:
+                    try:
+                        # 获取插件配置数据（存储在 PluginConfig.data 中）
+                        config_data = getattr(plugin_config, 'data', {})
+                        if config_data:
+                            # 执行配置验证
+                            validated_config = ConfigValidator.validate(
+                                registry.plugin_class.config_model,
+                                config_data
+                            )
+                            # 将验证后的配置更新到插件配置对象
+                            plugin_config.data = validated_config.model_dump()
+                            self._logger.info(f"插件 {plugin_name} 配置验证成功")
+                    except Exception as e:
+                        self._logger.error(f"插件 {plugin_name} 配置验证失败: {e}")
+                        raise PluginLoadError(f"插件 {plugin_name} 配置验证失败: {e}")
 
                 # 创建插件实例
                 instance = registry.plugin_class(registry.metadata, plugin_config)

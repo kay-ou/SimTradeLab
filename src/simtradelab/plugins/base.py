@@ -98,6 +98,7 @@ class PluginConfig:
 
     enabled: bool = True
     config: Dict[str, Any] = field(default_factory=dict)
+    data: Dict[str, Any] = field(default_factory=dict)  # 新增data字段用于存储配置数据
     auto_start: bool = True
     restart_on_error: bool = False
     max_retries: int = 3
