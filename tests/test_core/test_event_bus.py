@@ -15,12 +15,7 @@ import time
 
 import pytest
 
-from simtradelab.core.event_bus import (
-    EventBus,
-    default_event_bus,
-    emit,
-    subscribe,
-)
+from simtradelab.core.event_bus import EventBus, default_event_bus, emit, subscribe
 
 
 class TestQuantitativeTradingEventCommunication:

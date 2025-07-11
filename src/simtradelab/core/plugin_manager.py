@@ -233,15 +233,17 @@ class PluginManager:
                 plugin_config = config or registry.config or PluginConfig()
 
                 # 如果插件定义了配置模型，则进行配置验证
-                if hasattr(registry.plugin_class, 'config_model') and registry.plugin_class.config_model is not None:
+                if (
+                    hasattr(registry.plugin_class, "config_model")
+                    and registry.plugin_class.config_model is not None
+                ):
                     try:
                         # 获取插件配置数据（存储在 PluginConfig.data 中）
-                        config_data = getattr(plugin_config, 'data', {})
+                        config_data = getattr(plugin_config, "data", {})
                         if config_data:
                             # 执行配置验证
                             validated_config = ConfigValidator.validate(
-                                registry.plugin_class.config_model,
-                                config_data
+                                registry.plugin_class.config_model, config_data
                             )
                             # 将验证后的配置更新到插件配置对象
                             plugin_config.data = validated_config.model_dump()

@@ -12,8 +12,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from simtradelab.core.event_bus import EventBus
-from simtradelab.core.plugin_manager import PluginManager
 from simtradelab.core.events.cloud_event import CloudEvent
+from simtradelab.core.plugin_manager import PluginManager
 from simtradelab.plugins.base import BasePlugin, PluginMetadata
 
 
@@ -48,7 +48,7 @@ def sample_plugin_metadata():
         author="SimTradeLab",
         license="MIT",
         dependencies=[],
-        permissions=[]
+        permissions=[],
     )
 
 
@@ -58,10 +58,7 @@ def sample_plugin_config():
     return {
         "name": "test_plugin",
         "enabled": True,
-        "parameters": {
-            "threshold": 0.5,
-            "max_iterations": 100
-        }
+        "parameters": {"threshold": 0.5, "max_iterations": 100},
     }
 
 
@@ -78,7 +75,7 @@ def sample_cloud_event():
     return CloudEvent(
         type="com.simtradelab.test.event",
         source="test_source",
-        data={"message": "test event"}
+        data={"message": "test event"},
     )
 
 
