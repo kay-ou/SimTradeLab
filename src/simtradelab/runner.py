@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from .adapters.ptrade import PTradeAdapter
+from .adapters.base import AdapterConfig
 from .core.plugin_manager import PluginManager
-from .plugins.base import PluginMetadata
 
 
 class BacktestEngine:
@@ -81,17 +81,8 @@ class BacktestEngine:
         # 初始化插件管理器（自动发现和注册内置插件）
         self._plugin_manager = PluginManager()
 
-        # 创建PTrade适配器
-        metadata = PluginMetadata(
-            name="ptrade_adapter",
-            version="1.0.0",
-            description="PTrade compatibility adapter for backtest",
-        )
-
         # 创建适配器配置
-        from .plugins.base import PluginConfig
-
-        adapter_config = PluginConfig(
+        adapter_config = AdapterConfig(
             config={
                 "initial_cash": self.initial_cash,
                 "commission_rate": self.commission_rate,
@@ -102,7 +93,7 @@ class BacktestEngine:
         )
 
         # 创建适配器实例
-        self._ptrade_adapter = PTradeAdapter(metadata, adapter_config)
+        self._ptrade_adapter = PTradeAdapter(adapter_config)
         self._ptrade_adapter.set_event_bus(self._plugin_manager.event_bus)
         self._ptrade_adapter.set_plugin_manager(self._plugin_manager)
 

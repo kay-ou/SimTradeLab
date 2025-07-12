@@ -16,9 +16,10 @@ from pathlib import Path
 import pytest
 
 from simtradelab.adapters.ptrade.adapter import PTradeAdapter
-from simtradelab.adapters.ptrade.utils import PTradeCompatibilityError
+from simtradelab.adapters.ptrade.utils import PTradeCompatibilityError  
+from simtradelab.adapters.base import AdapterConfig
 from simtradelab.core.event_bus import EventBus
-from simtradelab.plugins.base import PluginConfig
+from simtradelab.core.plugin_manager import PluginManager
 
 
 class TestPTradeAdapterQuantitativeTradingCore:
@@ -27,19 +28,33 @@ class TestPTradeAdapterQuantitativeTradingCore:
     @pytest.fixture
     def adapter(self):
         """创建配置好的PTrade适配器"""
-        metadata = PTradeAdapter.METADATA
-        config = PluginConfig(
+        # 创建适配器配置
+        config = AdapterConfig(
             config={
                 "initial_cash": 1000000,  # 100万初始资金
                 "commission_rate": 0.0003,  # 万三手续费，使用PTrade标准键名
                 "slippage_rate": 0.001,  # 千一滑点，使用PTrade标准键名
+                "use_mock_data": True,
+                "mock_data_enabled": True,
             }
         )
-        adapter = PTradeAdapter(metadata, config)
-        adapter.initialize()
+        
+        # 创建适配器实例
+        adapter = PTradeAdapter(config)
+        
+        # 设置必要的依赖
+        plugin_manager = PluginManager()
+        event_bus = EventBus()
+        adapter.set_event_bus(event_bus)
+        adapter.set_plugin_manager(plugin_manager)
+        
+        # 初始化适配器
+        adapter._on_initialize()
+        
         yield adapter
-        if adapter.state in [adapter.state.STARTED, adapter.state.PAUSED]:
-            adapter.shutdown()
+        
+        # 清理
+        adapter._on_shutdown()
 
     def test_complete_quantitative_trading_workflow(self, adapter):
         """测试完整的量化交易工作流程 - 核心业务价值验证"""
@@ -480,33 +495,29 @@ class TestPTradeAdapterQuantitativeTradingCore:
         """测试适配器生命周期管理 - 系统稳定性验证"""
         # 业务场景：验证适配器在各个生命周期阶段的稳定性
 
-        # 1. 初始状态验证
-        assert adapter.state == adapter.state.INITIALIZED
+        # 1. 初始状态验证 - 使用BaseAdapter的状态检查方法
+        assert adapter.is_initialized() is True
         assert adapter._ptrade_context is not None
 
         # 2. 启动阶段
-        adapter.start()
-        assert adapter.state == adapter.state.STARTED
+        adapter._on_start()
+        assert adapter.is_started() is True
 
         # 3. 运行状态验证 - 应该能处理基本操作
         portfolio = adapter._ptrade_context.portfolio
         initial_cash = portfolio.cash
         assert initial_cash > 0
 
-        # 4. 暂停和恢复
-        adapter.pause()
-        assert adapter.state == adapter.state.PAUSED
-
-        adapter.resume()
-        assert adapter.state == adapter.state.STARTED
-
-        # 5. 正常关闭
-        adapter.stop()
-        assert adapter.state == adapter.state.STOPPED
+        # 4. 正常关闭
+        adapter._on_stop()
+        assert adapter.is_started() is False
+        
+        # 5. 关闭后仍保持初始化状态
+        assert adapter.is_initialized() is True
 
         # 6. 重新启动能力
-        adapter.start()
-        assert adapter.state == adapter.state.STARTED
+        adapter._on_start()
+        assert adapter.is_started() is True
 
         # 验证重启后状态保持
         portfolio_after_restart = adapter._ptrade_context.portfolio
@@ -531,8 +542,8 @@ class TestPTradeAdapterQuantitativeTradingCore:
             with pytest.raises(PTradeCompatibilityError):
                 adapter.load_strategy(strategy_path)
 
-            # 验证适配器状态依然正常
-            assert adapter.state == adapter.state.INITIALIZED
+            # 验证适配器状态依然正常 - 使用BaseAdapter状态检查
+            assert adapter.is_initialized() is True
 
         finally:
             Path(strategy_path).unlink()

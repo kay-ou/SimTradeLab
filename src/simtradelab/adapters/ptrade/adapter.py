@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from ...core.event_bus import EventBus
-from ...plugins.base import BasePlugin, PluginConfig, PluginMetadata
+from ..base import BaseAdapter, AdapterConfig
 from .context import PTradeContext, PTradeMode
 from .lifecycle_controller import PTradeLifecycleError
 from .models import Portfolio
@@ -30,7 +30,7 @@ DATA_SOURCE_PRIORITIES = {
 from .utils import PTradeAdapterError, PTradeAPIError, PTradeCompatibilityError
 
 
-class PTradeAdapter(BasePlugin):
+class PTradeAdapter(BaseAdapter):
     """
     PTrade 兼容层适配器
 
@@ -38,21 +38,12 @@ class PTradeAdapter(BasePlugin):
     采用 v4.0 架构的模式感知适配器设计，通过 API 路由器实现不同模式的功能。
     """
 
-    METADATA = PluginMetadata(
-        name="ptrade_adapter",
-        version="2.0.0",
-        description="PTrade API Compatibility Adapter",
-        author="SimTradeLab",
-        dependencies=[
-            # 移除硬编码的插件依赖，改为通过服务发现机制
-        ],  # PTrade适配器不应该硬编码插件依赖
-        tags=["ptrade", "compatibility", "adapter", "complete"],
-        category="adapter",
-        priority=10,  # 高优先级，确保早期加载
-    )
+    # PTrade适配器版本信息
+    VERSION = "2.0.0"
+    DESCRIPTION = "PTrade API Compatibility Adapter"
 
-    def __init__(self, metadata: PluginMetadata, config: Optional[PluginConfig] = None):
-        super().__init__(metadata, config)
+    def __init__(self, config: Optional[AdapterConfig] = None):
+        super().__init__("ptrade_adapter", config)
 
         # PTrade 适配器状态
         self._ptrade_context: Optional[PTradeContext] = None
@@ -68,31 +59,29 @@ class PTradeAdapter(BasePlugin):
         self._indicators_plugin = None
 
         # 设置PTrade支持的模式
-        self._set_supported_modes(
-            {
-                PTradeMode.RESEARCH,
-                PTradeMode.BACKTEST,
-                PTradeMode.TRADING,
-                PTradeMode.MARGIN_TRADING,
-            }
-        )
+        self._supported_modes = {
+            PTradeMode.RESEARCH,
+            PTradeMode.BACKTEST,
+            PTradeMode.TRADING,
+            PTradeMode.MARGIN_TRADING,
+        }
 
         # 默认回测模式
         self._current_mode = PTradeMode.BACKTEST
 
         # 配置选项 - 支持PTrade兼容的键名
-        self._initial_cash = self._config.config.get("initial_cash", 1000000.0)
+        self._initial_cash = self.config.get("initial_cash", 1000000.0)
         # 支持PTrade标准键名和兼容键名
-        self._commission_rate = self._config.config.get(
+        self._commission_rate = self.config.get(
             "commission_rate"
-        ) or self._config.config.get("commission", 0.0003)
-        self._slippage_rate = self._config.config.get(
+        ) or self.config.get("commission", 0.0003)
+        self._slippage_rate = self.config.get(
             "slippage_rate"
-        ) or self._config.config.get("slippage", 0.001)
+        ) or self.config.get("slippage", 0.001)
 
         # 数据源配置
-        self._use_mock_data = self._config.config.get("use_mock_data", False)
-        self._mock_data_enabled = self._config.config.get("mock_data_enabled", True)
+        self._use_mock_data = self.config.get("use_mock_data", False)
+        self._mock_data_enabled = self.config.get("mock_data_enabled", True)
 
         # 策略生命周期钩子
         self._strategy_hooks: Dict[str, Optional[Callable[..., Any]]] = {
@@ -108,20 +97,25 @@ class PTradeAdapter(BasePlugin):
         # 事件监听器列表
         self._event_listeners: List[str] = []
 
-        # 事件总线引用 - 将在插件管理器中设置
-        self._event_bus_ref: Optional[EventBus] = None
-
         # 生命周期控制器 - 用于管理策略执行阶段
         self._lifecycle_controller: Optional[Any] = None
 
+    def get_current_mode(self) -> Optional[PTradeMode]:
+        """获取当前模式"""
+        return self._current_mode
+    
+    def is_mode_supported(self, mode: PTradeMode) -> bool:
+        """检查模式是否支持"""
+        return mode in self._supported_modes
+
     def set_event_bus(self, event_bus: EventBus) -> None:
         """
-        Set the event bus reference (called by plugin manager)
+        Set the event bus reference
 
         Args:
             event_bus: The event bus instance
         """
-        self._event_bus_ref = event_bus
+        self._event_bus = event_bus
 
     def _init_api_router(
         self,
@@ -141,7 +135,7 @@ class PTradeAdapter(BasePlugin):
         if current_mode == PTradeMode.BACKTEST:
             router = BacktestAPIRouter(
                 self._ptrade_context,
-                self._event_bus_ref,
+                self._event_bus,
                 slippage_rate=self._slippage_rate,
                 commission_rate=self._commission_rate,
             )
@@ -150,7 +144,7 @@ class PTradeAdapter(BasePlugin):
                 router.set_data_plugin(active_data_plugin)
             return router
         elif current_mode == PTradeMode.TRADING:
-            live_router = TradingAPIRouter(self._ptrade_context, self._event_bus_ref)
+            live_router = TradingAPIRouter(self._ptrade_context, self._event_bus)
             # 传递活跃数据插件引用给实盘交易模式路由器
             if active_data_plugin:
                 live_router.set_data_plugin(active_data_plugin)
@@ -158,7 +152,7 @@ class PTradeAdapter(BasePlugin):
         elif current_mode == PTradeMode.RESEARCH:
             research_router = ResearchAPIRouter(
                 self._ptrade_context,
-                self._event_bus_ref,
+                self._event_bus,
                 plugin_manager=self._plugin_manager,
             )
             return research_router
@@ -199,7 +193,7 @@ class PTradeAdapter(BasePlugin):
         # 这里可以添加清理逻辑，但由于我们是直接设置属性，不需要特别清理
         pass
 
-    def _on_initialize(self) -> None:
+    def initialize(self) -> None:
         """初始化适配器"""
         self._logger.info("Initializing PTrade Adapter")
 
@@ -220,7 +214,7 @@ class PTradeAdapter(BasePlugin):
         self._setup_plugin_proxies()
 
         # 监听插件系统事件
-        if self._event_bus_ref is not None:
+        if self._event_bus is not None:
             self._setup_event_listeners()
 
         mode_name = self._current_mode.value if self._current_mode else "unknown"
@@ -549,19 +543,19 @@ class PTradeAdapter(BasePlugin):
             for plugin_info in self._available_data_plugins
         ]
 
-    def _on_start(self) -> None:
+    def start(self) -> None:
         """启动适配器"""
         self._logger.info("Starting PTrade Adapter")
 
         # 发布适配器启动事件
-        if self._event_bus_ref is not None:
-            self._event_bus_ref.publish(
+        if self._event_bus is not None:
+            self._event_bus.publish(
                 "ptrade.adapter.started",
                 data={"adapter": self, "context": self._ptrade_context},
                 source="ptrade_adapter",
             )
 
-    def _on_stop(self) -> None:
+    def stop(self) -> None:
         """停止适配器"""
         self._logger.info("Stopping PTrade Adapter")
 
@@ -581,9 +575,9 @@ class PTradeAdapter(BasePlugin):
 
     def _cleanup_event_listeners(self) -> None:
         """清理事件监听器"""
-        if self._event_bus_ref is not None:
+        if self._event_bus is not None:
             for listener_id in self._event_listeners:
-                self._event_bus_ref.unsubscribe(listener_id)
+                self._event_bus.unsubscribe(listener_id)
         self._event_listeners.clear()
 
     def _cleanup_strategy(self) -> None:
@@ -681,8 +675,8 @@ class PTradeAdapter(BasePlugin):
         self._ptrade_context.portfolio.update_portfolio_value()
 
         # 发布策略运行事件
-        if self._event_bus_ref is not None:
-            self._event_bus_ref.publish(
+        if self._event_bus is not None:
+            self._event_bus.publish(
                 "ptrade.strategy.run",
                 data={
                     "portfolio_value": self._ptrade_context.portfolio.portfolio_value,
