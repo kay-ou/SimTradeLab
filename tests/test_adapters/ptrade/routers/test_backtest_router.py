@@ -355,11 +355,11 @@ class TestBacktestAPIRouter:
         actual_cash_used = initial_cash - router.context.portfolio.cash
 
         # 验证滑点成本：买入时价格应该高于理论价格
-        expected_slippage = theoretical_value * router._slippage_rate
+        expected_slippage = theoretical_value * router._trading_service._slippage_rate
         value_with_slippage = theoretical_value + expected_slippage
 
         # 验证佣金成本
-        expected_commission = value_with_slippage * router._commission_rate
+        expected_commission = value_with_slippage * router._trading_service._commission_rate
         expected_total_cost = value_with_slippage + expected_commission
 
         # 允许1%误差（由于四舍五入等原因）
