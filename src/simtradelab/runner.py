@@ -79,7 +79,9 @@ class BacktestEngine:
             return
 
         # 初始化插件管理器（自动发现和注册内置插件）
-        self._plugin_manager = PluginManager()
+        from .core.event_bus import EventBus
+        event_bus = EventBus()
+        self._plugin_manager = PluginManager(event_bus)
 
         # 创建适配器配置
         adapter_config = AdapterConfig(
@@ -94,7 +96,7 @@ class BacktestEngine:
 
         # 创建适配器实例
         self._ptrade_adapter = PTradeAdapter(adapter_config)
-        self._ptrade_adapter.set_event_bus(self._plugin_manager.event_bus)
+        self._ptrade_adapter.set_event_bus(event_bus)
         self._ptrade_adapter.set_plugin_manager(self._plugin_manager)
 
         # 初始化适配器（会自动确保数据源可用）

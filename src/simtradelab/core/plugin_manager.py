@@ -69,9 +69,9 @@ class PluginManager:
         初始化插件管理器
 
         Args:
-            event_bus: 事件总线实例，如果为None则创建新的
+            event_bus: 事件总线实例，可选
         """
-        self._event_bus = event_bus or EventBus()
+        self._event_bus = event_bus  # 不强制创建EventBus
         self._plugins: Dict[str, PluginRegistry] = {}
         self._plugin_paths: Set[Path] = set()
         self._lock = threading.RLock()
@@ -80,16 +80,27 @@ class PluginManager:
         # 插件状态统计
         self._stats = {"registered": 0, "loaded": 0, "active": 0, "failed": 0}
 
-        # 注册内置事件处理器
-        self._register_builtin_handlers()
+        # 只有在有事件总线时才注册事件处理器
+        if self._event_bus:
+            self._register_builtin_handlers()
 
         # 自动发现和注册内置插件
         self._auto_discover_builtin_plugins()
 
     @property
-    def event_bus(self) -> EventBus:
+    def event_bus(self) -> Optional[EventBus]:
         """获取事件总线"""
         return self._event_bus
+    
+    def set_event_bus(self, event_bus: EventBus) -> None:
+        """
+        设置事件总线
+        
+        Args:
+            event_bus: 事件总线实例
+        """
+        self._event_bus = event_bus
+        self._register_builtin_handlers()
 
     def register_plugin(
         self,
@@ -155,16 +166,17 @@ class PluginManager:
 
                 self._logger.info(f"Registered plugin: {plugin_name}")
 
-                # 发布插件注册事件
-                self._event_bus.publish(
-                    "plugin.registered",
-                    data={
-                        "plugin_name": plugin_name,
-                        "metadata": metadata,
-                        "load_order": load_order,
-                    },
-                    source="plugin_manager",
-                )
+                # 发布插件注册事件（如果事件总线可用）
+                if self._event_bus:
+                    self._event_bus.publish(
+                        "plugin.registered",
+                        data={
+                            "plugin_name": plugin_name,
+                            "metadata": metadata,
+                            "load_order": load_order,
+                        },
+                        source="plugin_manager",
+                    )
 
                 return plugin_name
 
@@ -198,12 +210,13 @@ class PluginManager:
 
             self._logger.info(f"Unregistered plugin: {plugin_name}")
 
-            # 发布插件取消注册事件
-            self._event_bus.publish(
-                "plugin.unregistered",
-                data={"plugin_name": plugin_name},
-                source="plugin_manager",
-            )
+            # 发布插件取消注册事件（如果事件总线可用）
+            if self._event_bus:
+                self._event_bus.publish(
+                    "plugin.unregistered",
+                    data={"plugin_name": plugin_name},
+                    source="plugin_manager",
+                )
 
             return True
 
@@ -258,6 +271,10 @@ class PluginManager:
 
                 # 创建插件实例
                 instance = registry.plugin_class(registry.metadata, plugin_config)
+                
+                # 如果有事件总线，注入到插件中
+                if self._event_bus and hasattr(instance, 'set_event_bus'):
+                    instance.set_event_bus(self._event_bus)
 
                 # 初始化插件
                 instance.initialize()
@@ -269,12 +286,13 @@ class PluginManager:
 
                 self._logger.info(f"Loaded plugin: {plugin_name}")
 
-                # 发布插件加载事件
-                self._event_bus.publish(
-                    "plugin.loaded",
-                    data={"plugin_name": plugin_name, "instance": instance},
-                    source="plugin_manager",
-                )
+                # 发布插件加载事件（如果事件总线可用）
+                if self._event_bus:
+                    self._event_bus.publish(
+                        "plugin.loaded",
+                        data={"plugin_name": plugin_name, "instance": instance},
+                        source="plugin_manager",
+                    )
 
                 return instance
 
@@ -321,12 +339,13 @@ class PluginManager:
 
                 self._logger.info(f"Unloaded plugin: {plugin_name}")
 
-                # 发布插件卸载事件
-                self._event_bus.publish(
-                    "plugin.unloaded",
-                    data={"plugin_name": plugin_name},
-                    source="plugin_manager",
-                )
+                # 发布插件卸载事件（如果事件总线可用）
+                if self._event_bus:
+                    self._event_bus.publish(
+                        "plugin.unloaded",
+                        data={"plugin_name": plugin_name},
+                        source="plugin_manager",
+                    )
 
                 return True
 
@@ -407,12 +426,13 @@ class PluginManager:
 
             self._logger.info(f"Plugin {plugin_name} reloaded successfully.")
 
-            # 发布插件重载事件
-            self._event_bus.publish(
-                "plugin.reloaded",
-                data={"plugin_name": plugin_name, "instance": new_instance},
-                source="plugin_manager",
-            )
+            # 发布插件重载事件（如果事件总线可用）
+            if self._event_bus:
+                self._event_bus.publish(
+                    "plugin.reloaded",
+                    data={"plugin_name": plugin_name, "instance": new_instance},
+                    source="plugin_manager",
+                )
 
             return True
 
@@ -441,12 +461,13 @@ class PluginManager:
 
                 self._logger.info(f"Started plugin: {plugin_name}")
 
-                # 发布插件启动事件
-                self._event_bus.publish(
-                    "plugin.started",
-                    data={"plugin_name": plugin_name},
-                    source="plugin_manager",
-                )
+                # 发布插件启动事件（如果事件总线可用）
+                if self._event_bus:
+                    self._event_bus.publish(
+                        "plugin.started",
+                        data={"plugin_name": plugin_name},
+                        source="plugin_manager",
+                    )
 
                 return True
 
@@ -480,12 +501,13 @@ class PluginManager:
 
                     self._logger.info(f"Stopped plugin: {plugin_name}")
 
-                    # 发布插件停止事件
-                    self._event_bus.publish(
-                        "plugin.stopped",
-                        data={"plugin_name": plugin_name},
-                        source="plugin_manager",
-                    )
+                    # 发布插件停止事件（如果事件总线可用）
+                    if self._event_bus:
+                        self._event_bus.publish(
+                            "plugin.stopped",
+                            data={"plugin_name": plugin_name},
+                            source="plugin_manager",
+                        )
 
                 return True
 
@@ -702,7 +724,7 @@ class PluginManager:
             return {
                 **self._stats,
                 "plugin_paths_count": len(self._plugin_paths),
-                "event_bus_stats": self._event_bus.get_stats(),
+                "event_bus_stats": self._event_bus.get_stats() if self._event_bus else None,
             }
 
     def shutdown(self) -> None:
@@ -712,8 +734,9 @@ class PluginManager:
         # 卸载所有插件
         self.unload_all_plugins()
 
-        # 关闭事件总线
-        self._event_bus.shutdown()
+        # 关闭事件总线（如果存在）
+        if self._event_bus:
+            self._event_bus.shutdown()
 
         # 清理资源
         self._plugins.clear()
@@ -770,6 +793,9 @@ class PluginManager:
 
     def _register_builtin_handlers(self) -> None:
         """注册内置事件处理器"""
+        if not self._event_bus:
+            return
+            
         # 插件状态变更事件处理
         self._event_bus.subscribe("plugin.loaded", self._on_plugin_loaded)
         self._event_bus.subscribe("plugin.started", self._on_plugin_started)
