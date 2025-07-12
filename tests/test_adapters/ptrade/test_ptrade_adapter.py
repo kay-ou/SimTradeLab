@@ -15,9 +15,9 @@ from pathlib import Path
 
 import pytest
 
-from simtradelab.adapters.ptrade.adapter import PTradeAdapter
-from simtradelab.adapters.ptrade.utils import PTradeCompatibilityError  
 from simtradelab.adapters.base import AdapterConfig
+from simtradelab.adapters.ptrade.adapter import PTradeAdapter
+from simtradelab.adapters.ptrade.utils import PTradeCompatibilityError
 from simtradelab.core.event_bus import EventBus
 from simtradelab.core.plugin_manager import PluginManager
 
@@ -38,21 +38,21 @@ class TestPTradeAdapterQuantitativeTradingCore:
                 "mock_data_enabled": True,
             }
         )
-        
+
         # 创建适配器实例
         adapter = PTradeAdapter(config)
-        
+
         # 设置必要的依赖
         plugin_manager = PluginManager()
         event_bus = EventBus()
         adapter.set_event_bus(event_bus)
         adapter.set_plugin_manager(plugin_manager)
-        
+
         # 初始化适配器
         adapter._on_initialize()
-        
+
         yield adapter
-        
+
         # 清理
         adapter._on_shutdown()
 
@@ -511,7 +511,7 @@ class TestPTradeAdapterQuantitativeTradingCore:
         # 4. 正常关闭
         adapter._on_stop()
         assert adapter.is_started() is False
-        
+
         # 5. 关闭后仍保持初始化状态
         assert adapter.is_initialized() is True
 

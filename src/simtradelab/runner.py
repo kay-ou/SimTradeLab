@@ -11,8 +11,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from .adapters.ptrade import PTradeAdapter
 from .adapters.base import AdapterConfig
+from .adapters.ptrade import PTradeAdapter
 from .core.plugin_manager import PluginManager
 
 
@@ -80,6 +80,7 @@ class BacktestEngine:
 
         # 初始化插件管理器（自动发现和注册内置插件）
         from .core.event_bus import EventBus
+
         event_bus = EventBus()
         self._plugin_manager = PluginManager(event_bus)
 

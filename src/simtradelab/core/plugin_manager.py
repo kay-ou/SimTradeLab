@@ -64,18 +64,22 @@ class PluginManager:
     与EventBus集成，提供插件间通信能力。
     """
 
-    def __init__(self, event_bus: Optional[EventBus] = None):
+    def __init__(
+        self, event_bus: Optional[EventBus] = None, auto_register_builtin: bool = False
+    ):
         """
         初始化插件管理器
 
         Args:
             event_bus: 事件总线实例，可选
+            auto_register_builtin: 是否自动注册内置插件，默认False（显式注册原则）
         """
         self._event_bus = event_bus  # 不强制创建EventBus
         self._plugins: Dict[str, PluginRegistry] = {}
         self._plugin_paths: Set[Path] = set()
         self._lock = threading.RLock()
         self._logger = logging.getLogger(__name__)
+        self._auto_register_builtin = auto_register_builtin
 
         # 插件状态统计
         self._stats = {"registered": 0, "loaded": 0, "active": 0, "failed": 0}
@@ -84,18 +88,23 @@ class PluginManager:
         if self._event_bus:
             self._register_builtin_handlers()
 
-        # 自动发现和注册内置插件
-        self._auto_discover_builtin_plugins()
+        # E4修复：简化插件注册机制
+        # 只有明确启用时才进行自动发现（用于开发模式）
+        if self._auto_register_builtin:
+            self._auto_discover_builtin_plugins()
+        else:
+            # 显式注册核心插件
+            self._register_core_plugins()
 
     @property
     def event_bus(self) -> Optional[EventBus]:
         """获取事件总线"""
         return self._event_bus
-    
+
     def set_event_bus(self, event_bus: EventBus) -> None:
         """
         设置事件总线
-        
+
         Args:
             event_bus: 事件总线实例
         """
@@ -122,8 +131,23 @@ class PluginManager:
         Raises:
             PluginRegistrationError: 注册失败时抛出
         """
-        # 验证插件类是否为BasePlugin的子类
-        if not issubclass(plugin_class, BasePlugin):
+        # E4修复：验证插件类是否为BasePlugin的子类（处理导入路径不一致问题）
+        is_base_plugin_subclass = False
+
+        # 方法1：检查MRO中是否有BasePlugin
+        for cls in plugin_class.__mro__:
+            if cls.__name__ == "BasePlugin" and "plugins.base" in cls.__module__:
+                is_base_plugin_subclass = True
+                break
+
+        # 方法2：如果方法1失败，尝试使用当前导入的BasePlugin
+        if not is_base_plugin_subclass:
+            try:
+                is_base_plugin_subclass = issubclass(plugin_class, BasePlugin)
+            except Exception:
+                pass
+
+        if not is_base_plugin_subclass:
             raise PluginRegistrationError(
                 f"{plugin_class} is not a valid BasePlugin subclass"
             )
@@ -271,9 +295,9 @@ class PluginManager:
 
                 # 创建插件实例
                 instance = registry.plugin_class(registry.metadata, plugin_config)
-                
+
                 # 如果有事件总线，注入到插件中
-                if self._event_bus and hasattr(instance, 'set_event_bus'):
+                if self._event_bus and hasattr(instance, "set_event_bus"):
                     instance.set_event_bus(self._event_bus)
 
                 # 初始化插件
@@ -724,7 +748,9 @@ class PluginManager:
             return {
                 **self._stats,
                 "plugin_paths_count": len(self._plugin_paths),
-                "event_bus_stats": self._event_bus.get_stats() if self._event_bus else None,
+                "event_bus_stats": self._event_bus.get_stats()
+                if self._event_bus
+                else None,
             }
 
     def shutdown(self) -> None:
@@ -795,7 +821,7 @@ class PluginManager:
         """注册内置事件处理器"""
         if not self._event_bus:
             return
-            
+
         # 插件状态变更事件处理
         self._event_bus.subscribe("plugin.loaded", self._on_plugin_loaded)
         self._event_bus.subscribe("plugin.started", self._on_plugin_started)
@@ -830,8 +856,107 @@ class PluginManager:
         """上下文管理器出口"""
         self.shutdown()
 
+    def _register_core_plugins(self) -> None:
+        """
+        E4修复：显式注册核心插件
+
+        明确指定需要注册的核心插件，符合v5.0显式注册原则
+        """
+        try:
+            self._logger.info("Starting explicit registration of core plugins...")
+
+            # 定义核心插件映射：插件名 -> 模块路径
+            core_plugins = {
+                "mock_data_plugin": "simtradelab.plugins.data.mock_data_plugin.MockDataPlugin",
+                # 可以根据需要添加更多核心插件
+            }
+
+            registered_count = 0
+            for plugin_name, module_path in core_plugins.items():
+                try:
+                    plugin_class = self._import_plugin_class(module_path)
+                    if plugin_class:
+                        # 获取默认配置
+                        default_config = getattr(plugin_class, "DEFAULT_CONFIG", {})
+                        config = PluginConfig(config=default_config)
+
+                        # 显式注册插件
+                        registered_name = self.register_plugin(plugin_class, config)
+                        self._logger.info(
+                            f"Explicitly registered core plugin: {registered_name}"
+                        )
+                        registered_count += 1
+
+                except Exception as e:
+                    self._logger.warning(
+                        f"Failed to register core plugin {plugin_name}: {e}"
+                    )
+
+            self._logger.info(
+                f"Core plugin registration completed. Registered {registered_count} plugins."
+            )
+
+        except Exception as e:
+            self._logger.error(f"Failed to register core plugins: {e}")
+
+    def _import_plugin_class(self, module_path: str) -> Optional[Type[BasePlugin]]:
+        """
+        导入插件类
+
+        Args:
+            module_path: 模块路径，格式为 "module.path.ClassName"
+
+        Returns:
+            插件类，如果导入失败则返回None
+        """
+        try:
+            # 分离模块路径和类名
+            parts = module_path.split(".")
+            class_name = parts[-1]
+            module_name = ".".join(parts[:-1])
+
+            # 动态导入模块
+            module = importlib.import_module(module_name)
+
+            # 获取插件类
+            plugin_class = getattr(module, class_name)
+
+            # E4修复：从插件类的MRO中查找BasePlugin，确保使用相同的BasePlugin引用
+            base_plugin_class = None
+            for cls in plugin_class.__mro__:
+                if cls.__name__ == "BasePlugin" and "plugins.base" in cls.__module__:
+                    base_plugin_class = cls
+                    break
+
+            if base_plugin_class is None:
+                self._logger.warning(f"{plugin_class} does not inherit from BasePlugin")
+                return None
+
+            # 验证是否为BasePlugin子类
+            if issubclass(plugin_class, base_plugin_class):
+                return plugin_class
+            else:
+                self._logger.warning(f"{plugin_class} is not a BasePlugin subclass")
+                return None
+
+        except ImportError as e:
+            self._logger.warning(f"Failed to import module {module_name}: {e}")
+            return None
+        except AttributeError as e:
+            self._logger.warning(
+                f"Class {class_name} not found in module {module_name}: {e}"
+            )
+            return None
+        except Exception as e:
+            self._logger.error(f"Unexpected error importing {module_path}: {e}")
+            return None
+
     def _auto_discover_builtin_plugins(self) -> None:
-        """自动发现和注册内置插件"""
+        """
+        自动发现和注册内置插件（开发模式）
+
+        E4修复：保留自动发现作为可选功能，默认禁用
+        """
         try:
             # 扫描插件目录，自动发现并注册标记为AUTO_REGISTER的插件
             self._logger.info("Starting auto-discovery of builtin plugins...")

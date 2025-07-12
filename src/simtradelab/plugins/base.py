@@ -141,7 +141,7 @@ class BasePlugin(abc.ABC):
         # 模式相关属性
         self._current_mode: Optional[Enum] = None
         self._supported_modes: Set[Enum] = {PluginMode.DEFAULT}
-        
+
         # 事件总线引用（可选，由插件管理器注入）
         self._event_bus: Optional[Any] = None
 
@@ -174,17 +174,17 @@ class BasePlugin(abc.ABC):
     def event_bus(self) -> Optional[Any]:
         """获取事件总线引用"""
         return self._event_bus
-    
+
     def set_event_bus(self, event_bus: Any) -> None:
         """
         设置事件总线引用（由插件管理器调用）
-        
+
         Args:
             event_bus: 事件总线实例
         """
         self._event_bus = event_bus
         self._logger.debug(f"Event bus set for plugin {self._metadata.name}")
-    
+
     @property
     def uptime(self) -> Optional[float]:
         """获取插件运行时间（秒）"""

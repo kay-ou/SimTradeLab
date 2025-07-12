@@ -14,11 +14,12 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from ...core.event_bus import EventBus
-from ..base import BaseAdapter, AdapterConfig
+from ..base import AdapterConfig, BaseAdapter
 from .context import PTradeContext, PTradeMode
 from .lifecycle_controller import PTradeLifecycleError
 from .models import Portfolio
 from .routers import BacktestAPIRouter, ResearchAPIRouter, TradingAPIRouter
+from .utils import PTradeAdapterError, PTradeAPIError, PTradeCompatibilityError
 
 # 数据源优先级定义
 DATA_SOURCE_PRIORITIES = {
@@ -27,7 +28,6 @@ DATA_SOURCE_PRIORITIES = {
     "tushare_plugin": 20,
     "mock_data_plugin": 10,
 }
-from .utils import PTradeAdapterError, PTradeAPIError, PTradeCompatibilityError
 
 
 class PTradeAdapter(BaseAdapter):
@@ -57,7 +57,7 @@ class PTradeAdapter(BaseAdapter):
         # 插件引用（通过服务发现动态获取）
         self._available_data_plugins: List[Dict[str, Any]] = []  # 所有可用的数据源插件
         self._indicators_plugin = None
-        
+
         # E3修复：插件缓存机制，避免交易路径中的运行时发现
         self._cached_active_data_plugin: Optional[Any] = None  # 缓存的活跃数据插件
         self._sorted_data_plugins_cache: List[Dict[str, Any]] = []  # 缓存的已排序插件列表
@@ -77,12 +77,12 @@ class PTradeAdapter(BaseAdapter):
         # 配置选项 - 支持PTrade兼容的键名
         self._initial_cash = self.config.get("initial_cash", 1000000.0)
         # 支持PTrade标准键名和兼容键名
-        self._commission_rate = self.config.get(
-            "commission_rate"
-        ) or self.config.get("commission", 0.0003)
-        self._slippage_rate = self.config.get(
-            "slippage_rate"
-        ) or self.config.get("slippage", 0.001)
+        self._commission_rate = self.config.get("commission_rate") or self.config.get(
+            "commission", 0.0003
+        )
+        self._slippage_rate = self.config.get("slippage_rate") or self.config.get(
+            "slippage", 0.001
+        )
 
         # 数据源配置
         self._use_mock_data = self.config.get("use_mock_data", False)
@@ -108,7 +108,7 @@ class PTradeAdapter(BaseAdapter):
     def get_current_mode(self) -> Optional[PTradeMode]:
         """获取当前模式"""
         return self._current_mode
-    
+
     def is_mode_supported(self, mode: PTradeMode) -> bool:
         """检查模式是否支持"""
         return mode in self._supported_modes
@@ -267,7 +267,7 @@ class PTradeAdapter(BaseAdapter):
             f"Discovered {len(data_source_plugins)} data source plugins: "
             f"{[p['name'] for p in data_source_plugins]}"
         )
-        
+
         # E3修复：插件发现完成后立即预加载和缓存，避免交易路径中的运行时发现
         self._preload_and_cache_plugins()
 
@@ -329,7 +329,7 @@ class PTradeAdapter(BaseAdapter):
     def _preload_and_cache_plugins(self) -> None:
         """
         E3修复：预加载和缓存插件，避免交易路径中的运行时发现
-        
+
         在初始化阶段完成所有插件排序和激活，并缓存结果
         """
         if not self._available_data_plugins:
@@ -342,13 +342,13 @@ class PTradeAdapter(BaseAdapter):
             self._sorted_data_plugins_cache = self._sort_plugins_by_priority(
                 self._available_data_plugins
             )
-            
+
             # 预激活最高优先级的插件并缓存
             self._cached_active_data_plugin = None
             for plugin_info in self._sorted_data_plugins_cache:
                 plugin_instance = plugin_info["instance"]
                 plugin_name = plugin_info["name"]
-                
+
                 if self._try_activate_plugin(plugin_instance, plugin_name):
                     self._cached_active_data_plugin = plugin_instance
                     self._logger.info(
@@ -356,13 +356,13 @@ class PTradeAdapter(BaseAdapter):
                         f"(priority: {plugin_info.get('priority', 0)})"
                     )
                     break
-            
+
             if not self._cached_active_data_plugin:
                 self._logger.warning("No usable data plugin found during preloading")
-                
+
             # 标记缓存有效
             self._plugin_cache_valid = True
-            
+
         except Exception as e:
             self._logger.error(f"Failed to preload and cache plugins: {e}")
             self._plugin_cache_valid = False
@@ -370,7 +370,7 @@ class PTradeAdapter(BaseAdapter):
     def _invalidate_plugin_cache(self) -> None:
         """
         E3修复：失效插件缓存
-        
+
         当插件状态变化时调用，强制重新预加载
         """
         self._cached_active_data_plugin = None
@@ -381,7 +381,7 @@ class PTradeAdapter(BaseAdapter):
     def _get_active_data_plugin(self) -> Optional[Any]:
         """
         E3修复：获取当前活跃的数据插件（使用缓存避免运行时发现）
-        
+
         性能优化策略：
         1. 优先使用预加载的缓存插件
         2. 只在缓存失效时才进行重新发现
@@ -390,7 +390,7 @@ class PTradeAdapter(BaseAdapter):
         # 如果缓存有效且有缓存的插件，直接返回
         if self._plugin_cache_valid and self._cached_active_data_plugin:
             return self._cached_active_data_plugin
-        
+
         # 如果没有发现任何数据源插件，返回None
         if not self._available_data_plugins:
             self._logger.warning(
@@ -401,7 +401,7 @@ class PTradeAdapter(BaseAdapter):
         # 缓存失效或不存在时，重新预加载
         self._logger.debug("Plugin cache invalid, reloading...")
         self._preload_and_cache_plugins()
-        
+
         # 返回新缓存的插件
         return self._cached_active_data_plugin
 

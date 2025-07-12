@@ -19,8 +19,8 @@ from ..base import BasePlugin, PluginConfig, PluginMetadata
 class MockDataPlugin(BasePlugin):
     """Mock数据源插件"""
 
-    # 自注册机制：标记为自动注册的核心插件
-    AUTO_REGISTER = True
+    # E4修复：移除AUTO_REGISTER，改为显式注册
+    # AUTO_REGISTER = True  # 已移除，现在通过PluginManager显式注册
 
     # 默认配置
     DEFAULT_CONFIG = {
