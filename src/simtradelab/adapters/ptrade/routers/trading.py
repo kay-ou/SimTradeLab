@@ -26,7 +26,9 @@ class TradingAPIRouter(BaseAPIRouter):
         api_validator: Optional[APIValidator] = None,
         plugin_manager: Optional[Any] = None,
     ):
-        super().__init__(context, event_bus, lifecycle_controller, api_validator, plugin_manager)
+        super().__init__(
+            context, event_bus, lifecycle_controller, api_validator, plugin_manager
+        )
         self._data_plugin = None  # 将在设置时从适配器获取
         self._supported_apis = {
             # === 已实际实现的API ===
@@ -415,16 +417,12 @@ class TradingAPIRouter(BaseAPIRouter):
     def set_fixed_slippage(self, slippage: float) -> None:
         """设置固定滑点"""
         # 实盘交易模式下不支持设置固定滑点
-        self._logger.warning(
-            "Setting fixed slippage is not supported in trading mode"
-        )
+        self._logger.warning("Setting fixed slippage is not supported in trading mode")
 
     def set_volume_ratio(self, ratio: float) -> None:
         """设置成交比例"""
         # 实盘交易模式下不支持设置成交比例
-        self._logger.warning(
-            "Setting volume ratio is not supported in trading mode"
-        )
+        self._logger.warning("Setting volume ratio is not supported in trading mode")
 
     def set_limit_mode(self, mode: str) -> None:
         """设置回测成交数量限制模式"""

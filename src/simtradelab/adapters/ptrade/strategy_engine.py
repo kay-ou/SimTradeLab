@@ -21,7 +21,7 @@ from .context import (
 )
 from .lifecycle_controller import LifecycleController
 from .models import SecurityUnitData
-from .routers import BacktestAPIRouter, TradingAPIRouter, ResearchAPIRouter
+from .routers import BacktestAPIRouter, ResearchAPIRouter, TradingAPIRouter
 
 
 class StrategyExecutionError(Exception):

@@ -200,7 +200,9 @@ class TestBacktestAPIRouter:
                 ma_10 = np.mean(close_prices[-10:])
                 current_price = close_prices[-1]
                 momentum = (current_price - ma_10) / ma_10
-                print(f"MA10: {ma_10:.4f}, Current: {current_price:.4f}, Momentum: {momentum:.4f}")
+                print(
+                    f"MA10: {ma_10:.4f}, Current: {current_price:.4f}, Momentum: {momentum:.4f}"
+                )
 
                 # 降低交易门槛：动量 > 1%时买入（原来是5%）
                 if momentum > 0.01:
@@ -220,7 +222,9 @@ class TestBacktestAPIRouter:
                 else:
                     print(f"Momentum {momentum:.4f} < 0.01, no trade")
             else:
-                print(f"Insufficient data: {len(security_data) if security_data is not None else 0} rows")
+                print(
+                    f"Insufficient data: {len(security_data) if security_data is not None else 0} rows"
+                )
 
         print(f"\nTotal trades executed: {len(trades_executed)}")
         # 简化验证条件 - 至少验证数据获取正常
@@ -390,7 +394,7 @@ class TestBacktestAPIRouter:
         # 注意：get_snapshot仅在交易模式可用，回测模式不支持
         # 因此跳过快照数据测试
         print("Skipping snapshot test - get_snapshot only available in trading mode")
-        
+
         # 验证回测模式不支持get_snapshot
         with pytest.raises(ValueError, match="API 'get_snapshot' is not supported"):
             router.get_snapshot(securities)

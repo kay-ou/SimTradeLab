@@ -22,10 +22,12 @@ class TestTradingAPIRouter:
     def context(self):
         """创建测试上下文"""
         from simtradelab.adapters.ptrade.context import PTradeMode
-        
+
         portfolio = Portfolio(cash=1000000)
         blotter = Blotter()
-        context = PTradeContext(portfolio=portfolio, blotter=blotter, mode=PTradeMode.TRADING)
+        context = PTradeContext(
+            portfolio=portfolio, blotter=blotter, mode=PTradeMode.TRADING
+        )
         context.universe = ["000001.XSHE", "000002.XSHE"]
         context.benchmark = "000300.SH"
         return context
@@ -89,16 +91,18 @@ class TestTradingAPIRouter:
         # 设置单个历史数据方法
         def mock_get_history_data(security, count):
             dates = pd.date_range("2023-01-01", periods=count, freq="D")
-            return pd.DataFrame({
-                "security": [security] * count,
-                "date": dates,
-                "open": np.random.uniform(10, 20, count),
-                "high": np.random.uniform(15, 25, count),
-                "low": np.random.uniform(5, 15, count),
-                "close": np.random.uniform(10, 20, count),
-                "volume": np.random.randint(1000, 10000, count),
-            })
-        
+            return pd.DataFrame(
+                {
+                    "security": [security] * count,
+                    "date": dates,
+                    "open": np.random.uniform(10, 20, count),
+                    "high": np.random.uniform(15, 25, count),
+                    "low": np.random.uniform(5, 15, count),
+                    "close": np.random.uniform(10, 20, count),
+                    "volume": np.random.randint(1000, 10000, count),
+                }
+            )
+
         mock_data_plugin.get_history_data.side_effect = mock_get_history_data
 
         # 模拟get_snapshot方法
@@ -128,12 +132,12 @@ class TestTradingAPIRouter:
                     if field == "revenue":
                         row[field] = 1000000.0  # 模拟营收
                     elif field == "net_profit":
-                        row[field] = 100000.0   # 模拟净利润
+                        row[field] = 100000.0  # 模拟净利润
                     else:
                         row[field] = 0.0
                 rows.append(row)
             return pd.DataFrame(rows)
-        
+
         mock_data_plugin.get_fundamentals.side_effect = mock_get_fundamentals
 
         # 模拟交易日相关方法

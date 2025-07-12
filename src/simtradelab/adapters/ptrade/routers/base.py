@@ -211,9 +211,9 @@ class BaseAPIRouter:
     def _get_data_plugin(self) -> Optional[Any]:
         """通过插件管理器获取数据源插件"""
         # 首先检查是否有直接设置的数据插件（用于BacktestAPIRouter等）
-        if hasattr(self, '_data_plugin') and self._data_plugin:
+        if hasattr(self, "_data_plugin") and self._data_plugin:
             return self._data_plugin
-            
+
         if not self._plugin_manager:
             return None
 
@@ -357,10 +357,12 @@ class BaseAPIRouter:
                             if isinstance(field, str):
                                 field = [field]
                             # 过滤指定字段，保留必要的标识字段
-                            available_fields = [f for f in field if f in df_result.columns]
+                            available_fields = [
+                                f for f in field if f in df_result.columns
+                            ]
                             if available_fields:
                                 df_result = df_result[available_fields]
-                        
+
                         if is_dict:
                             # 转换为字典格式
                             return df_result.to_dict("records")
@@ -379,16 +381,18 @@ class BaseAPIRouter:
 
                         if all_data:
                             combined_df = pd.concat(all_data, ignore_index=True)
-                            
+
                             # 处理字段过滤
                             if field and isinstance(field, (list, str)):
                                 if isinstance(field, str):
                                     field = [field]
                                 # 过滤指定字段，保留必要的标识字段
-                                available_fields = [f for f in field if f in combined_df.columns]
+                                available_fields = [
+                                    f for f in field if f in combined_df.columns
+                                ]
                                 if available_fields:
                                     combined_df = combined_df[available_fields]
-                                    
+
                             return (
                                 combined_df.to_dict("records")
                                 if is_dict

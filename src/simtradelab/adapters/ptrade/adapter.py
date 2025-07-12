@@ -18,7 +18,7 @@ from ...plugins.base import BasePlugin, PluginConfig, PluginMetadata
 from .context import PTradeContext, PTradeMode
 from .lifecycle_controller import PTradeLifecycleError
 from .models import Portfolio
-from .routers import BacktestAPIRouter, TradingAPIRouter, ResearchAPIRouter
+from .routers import BacktestAPIRouter, ResearchAPIRouter, TradingAPIRouter
 
 # 数据源优先级定义
 DATA_SOURCE_PRIORITIES = {
@@ -150,9 +150,7 @@ class PTradeAdapter(BasePlugin):
                 router.set_data_plugin(active_data_plugin)
             return router
         elif current_mode == PTradeMode.TRADING:
-            live_router = TradingAPIRouter(
-                self._ptrade_context, self._event_bus_ref
-            )
+            live_router = TradingAPIRouter(self._ptrade_context, self._event_bus_ref)
             # 传递活跃数据插件引用给实盘交易模式路由器
             if active_data_plugin:
                 live_router.set_data_plugin(active_data_plugin)
@@ -837,10 +835,7 @@ class PTradeAdapter(BasePlugin):
             self._logger.info(f"Loading PTrade strategy: {strategy_path}")
 
             # 重置生命周期控制器状态以避免旧状态干扰
-            if (
-                hasattr(self, "_lifecycle_controller")
-                and self._lifecycle_controller
-            ):
+            if hasattr(self, "_lifecycle_controller") and self._lifecycle_controller:
                 self._lifecycle_controller.reset()
                 self._logger.debug("Reset lifecycle controller before loading strategy")
 

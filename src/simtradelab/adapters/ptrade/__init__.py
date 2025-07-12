@@ -21,8 +21,8 @@ from .models import (
 from .routers import (
     BacktestAPIRouter,
     BaseAPIRouter,
-    TradingAPIRouter,
     ResearchAPIRouter,
+    TradingAPIRouter,
 )
 from .utils import PTradeAdapterError, PTradeAPIError, PTradeCompatibilityError
 

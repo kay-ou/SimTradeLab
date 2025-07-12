@@ -5,8 +5,8 @@ PTrade API路由器
 
 from .backtest import BacktestAPIRouter
 from .base import BaseAPIRouter
-from .trading import TradingAPIRouter
 from .research import ResearchAPIRouter
+from .trading import TradingAPIRouter
 
 __all__ = [
     "BaseAPIRouter",

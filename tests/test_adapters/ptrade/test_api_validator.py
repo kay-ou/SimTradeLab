@@ -325,7 +325,7 @@ class TestAPIValidatorEdgeCases:
 
         # 重置mock以测试None值
         mock_controller.reset_mock()
-        
+
         # None值也应该在模式验证阶段失败
         result = validator.validate_api_call(None)
         assert not result.is_valid
@@ -361,7 +361,7 @@ class TestAPIValidatorEdgeCases:
             result = validator.validate_api_call(name)
             assert not result.is_valid
             assert "is not supported" in result.error_message
-        
+
         # 验证生命周期控制器没有被调用
         mock_controller.validate_api_call.assert_not_called()
 

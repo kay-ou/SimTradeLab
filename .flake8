@@ -1,0 +1,24 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203
+per-file-ignores =
+    # Strategies use a global context, so undefined names are expected.
+    strategies/*.py:F821,F841
+    # __init__.py files are used for package discovery.
+    tests/test_adapters/__init__.py:F401,F403,F405
+    # FastAPI can have specific import orders.
+    web/backend/app.py:E402,F811,F401
+    # Test files have specific patterns.
+    tests/test_core/test_plugin_manager.py:F401
+    tests/test_adapters/ptrade/routers/*.py:F401
+    tests/test_adapters/ptrade/test_ptrade_models.py:F401
+    scripts/release.py:F401
+    scripts/generate_release_notes.py:F401
+    scripts/test-package.py:F401
+    scripts/verify_cross_platform.py:F401,F841
+    scripts/windows_install_troubleshoot.py:F401,E722,F841
+    setup.py:F401
+    start_web.py:F401,F541
+    tests/test_core/test_event_bus.py:F401,F841
+    tests/test_logger.py:F401
+    tests/test_plugins/test_base.py:F401

@@ -64,7 +64,9 @@ class TestBacktestEngine:
 
     @patch("src.simtradelab.runner.PluginManager")
     @patch("src.simtradelab.runner.PTradeAdapter")
-    def test_ensure_initialized(self, mock_ptrade_adapter_class, mock_plugin_manager_class):
+    def test_ensure_initialized(
+        self, mock_ptrade_adapter_class, mock_plugin_manager_class
+    ):
         """测试延迟初始化"""
         with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
             strategy_file = f.name
@@ -72,7 +74,7 @@ class TestBacktestEngine:
         try:
             mock_plugin_manager = MagicMock()
             mock_plugin_manager_class.return_value = mock_plugin_manager
-            
+
             mock_ptrade_adapter = MagicMock()
             mock_ptrade_adapter_class.return_value = mock_ptrade_adapter
 
