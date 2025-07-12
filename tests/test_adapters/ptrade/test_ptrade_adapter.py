@@ -124,6 +124,10 @@ class TestPTradeAdapterQuantitativeTradingCore:
 
             # 执行策略
             if hasattr(adapter._strategy_module, "handle_data"):
+                # 切换到 handle_data 生命周期阶段
+                from simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
+                adapter._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+                
                 # 模拟多次策略执行
                 for day in range(10):
                     context.g.day_count = day + 1
@@ -185,6 +189,10 @@ class TestPTradeAdapterQuantitativeTradingCore:
             sample_data = {"000001.SZ": {"close": 15.0}, "000002.SZ": {"close": 20.0}}
 
             if hasattr(adapter._strategy_module, "handle_data"):
+                # 切换到 handle_data 生命周期阶段
+                from simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
+                adapter._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+                
                 adapter._strategy_module.handle_data(context, sample_data)
 
             # 验证风险控制效果
@@ -279,6 +287,10 @@ class TestPTradeAdapterQuantitativeTradingCore:
 
             for scenario_data in market_scenarios:
                 if hasattr(adapter._strategy_module, "handle_data"):
+                    # 切换到 handle_data 生命周期阶段
+                    from simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
+                    adapter._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+                    
                     adapter._strategy_module.handle_data(context, scenario_data)
 
             # 验证投资组合平衡效果
@@ -343,6 +355,10 @@ class TestPTradeAdapterQuantitativeTradingCore:
             # 确保上下文能获取到当前价格数据
             context.current_data = test_data
             if hasattr(adapter._strategy_module, "handle_data"):
+                # 切换到 handle_data 生命周期阶段
+                from simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
+                adapter._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+                
                 adapter._strategy_module.handle_data(context, test_data)
 
             # 验证交易成本计算
@@ -417,6 +433,10 @@ class TestPTradeAdapterQuantitativeTradingCore:
                 # 模拟数据驱动
                 test_data = {"000001.SZ": {"close": 15.0}}
                 if hasattr(adapter._strategy_module, "handle_data"):
+                    # 切换到 handle_data 生命周期阶段
+                    from simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
+                    adapter._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+                    
                     adapter._strategy_module.handle_data(
                         adapter._ptrade_context, test_data
                     )

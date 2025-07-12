@@ -15,6 +15,10 @@ from .lifecycle_controller import (
     PTradeLifecycleError,
     get_lifecycle_controller,
 )
+from .lifecycle_config import (
+    get_api_supported_modes,
+    is_api_supported_in_mode,
+)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -38,15 +42,23 @@ class APIValidator:
     4. 记录验证结果和统计
     """
 
-    def __init__(self, lifecycle_controller: Optional[LifecycleController] = None):
+    def __init__(
+        self,
+        lifecycle_controller: Optional[LifecycleController] = None,
+        strategy_mode: str = "backtest",
+    ):
         """
         初始化API验证器
 
         Args:
             lifecycle_controller: 生命周期控制器实例
+            strategy_mode: 策略运行模式 (research/backtest/trading)
         """
         self._lifecycle_controller = lifecycle_controller or get_lifecycle_controller()
+        self._strategy_mode = strategy_mode
         self._logger = logging.getLogger(self.__class__.__name__)
+
+        # 使用统一的配置中心，无需重复定义模式限制
 
         # 验证统计
         self._validation_count = 0
@@ -68,21 +80,29 @@ class APIValidator:
         result = APIValidationResult(is_valid=True)
 
         try:
-            # 1. 验证生命周期限制
+            # 1. 验证模式限制
+            mode_result = self._validate_mode_restriction(api_name)
+            if not mode_result.is_valid:
+                result.is_valid = False
+                result.error_message = mode_result.error_message
+                return result
+
+            # 2. 验证生命周期限制
             lifecycle_result = self._validate_lifecycle(api_name)
             if not lifecycle_result.is_valid:
                 result.is_valid = False
                 result.error_message = lifecycle_result.error_message
                 return result
 
-            # 2. 验证参数合法性
+            # 3. 验证参数合法性
             param_result = self._validate_parameters(api_name, *args, **kwargs)
             if not param_result.is_valid:
                 result.is_valid = False
                 result.error_message = param_result.error_message
                 return result
 
-            # 3. 收集警告信息
+            # 4. 收集警告信息
+            result.warnings.extend(mode_result.warnings)
             result.warnings.extend(lifecycle_result.warnings)
             result.warnings.extend(param_result.warnings)
 
@@ -97,6 +117,61 @@ class APIValidator:
             return APIValidationResult(
                 is_valid=False, error_message=f"Validation error: {str(e)}"
             )
+
+    def _validate_mode_restriction(self, api_name: str) -> APIValidationResult:
+        """验证API的模式限制
+
+        Args:
+            api_name: API函数名
+
+        Returns:
+            APIValidationResult: 模式验证结果
+        """
+        # 使用统一配置中心检查模式限制
+        if not is_api_supported_in_mode(api_name, self._strategy_mode):
+            allowed_modes = get_api_supported_modes(api_name)
+            error_msg = (
+                f"API '{api_name}' is not supported in '{self._strategy_mode}' mode. "
+                f"Supported modes: {allowed_modes}"
+            )
+            return APIValidationResult(is_valid=False, error_message=error_msg)
+
+        return APIValidationResult(is_valid=True)
+
+    def set_strategy_mode(self, mode: str) -> None:
+        """设置策略运行模式
+
+        Args:
+            mode: 策略模式 (research/backtest/trading)
+        """
+        valid_modes = ["research", "backtest", "trading"]
+        if mode not in valid_modes:
+            raise ValueError(
+                f"Invalid strategy mode: {mode}. Valid modes: {valid_modes}"
+            )
+
+        self._strategy_mode = mode
+        self._logger.info(f"Strategy mode set to: {mode}")
+
+    def get_supported_apis_for_mode(self, mode: Optional[str] = None) -> List[str]:
+        """获取指定模式下支持的API列表
+
+        Args:
+            mode: 策略模式，为None时使用当前模式
+
+        Returns:
+            List[str]: 支持的API列表
+        """
+        target_mode = mode or self._strategy_mode
+        # 使用统一配置中心获取支持的API列表
+        from .lifecycle_config import API_MODE_RESTRICTIONS
+
+        supported_apis = []
+        for api_name, allowed_modes in API_MODE_RESTRICTIONS.items():
+            if target_mode in allowed_modes:
+                supported_apis.append(api_name)
+
+        return supported_apis
 
     def _validate_lifecycle(self, api_name: str) -> APIValidationResult:
         """验证API的生命周期限制
@@ -386,11 +461,11 @@ def api_validator(
 _global_validator: Optional[APIValidator] = None
 
 
-def get_api_validator() -> APIValidator:
+def get_api_validator(strategy_mode: str = "backtest") -> APIValidator:
     """获取全局API验证器实例"""
     global _global_validator
     if _global_validator is None:
-        _global_validator = APIValidator()
+        _global_validator = APIValidator(strategy_mode=strategy_mode)
     return _global_validator
 
 
@@ -401,6 +476,6 @@ def set_global_api_validator(validator: APIValidator) -> None:
 
 
 # 便捷装饰器
-def ptrade_api(api_name: Optional[str] = None):
+def ptrade_api(api_name: Optional[str] = None, strategy_mode: str = "backtest"):
     """便捷的PTrade API验证装饰器"""
-    return api_validator(api_name, get_api_validator())
+    return api_validator(api_name, get_api_validator(strategy_mode))

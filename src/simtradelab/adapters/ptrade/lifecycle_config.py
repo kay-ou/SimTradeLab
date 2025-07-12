@@ -214,6 +214,109 @@ EXCLUSIVE_PHASE_APIS = {
 }
 
 
+# PTrade API 模式限制配置
+# 定义每个API在不同策略模式下的支持情况
+API_MODE_RESTRICTIONS: Dict[str, List[str]] = {
+    # === 数据获取API的模式限制 ===
+    "get_history": ["backtest", "trading"],  # [回测/交易] - 根据PTrade官方文档
+    "get_price": ["research", "backtest", "trading"],  # [研究/回测/交易]
+    "get_snapshot": ["trading"],  # [仅交易]
+    "get_fundamentals": ["research", "backtest", "trading"],  # [研究/回测/交易]
+    # === 股票信息API - 大部分支持所有模式 ===
+    "get_stock_name": ["research", "backtest", "trading"],
+    "get_stock_info": ["research", "backtest", "trading"],
+    "get_stock_status": ["research", "backtest", "trading"],
+    "get_stock_exrights": ["research", "backtest", "trading"],
+    "get_stock_blocks": ["research", "backtest", "trading"],
+    "get_index_stocks": ["research", "backtest", "trading"],
+    "get_industry_stocks": ["research", "backtest", "trading"],
+    "get_Ashares": ["research", "backtest", "trading"],
+    # === 基础信息API - 全模式支持 ===
+    "get_trading_day": ["research", "backtest", "trading"],
+    "get_all_trades_days": ["research", "backtest", "trading"],
+    "get_trade_days": ["research", "backtest", "trading"],
+    # === 技术指标API - 全模式支持 ===
+    "get_MACD": ["research", "backtest", "trading"],
+    "get_KDJ": ["research", "backtest", "trading"],
+    "get_RSI": ["research", "backtest", "trading"],
+    "get_CCI": ["research", "backtest", "trading"],
+    # === 交易API - 仅回测和实盘 ===
+    "order": ["backtest", "trading"],
+    "order_target": ["backtest", "trading"],
+    "order_value": ["backtest", "trading"],
+    "order_target_value": ["backtest", "trading"],
+    "order_market": ["trading"],  # [仅交易]
+    "cancel_order": ["backtest", "trading"],
+    "cancel_order_ex": ["trading"],  # [仅交易]
+    # === 持仓和订单查询 - 仅回测和实盘 ===
+    "get_position": ["backtest", "trading"],
+    "get_positions": ["backtest", "trading"],
+    "get_open_orders": ["backtest", "trading"],
+    "get_order": ["backtest", "trading"],
+    "get_orders": ["backtest", "trading"],
+    "get_trades": ["backtest", "trading"],
+    # === 设置API - 根据PTrade官方文档的模式限制 ===
+    "set_universe": ["backtest", "trading"],  # [回测/交易] - 官方文档标注
+    "set_benchmark": ["backtest", "trading"],  # [回测/交易] - 官方文档标注
+    "set_commission": ["backtest"],  # [仅回测] - 官方文档标注
+    "set_slippage": ["backtest"],  # [仅回测]
+    "set_fixed_slippage": ["backtest"],  # [仅回测]
+    "set_volume_ratio": ["backtest"],  # [仅回测]
+    "set_limit_mode": ["backtest"],  # [仅回测]
+    "set_yesterday_position": ["backtest"],  # [仅回测]
+    "set_parameters": ["backtest", "trading"],  # [回测/交易]
+    # === 实盘交易专用API ===
+    "get_all_orders": ["trading"],  # [仅交易]
+    "ipo_stocks_order": ["trading"],  # [仅交易]
+    "after_trading_order": ["trading"],  # [仅交易]
+    "after_trading_cancel_order": ["trading"],  # [仅交易]
+    "get_individual_entrust": ["trading"],  # [仅交易]
+    "get_individual_transaction": ["trading"],  # [仅交易]
+    "get_tick_direction": ["trading"],  # [仅交易]
+    "get_sort_msg": ["trading"],  # [仅交易]
+    "get_etf_info": ["trading"],  # [仅交易]
+    "get_etf_stock_info": ["trading"],  # [仅交易]
+    "get_gear_price": ["trading"],  # [仅交易]
+    # === 工具函数 - 根据使用场景限制 ===
+    "log": ["backtest", "trading"],  # 研究模式一般不需要策略日志
+    "is_trade": ["backtest", "trading"],
+    "check_limit": ["research", "backtest", "trading"],
+    # === 定时和回调API ===
+    "run_daily": ["backtest", "trading"],
+    "run_interval": ["trading"],  # [仅交易]
+    "tick_data": ["trading"],  # [仅交易]
+    "on_order_response": ["trading"],  # [仅交易]
+    "on_trade_response": ["trading"],  # [仅交易]
+    "handle_data": ["research", "backtest", "trading"],  # 数据处理接口
+}
+
+
+def get_api_supported_modes(api_name: str) -> List[str]:
+    """获取API支持的策略模式列表
+
+    Args:
+        api_name: API函数名
+
+    Returns:
+        List[str]: 支持的模式列表，如果未配置则返回空列表
+    """
+    return API_MODE_RESTRICTIONS.get(api_name, [])
+
+
+def is_api_supported_in_mode(api_name: str, mode: str) -> bool:
+    """检查API是否在指定策略模式下支持
+
+    Args:
+        api_name: API函数名
+        mode: 策略模式 (research/backtest/trading)
+
+    Returns:
+        bool: 是否支持
+    """
+    supported_modes = get_api_supported_modes(api_name)
+    return mode in supported_modes
+
+
 # 验证配置完整性
 def validate_config():
     """验证配置的完整性和正确性"""
@@ -237,7 +340,11 @@ def validate_config():
 
     for api in critical_apis:
         if api not in API_LIFECYCLE_RESTRICTIONS:
-            errors.append(f"Critical API '{api}' not configured")
+            errors.append(
+                f"Critical API '{api}' not configured in lifecycle restrictions"
+            )
+        if api not in API_MODE_RESTRICTIONS:
+            errors.append(f"Critical API '{api}' not configured in mode restrictions")
 
     if errors:
         raise ValueError(f"Configuration errors: {'; '.join(errors)}")

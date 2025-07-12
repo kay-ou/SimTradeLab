@@ -21,7 +21,7 @@ from .models import (
 from .routers import (
     BacktestAPIRouter,
     BaseAPIRouter,
-    LiveTradingAPIRouter,
+    TradingAPIRouter,
     ResearchAPIRouter,
 )
 from .utils import PTradeAdapterError, PTradeAPIError, PTradeCompatibilityError
@@ -45,7 +45,7 @@ __all__ = [
     # API路由器
     "BaseAPIRouter",
     "BacktestAPIRouter",
-    "LiveTradingAPIRouter",
+    "TradingAPIRouter",
     "ResearchAPIRouter",
     # 异常类
     "PTradeAdapterError",

@@ -26,6 +26,8 @@ class TestResearchAPIRouter:
         context = PTradeContext(portfolio=portfolio, blotter=blotter)
         context.universe = ["000001.XSHE", "000002.XSHE"]
         context.benchmark = "000300.SH"
+        # 明确设置为研究模式
+        context.mode = "research"
         return context
 
     @pytest.fixture
@@ -48,6 +50,8 @@ class TestResearchAPIRouter:
         mock_data_plugin.get_snapshot = MagicMock()
         mock_data_plugin.get_multiple_history_data = MagicMock()
 
+        # 设置数据插件方法的返回值
+        mock_data_plugin.get_history_data.side_effect = self._mock_get_history_data
         mock_data_plugin.get_multiple_history_data.side_effect = (
             self._mock_get_multiple_history_data
         )
@@ -88,7 +92,7 @@ class TestResearchAPIRouter:
         mock_indicators_plugin.metadata.category = "analysis"
         mock_indicators_plugin.metadata.tags = ["indicators", "technical"]
 
-        # 正确设置计算方法 - 直接设置为函数而不是MagicMock
+        # 正确设置计算方法 - 使用side_effect来确保返回DataFrame
         def mock_calculate_macd(close):
             periods = len(close)
             return pd.DataFrame(
@@ -117,11 +121,6 @@ class TestResearchAPIRouter:
             periods = len(close)
             return pd.DataFrame({"CCI": np.random.randn(periods) * 50})
 
-        mock_indicators_plugin.calculate_macd = mock_calculate_macd
-        mock_indicators_plugin.calculate_kdj = mock_calculate_kdj
-        mock_indicators_plugin.calculate_rsi = mock_calculate_rsi
-        mock_indicators_plugin.calculate_cci = mock_calculate_cci
-
         # 设置插件管理器返回的插件
         mock_plugin_manager.get_all_plugins.return_value = {
             "mock_data_plugin": mock_data_plugin,
@@ -133,7 +132,28 @@ class TestResearchAPIRouter:
             context=context, event_bus=event_bus, plugin_manager=mock_plugin_manager
         )
 
+        # 设置技术指标插件的side_effect（必须在路由器创建后）
+        indicators_plugin = router._get_indicators_plugin()
+        if indicators_plugin:
+            indicators_plugin.calculate_macd.side_effect = mock_calculate_macd
+            indicators_plugin.calculate_kdj.side_effect = mock_calculate_kdj
+            indicators_plugin.calculate_rsi.side_effect = mock_calculate_rsi
+            indicators_plugin.calculate_cci.side_effect = mock_calculate_cci
+
         return router
+
+    def _mock_get_history_data(self, security, count):
+        """模拟单个股票历史数据获取"""
+        dates = pd.date_range("2023-01-01", periods=count, freq="D")
+        return pd.DataFrame({
+            "security": [security] * count,
+            "date": dates,
+            "open": np.random.uniform(10, 20, count),
+            "high": np.random.uniform(15, 25, count),
+            "low": np.random.uniform(5, 15, count),
+            "close": np.random.uniform(10, 20, count),
+            "volume": np.random.randint(1000, 10000, count),
+        })
 
     def _mock_get_multiple_history_data(
         self, securities, count, start_date=None, end_date=None
@@ -206,22 +226,27 @@ class TestResearchAPIRouter:
         """测试路由器初始化"""
         assert router.context is context
         assert router.event_bus is not None
-        assert len(router._supported_apis) > 0
+        # 测试路由器具有基本功能而不是具体属性
+        assert hasattr(router, 'get_history')
+        assert hasattr(router, 'get_price')
+        assert hasattr(router, 'is_mode_supported')
 
     def test_mode_support_check(self, router):
         """测试模式支持检查"""
-        # 研究模式支持的API（只读操作）
-        assert router.is_mode_supported("get_history") is True
-        assert router.is_mode_supported("get_price") is True
-        assert router.is_mode_supported("get_fundamentals") is True
-        assert router.is_mode_supported("get_MACD") is True
-        assert router.is_mode_supported("set_universe") is True
-        assert router.is_mode_supported("set_benchmark") is True
+        # 研究模式支持的API（根据PTrade官方文档）
+        assert router.is_mode_supported("get_price") is True  # 支持研究模式
+        assert router.is_mode_supported("get_fundamentals") is True  # 支持研究模式
+        assert router.is_mode_supported("get_MACD") is True  # 技术指标支持所有模式
+        assert router.is_mode_supported("get_stock_info") is True  # 股票信息支持所有模式
+        assert router.is_mode_supported("check_limit") is True  # 工具函数支持所有模式
 
-        # 研究模式不支持的API（交易操作）
-        assert router.is_mode_supported("order") is False
-        assert router.is_mode_supported("cancel_order") is False
-        assert router.is_mode_supported("nonexistent_api") is False
+        # 研究模式不支持的API（根据PTrade官方文档）
+        assert router.is_mode_supported("get_history") is False  # 仅支持回测/交易
+        assert router.is_mode_supported("set_universe") is False  # 仅支持回测/交易
+        assert router.is_mode_supported("set_benchmark") is False  # 仅支持回测/交易
+        assert router.is_mode_supported("order") is False  # 交易操作
+        assert router.is_mode_supported("cancel_order") is False  # 交易操作
+        assert router.is_mode_supported("nonexistent_api") is False  # 不存在的API
 
     def test_trading_operations_not_supported(self, router):
         """测试交易操作不被支持"""
@@ -381,45 +406,40 @@ class TestResearchAPIRouter:
         result = router.get_current_data(["STOCK_A"])
         assert result == {}
 
-    def test_get_history(self, router):
-        """测试获取历史数据"""
-        # 测试DataFrame格式 - 研究模式现在返回实际数据
-        history = router.get_history(
-            count=10, field=["open", "high", "low", "close", "volume"]
-        )
+    def test_get_history_not_supported_in_research(self, router):
+        """测试get_history在研究模式下不被支持"""
+        # 根据PTrade官方文档，get_history仅支持[回测/交易]，不支持研究模式
+        # 应该通过API验证器被阻止
+        with pytest.raises(ValueError, match="API 'get_history' is not supported"):
+            router.get_history(count=10, field=["close"])
 
-        assert isinstance(history, pd.DataFrame)
-        assert not history.empty  # 研究模式现在返回实际数据
-        assert len(history) > 0  # 应该有数据
+    def test_set_universe_not_supported_in_research(self, router):
+        """测试set_universe在研究模式下不被支持"""
+        # 根据PTrade官方文档，set_universe仅支持[回测/交易]，不支持研究模式
+        with pytest.raises(ValueError, match="API 'set_universe' is not supported"):
+            router.set_universe(["000001.XSHE", "000002.XSHE"])
 
-        # 检查数据结构
-        expected_columns = ["open", "high", "low", "close", "volume"]
-        for col in expected_columns:
-            assert col in history.columns
-
-        # 测试字典格式
-        history_dict = router.get_history(
-            count=5, field=["close", "volume"], is_dict=True
-        )
-
-        assert isinstance(history_dict, dict)
-        assert "000001.XSHE" in history_dict
-        assert "000002.XSHE" in history_dict
-        assert "close" in history_dict["000001.XSHE"]
-        assert "volume" in history_dict["000001.XSHE"]
+    def test_set_benchmark_not_supported_in_research(self, router):
+        """测试set_benchmark在研究模式下不被支持"""
+        # 根据PTrade官方文档，set_benchmark仅支持[回测/交易]，不支持研究模式
+        with pytest.raises(ValueError, match="API 'set_benchmark' is not supported"):
+            router.set_benchmark("000300.SH")
 
     def test_get_price(self, router):
         """测试获取价格数据"""
         # 研究模式现在返回实际数据
-        price = router.get_price("000001.XSHE", count=5)
-        assert isinstance(price, pd.DataFrame)
-        assert not price.empty  # 研究模式现在返回实际数据
-        assert len(price) > 0  # 应该有数据
-
-        # 检查默认字段
-        expected_columns = ["open", "high", "low", "close", "volume"]
-        for col in expected_columns:
-            assert col in price.columns
+        # 单个股票返回float价格
+        price = router.get_price("000001.XSHE", count=1)
+        assert isinstance(price, float)
+        assert price > 0
+        
+        # 多个股票返回字典
+        prices = router.get_price(["000001.XSHE", "000002.XSHE"], count=1)
+        assert isinstance(prices, dict)
+        assert "000001.XSHE" in prices
+        assert "000002.XSHE" in prices
+        assert isinstance(prices["000001.XSHE"], float)
+        assert isinstance(prices["000002.XSHE"], float)
 
     def test_get_snapshot(self, router):
         """测试获取快照数据"""
@@ -427,8 +447,10 @@ class TestResearchAPIRouter:
 
         assert isinstance(snapshot, pd.DataFrame)
         assert snapshot.shape[0] == 2
-        assert "current_price" in snapshot.columns
-        assert "volume" in snapshot.columns
+        # 检查基本的快照数据结构
+        assert "security" in snapshot.columns
+        # last_price是mock数据插件提供的字段
+        assert "last_price" in snapshot.columns
 
     def test_get_fundamentals(self, router):
         """测试获取基本面数据"""
@@ -444,75 +466,29 @@ class TestResearchAPIRouter:
         assert "revenue" in fundamentals.columns
         assert "net_profit" in fundamentals.columns
 
-    def test_set_universe(self, router):
-        """测试设置股票池"""
-        securities = ["000001.XSHE", "000002.XSHE", "600000.XSHG"]
-        router.set_universe(securities)
+    def test_configuration_apis_not_supported_in_research(self, router):
+        """测试配置API在研究模式下不被支持"""
+        # 根据PTrade官方文档，这些配置API仅支持[回测/交易]，不支持研究模式
+        
+        # 这些配置API在研究模式下应该被阻止
+        config_apis = [
+            ("set_commission", [0.0005]),
+            ("set_slippage", [0.002]),
+            ("set_fixed_slippage", [0.001]),
+            ("set_volume_ratio", [0.8]),
+            ("set_limit_mode", ["volume"]),
+            ("set_yesterday_position", [{"000001.XSHE": {"amount": 1000, "cost_basis": 10.0}}])
+        ]
+        
+        for api_name, args in config_apis:
+            with pytest.raises(ValueError, match=f"API '{api_name}' is not supported"):
+                getattr(router, api_name)(*args)
 
-        assert router.context.universe == securities
-
-    def test_set_benchmark(self, router):
-        """测试设置基准"""
-        benchmark = "000300.SH"
-        router.set_benchmark(benchmark)
-
-        assert router.context.benchmark == benchmark
-
-    def test_set_commission_not_supported(self, router):
-        """测试设置佣金费率（研究模式现在支持）"""
-        # 研究模式现在支持设置佣金费率用于分析
-        router.set_commission(0.0005)
-        # 应该设置成功，存储在上下文中
-        assert hasattr(router.context, "_commission_rate")
-        assert router.context._commission_rate == 0.0005
-
-    def test_set_slippage_not_supported(self, router):
-        """测试设置滑点（研究模式现在支持）"""
-        # 研究模式现在支持设置滑点用于分析
-        router.set_slippage(0.002)
-        # 应该设置成功，存储在上下文中
-        assert hasattr(router.context, "_slippage_rate")
-        assert router.context._slippage_rate == 0.002
-
-    def test_set_fixed_slippage_not_supported(self, router):
-        """测试设置固定滑点（研究模式现在支持）"""
-        # 研究模式现在支持设置固定滑点用于分析
-        router.set_fixed_slippage(0.001)
-        # 应该设置成功，存储在上下文中
-        assert hasattr(router.context, "_fixed_slippage_rate")
-        assert router.context._fixed_slippage_rate == 0.001
-
-    def test_set_volume_ratio_not_supported(self, router):
-        """测试设置成交比例（研究模式现在支持）"""
-        # 研究模式现在支持设置成交比例用于分析
-        router.set_volume_ratio(0.8)
-        # 应该设置成功，存储在上下文中
-        assert hasattr(router.context, "_volume_ratio")
-        assert router.context._volume_ratio == 0.8
-
-    def test_set_limit_mode_not_supported(self, router):
-        """测试设置限制模式（研究模式现在支持）"""
-        # 研究模式现在支持设置限制模式用于分析
-        router.set_limit_mode("volume")
-        # 应该设置成功，存储在上下文中
-        assert hasattr(router.context, "_limit_mode")
-        assert router.context._limit_mode == "volume"
-
-    def test_set_yesterday_position_not_supported(self, router):
-        """测试设置底仓（研究模式现在支持）"""
-        # 研究模式现在支持设置底仓用于分析
-        positions = {"000001.XSHE": {"amount": 1000, "cost_basis": 10.0}}
-        router.set_yesterday_position(positions)
-        # 应该设置成功，存储在上下文中
-        assert hasattr(router.context, "_yesterday_position")
-        assert router.context._yesterday_position == positions
-
-    def test_set_parameters(self, router):
-        """测试设置参数"""
-        params = {"research_param": "research_value"}
-        router.set_parameters(params)
-
-        assert router.context._parameters == params
+    def test_set_parameters_not_supported_in_research(self, router):
+        """测试set_parameters在研究模式下不被支持"""
+        # 根据PTrade官方文档，set_parameters仅支持[回测/交易]，不支持研究模式
+        with pytest.raises(ValueError, match="API 'set_parameters' is not supported"):
+            router.set_parameters({"param": "value"})
 
     def test_technical_indicators(self, router):
         """测试技术指标"""
@@ -612,20 +588,18 @@ class TestResearchAPIRouter:
     def test_research_mode_characteristics(self, router):
         """测试研究模式的特征"""
         # 研究模式应该：
-        # 1. 支持数据查询
+        # 1. 支持数据查询（部分）
         # 2. 支持技术指标计算
-        # 3. 支持基本设置（股票池、基准）
-        # 4. 不支持交易操作
-        # 5. 不支持持仓查询
-        # 6. 不支持订单查询
+        # 3. 不支持交易操作
+        # 4. 不支持持仓查询
+        # 5. 不支持订单查询
+        # 6. 不支持配置设置（根据PTrade官方文档）
 
-        # 支持的功能
-        assert router.is_mode_supported("get_history")
+        # 支持的功能（根据PTrade官方文档）
         assert router.is_mode_supported("get_price")
         assert router.is_mode_supported("get_fundamentals")
         assert router.is_mode_supported("get_MACD")
-        assert router.is_mode_supported("set_universe")
-        assert router.is_mode_supported("set_benchmark")
+        assert router.is_mode_supported("get_stock_info")
         assert router.is_mode_supported("check_limit")
         assert router.is_mode_supported("handle_data")
 
@@ -642,8 +616,17 @@ class TestResearchAPIRouter:
             "after_trading_order",
             "after_trading_cancel_order",
         ]
+        
+        config_apis = [
+            "get_history",  # 根据PTrade官方文档，仅支持回测/交易
+            "set_universe",
+            "set_benchmark",
+            "set_commission",
+            "set_slippage",
+            "set_parameters"
+        ]
 
-        for api in trading_apis:
+        for api in trading_apis + config_apis:
             assert not router.is_mode_supported(api)
 
     def test_fundamentals_data_generation(self, router):
@@ -696,23 +679,11 @@ class TestResearchAPIRouter:
         assert fundamentals.shape[0] == 1
         assert fundamentals.shape[1] == 2  # code + date
 
-    def test_universe_and_benchmark_settings(self, router):
-        """测试股票池和基准设置"""
-        # 测试设置股票池
-        original_universe = router.context.universe.copy()
-        new_universe = ["000001.XSHE", "000002.XSHE", "600000.XSHG", "600036.XSHG"]
-
-        router.set_universe(new_universe)
-        assert router.context.universe == new_universe
-
-        # 测试设置基准
-        original_benchmark = router.context.benchmark
-        new_benchmark = "000905.SH"
-
-        router.set_benchmark(new_benchmark)
-        assert router.context.benchmark == new_benchmark
-
-        # 验证历史数据查询使用新的股票池
-        history_dict = router.get_history(count=5, field=["close"], is_dict=True)
-        for security in new_universe:
-            assert security in history_dict
+    def test_universe_and_benchmark_apis_not_supported(self, router):
+        """测试股票池和基准设置API在研究模式下不被支持"""
+        # 根据PTrade官方文档，set_universe和set_benchmark仅支持[回测/交易]，不支持研究模式
+        with pytest.raises(ValueError, match="API 'set_universe' is not supported"):
+            router.set_universe(["000001.XSHE", "000002.XSHE"])
+            
+        with pytest.raises(ValueError, match="API 'set_benchmark' is not supported"):
+            router.set_benchmark("000905.SH")

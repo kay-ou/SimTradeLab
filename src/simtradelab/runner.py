@@ -81,6 +81,36 @@ class BacktestEngine:
         # 初始化插件管理器
         self._plugin_manager = PluginManager()
 
+        # 注册基础数据插件以确保有数据源可用
+        try:
+            from .plugins.data.mock_data_plugin import MockDataPlugin
+            from .plugins.base import PluginConfig
+            
+            # 创建Mock数据插件配置
+            mock_config = PluginConfig(
+                config={
+                    "enabled": True,
+                    "use_mock_data": True,
+                }
+            )
+            
+            # 注册Mock数据插件类
+            plugin_name = self._plugin_manager.register_plugin(MockDataPlugin, mock_config)
+            
+            # 加载并启动插件
+            try:
+                mock_plugin = self._plugin_manager.load_plugin(plugin_name, mock_config)
+                if mock_plugin:
+                    # 启动插件
+                    self._plugin_manager.start_plugin(plugin_name)
+            except Exception as load_error:
+                print(f"Failed to load mock data plugin: {load_error}")
+            
+        except ImportError as e:
+            print(f"Warning: Failed to load mock data plugin: {e}")
+        except Exception as e:
+            print(f"Warning: Failed to register mock data plugin: {e}")
+
         # 创建PTrade适配器
         metadata = PluginMetadata(
             name="ptrade_adapter",
@@ -88,14 +118,27 @@ class BacktestEngine:
             description="PTrade compatibility adapter for backtest",
         )
 
+        # 创建适配器配置
+        from .plugins.base import PluginConfig
+        adapter_config = PluginConfig(
+            config={
+                "initial_cash": self.initial_cash,
+                "commission_rate": self.commission_rate,
+                "slippage_rate": self.slippage_rate,
+                "use_mock_data": True,
+                "mock_data_enabled": True,
+            }
+        )
+
         # 创建适配器实例
-        self._ptrade_adapter = PTradeAdapter(metadata, None)
+        self._ptrade_adapter = PTradeAdapter(metadata, adapter_config)
         self._ptrade_adapter.set_event_bus(self._plugin_manager.event_bus)
         self._ptrade_adapter.set_plugin_manager(self._plugin_manager)
 
         # 初始化适配器（会自动确保数据源可用）
         try:
             self._ptrade_adapter._on_initialize()
+            
             if not self.show_system_logs:
                 print("PTrade适配器初始化成功")
         except Exception as e:

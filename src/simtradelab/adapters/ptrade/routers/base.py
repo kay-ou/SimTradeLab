@@ -6,7 +6,7 @@ PTrade API 路由器基类
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Hashable, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -29,18 +29,27 @@ class BaseAPIRouter:
         event_bus: Optional[EventBus] = None,
         lifecycle_controller: Optional[LifecycleController] = None,
         api_validator: Optional[APIValidator] = None,
+        plugin_manager: Optional[Any] = None,
     ):
         self.context = context
         self.event_bus = event_bus
         self._logger = logging.getLogger(self.__class__.__name__)
+        self._plugin_manager = plugin_manager  # 插件管理器引用
+
+        # 获取策略模式，确保是字符串格式
+        strategy_mode = getattr(context, "mode", "backtest")
+        if hasattr(strategy_mode, "value"):  # 如果是枚举，获取其值
+            strategy_mode = strategy_mode.value
 
         # 生命周期控制和API验证
         self._lifecycle_controller = lifecycle_controller or get_lifecycle_controller()
-        self._api_validator = api_validator or get_api_validator()
+        self._api_validator = api_validator or get_api_validator(strategy_mode)
 
         # 设置策略模式
-        if hasattr(context, "mode"):
-            self._lifecycle_controller._strategy_mode = context.mode
+        self._lifecycle_controller._strategy_mode = strategy_mode
+        self._api_validator.set_strategy_mode(strategy_mode)
+
+        self._logger.info(f"BaseAPIRouter initialized for {strategy_mode} mode")
 
     # ==========================================
     # 通用API验证和执行方法
@@ -64,7 +73,8 @@ class BaseAPIRouter:
 
         if not validation_result.is_valid:
             self._logger.error(
-                f"API validation failed for '{api_name}': {validation_result.error_message}"
+                f"API validation failed for '{api_name}': "
+                f"{validation_result.error_message}"
             )
             raise ValueError(validation_result.error_message)
 
@@ -154,7 +164,8 @@ class BaseAPIRouter:
     def after_trading_cancel_order(self, order_id: str) -> bool:
         """盘后固定价委托撤单"""
         raise NotImplementedError(
-            f"after_trading_cancel_order method not implemented in {self.__class__.__name__}"
+            f"after_trading_cancel_order method not implemented in "
+            f"{self.__class__.__name__}"
         )
 
     def get_position(self, security: str) -> Optional["Position"]:
@@ -194,7 +205,84 @@ class BaseAPIRouter:
         )
 
     # ==========================================
-    # 行情数据 API (默认实现)
+    # 插件管理辅助方法
+    # ==========================================
+
+    def _get_data_plugin(self) -> Optional[Any]:
+        """通过插件管理器获取数据源插件"""
+        # 首先检查是否有直接设置的数据插件（用于BacktestAPIRouter等）
+        if hasattr(self, '_data_plugin') and self._data_plugin:
+            return self._data_plugin
+            
+        if not self._plugin_manager:
+            return None
+
+        # 查找数据源插件
+        all_plugins = self._plugin_manager.get_all_plugins()
+        for plugin_name, plugin_instance in all_plugins.items():
+            if self._is_data_source_plugin(plugin_instance):
+                return plugin_instance
+        return None
+
+    def _get_indicators_plugin(self) -> Optional[Any]:
+        """通过插件管理器获取技术指标插件"""
+        if not self._plugin_manager:
+            return None
+
+        # 查找技术指标插件
+        all_plugins = self._plugin_manager.get_all_plugins()
+        for plugin_name, plugin_instance in all_plugins.items():
+            if self._is_indicators_plugin(plugin_instance):
+                return plugin_instance
+        return None
+
+    def _is_data_source_plugin(self, plugin_instance: Any) -> bool:
+        """判断插件是否为数据源插件"""
+        required_methods = [
+            "get_history_data",
+            "get_current_price",
+            "get_snapshot",
+            "get_multiple_history_data",
+        ]
+        return all(
+            hasattr(plugin_instance, method)
+            and callable(getattr(plugin_instance, method))
+            for method in required_methods
+        )
+
+    def _is_indicators_plugin(self, plugin_instance: Any) -> bool:
+        """判断插件是否为技术指标插件"""
+        # 通过多种条件识别技术指标插件
+        is_indicators_plugin = (
+            # 通过名称识别
+            (
+                hasattr(plugin_instance, "metadata")
+                and plugin_instance.metadata.name == "technical_indicators_plugin"
+            )
+            # 通过category识别
+            or (
+                hasattr(plugin_instance, "metadata")
+                and hasattr(plugin_instance.metadata, "category")
+                and plugin_instance.metadata.category in ["indicators", "analysis"]
+            )
+            # 通过标签识别
+            or (
+                hasattr(plugin_instance, "metadata")
+                and hasattr(plugin_instance.metadata, "tags")
+                and "indicators" in plugin_instance.metadata.tags
+            )
+            # 通过方法识别
+            or (
+                hasattr(plugin_instance, "calculate_macd")
+                and hasattr(plugin_instance, "calculate_kdj")
+                and hasattr(plugin_instance, "calculate_rsi")
+                and hasattr(plugin_instance, "calculate_cci")
+            )
+        )
+        return is_indicators_plugin
+
+    # ==========================================
+    # 行情数据 API (插件化实现)
     # ==========================================
 
     def get_history(
@@ -209,8 +297,108 @@ class BaseAPIRouter:
         is_dict: bool = False,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-    ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
-        """获取历史行情数据"""
+    ) -> Union[pd.DataFrame, Dict[str, Any], List[Dict[Hashable, Any]]]:
+        """获取历史行情数据 - 通过数据插件实现"""
+        return self.validate_and_execute(
+            "get_history",
+            self._get_history_impl,
+            count,
+            frequency,
+            field,
+            security_list,
+            fq,
+            include,
+            fill,
+            is_dict,
+            start_date,
+            end_date,
+        )
+
+    def _get_history_impl(
+        self,
+        count: Optional[int] = None,
+        frequency: str = "1d",
+        field: Optional[Union[str, List[str]]] = None,
+        security_list: Optional[List[str]] = None,
+        fq: str = "pre",
+        include: bool = True,
+        fill: bool = True,
+        is_dict: bool = False,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Union[pd.DataFrame, Dict[str, Any], List[Dict[Hashable, Any]]]:
+        """获取历史行情数据的实际实现"""
+        # 如果没有指定股票列表，使用上下文中的universe
+        if (
+            not security_list
+            and hasattr(self.context, "universe")
+            and self.context.universe
+        ):
+            security_list = list(self.context.universe)
+
+        if not security_list:
+            # 如果仍然没有股票列表，返回空数据
+            return {} if is_dict else pd.DataFrame()
+
+        data_plugin = self._get_data_plugin()
+        if data_plugin and hasattr(data_plugin, "get_history_data"):
+            try:
+                # 处理参数：如果只有一个证券且以字符串形式传递
+                if security_list and len(security_list) == 1:
+                    security = security_list[0]
+                    count_val = count or 10
+
+                    # 使用数据插件获取历史数据
+                    df_result = data_plugin.get_history_data(security, count_val)
+
+                    if not df_result.empty:
+                        # 处理字段过滤
+                        if field and isinstance(field, (list, str)):
+                            if isinstance(field, str):
+                                field = [field]
+                            # 过滤指定字段，保留必要的标识字段
+                            available_fields = [f for f in field if f in df_result.columns]
+                            if available_fields:
+                                df_result = df_result[available_fields]
+                        
+                        if is_dict:
+                            # 转换为字典格式
+                            return df_result.to_dict("records")
+                        else:
+                            return df_result
+                    else:
+                        return {} if is_dict else pd.DataFrame()
+                else:
+                    # 多证券处理
+                    if security_list and count:
+                        all_data = []
+                        for security in security_list:
+                            df_result = data_plugin.get_history_data(security, count)
+                            if not df_result.empty:
+                                all_data.append(df_result)
+
+                        if all_data:
+                            combined_df = pd.concat(all_data, ignore_index=True)
+                            
+                            # 处理字段过滤
+                            if field and isinstance(field, (list, str)):
+                                if isinstance(field, str):
+                                    field = [field]
+                                # 过滤指定字段，保留必要的标识字段
+                                available_fields = [f for f in field if f in combined_df.columns]
+                                if available_fields:
+                                    combined_df = combined_df[available_fields]
+                                    
+                            return (
+                                combined_df.to_dict("records")
+                                if is_dict
+                                else combined_df
+                            )
+
+                    return {} if is_dict else pd.DataFrame()
+            except Exception as e:
+                self._logger.warning(f"Data plugin get_history failed: {e}")
+
         # 默认返回空的DataFrame
         if is_dict:
             return {}
@@ -224,13 +412,106 @@ class BaseAPIRouter:
         frequency: str = "1d",
         fields: Optional[Union[str, List[str]]] = None,
         count: Optional[int] = None,
-    ) -> Union[pd.DataFrame, pd.Series, float]:
-        """获取历史数据"""
+    ) -> Union[pd.DataFrame, pd.Series, float, Dict[str, float]]:
+        """获取价格数据 - 通过数据插件实现"""
+        return self.validate_and_execute(
+            "get_price",
+            self._get_price_impl,
+            security,
+            start_date,
+            end_date,
+            frequency,
+            fields,
+            count,
+        )
+
+    def _get_price_impl(
+        self,
+        security: Optional[Union[str, List[str]]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        frequency: str = "1d",
+        fields: Optional[Union[str, List[str]]] = None,
+        count: Optional[int] = None,
+    ) -> Union[pd.DataFrame, pd.Series, float, Dict[str, float]]:
+        """获取价格数据的实际实现"""
+        data_plugin = self._get_data_plugin()
+        if data_plugin and hasattr(data_plugin, "get_history_data") and security:
+            try:
+                # 处理单个证券的情况
+                if isinstance(security, str):
+                    count_val = count or 1
+                    df_result = data_plugin.get_history_data(security, count_val)
+
+                    if not df_result.empty:
+                        # 如果指定了count且count>1，返回DataFrame
+                        if count and count > 1:
+                            return df_result
+                        else:
+                            # 如果count=1或None，返回单个价格值
+                            return float(df_result.iloc[-1]["close"])
+                    else:
+                        # 如果没有数据，根据count参数决定返回类型
+                        if count and count > 1:
+                            return pd.DataFrame()
+                        else:
+                            return 0.0
+                # 处理多个证券的情况（返回字典）
+                elif isinstance(security, list):
+                    count_val = count or 1
+                    if count and count > 1:
+                        # 当count>1时，对于多个证券应该返回DataFrame
+                        all_data = []
+                        for sec in security:
+                            df_result = data_plugin.get_history_data(sec, count_val)
+                            if not df_result.empty:
+                                all_data.append(df_result)
+                        if all_data:
+                            return pd.concat(all_data, ignore_index=True)
+                        else:
+                            return pd.DataFrame()
+                    else:
+                        # 当count=1或None时，返回价格字典
+                        prices = {}
+                        for sec in security:
+                            df_result = data_plugin.get_history_data(sec, count_val)
+                            if not df_result.empty:
+                                prices[sec] = float(df_result.iloc[-1]["close"])
+                            else:
+                                prices[sec] = 0.0
+                        return prices
+            except Exception as e:
+                self._logger.warning(f"Data plugin get_price failed: {e}")
+
         # 默认返回空的DataFrame
         return pd.DataFrame()
 
     def get_snapshot(self, security_list: List[str]) -> pd.DataFrame:
-        """获取行情快照"""
+        """获取行情快照 - 通过数据插件实现"""
+        return self.validate_and_execute(
+            "get_snapshot", self._get_snapshot_impl, security_list
+        )
+
+    def _get_snapshot_impl(self, security_list: List[str]) -> pd.DataFrame:
+        """获取行情快照的实际实现"""
+        data_plugin = self._get_data_plugin()
+        if data_plugin and hasattr(data_plugin, "get_snapshot"):
+            try:
+                # 使用数据插件获取行情快照
+                snapshot = data_plugin.get_snapshot(security_list)
+                if snapshot:
+                    # 转换为DataFrame格式
+                    rows = []
+                    for security, data_dict in snapshot.items():
+                        row = {"security": security}
+                        row.update(data_dict)
+                        rows.append(row)
+                    return pd.DataFrame(rows)
+                else:
+                    return pd.DataFrame()
+            except Exception as e:
+                self._logger.warning(f"Data plugin get_snapshot failed: {e}")
+
         # 默认返回空的DataFrame
         return pd.DataFrame()
 
@@ -261,8 +542,25 @@ class BaseAPIRouter:
     def get_fundamentals(
         self, stocks: List[str], table: str, fields: List[str], date: str
     ) -> pd.DataFrame:
-        """获取财务数据信息"""
-        return pd.DataFrame()  # 默认返回空DataFrame
+        """获取财务数据信息 - 通过数据插件实现"""
+        return self.validate_and_execute(
+            "get_fundamentals", self._get_fundamentals_impl, stocks, table, fields, date
+        )
+
+    def _get_fundamentals_impl(
+        self, stocks: List[str], table: str, fields: List[str], date: str
+    ) -> pd.DataFrame:
+        """获取财务数据信息的实际实现"""
+        data_plugin = self._get_data_plugin()
+        if data_plugin and hasattr(data_plugin, "get_fundamentals"):
+            try:
+                # 使用数据插件获取财务数据
+                return data_plugin.get_fundamentals(stocks, table, fields, date)
+            except Exception as e:
+                self._logger.warning(f"Data plugin get_fundamentals failed: {e}")
+
+        # 默认返回空DataFrame
+        return pd.DataFrame()
 
     def get_stock_name(self, security: str) -> str:
         """获取股票名称"""
@@ -358,8 +656,25 @@ class BaseAPIRouter:
     def get_MACD(
         self, close: np.ndarray, short: int = 12, long: int = 26, m: int = 9
     ) -> pd.DataFrame:
-        """获取MACD指标"""
-        return pd.DataFrame()  # 默认返回空DataFrame
+        """获取MACD指标 - 通过技术指标插件实现"""
+        return self.validate_and_execute(
+            "get_MACD", self._get_MACD_impl, close, short, long, m
+        )
+
+    def _get_MACD_impl(
+        self, close: np.ndarray, short: int = 12, long: int = 26, m: int = 9
+    ) -> pd.DataFrame:
+        """获取MACD指标的实际实现"""
+        indicators_plugin = self._get_indicators_plugin()
+        if indicators_plugin and hasattr(indicators_plugin, "calculate_macd"):
+            try:
+                # 使用插件计算MACD
+                return indicators_plugin.calculate_macd(close)
+            except Exception as e:
+                self._logger.warning(f"Indicators plugin MACD calculation failed: {e}")
+
+        # 默认返回空DataFrame
+        return pd.DataFrame()
 
     def get_KDJ(
         self,
@@ -370,18 +685,71 @@ class BaseAPIRouter:
         m1: int = 3,
         m2: int = 3,
     ) -> pd.DataFrame:
-        """获取KDJ指标"""
-        return pd.DataFrame()  # 默认返回空DataFrame
+        """获取KDJ指标 - 通过技术指标插件实现"""
+        return self.validate_and_execute(
+            "get_KDJ", self._get_KDJ_impl, high, low, close, n, m1, m2
+        )
+
+    def _get_KDJ_impl(
+        self,
+        high: np.ndarray,
+        low: np.ndarray,
+        close: np.ndarray,
+        n: int = 9,
+        m1: int = 3,
+        m2: int = 3,
+    ) -> pd.DataFrame:
+        """获取KDJ指标的实际实现"""
+        indicators_plugin = self._get_indicators_plugin()
+        if indicators_plugin and hasattr(indicators_plugin, "calculate_kdj"):
+            try:
+                # 使用插件计算KDJ
+                return indicators_plugin.calculate_kdj(high, low, close)
+            except Exception as e:
+                self._logger.warning(f"Indicators plugin KDJ calculation failed: {e}")
+
+        # 默认返回空DataFrame
+        return pd.DataFrame()
 
     def get_RSI(self, close: np.ndarray, n: int = 6) -> pd.DataFrame:
-        """获取RSI指标"""
-        return pd.DataFrame()  # 默认返回空DataFrame
+        """获取RSI指标 - 通过技术指标插件实现"""
+        return self.validate_and_execute("get_RSI", self._get_RSI_impl, close, n)
+
+    def _get_RSI_impl(self, close: np.ndarray, n: int = 6) -> pd.DataFrame:
+        """获取RSI指标的实际实现"""
+        indicators_plugin = self._get_indicators_plugin()
+        if indicators_plugin and hasattr(indicators_plugin, "calculate_rsi"):
+            try:
+                # 使用插件计算RSI
+                return indicators_plugin.calculate_rsi(close)
+            except Exception as e:
+                self._logger.warning(f"Indicators plugin RSI calculation failed: {e}")
+
+        # 默认返回空DataFrame
+        return pd.DataFrame()
 
     def get_CCI(
         self, high: np.ndarray, low: np.ndarray, close: np.ndarray, n: int = 14
     ) -> pd.DataFrame:
-        """获取CCI指标"""
-        return pd.DataFrame()  # 默认返回空DataFrame
+        """获取CCI指标 - 通过技术指标插件实现"""
+        return self.validate_and_execute(
+            "get_CCI", self._get_CCI_impl, high, low, close, n
+        )
+
+    def _get_CCI_impl(
+        self, high: np.ndarray, low: np.ndarray, close: np.ndarray, n: int = 14
+    ) -> pd.DataFrame:
+        """获取CCI指标的实际实现"""
+        indicators_plugin = self._get_indicators_plugin()
+        if indicators_plugin and hasattr(indicators_plugin, "calculate_cci"):
+            try:
+                # 使用插件计算CCI
+                return indicators_plugin.calculate_cci(high, low, close)
+            except Exception as e:
+                self._logger.warning(f"Indicators plugin CCI calculation failed: {e}")
+
+        # 默认返回空DataFrame
+        return pd.DataFrame()
 
     # ==========================================
     # 工具函数 API (默认实现)
@@ -451,6 +819,14 @@ class BaseAPIRouter:
 
     def is_mode_supported(self, api_name: str) -> bool:
         """检查API是否在当前模式下支持"""
-        raise NotImplementedError(
-            f"is_mode_supported method not implemented in {self.__class__.__name__}"
-        )
+        # 使用API验证器检查模式支持
+        if self._api_validator:
+            try:
+                mode_result = self._api_validator._validate_mode_restriction(api_name)
+                return mode_result.is_valid
+            except Exception as e:
+                self._logger.warning(f"Mode validation error for {api_name}: {e}")
+                return True  # 默认允许，向后兼容
+
+        # 如果没有验证器，默认允许所有API
+        return True

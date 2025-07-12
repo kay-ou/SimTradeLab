@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from ..models import Order, Position
 
 
-class LiveTradingAPIRouter(BaseAPIRouter):
+class TradingAPIRouter(BaseAPIRouter):
     """实盘交易模式API路由器"""
 
     def __init__(
@@ -24,8 +24,9 @@ class LiveTradingAPIRouter(BaseAPIRouter):
         event_bus: Optional[EventBus] = None,
         lifecycle_controller: Optional[LifecycleController] = None,
         api_validator: Optional[APIValidator] = None,
+        plugin_manager: Optional[Any] = None,
     ):
-        super().__init__(context, event_bus, lifecycle_controller, api_validator)
+        super().__init__(context, event_bus, lifecycle_controller, api_validator, plugin_manager)
         self._data_plugin = None  # 将在设置时从适配器获取
         self._supported_apis = {
             # === 已实际实现的API ===
@@ -167,11 +168,14 @@ class LiveTradingAPIRouter(BaseAPIRouter):
     def set_data_plugin(self, data_plugin: Any) -> None:
         """设置数据插件引用"""
         self._data_plugin = data_plugin
-        self._logger.info("Data plugin set for live trading mode")
+        self._logger.info("Data plugin set for trading mode")
 
     def is_mode_supported(self, api_name: str) -> bool:
         """检查API是否在实盘交易模式下支持"""
-        return api_name in self._supported_apis
+        # 使用统一配置中心检查模式支持
+        from ..lifecycle_config import is_api_supported_in_mode
+
+        return is_api_supported_in_mode(api_name, "trading")
 
     def order(
         self, security: str, amount: int, limit_price: Optional[float] = None
@@ -401,37 +405,37 @@ class LiveTradingAPIRouter(BaseAPIRouter):
     def set_commission(self, commission: float) -> None:
         """设置佣金费率"""
         # 实盘交易模式下不支持设置佣金费率
-        self._logger.warning("Setting commission is not supported in live trading mode")
+        self._logger.warning("Setting commission is not supported in trading mode")
 
     def set_slippage(self, slippage: float) -> None:
         """设置滑点"""
         # 实盘交易模式下不支持设置滑点
-        self._logger.warning("Setting slippage is not supported in live trading mode")
+        self._logger.warning("Setting slippage is not supported in trading mode")
 
     def set_fixed_slippage(self, slippage: float) -> None:
         """设置固定滑点"""
         # 实盘交易模式下不支持设置固定滑点
         self._logger.warning(
-            "Setting fixed slippage is not supported in live trading mode"
+            "Setting fixed slippage is not supported in trading mode"
         )
 
     def set_volume_ratio(self, ratio: float) -> None:
         """设置成交比例"""
         # 实盘交易模式下不支持设置成交比例
         self._logger.warning(
-            "Setting volume ratio is not supported in live trading mode"
+            "Setting volume ratio is not supported in trading mode"
         )
 
     def set_limit_mode(self, mode: str) -> None:
         """设置回测成交数量限制模式"""
         # 实盘交易模式下不支持设置限制模式
-        self._logger.warning("Setting limit mode is not supported in live trading mode")
+        self._logger.warning("Setting limit mode is not supported in trading mode")
 
     def set_yesterday_position(self, positions: Dict[str, Any]) -> None:
         """设置底仓"""
         # 实盘交易模式下不支持设置底仓
         self._logger.warning(
-            "Setting yesterday position is not supported in live trading mode"
+            "Setting yesterday position is not supported in trading mode"
         )
 
     def set_parameters(self, params: Dict[str, Any]) -> None:
@@ -464,7 +468,7 @@ class LiveTradingAPIRouter(BaseAPIRouter):
     ) -> str:
         """按日周期处理 - 每日定时执行指定函数"""
         self._logger.warning(
-            "run_daily scheduling should be handled by external scheduler in live trading mode"
+            "run_daily scheduling should be handled by external scheduler in trading mode"
         )
         # 在实盘模式下，定时任务应该由外部调度系统处理
         job_id = f"daily_{id(func)}_{time_str}"
@@ -483,7 +487,7 @@ class LiveTradingAPIRouter(BaseAPIRouter):
     ) -> str:
         """按设定周期处理 - 按指定间隔重复执行函数"""
         self._logger.warning(
-            "run_interval scheduling should be handled by external scheduler in live trading mode"
+            "run_interval scheduling should be handled by external scheduler in trading mode"
         )
         # 在实盘模式下，定时任务应该由外部调度系统处理
         job_id = f"interval_{id(func)}_{interval}"
@@ -503,7 +507,7 @@ class LiveTradingAPIRouter(BaseAPIRouter):
         if not hasattr(self.context, "_tick_callbacks"):
             setattr(self.context, "_tick_callbacks", [])
         getattr(self.context, "_tick_callbacks").append(func)
-        self._logger.info("Tick data callback registered for live trading")
+        self._logger.info("Tick data callback registered for trading")
         return True
 
     def on_order_response(self, func: Any) -> bool:
@@ -512,7 +516,7 @@ class LiveTradingAPIRouter(BaseAPIRouter):
         if not hasattr(self.context, "_order_response_callbacks"):
             setattr(self.context, "_order_response_callbacks", [])
         getattr(self.context, "_order_response_callbacks").append(func)
-        self._logger.info("Order response callback registered for live trading")
+        self._logger.info("Order response callback registered for trading")
         return True
 
     def on_trade_response(self, func: Any) -> bool:
@@ -521,5 +525,5 @@ class LiveTradingAPIRouter(BaseAPIRouter):
         if not hasattr(self.context, "_trade_response_callbacks"):
             setattr(self.context, "_trade_response_callbacks", [])
         getattr(self.context, "_trade_response_callbacks").append(func)
-        self._logger.info("Trade response callback registered for live trading")
+        self._logger.info("Trade response callback registered for trading")
         return True

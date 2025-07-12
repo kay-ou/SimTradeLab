@@ -316,13 +316,22 @@ class TestAPIValidatorEdgeCases:
 
         validator = APIValidator(mock_controller)
 
-        # 空字符串
-        validator.validate_api_call("")
-        mock_controller.validate_api_call.assert_called_with("")
+        # 空字符串应该在模式验证阶段失败，不会调用生命周期控制器
+        result = validator.validate_api_call("")
+        assert not result.is_valid
+        assert "is not supported" in result.error_message
+        # 验证生命周期控制器没有被调用
+        mock_controller.validate_api_call.assert_not_called()
 
-        # None值
-        validator.validate_api_call(None)
-        mock_controller.validate_api_call.assert_called_with(None)
+        # 重置mock以测试None值
+        mock_controller.reset_mock()
+        
+        # None值也应该在模式验证阶段失败
+        result = validator.validate_api_call(None)
+        assert not result.is_valid
+        assert "is not supported" in result.error_message
+        # 验证生命周期控制器没有被调用
+        mock_controller.validate_api_call.assert_not_called()
 
     def test_very_long_api_name(self):
         """测试很长的API名称"""
@@ -332,8 +341,12 @@ class TestAPIValidatorEdgeCases:
         validator = APIValidator(mock_controller)
 
         long_api_name = "a" * 1000
-        validator.validate_api_call(long_api_name)
-        mock_controller.validate_api_call.assert_called_with(long_api_name)
+        # 很长的API名称不在已知API列表中，会在模式验证阶段失败
+        result = validator.validate_api_call(long_api_name)
+        assert not result.is_valid
+        assert "is not supported" in result.error_message
+        # 验证生命周期控制器没有被调用
+        mock_controller.validate_api_call.assert_not_called()
 
     def test_special_characters_in_api_name(self):
         """测试API名称中的特殊字符"""
@@ -344,8 +357,13 @@ class TestAPIValidatorEdgeCases:
 
         special_names = ["api-name", "api.name", "api_name_123", "API_NAME"]
         for name in special_names:
-            validator.validate_api_call(name)
-            mock_controller.validate_api_call.assert_called_with(name)
+            # 特殊字符的API名称不在已知API列表中，会在模式验证阶段失败
+            result = validator.validate_api_call(name)
+            assert not result.is_valid
+            assert "is not supported" in result.error_message
+        
+        # 验证生命周期控制器没有被调用
+        mock_controller.validate_api_call.assert_not_called()
 
     def test_exception_in_lifecycle_controller(self):
         """测试生命周期控制器抛出异常"""

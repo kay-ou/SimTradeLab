@@ -18,7 +18,7 @@ from ...plugins.base import BasePlugin, PluginConfig, PluginMetadata
 from .context import PTradeContext, PTradeMode
 from .lifecycle_controller import PTradeLifecycleError
 from .models import Portfolio
-from .routers import BacktestAPIRouter, LiveTradingAPIRouter, ResearchAPIRouter
+from .routers import BacktestAPIRouter, TradingAPIRouter, ResearchAPIRouter
 
 # 数据源优先级定义
 DATA_SOURCE_PRIORITIES = {
@@ -58,7 +58,7 @@ class PTradeAdapter(BasePlugin):
         self._ptrade_context: Optional[PTradeContext] = None
         self._strategy_module: Optional[types.ModuleType] = None
         self._api_router: Optional[
-            Union[BacktestAPIRouter, LiveTradingAPIRouter, ResearchAPIRouter]
+            Union[BacktestAPIRouter, TradingAPIRouter, ResearchAPIRouter]
         ] = None  # 核心：API路由器
         self._data_cache: Dict[str, Any] = {}
         self._current_data: Dict[str, Dict[str, float]] = {}
@@ -125,7 +125,7 @@ class PTradeAdapter(BasePlugin):
 
     def _init_api_router(
         self,
-    ) -> Union[BacktestAPIRouter, LiveTradingAPIRouter, ResearchAPIRouter]:
+    ) -> Union[BacktestAPIRouter, TradingAPIRouter, ResearchAPIRouter]:
         """根据当前模式初始化 API 路由器"""
         current_mode = self.get_current_mode()
 
@@ -150,7 +150,7 @@ class PTradeAdapter(BasePlugin):
                 router.set_data_plugin(active_data_plugin)
             return router
         elif current_mode == PTradeMode.TRADING:
-            live_router = LiveTradingAPIRouter(
+            live_router = TradingAPIRouter(
                 self._ptrade_context, self._event_bus_ref
             )
             # 传递活跃数据插件引用给实盘交易模式路由器
@@ -835,6 +835,14 @@ class PTradeAdapter(BasePlugin):
                 )
 
             self._logger.info(f"Loading PTrade strategy: {strategy_path}")
+
+            # 重置生命周期控制器状态以避免旧状态干扰
+            if (
+                hasattr(self, "_lifecycle_controller")
+                and self._lifecycle_controller
+            ):
+                self._lifecycle_controller.reset()
+                self._logger.debug("Reset lifecycle controller before loading strategy")
 
             # 加载策略模块
             spec = importlib.util.spec_from_file_location("strategy", strategy_path)

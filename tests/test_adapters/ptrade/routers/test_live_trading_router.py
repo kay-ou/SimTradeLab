@@ -11,19 +11,21 @@ import pytest
 
 from simtradelab.adapters.ptrade.context import PTradeContext
 from simtradelab.adapters.ptrade.models import Blotter, Portfolio, Position
-from simtradelab.adapters.ptrade.routers.live_trading import LiveTradingAPIRouter
+from simtradelab.adapters.ptrade.routers.trading import TradingAPIRouter
 from simtradelab.core.event_bus import EventBus
 
 
-class TestLiveTradingAPIRouter:
+class TestTradingAPIRouter:
     """测试实盘交易API路由器"""
 
     @pytest.fixture
     def context(self):
         """创建测试上下文"""
+        from simtradelab.adapters.ptrade.context import PTradeMode
+        
         portfolio = Portfolio(cash=1000000)
         blotter = Blotter()
-        context = PTradeContext(portfolio=portfolio, blotter=blotter)
+        context = PTradeContext(portfolio=portfolio, blotter=blotter, mode=PTradeMode.TRADING)
         context.universe = ["000001.XSHE", "000002.XSHE"]
         context.benchmark = "000300.SH"
         return context
@@ -41,10 +43,17 @@ class TestLiveTradingAPIRouter:
         import numpy as np
         import pandas as pd
 
-        router = LiveTradingAPIRouter(context=context, event_bus=event_bus)
+        # 创建模拟插件管理器
+        mock_plugin_manager = MagicMock()
 
-        # 设置mock数据插件（与backtest router相同的设置）
+        # 创建模拟数据插件
         mock_data_plugin = MagicMock()
+
+        # 设置数据插件的方法识别
+        mock_data_plugin.get_history_data = MagicMock()
+        mock_data_plugin.get_current_price = MagicMock()
+        mock_data_plugin.get_snapshot = MagicMock()
+        mock_data_plugin.get_multiple_history_data = MagicMock()
 
         # 模拟get_multiple_history_data方法
         def mock_get_multiple_history_data(
@@ -77,6 +86,21 @@ class TestLiveTradingAPIRouter:
             mock_get_multiple_history_data
         )
 
+        # 设置单个历史数据方法
+        def mock_get_history_data(security, count):
+            dates = pd.date_range("2023-01-01", periods=count, freq="D")
+            return pd.DataFrame({
+                "security": [security] * count,
+                "date": dates,
+                "open": np.random.uniform(10, 20, count),
+                "high": np.random.uniform(15, 25, count),
+                "low": np.random.uniform(5, 15, count),
+                "close": np.random.uniform(10, 20, count),
+                "volume": np.random.randint(1000, 10000, count),
+            })
+        
+        mock_data_plugin.get_history_data.side_effect = mock_get_history_data
+
         # 模拟get_snapshot方法
         def mock_get_snapshot(securities):
             snapshot = {}
@@ -95,10 +119,22 @@ class TestLiveTradingAPIRouter:
             "Plugin method not available"
         )
 
-        # 模拟get_fundamentals方法 (回退到空DataFrame)
-        mock_data_plugin.get_fundamentals.side_effect = Exception(
-            "Plugin method not available"
-        )
+        # 模拟get_fundamentals方法 (返回基本面数据)
+        def mock_get_fundamentals(stocks, table, fields, date):
+            rows = []
+            for stock in stocks:
+                row = {"code": stock, "date": date}
+                for field in fields:
+                    if field == "revenue":
+                        row[field] = 1000000.0  # 模拟营收
+                    elif field == "net_profit":
+                        row[field] = 100000.0   # 模拟净利润
+                    else:
+                        row[field] = 0.0
+                rows.append(row)
+            return pd.DataFrame(rows)
+        
+        mock_data_plugin.get_fundamentals.side_effect = mock_get_fundamentals
 
         # 模拟交易日相关方法
         mock_data_plugin.get_trading_day.return_value = "2024-01-01"
@@ -127,7 +163,60 @@ class TestLiveTradingAPIRouter:
             }
         }
 
-        router.set_data_plugin(mock_data_plugin)
+        # 创建模拟技术指标插件
+        mock_indicators_plugin = MagicMock()
+        mock_indicators_plugin.metadata.name = "technical_indicators_plugin"
+        mock_indicators_plugin.metadata.category = "analysis"
+        mock_indicators_plugin.metadata.tags = ["indicators", "technical"]
+
+        # 正确设置计算方法 - 使用side_effect来确保返回DataFrame
+        def mock_calculate_macd(close):
+            periods = len(close)
+            return pd.DataFrame(
+                {
+                    "MACD": np.random.randn(periods) * 0.1,
+                    "MACD_signal": np.random.randn(periods) * 0.1,
+                    "MACD_hist": np.random.randn(periods) * 0.05,
+                }
+            )
+
+        def mock_calculate_kdj(high, low, close):
+            periods = len(close)
+            return pd.DataFrame(
+                {
+                    "K": np.random.uniform(0, 100, periods),
+                    "D": np.random.uniform(0, 100, periods),
+                    "J": np.random.uniform(0, 100, periods),
+                }
+            )
+
+        def mock_calculate_rsi(close):
+            periods = len(close)
+            return pd.DataFrame({"RSI": np.random.uniform(0, 100, periods)})
+
+        def mock_calculate_cci(high, low, close):
+            periods = len(close)
+            return pd.DataFrame({"CCI": np.random.randn(periods) * 50})
+
+        # 设置插件管理器返回的插件
+        mock_plugin_manager.get_all_plugins.return_value = {
+            "mock_data_plugin": mock_data_plugin,
+            "technical_indicators_plugin": mock_indicators_plugin,
+        }
+
+        # 创建路由器，传入插件管理器
+        router = TradingAPIRouter(
+            context=context, event_bus=event_bus, plugin_manager=mock_plugin_manager
+        )
+
+        # 设置技术指标插件的side_effect（必须在路由器创建后）
+        indicators_plugin = router._get_indicators_plugin()
+        if indicators_plugin:
+            indicators_plugin.calculate_macd.side_effect = mock_calculate_macd
+            indicators_plugin.calculate_kdj.side_effect = mock_calculate_kdj
+            indicators_plugin.calculate_rsi.side_effect = mock_calculate_rsi
+            indicators_plugin.calculate_cci.side_effect = mock_calculate_cci
+
         return router
 
     def test_router_initialization(self, router, context):
@@ -396,7 +485,7 @@ class TestLiveTradingAPIRouter:
 
         assert isinstance(snapshot, pd.DataFrame)
         assert snapshot.shape[0] == 2
-        assert "current_price" in snapshot.columns
+        assert "last_price" in snapshot.columns
         assert "volume" in snapshot.columns
 
     def test_get_fundamentals(self, router):

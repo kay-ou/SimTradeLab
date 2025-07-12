@@ -21,7 +21,7 @@ from .context import (
 )
 from .lifecycle_controller import LifecycleController
 from .models import SecurityUnitData
-from .routers import BacktestAPIRouter, LiveTradingAPIRouter, ResearchAPIRouter
+from .routers import BacktestAPIRouter, TradingAPIRouter, ResearchAPIRouter
 
 
 class StrategyExecutionError(Exception):
@@ -121,7 +121,7 @@ class StrategyExecutionEngine:
                 self.api_validator,
             )
         elif self.mode == PTradeMode.TRADING:
-            self.api_router = LiveTradingAPIRouter(
+            self.api_router = TradingAPIRouter(
                 self.context,
                 self.event_bus,
                 self.lifecycle_controller,
