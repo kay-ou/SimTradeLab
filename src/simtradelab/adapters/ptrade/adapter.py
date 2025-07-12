@@ -57,6 +57,11 @@ class PTradeAdapter(BaseAdapter):
         # 插件引用（通过服务发现动态获取）
         self._available_data_plugins: List[Dict[str, Any]] = []  # 所有可用的数据源插件
         self._indicators_plugin = None
+        
+        # E3修复：插件缓存机制，避免交易路径中的运行时发现
+        self._cached_active_data_plugin: Optional[Any] = None  # 缓存的活跃数据插件
+        self._sorted_data_plugins_cache: List[Dict[str, Any]] = []  # 缓存的已排序插件列表
+        self._plugin_cache_valid: bool = False  # 缓存是否有效
 
         # 设置PTrade支持的模式
         self._supported_modes = {
@@ -262,6 +267,9 @@ class PTradeAdapter(BaseAdapter):
             f"Discovered {len(data_source_plugins)} data source plugins: "
             f"{[p['name'] for p in data_source_plugins]}"
         )
+        
+        # E3修复：插件发现完成后立即预加载和缓存，避免交易路径中的运行时发现
+        self._preload_and_cache_plugins()
 
     def _discover_indicator_plugins(self) -> None:
         """发现技术指标插件"""
@@ -318,15 +326,71 @@ class PTradeAdapter(BaseAdapter):
             for method in required_methods
         )
 
+    def _preload_and_cache_plugins(self) -> None:
+        """
+        E3修复：预加载和缓存插件，避免交易路径中的运行时发现
+        
+        在初始化阶段完成所有插件排序和激活，并缓存结果
+        """
+        if not self._available_data_plugins:
+            self._logger.warning("No data plugins available for preloading")
+            self._plugin_cache_valid = False
+            return
+
+        try:
+            # 预排序所有插件并缓存
+            self._sorted_data_plugins_cache = self._sort_plugins_by_priority(
+                self._available_data_plugins
+            )
+            
+            # 预激活最高优先级的插件并缓存
+            self._cached_active_data_plugin = None
+            for plugin_info in self._sorted_data_plugins_cache:
+                plugin_instance = plugin_info["instance"]
+                plugin_name = plugin_info["name"]
+                
+                if self._try_activate_plugin(plugin_instance, plugin_name):
+                    self._cached_active_data_plugin = plugin_instance
+                    self._logger.info(
+                        f"Preloaded and cached active data plugin: {plugin_name} "
+                        f"(priority: {plugin_info.get('priority', 0)})"
+                    )
+                    break
+            
+            if not self._cached_active_data_plugin:
+                self._logger.warning("No usable data plugin found during preloading")
+                
+            # 标记缓存有效
+            self._plugin_cache_valid = True
+            
+        except Exception as e:
+            self._logger.error(f"Failed to preload and cache plugins: {e}")
+            self._plugin_cache_valid = False
+
+    def _invalidate_plugin_cache(self) -> None:
+        """
+        E3修复：失效插件缓存
+        
+        当插件状态变化时调用，强制重新预加载
+        """
+        self._cached_active_data_plugin = None
+        self._sorted_data_plugins_cache.clear()
+        self._plugin_cache_valid = False
+        self._logger.debug("Plugin cache invalidated")
+
     def _get_active_data_plugin(self) -> Optional[Any]:
         """
-        获取当前活跃的数据插件
-
-        按优先级自动选择最佳数据源：
-        1. 按优先级排序所有可用数据源
-        2. 选择优先级最高且可用的数据源
-        3. Mock插件作为最后的fallback
+        E3修复：获取当前活跃的数据插件（使用缓存避免运行时发现）
+        
+        性能优化策略：
+        1. 优先使用预加载的缓存插件
+        2. 只在缓存失效时才进行重新发现
+        3. 避免交易路径中的插件排序和激活操作
         """
+        # 如果缓存有效且有缓存的插件，直接返回
+        if self._plugin_cache_valid and self._cached_active_data_plugin:
+            return self._cached_active_data_plugin
+        
         # 如果没有发现任何数据源插件，返回None
         if not self._available_data_plugins:
             self._logger.warning(
@@ -334,23 +398,12 @@ class PTradeAdapter(BaseAdapter):
             )
             return None
 
-        # 按优先级重新排序插件（优先级高的在前）
-        sorted_plugins = self._sort_plugins_by_priority(self._available_data_plugins)
-
-        # 尝试使用优先级最高的可用插件
-        for plugin_info in sorted_plugins:
-            plugin_instance = plugin_info["instance"]
-            plugin_name = plugin_info["name"]
-
-            # 检查插件是否可用并尝试启动
-            if self._try_activate_plugin(plugin_instance, plugin_name):
-                self._logger.debug(
-                    f"Using data plugin '{plugin_name}' (priority: {plugin_info.get('priority', 0)})"
-                )
-                return plugin_instance
-
-        self._logger.warning("No usable data plugin found among discovered plugins")
-        return None
+        # 缓存失效或不存在时，重新预加载
+        self._logger.debug("Plugin cache invalid, reloading...")
+        self._preload_and_cache_plugins()
+        
+        # 返回新缓存的插件
+        return self._cached_active_data_plugin
 
     def _sort_plugins_by_priority(
         self, plugins: List[Dict[str, Any]]
@@ -447,6 +500,9 @@ class PTradeAdapter(BaseAdapter):
             # 重新初始化API路由器以使用新的数据源
             if self._ptrade_context:
                 self._api_router = self._init_api_router()
+
+            # E3修复：数据源切换后失效插件缓存，强制重新预加载
+            self._invalidate_plugin_cache()
 
             self._logger.info(f"Successfully switched to data plugin: {plugin_name}")
             return True
