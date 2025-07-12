@@ -288,14 +288,16 @@ class TestBaseAPIRouter:
         assert router.context is context
         assert router.event_bus is None
 
-    def test_abstract_base_class(self) -> None:
-        """测试抽象基类不能直接实例化"""
+    def test_base_class_instantiation(self) -> None:
+        """测试基类可以直接实例化（现在是具体类）"""
         portfolio = Portfolio(cash=1000000)
         blotter = Blotter()
         context = PTradeContext(portfolio=portfolio, blotter=blotter)
 
-        with pytest.raises(TypeError, match="Can't instantiate abstract class"):
-            BaseAPIRouter(context=context)  # type: ignore[abstract]
+        # BaseAPIRouter 现在是具体类，应该可以实例化
+        router = BaseAPIRouter(context=context)
+        assert router is not None
+        assert router.context is context
 
     def test_validate_and_execute_supported_api(
         self, router: ConcreteAPIRouter
@@ -303,14 +305,12 @@ class TestBaseAPIRouter:
         """测试验证并执行支持的API"""
 
         # 模拟一个支持的API方法
-        def mock_method(security: str, amount: int) -> str:
-            return f"executed_{security}_{amount}"
+        def mock_method(count: int) -> str:
+            return f"executed_count_{count}"
 
-        result = router.validate_and_execute(
-            "get_history", mock_method, "000001.XSHE", 100
-        )
+        result = router.validate_and_execute("get_history", mock_method, count=20)
 
-        assert result == "executed_000001.XSHE_100"
+        assert result == "executed_count_20"
 
     def test_validate_and_execute_unsupported_api(
         self, router: ConcreteAPIRouter

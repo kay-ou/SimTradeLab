@@ -51,6 +51,12 @@ class Commission:
 class FutureParams:
     """期货参数对象"""
 
-    def __init__(self, margin_rate: float = 0.1, contract_multiplier: int = 1):
+    def __init__(
+        self,
+        margin_rate: float = 0.1,
+        contract_multiplier: int = 1,
+        commission: float = 0.0001,
+    ):
         self.margin_rate = margin_rate
         self.contract_multiplier = contract_multiplier
+        self.commission = commission  # 期货手续费

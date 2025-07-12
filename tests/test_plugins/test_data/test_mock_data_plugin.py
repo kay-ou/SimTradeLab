@@ -271,12 +271,12 @@ class TestMockDataPlugin:
         with pytest.raises(RuntimeError, match="Mock Data Plugin is disabled"):
             disabled_plugin.get_multiple_history_data(["TEST001.SZ"], 10)
 
-    def test_get_market_snapshot(self, plugin):
-        """测试获取市场快照"""
+    def test_get_snapshot(self, plugin):
+        """测试获取行情快照"""
         plugin.initialize()
 
         securities = ["TEST001.SZ", "TEST002.SH"]
-        snapshot = plugin.get_market_snapshot(securities)
+        snapshot = plugin.get_snapshot(securities)
 
         assert isinstance(snapshot, dict)
         assert len(snapshot) == len(securities)
@@ -294,8 +294,8 @@ class TestMockDataPlugin:
             assert "price" in data  # PTrade兼容性
             assert "datetime" in data
 
-    def test_get_market_snapshot_with_error(self, plugin):
-        """测试市场快照获取时的错误处理"""
+    def test_get_snapshot_with_error(self, plugin):
+        """测试行情快照获取时的错误处理"""
         plugin.initialize()
 
         # 模拟获取历史数据失败
@@ -303,7 +303,7 @@ class TestMockDataPlugin:
             mock_get_history.side_effect = Exception("Test error")
 
             securities = ["TEST001.SZ"]
-            snapshot = plugin.get_market_snapshot(securities)
+            snapshot = plugin.get_snapshot(securities)
 
             assert isinstance(snapshot, dict)
             assert "TEST001.SZ" in snapshot
@@ -312,12 +312,12 @@ class TestMockDataPlugin:
             data = snapshot["TEST001.SZ"]
             assert data["last_price"] == plugin._get_base_price("TEST001.SZ")
 
-    def test_get_market_snapshot_disabled(self, disabled_plugin):
-        """测试禁用状态下获取市场快照"""
+    def test_get_snapshot_disabled(self, disabled_plugin):
+        """测试禁用状态下获取行情快照"""
         disabled_plugin.initialize()
 
         with pytest.raises(RuntimeError, match="Mock Data Plugin is disabled"):
-            disabled_plugin.get_market_snapshot(["TEST001.SZ"])
+            disabled_plugin.get_snapshot(["TEST001.SZ"])
 
     def test_get_fundamentals(self, plugin):
         """测试获取基本面数据"""

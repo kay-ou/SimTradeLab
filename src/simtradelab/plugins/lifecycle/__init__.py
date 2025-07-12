@@ -7,6 +7,4 @@
 
 from .plugin_lifecycle_manager import PluginLifecycleManager
 
-__all__ = [
-    "PluginLifecycleManager"
-]
+__all__ = ["PluginLifecycleManager"]

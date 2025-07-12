@@ -219,12 +219,12 @@ class TestCSVDataPlugin:
         # 验证数据按证券和日期排序
         assert df.equals(df.sort_values(["security", "date"]))
 
-    def test_get_market_snapshot(self, plugin):
+    def test_get_snapshot(self, plugin):
         """测试获取市场快照"""
         plugin.initialize()
 
         securities = ["000001.SZ", "000002.SZ"]
-        snapshot = plugin.get_market_snapshot(securities)
+        snapshot = plugin.get_snapshot(securities)
 
         assert isinstance(snapshot, dict)
         assert len(snapshot) == len(securities)

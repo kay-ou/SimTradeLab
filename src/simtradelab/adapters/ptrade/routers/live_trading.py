@@ -6,34 +6,65 @@ PTrade实盘交易模式API路由器
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from ....core.event_bus import EventBus
+from ..api_validator import APIValidator
+from ..lifecycle_controller import LifecycleController
 from .base import BaseAPIRouter
-from .common_utils_mixin import CommonUtilsMixin
-from .data_retrieval_mixin import DataRetrievalMixin
-from .stock_info_mixin import StockInfoMixin
-from .technical_indicator_mixin import TechnicalIndicatorMixin
 
 if TYPE_CHECKING:
     from ..context import PTradeContext
     from ..models import Order, Position
 
 
-class LiveTradingAPIRouter(
-    BaseAPIRouter,
-    StockInfoMixin,
-    TechnicalIndicatorMixin,
-    DataRetrievalMixin,
-    CommonUtilsMixin,
-):
+class LiveTradingAPIRouter(BaseAPIRouter):
     """实盘交易模式API路由器"""
 
-    def __init__(self, context: "PTradeContext", event_bus: Optional[EventBus] = None):
-        super().__init__(context, event_bus)
+    def __init__(
+        self,
+        context: "PTradeContext",
+        event_bus: Optional[EventBus] = None,
+        lifecycle_controller: Optional[LifecycleController] = None,
+        api_validator: Optional[APIValidator] = None,
+    ):
+        super().__init__(context, event_bus, lifecycle_controller, api_validator)
         self._data_plugin = None  # 将在设置时从适配器获取
         self._supported_apis = {
-            # 交易相关API
+            # === 已实际实现的API ===
+            # 基础信息 (3个) - 通过父类BaseRouter实现
+            "get_trading_day",
+            "get_all_trades_days",
+            "get_trade_days",
+            # 行情信息 - 通过父类BaseRouter实现
+            "get_history",  # [回测/交易]
+            "get_price",  # [研究/回测/交易]
+            "get_snapshot",  # [仅交易] - 通过父类BaseRouter实现
+            "get_stock_info",  # 通过父类BaseRouter实现
+            "get_fundamentals",  # 通过父类BaseRouter实现
+            # 股票信息 (9个) - 通过父类BaseRouter实现
+            "get_stock_name",
+            "get_stock_status",
+            "get_stock_exrights",
+            "get_stock_blocks",
+            "get_index_stocks",
+            "get_industry_stocks",
+            "get_Ashares",
+            "get_etf_list",
+            "get_ipo_stocks",
+            # 技术指标 (4个) - 通过父类BaseRouter实现
+            "get_MACD",
+            "get_KDJ",
+            "get_RSI",
+            "get_CCI",
+            # 工具函数 - 通过父类BaseRouter实现
+            "log",  # 通过父类BaseRouter实现
+            "is_trade",  # 通过父类BaseRouter实现
+            "check_limit",  # 通过父类BaseRouter实现
+            "set_universe",  # 通过父类BaseRouter实现
+            "set_benchmark",  # 通过父类BaseRouter实现
+            "set_parameters",  # 在路由器中实现
+            # 交易相关函数 (在路由器中直接实现)
             "order",
-            "order_value",
             "order_target",
+            "order_value",
             "order_target_value",
             "order_market",
             "cancel_order",
@@ -48,39 +79,89 @@ class LiveTradingAPIRouter(
             "get_order",
             "get_orders",
             "get_trades",
-            # 数据获取API
-            "get_history",
-            "get_price",
-            "get_snapshot",
-            "get_stock_info",
-            "get_fundamentals",
-            # 股票信息API (新增的9个API)
-            "get_stock_name",
-            "get_stock_status",
-            "get_stock_exrights",
-            "get_stock_blocks",
-            "get_index_stocks",
-            "get_industry_stocks",
-            "get_Ashares",
-            "get_etf_list",
-            "get_ipo_stocks",
-            # 技术指标API
-            "get_MACD",
-            "get_KDJ",
-            "get_RSI",
-            "get_CCI",
-            # 交易日期API
-            "get_trading_day",
-            "get_all_trades_days",
-            "get_trade_days",
-            # 配置API
-            "set_universe",
-            "set_benchmark",
-            "set_parameters",
-            # 工具API
-            "log",
-            "check_limit",
             "handle_data",
+            # 定时和回调API (在路由器中实现)
+            "run_daily",
+            "run_interval",
+            "tick_data",
+            "on_order_response",
+            "on_trade_response",
+            # === 以下是计划实现但尚未实现的API（注释版） ===
+            # # 策略生命周期函数 - 计划实现
+            # "initialize",  # 策略初始化 [回测/交易]
+            # "before_trading_start",  # 盘前处理 [回测/交易]
+            # "after_trading_end",  # 盘后处理 [回测/交易]
+            # # 市场信息 - 计划实现
+            # "get_market_list",  # 获取市场列表 [研究/回测/交易]
+            # "get_market_detail",  # 获取市场详细信息 [研究/回测/交易]
+            # "get_cb_list",  # 获取可转债市场代码表 [仅交易]
+            # "get_cb_info",  # 获取可转债基础信息 [研究/交易]
+            # # 实时行情信息 - 计划实现 [仅交易]
+            # "get_individual_entrust",  # 获取逐笔委托行情
+            # "get_individual_transaction",  # 获取逐笔成交行情
+            # "get_tick_direction",  # 获取分时成交行情
+            # "get_sort_msg",  # 获取板块、行业的涨幅排名
+            # "get_etf_info",  # 获取ETF信息
+            # "get_etf_stock_info",  # 获取ETF成分券信息
+            # "get_gear_price",  # 获取指定代码的档位行情价格
+            # # 股票信息 - 计划实现 [仅交易]
+            # "get_etf_stock_list",  # 获取ETF成分券列表
+            # # 期权信息 - 计划实现
+            # "get_opt_objects",  # 获取期权标的列表 [研究/回测/交易]
+            # "get_opt_last_dates",  # 获取期权标的到期日列表 [研究/回测/交易]
+            # "get_opt_contracts",  # 获取期权标的对应合约列表 [研究/回测/交易]
+            # "get_contract_info",  # 获取期权合约信息 [研究/回测/交易]
+            # "get_covered_lock_amount",  # 获取期权标的可备兑锁定数量 [仅交易]
+            # "get_covered_unlock_amount",  # 获取期权标的允许备兑解锁数量 [仅交易]
+            # # 其他信息 - 计划实现
+            # "get_user_name",  # 获取登录终端的资金账号 [回测/交易]
+            # "get_deliver",  # 获取历史交割单信息 [仅交易]
+            # "get_fundjour",  # 获取历史资金流水信息 [仅交易]
+            # "get_research_path",  # 获取研究路径 [回测/交易]
+            # "get_trade_name",  # 获取交易名称 [仅交易]
+            # # 高级交易函数 - 计划实现 [仅交易]
+            # "order_tick",  # tick行情触发买卖
+            # "debt_to_stock_order",  # 债转股委托
+            # "etf_basket_order",  # ETF成分券篮子下单
+            # "etf_purchase_redemption",  # ETF基金申赎接口
+            # # 融资融券函数 - 计划实现 [仅两融交易]
+            # "margin_trade",  # 担保品买卖
+            # "margincash_open",  # 融资买入
+            # "margincash_close",  # 卖券还款
+            # "margincash_direct_refund",  # 直接还款
+            # "marginsec_open",  # 融券卖出
+            # "marginsec_close",  # 买券还券
+            # "marginsec_direct_refund",  # 直接还券
+            # "get_margincash_stocks",  # 获取融资标的列表
+            # "get_marginsec_stocks",  # 获取融券标的列表
+            # "get_margin_contract",  # 合约查询
+            # "get_margin_contractreal",  # 实时合约查询
+            # "get_margin_assert",  # 信用资产查询
+            # "get_assure_security_list",  # 担保券查询
+            # "get_margincash_open_amount",  # 融资标的最大可买数量查询
+            # "get_margincash_close_amount",  # 卖券还款标的最大可卖数量查询
+            # "get_marginsec_open_amount",  # 融券标的最大可卖数量查询
+            # "get_marginsec_close_amount",  # 买券还券标的最大可买数量查询
+            # "get_margin_entrans_amount",  # 现券还券数量查询
+            # "get_enslo_security_info",  # 融券头寸信息查询
+            # # 期货专用函数 - 计划实现
+            # "buy_open",  # 开多 [回测/交易]
+            # "sell_close",  # 多平 [回测/交易]
+            # "sell_open",  # 空开 [回测/交易]
+            # "buy_close",  # 空平 [回测/交易]
+            # "get_instruments",  # 获取合约信息 [回测/交易]
+            # "set_margin_rate",  # 设置期货保证金比例 [回测/交易]
+            # # 期权专用函数 - 计划实现 [仅交易]
+            # "option_exercise",  # 行权
+            # "option_covered_lock",  # 期权标的备兑锁定
+            # "option_covered_unlock",  # 期权标的备兑解锁
+            # "open_prepared",  # 备兑开仓
+            # "close_prepared",  # 备兑平仓
+            # # 工具函数 - 计划实现 [仅交易]
+            # "send_email",  # 发送邮箱信息
+            # "send_qywx",  # 发送企业微信信息
+            # "permission_test",  # 权限校验
+            # "create_dir",  # 创建文件路径
         }
 
     def set_data_plugin(self, data_plugin: Any) -> None:
@@ -307,14 +388,14 @@ class LiveTradingAPIRouter(
         trades.sort(key=lambda t: t["datetime"], reverse=True)  # type: ignore
         return trades
 
-    # 以下方法现在由Mixin提供，无需重复实现：
-    # get_history, get_price, get_snapshot - 来自DataRetrievalMixin
-    # get_stock_info, get_fundamentals - 来自DataRetrievalMixin
-    # get_trading_day, get_all_trades_days, get_trade_days - 来自CommonUtilsMixin
-    # set_universe, set_benchmark - 来自CommonUtilsMixin
-    # get_MACD, get_KDJ, get_RSI, get_CCI - 来自TechnicalIndicatorMixin
-    # log, check_limit - 来自CommonUtilsMixin
-    # get_stock_name等9个新股票信息API - 来自StockInfoMixin
+    # 以下方法现在由父类BaseRouter提供，无需重复实现：
+    # get_history, get_price, get_snapshot - 通过父类BaseRouter实现
+    # get_stock_info, get_fundamentals - 通过父类BaseRouter实现
+    # get_trading_day, get_all_trades_days, get_trade_days - 通过父类BaseRouter实现
+    # set_universe, set_benchmark - 通过父类BaseRouter实现
+    # get_MACD, get_KDJ, get_RSI, get_CCI - 通过父类BaseRouter实现
+    # log, check_limit, is_trade - 通过父类BaseRouter实现
+    # get_stock_name等9个新股票信息API - 通过父类BaseRouter实现
 
     # 实盘交易模式特有的配置方法（一般不支持，只记录警告）
     def set_commission(self, commission: float) -> None:
@@ -373,93 +454,6 @@ class LiveTradingAPIRouter(
 
         # 更新投资组合价值
         self.context.portfolio.update_portfolio_value()
-
-    # ==========================================
-    # 数据获取方法 - 委托给DataRetrievalMixin
-    # ==========================================
-    def get_history(self, *args, **kwargs):
-        return DataRetrievalMixin.get_history(self, *args, **kwargs)
-
-    def get_price(self, *args, **kwargs):
-        return DataRetrievalMixin.get_price(self, *args, **kwargs)
-
-    def get_snapshot(self, *args, **kwargs):
-        return DataRetrievalMixin.get_snapshot(self, *args, **kwargs)
-
-    def get_stock_info(self, *args, **kwargs):
-        return DataRetrievalMixin.get_stock_info(self, *args, **kwargs)
-
-    def get_fundamentals(self, *args, **kwargs):
-        return DataRetrievalMixin.get_fundamentals(self, *args, **kwargs)
-
-    # ==========================================
-    # 股票信息方法 - 委托给StockInfoMixin
-    # ==========================================
-    def get_stock_name(self, *args, **kwargs):
-        return StockInfoMixin.get_stock_name(self, *args, **kwargs)
-
-    def get_stock_status(self, *args, **kwargs):
-        return StockInfoMixin.get_stock_status(self, *args, **kwargs)
-
-    def get_stock_exrights(self, *args, **kwargs):
-        return StockInfoMixin.get_stock_exrights(self, *args, **kwargs)
-
-    def get_stock_blocks(self, *args, **kwargs):
-        return StockInfoMixin.get_stock_blocks(self, *args, **kwargs)
-
-    def get_index_stocks(self, *args, **kwargs):
-        return StockInfoMixin.get_index_stocks(self, *args, **kwargs)
-
-    def get_industry_stocks(self, *args, **kwargs):
-        return StockInfoMixin.get_industry_stocks(self, *args, **kwargs)
-
-    def get_Ashares(self, *args, **kwargs):
-        return StockInfoMixin.get_Ashares(self, *args, **kwargs)
-
-    def get_etf_list(self, *args, **kwargs):
-        return StockInfoMixin.get_etf_list(self, *args, **kwargs)
-
-    def get_ipo_stocks(self, *args, **kwargs):
-        return StockInfoMixin.get_ipo_stocks(self, *args, **kwargs)
-
-    # ==========================================
-    # 技术指标方法 - 委托给TechnicalIndicatorMixin
-    # ==========================================
-    def get_MACD(self, *args, **kwargs):
-        return TechnicalIndicatorMixin.get_MACD(self, *args, **kwargs)
-
-    def get_KDJ(self, *args, **kwargs):
-        return TechnicalIndicatorMixin.get_KDJ(self, *args, **kwargs)
-
-    def get_RSI(self, *args, **kwargs):
-        return TechnicalIndicatorMixin.get_RSI(self, *args, **kwargs)
-
-    def get_CCI(self, *args, **kwargs):
-        return TechnicalIndicatorMixin.get_CCI(self, *args, **kwargs)
-
-    # ==========================================
-    # 通用工具方法 - 委托给CommonUtilsMixin
-    # ==========================================
-    def get_trading_day(self, *args, **kwargs):
-        return CommonUtilsMixin.get_trading_day(self, *args, **kwargs)
-
-    def get_all_trades_days(self, *args, **kwargs):
-        return CommonUtilsMixin.get_all_trades_days(self, *args, **kwargs)
-
-    def get_trade_days(self, *args, **kwargs):
-        return CommonUtilsMixin.get_trade_days(self, *args, **kwargs)
-
-    def set_universe(self, *args, **kwargs):
-        return CommonUtilsMixin.set_universe(self, *args, **kwargs)
-
-    def set_benchmark(self, *args, **kwargs):
-        return CommonUtilsMixin.set_benchmark(self, *args, **kwargs)
-
-    def log(self, *args, **kwargs):
-        return CommonUtilsMixin.log(self, *args, **kwargs)
-
-    def check_limit(self, *args, **kwargs):
-        return CommonUtilsMixin.check_limit(self, *args, **kwargs)
 
     # ==========================================
     # 定时和回调 API 实现

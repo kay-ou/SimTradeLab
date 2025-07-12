@@ -18,7 +18,8 @@ class TestPTradeContext:
         context = PTradeContext(portfolio=portfolio)
 
         assert context.portfolio is portfolio
-        assert context.current_dt is None
+        # current_dt 在 __post_init__ 中会被自动设置为当前时间
+        assert context.current_dt is not None
         assert context.universe == []
         assert context.benchmark is None
         assert hasattr(context, "g")

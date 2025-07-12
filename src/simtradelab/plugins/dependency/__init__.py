@@ -5,13 +5,13 @@
 提供插件清单、依赖解析、版本管理等功能。
 """
 
-from .manifest import PluginManifest, ManifestValidator
-from .resolver import DependencyResolver, DependencyError
+from .manifest import ManifestValidator, PluginManifest
 from .registry import PluginRegistry
+from .resolver import DependencyError, DependencyResolver
 
 __all__ = [
     "PluginManifest",
-    "ManifestValidator", 
+    "ManifestValidator",
     "DependencyResolver",
     "DependencyError",
     "PluginRegistry",

@@ -16,8 +16,17 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from ...core.event_bus import EventBus
 from ...plugins.base import BasePlugin, PluginConfig, PluginMetadata
 from .context import PTradeContext, PTradeMode
+from .lifecycle_controller import PTradeLifecycleError
 from .models import Portfolio
 from .routers import BacktestAPIRouter, LiveTradingAPIRouter, ResearchAPIRouter
+
+# 数据源优先级定义
+DATA_SOURCE_PRIORITIES = {
+    "csv_data_plugin": 30,
+    "akshare_plugin": 25,
+    "tushare_plugin": 20,
+    "mock_data_plugin": 10,
+}
 from .utils import PTradeAdapterError, PTradeAPIError, PTradeCompatibilityError
 
 
@@ -102,6 +111,9 @@ class PTradeAdapter(BasePlugin):
         # 事件总线引用 - 将在插件管理器中设置
         self._event_bus_ref: Optional[EventBus] = None
 
+        # 生命周期控制器 - 用于管理策略执行阶段
+        self._lifecycle_controller: Optional[Any] = None
+
     def set_event_bus(self, event_bus: EventBus) -> None:
         """
         Set the event bus reference (called by plugin manager)
@@ -138,17 +150,20 @@ class PTradeAdapter(BasePlugin):
                 router.set_data_plugin(active_data_plugin)
             return router
         elif current_mode == PTradeMode.TRADING:
-            router = LiveTradingAPIRouter(self._ptrade_context, self._event_bus_ref)
+            live_router = LiveTradingAPIRouter(
+                self._ptrade_context, self._event_bus_ref
+            )
             # 传递活跃数据插件引用给实盘交易模式路由器
             if active_data_plugin:
-                router.set_data_plugin(active_data_plugin)
-            return router
+                live_router.set_data_plugin(active_data_plugin)
+            return live_router
         elif current_mode == PTradeMode.RESEARCH:
-            router = ResearchAPIRouter(self._ptrade_context, self._event_bus_ref)
-            # 传递活跃数据插件引用给研究模式路由器
-            if active_data_plugin:
-                router.set_data_plugin(active_data_plugin)
-            return router
+            research_router = ResearchAPIRouter(
+                self._ptrade_context,
+                self._event_bus_ref,
+                plugin_manager=self._plugin_manager,
+            )
+            return research_router
         else:
             raise PTradeAdapterError(f"Unsupported mode: {current_mode}")
 
@@ -156,15 +171,6 @@ class PTradeAdapter(BasePlugin):
         """模式切换时重新初始化API路由器"""
         if self._ptrade_context is not None:
             self._api_router = self._init_api_router()
-            # 获取当前活跃的数据插件并设置给API路由器
-            active_data_plugin = self._get_active_data_plugin()
-            if (
-                new_mode
-                in [PTradeMode.RESEARCH, PTradeMode.TRADING, PTradeMode.BACKTEST]
-                and active_data_plugin
-                and hasattr(self._api_router, "set_data_plugin")
-            ):
-                self._api_router.set_data_plugin(active_data_plugin)
             self._logger.info(f"API router switched to {new_mode.value} mode")
 
     def _setup_plugin_proxies(self) -> None:
@@ -207,6 +213,10 @@ class PTradeAdapter(BasePlugin):
 
         # 初始化 API 路由器
         self._api_router = self._init_api_router()
+
+        # 获取API路由器的lifecycle controller
+        if self._api_router and hasattr(self._api_router, "_lifecycle_controller"):
+            self._lifecycle_controller = self._api_router._lifecycle_controller
 
         # 设置插件代理机制
         self._setup_plugin_proxies()
@@ -306,7 +316,7 @@ class PTradeAdapter(BasePlugin):
         required_methods = [
             "get_history_data",
             "get_current_price",
-            "get_market_snapshot",
+            "get_snapshot",
             "get_multiple_history_data",
         ]
 
@@ -320,95 +330,84 @@ class PTradeAdapter(BasePlugin):
         """
         获取当前活跃的数据插件
 
-        通过服务发现机制查找可用的数据源插件：
-        1. 如果配置为使用Mock数据，优先使用Mock插件
-        2. 否则按优先级使用发现的数据源插件
-        3. 如果都不可用，返回None
+        按优先级自动选择最佳数据源：
+        1. 按优先级排序所有可用数据源
+        2. 选择优先级最高且可用的数据源
+        3. Mock插件作为最后的fallback
         """
-        # 如果没有发现任何数据源插件，直接返回None
+        # 如果没有发现任何数据源插件，返回None
         if not self._available_data_plugins:
-            self._logger.error("No data source plugins discovered")
+            self._logger.warning(
+                "No data source plugins discovered. Please ensure data plugins are registered."
+            )
             return None
 
-        # 检查是否配置使用Mock数据
-        if self._use_mock_data:
-            # 查找Mock数据插件
-            for plugin_info in self._available_data_plugins:
-                plugin_instance = plugin_info["instance"]
-                if (
-                    hasattr(plugin_instance, "metadata")
-                    and plugin_instance.metadata.name == "mock_data_plugin"
-                ):
-                    # 检查Mock插件是否启用
-                    if (
-                        hasattr(plugin_instance, "is_enabled")
-                        and plugin_instance.is_enabled()
-                    ):
-                        self._logger.debug(
-                            "Using discovered mock data plugin as data source"
-                        )
-                        return plugin_instance
-                    elif self._mock_data_enabled:
-                        # 如果Mock插件存在但未启用，尝试启用
-                        if hasattr(plugin_instance, "enable"):
-                            plugin_instance.enable()
-                            self._logger.info("Enabled discovered mock data plugin")
-                            return plugin_instance
+        # 按优先级重新排序插件（优先级高的在前）
+        sorted_plugins = self._sort_plugins_by_priority(self._available_data_plugins)
 
-        # 使用优先级最高的可用数据源插件（已按优先级排序）
-        for plugin_info in self._available_data_plugins:
+        # 尝试使用优先级最高的可用插件
+        for plugin_info in sorted_plugins:
             plugin_instance = plugin_info["instance"]
             plugin_name = plugin_info["name"]
 
-            # 跳过Mock插件（如果不是在Mock模式下）
-            if (
-                not self._use_mock_data
-                and hasattr(plugin_instance, "metadata")
-                and plugin_instance.metadata.name == "mock_data_plugin"
-            ):
-                continue
-
-            # 检查插件是否可用（已启动状态）
-            if (
-                hasattr(plugin_instance, "state")
-                and plugin_instance.state.value == "started"
-            ):
+            # 检查插件是否可用并尝试启动
+            if self._try_activate_plugin(plugin_instance, plugin_name):
                 self._logger.debug(
-                    f"Using discovered data plugin '{plugin_name}' as data source"
+                    f"Using data plugin '{plugin_name}' (priority: {plugin_info.get('priority', 0)})"
                 )
                 return plugin_instance
-            elif (
-                hasattr(plugin_instance, "state")
-                and plugin_instance.state.value == "initialized"
-            ):
-                # 尝试启动插件
-                try:
-                    plugin_instance.start()
-                    self._logger.info(f"Started discovered data plugin '{plugin_name}'")
-                    return plugin_instance
-                except Exception as e:
-                    self._logger.warning(
-                        f"Failed to start data plugin '{plugin_name}': {e}"
-                    )
-                    continue
 
-        # 如果常规插件都不可用，检查是否可以使用Mock插件作为后备
-        if self._mock_data_enabled:
-            for plugin_info in self._available_data_plugins:
-                plugin_instance = plugin_info["instance"]
-                if (
-                    hasattr(plugin_instance, "metadata")
-                    and plugin_instance.metadata.name == "mock_data_plugin"
-                ):
-                    if hasattr(plugin_instance, "enable"):
-                        plugin_instance.enable()
-                        self._logger.warning(
-                            "No other data plugins available, falling back to mock data plugin"
-                        )
-                        return plugin_instance
-
-        self._logger.error("No usable data plugin found in discovered plugins")
+        self._logger.warning("No usable data plugin found among discovered plugins")
         return None
+
+    def _sort_plugins_by_priority(
+        self, plugins: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """按优先级排序插件"""
+
+        def get_priority(plugin_info: Dict[str, Any]) -> int:
+            plugin_name = plugin_info["name"]
+            # 从预定义优先级获取，如果没有则使用插件自身的优先级
+            return DATA_SOURCE_PRIORITIES.get(
+                plugin_name, plugin_info.get("priority", 0) or 0
+            )
+
+        return sorted(plugins, key=get_priority, reverse=True)
+
+    def _try_activate_plugin(self, plugin_instance: Any, plugin_name: str) -> bool:
+        """尝试激活插件"""
+        try:
+            # 检查插件状态
+            if hasattr(plugin_instance, "state"):
+                state = plugin_instance.state.value
+                if state == "started":
+                    return True
+                elif state == "initialized":
+                    # 尝试启动插件
+                    plugin_instance.start()
+                    self._logger.debug(f"Started data plugin '{plugin_name}'")
+                    return True
+
+            # 对于Mock插件，检查是否启用
+            if (
+                hasattr(plugin_instance, "metadata")
+                and plugin_instance.metadata.name == "mock_data_plugin"
+            ):
+                if (
+                    hasattr(plugin_instance, "is_enabled")
+                    and plugin_instance.is_enabled()
+                ):
+                    return True
+                elif hasattr(plugin_instance, "enable"):
+                    plugin_instance.enable()
+                    self._logger.debug("Enabled mock data plugin")
+                    return True
+
+            return False
+
+        except Exception as e:
+            self._logger.warning(f"Failed to activate data plugin '{plugin_name}': {e}")
+            return False
 
     def switch_data_source(self, plugin_name: str) -> bool:
         """
@@ -630,21 +629,53 @@ class PTradeAdapter(BasePlugin):
         # 执行盘前处理
         if self._strategy_hooks["before_trading_start"]:
             try:
-                self._strategy_hooks["before_trading_start"](self._ptrade_context, data)
+                # 设置生命周期阶段
+                if (
+                    hasattr(self, "_lifecycle_controller")
+                    and self._lifecycle_controller
+                ):
+                    from .lifecycle_controller import LifecyclePhase
+
+                    self._lifecycle_controller.set_phase(
+                        LifecyclePhase.BEFORE_TRADING_START
+                    )
+                    self._strategy_hooks["before_trading_start"](
+                        self._ptrade_context, data
+                    )
             except Exception as e:
                 self._logger.error(f"Error in before_trading_start: {e}")
 
         # 执行主策略逻辑
         if self._strategy_hooks["handle_data"]:
             try:
-                self._strategy_hooks["handle_data"](self._ptrade_context, data)
+                # 设置生命周期阶段
+                if (
+                    hasattr(self, "_lifecycle_controller")
+                    and self._lifecycle_controller
+                ):
+                    from .lifecycle_controller import LifecyclePhase
+
+                    self._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+                    self._strategy_hooks["handle_data"](self._ptrade_context, data)
             except Exception as e:
                 self._logger.error(f"Error in handle_data: {e}")
 
         # 执行盘后处理
         if self._strategy_hooks["after_trading_end"]:
             try:
-                self._strategy_hooks["after_trading_end"](self._ptrade_context, data)
+                # 设置生命周期阶段
+                if (
+                    hasattr(self, "_lifecycle_controller")
+                    and self._lifecycle_controller
+                ):
+                    from .lifecycle_controller import LifecyclePhase
+
+                    self._lifecycle_controller.set_phase(
+                        LifecyclePhase.AFTER_TRADING_END
+                    )
+                    self._strategy_hooks["after_trading_end"](
+                        self._ptrade_context, data
+                    )
             except Exception as e:
                 self._logger.error(f"Error in after_trading_end: {e}")
 
@@ -669,13 +700,26 @@ class PTradeAdapter(BasePlugin):
         if self._ptrade_context is None or not self._ptrade_context.universe:
             return {}
 
-        # 使用活跃数据插件获取市场快照
+        # 优先使用API路由器的数据获取方法
+        if self._api_router and hasattr(self._api_router, "get_current_data"):
+            try:
+                current_data = self._api_router.get_current_data(
+                    list(self._ptrade_context.universe)
+                )
+                # 更新当前数据缓存
+                self._current_data.update(current_data)
+                return current_data
+            except Exception as e:
+                self._logger.warning(f"API router data generation failed: {e}")
+
+        # 回退到直接使用数据插件
         active_data_plugin = self._get_active_data_plugin()
         if not active_data_plugin:
             raise RuntimeError("No data plugin available for market data generation")
 
         try:
-            snapshot = active_data_plugin.get_market_snapshot(
+            # 使用PTrade标准API：get_snapshot
+            snapshot: Dict[str, Any] = active_data_plugin.get_snapshot(
                 self._ptrade_context.universe
             )
             # 更新当前数据缓存
@@ -699,9 +743,9 @@ class PTradeAdapter(BasePlugin):
             )
 
         try:
-            price = active_data_plugin.get_current_price(security)
+            price: Optional[float] = active_data_plugin.get_current_price(security)
             if price is not None:
-                return price
+                return float(price)
             else:
                 raise ValueError(f"No price data available for {security}")
         except Exception as e:
@@ -760,7 +804,11 @@ class PTradeAdapter(BasePlugin):
             return None
 
         try:
-            return hook_func(*args, **kwargs)
+            # 使用API使用限制上下文执行钩子函数
+            # 设置生命周期阶段
+            if hasattr(self, "_lifecycle_controller"):
+                self._lifecycle_controller.set_phase(hook_name)
+                return hook_func(*args, **kwargs)
         except Exception as e:
             self._logger.error(f"Error executing strategy hook {hook_name}: {e}")
             raise PTradeAPIError(f"Strategy hook {hook_name} failed: {e}")
@@ -802,16 +850,67 @@ class PTradeAdapter(BasePlugin):
             self._inject_ptrade_apis(strategy_module)
 
             # 提取策略钩子函数
+            self._logger.info("Extracting strategy hooks...")
             self._extract_strategy_hooks(strategy_module)
+            self._logger.info(f"Extracted hooks: {list(self._strategy_hooks.keys())}")
+            self._logger.info(
+                f"Available hooks: {[name for name, func in self._strategy_hooks.items() if func is not None]}"
+            )
 
             # 保存策略模块引用
             self._strategy_module = strategy_module
 
             # 执行策略初始化
             if self._strategy_hooks["initialize"]:
-                self._strategy_hooks["initialize"](self._ptrade_context)
-                if self._ptrade_context:
-                    self._ptrade_context.initialized = True
+                # 设置生命周期阶段
+                if (
+                    hasattr(self, "_lifecycle_controller")
+                    and self._lifecycle_controller
+                ):
+                    from .lifecycle_controller import LifecyclePhase
+
+                    self._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+                    self._logger.info("Executing strategy initialize function...")
+                    try:
+                        self._strategy_hooks["initialize"](self._ptrade_context)
+                        self._logger.info(
+                            "Strategy initialize function completed successfully"
+                        )
+
+                        if self._ptrade_context:
+                            self._ptrade_context.initialized = True
+
+                            # 调试：显示初始化后的状态
+                            self._logger.info(
+                                f"After initialize - securities: {getattr(self._ptrade_context, 'securities', 'Not found')}"
+                            )
+                            self._logger.info(
+                                f"After initialize - universe: {self._ptrade_context.universe}"
+                            )
+
+                            # 同步策略中设置的securities到universe
+                            if (
+                                hasattr(self._ptrade_context, "securities")
+                                and self._ptrade_context.securities
+                            ):
+                                self._ptrade_context.set_universe(
+                                    self._ptrade_context.securities
+                                )
+                                self._logger.info(
+                                    f"Synced securities to universe: {self._ptrade_context.securities}"
+                                )
+                            else:
+                                self._logger.warning(
+                                    "No securities found in context after initialize"
+                                )
+                    except Exception as e:
+                        self._logger.error(f"Error in strategy initialize: {e}")
+                        import traceback
+
+                        self._logger.error(
+                            f"Initialize traceback: {traceback.format_exc()}"
+                        )
+                        raise
 
             self._logger.info(f"PTrade strategy loaded successfully: {strategy_path}")
             return True
@@ -857,6 +956,14 @@ class PTradeAdapter(BasePlugin):
                 ]:
                     continue
 
+                # 特殊处理log属性
+                if api_name == "log":
+                    # 直接注入log对象，不进行包装
+                    log_obj = getattr(self._api_router, api_name)
+                    setattr(strategy_module, api_name, log_obj)
+                    injected_count += 1
+                    continue
+
                 api_func = getattr(self._api_router, api_name)
                 if api_func:
                     # 创建API包装器，自动注入适配器引用
@@ -878,8 +985,16 @@ class PTradeAdapter(BasePlugin):
 
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
+                # 检查API使用限制
+                # 检查API调用权限
+                if hasattr(self, "_lifecycle_controller"):
+                    self._lifecycle_controller.validate_api_call(api_name)
+
                 # 自动注入适配器引用作为第一个参数
                 return api_func(*args, **kwargs)
+            except PTradeLifecycleError as e:
+                self._logger.error(f"PTrade API '{api_name}' access denied: {e}")
+                raise PTradeAPIError(f"API access denied: {api_name}: {e}")
             except Exception as e:
                 self._logger.error(f"PTrade API '{api_name}' failed: {e}")
                 raise PTradeAPIError(f"API call failed: {api_name}: {e}")

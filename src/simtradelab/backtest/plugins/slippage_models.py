@@ -301,7 +301,7 @@ class DynamicSlippageModel(BaseSlippageModel):
         volatility = (
             market_data.high_price - market_data.low_price
         ) / market_data.close_price
-        
+
         # 确保波动性影响有实际差异
         impact = volatility * self._volatility_factor
         return max(impact, Decimal("0.0001"))  # 最小波动影响
@@ -421,7 +421,7 @@ class VolatilityBasedSlippageModel(BaseSlippageModel):
         volatility_impact = volatility * self._volatility_multiplier
         slippage_rate = self._base_slippage_rate + volatility_impact
         slippage_rate = min(slippage_rate, self._max_slippage_rate)
-        
+
         # 确保有明显的波动性差异
         if volatility > Decimal("0.1"):  # 高波动（>10%）
             slippage_rate = slippage_rate * Decimal("2")  # 加倍滑点
@@ -507,7 +507,7 @@ class VolatilityBasedSlippageModel(BaseSlippageModel):
         intraday_volatility = (
             market_data.high_price - market_data.low_price
         ) / market_data.close_price
-        
+
         # 确保有实际的波动性差异
         return max(intraday_volatility, self._min_volatility)
 

@@ -3,7 +3,7 @@
 主程序入口，用于配置和运行回测。
 """
 
-from simtradelab.engine import BacktestEngine
+from simtradelab import BacktestEngine
 
 
 def main():
@@ -11,51 +11,35 @@ def main():
     主函数，配置并运行回测。
     """
     # --- 回测配置 ---
-    strategy_file = "strategies/test_strategy.py"
-    data_path = "data/sample_data.csv"  # 假设数据文件路径
-    start_date = "2023-01-13"  # 只测试有数据的日期
-    end_date = "2023-01-13"
+    # strategy_file = "strategies/simple_dual_ma_strategy.py"
+    strategy_file = "strategies/buy_and_hold_strategy.py"
     initial_cash = 1000000.0
+    days = 10
 
     # --- 启动引擎 ---
+    print("=== SimTradeLab 回测系统 ===")
+    print(f"策略文件: {strategy_file}")
+    print(f"初始资金: ¥{initial_cash:,.0f}")
+    print(f"模拟天数: {days}天")
+    print()
+
     engine = BacktestEngine(
-        strategy_file=strategy_file,
-        data_path=data_path,
-        start_date=start_date,
-        end_date=end_date,
-        initial_cash=initial_cash,
+        strategy_file=strategy_file, initial_cash=initial_cash, days=days
     )
 
-    engine.run()
+    results = engine.run()
 
     # 显示详细的最终状态
     print("\n=== 详细回测结果 ===")
-    print(f"最终现金: {engine.portfolio.cash:,.2f}")
-    print(f"最终总价值: {engine.portfolio.total_value:,.2f}")
-    positions_count = len(
-        [p for p in engine.portfolio.positions.values() if p.amount > 0]
-    )
-    print(f"持仓数量: {positions_count}")
-
-    total_position_value = 0
-    for stock, position in engine.portfolio.positions.items():
-        if position.amount > 0:
-            print(
-                f"持仓 {stock}: {position.amount} 股，"
-                f"成本价 {position.cost_basis:.2f}，"
-                f"当前价 {position.last_sale_price:.2f}，"
-                f"市值 {position.market_value:.2f}"
-            )
-            total_position_value += position.market_value
-
-    print(f"持仓总市值: {total_position_value:,.2f}")
-    print(f"现金+持仓: {engine.portfolio.cash + total_position_value:,.2f}")
-
-    # 计算收益
-    total_return = (
-        (engine.portfolio.total_value - engine.initial_cash) / engine.initial_cash * 100
-    )
-    print(f"总收益率: {total_return:.2f}%")
+    print(f"初始资金: ¥{results['initial_cash']:,.0f}")
+    print(f"最终价值: ¥{results['final_value']:,.0f}")
+    print(f"现金余额: ¥{results['cash']:,.0f}")
+    print(f"持仓价值: ¥{results['positions_value']:,.0f}")
+    print(f"总收益率: {results['total_return_pct']:+.2f}%")
+    print(f"交易次数: {results['total_trades']}")
+    print(f"盈利交易: {results['winning_trades']}")
+    print(f"持仓数量: {results['positions_count']}")
+    print(f"模拟天数: {results['days_simulated']}天")
 
 
 if __name__ == "__main__":

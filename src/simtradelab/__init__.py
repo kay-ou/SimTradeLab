@@ -28,11 +28,13 @@ from .exceptions import (
 
 # 核心插件系统
 from .plugins.base import BasePlugin
+from .runner import BacktestEngine
 
 __version__ = "1.0.0"
 __author__ = "SimTradeLab Team"
 
 __all__ = [
+    "BacktestEngine",
     # 核心插件系统
     "BasePlugin",
     "EventBus",

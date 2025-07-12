@@ -6,24 +6,16 @@ PTrade回测模式API路由器
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from ....core.event_bus import EventBus
+from ..api_validator import APIValidator
+from ..lifecycle_controller import LifecycleController
 from .base import BaseAPIRouter
-from .common_utils_mixin import CommonUtilsMixin
-from .data_retrieval_mixin import DataRetrievalMixin
-from .stock_info_mixin import StockInfoMixin
-from .technical_indicator_mixin import TechnicalIndicatorMixin
 
 if TYPE_CHECKING:
     from ..context import PTradeContext
     from ..models import Order, Position
 
 
-class BacktestAPIRouter(
-    BaseAPIRouter,
-    StockInfoMixin,
-    TechnicalIndicatorMixin,
-    DataRetrievalMixin,
-    CommonUtilsMixin,
-):
+class BacktestAPIRouter(BaseAPIRouter):
     """回测模式API路由器"""
 
     def __init__(
@@ -32,37 +24,26 @@ class BacktestAPIRouter(
         event_bus: Optional[EventBus] = None,
         slippage_rate: float = 0.0,
         commission_rate: float = 0.0,
+        lifecycle_controller: Optional[LifecycleController] = None,
+        api_validator: Optional[APIValidator] = None,
     ):
-        super().__init__(context, event_bus)
+        super().__init__(context, event_bus, lifecycle_controller, api_validator)
         self._slippage_rate = slippage_rate
         self._commission_rate = commission_rate
         self._data_plugin = None  # 将在设置时从适配器获取
         self._supported_apis = {
-            # 交易相关API
-            "order",
-            "order_value",
-            "order_target",
-            "order_target_value",
-            "order_market",
-            "cancel_order",
-            "cancel_order_ex",
-            "get_all_orders",
-            "ipo_stocks_order",
-            "after_trading_order",
-            "after_trading_cancel_order",
-            "get_position",
-            "get_positions",
-            "get_open_orders",
-            "get_order",
-            "get_orders",
-            "get_trades",
-            # 数据获取API
-            "get_history",
-            "get_price",
-            "get_snapshot",
-            "get_stock_info",
-            "get_fundamentals",
-            # 股票信息API (新增的9个API)
+            # === 已实际实现的API ===
+            # 基础信息 (3个) - 通过父类BaseRouter实现
+            "get_trading_day",
+            "get_all_trades_days",
+            "get_trade_days",
+            # 行情信息 - 通过父类BaseRouter实现
+            "get_history",  # [回测/交易]
+            "get_price",  # [研究/回测/交易]
+            "get_snapshot",  # 在父类BaseRouter中实现，但回测模式下通常不可用
+            "get_stock_info",  # [研究/回测/交易]
+            "get_fundamentals",  # [研究/回测/交易]
+            # 股票信息 (9个) - 通过父类BaseRouter实现
             "get_stock_name",
             "get_stock_status",
             "get_stock_exrights",
@@ -72,28 +53,41 @@ class BacktestAPIRouter(
             "get_Ashares",
             "get_etf_list",
             "get_ipo_stocks",
-            # 技术指标API
+            # 技术指标 (4个) - 通过父类BaseRouter实现
             "get_MACD",
             "get_KDJ",
             "get_RSI",
             "get_CCI",
-            # 交易日期API
-            "get_trading_day",
-            "get_all_trades_days",
-            "get_trade_days",
-            # 配置API
-            "set_universe",
-            "set_benchmark",
+            # 工具函数 - 通过父类BaseRouter实现
+            "log",  # 通过父类BaseRouter实现
+            "is_trade",  # 通过父类BaseRouter实现
+            "check_limit",  # 通过父类BaseRouter实现
+            "set_universe",  # 通过父类BaseRouter实现
+            "set_benchmark",  # 通过父类BaseRouter实现
+            # 回测模式特有的配置方法 (在路由器中直接实现)
             "set_commission",
-            "set_slippage",
-            "set_parameters",
             "set_fixed_slippage",
+            "set_slippage",
             "set_volume_ratio",
             "set_limit_mode",
             "set_yesterday_position",
-            # 工具API
-            "log",
-            "check_limit",
+            "set_parameters",
+            "run_daily",
+            # 交易相关函数 (在路由器中直接实现)
+            "order",
+            "order_target",
+            "order_value",
+            "order_target_value",
+            "order_market",
+            "cancel_order",
+            "cancel_order_ex",
+            "get_all_orders",
+            "get_position",
+            "get_positions",
+            "get_open_orders",
+            "get_order",
+            "get_orders",
+            "get_trades",
             "handle_data",
         }
 
@@ -318,15 +312,6 @@ class BacktestAPIRouter(
 
         trades.sort(key=lambda t: t["datetime"], reverse=True)  # type: ignore
         return trades
-
-    # 以下方法现在由Mixin提供，无需重复实现：
-    # get_history, get_price, get_snapshot - 来自DataRetrievalMixin
-    # get_stock_info, get_fundamentals - 来自DataRetrievalMixin
-    # get_trading_day, get_all_trades_days, get_trade_days - 来自CommonUtilsMixin
-    # set_universe, set_benchmark - 来自CommonUtilsMixin
-    # get_MACD, get_KDJ, get_RSI, get_CCI - 来自TechnicalIndicatorMixin
-    # log, check_limit - 来自CommonUtilsMixin
-    # get_stock_name等9个新股票信息API - 来自StockInfoMixin
 
     # 回测模式特有的配置方法（需要特殊处理）
     def set_commission(self, commission: float) -> None:
@@ -562,93 +547,6 @@ class BacktestAPIRouter(
         # 使用默认价格
         base_price = 15.0 if security.startswith("000") else 20.0
         return base_price
-
-    # ==========================================
-    # 数据获取方法 - 委托给DataRetrievalMixin
-    # ==========================================
-    def get_history(self, *args, **kwargs):
-        return DataRetrievalMixin.get_history(self, *args, **kwargs)
-
-    def get_price(self, *args, **kwargs):
-        return DataRetrievalMixin.get_price(self, *args, **kwargs)
-
-    def get_snapshot(self, *args, **kwargs):
-        return DataRetrievalMixin.get_snapshot(self, *args, **kwargs)
-
-    def get_stock_info(self, *args, **kwargs):
-        return DataRetrievalMixin.get_stock_info(self, *args, **kwargs)
-
-    def get_fundamentals(self, *args, **kwargs):
-        return DataRetrievalMixin.get_fundamentals(self, *args, **kwargs)
-
-    # ==========================================
-    # 股票信息方法 - 委托给StockInfoMixin
-    # ==========================================
-    def get_stock_name(self, *args, **kwargs):
-        return StockInfoMixin.get_stock_name(self, *args, **kwargs)
-
-    def get_stock_status(self, *args, **kwargs):
-        return StockInfoMixin.get_stock_status(self, *args, **kwargs)
-
-    def get_stock_exrights(self, *args, **kwargs):
-        return StockInfoMixin.get_stock_exrights(self, *args, **kwargs)
-
-    def get_stock_blocks(self, *args, **kwargs):
-        return StockInfoMixin.get_stock_blocks(self, *args, **kwargs)
-
-    def get_index_stocks(self, *args, **kwargs):
-        return StockInfoMixin.get_index_stocks(self, *args, **kwargs)
-
-    def get_industry_stocks(self, *args, **kwargs):
-        return StockInfoMixin.get_industry_stocks(self, *args, **kwargs)
-
-    def get_Ashares(self, *args, **kwargs):
-        return StockInfoMixin.get_Ashares(self, *args, **kwargs)
-
-    def get_etf_list(self, *args, **kwargs):
-        return StockInfoMixin.get_etf_list(self, *args, **kwargs)
-
-    def get_ipo_stocks(self, *args, **kwargs):
-        return StockInfoMixin.get_ipo_stocks(self, *args, **kwargs)
-
-    # ==========================================
-    # 技术指标方法 - 委托给TechnicalIndicatorMixin
-    # ==========================================
-    def get_MACD(self, *args, **kwargs):
-        return TechnicalIndicatorMixin.get_MACD(self, *args, **kwargs)
-
-    def get_KDJ(self, *args, **kwargs):
-        return TechnicalIndicatorMixin.get_KDJ(self, *args, **kwargs)
-
-    def get_RSI(self, *args, **kwargs):
-        return TechnicalIndicatorMixin.get_RSI(self, *args, **kwargs)
-
-    def get_CCI(self, *args, **kwargs):
-        return TechnicalIndicatorMixin.get_CCI(self, *args, **kwargs)
-
-    # ==========================================
-    # 通用工具方法 - 委托给CommonUtilsMixin
-    # ==========================================
-    def get_trading_day(self, *args, **kwargs):
-        return CommonUtilsMixin.get_trading_day(self, *args, **kwargs)
-
-    def get_all_trades_days(self, *args, **kwargs):
-        return CommonUtilsMixin.get_all_trades_days(self, *args, **kwargs)
-
-    def get_trade_days(self, *args, **kwargs):
-        return CommonUtilsMixin.get_trade_days(self, *args, **kwargs)
-
-    def set_universe(self, *args, **kwargs):
-        return CommonUtilsMixin.set_universe(self, *args, **kwargs)
-
-    def set_benchmark(self, *args, **kwargs):
-        return CommonUtilsMixin.set_benchmark(self, *args, **kwargs)
-
-    def log(self, *args, **kwargs):
-        return CommonUtilsMixin.log(self, *args, **kwargs)
-
-    def check_limit(self, *args, **kwargs):
-        return CommonUtilsMixin.check_limit(self, *args, **kwargs)
 
     # ==========================================
     # 定时和回调 API 实现

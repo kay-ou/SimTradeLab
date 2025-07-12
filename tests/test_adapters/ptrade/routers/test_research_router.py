@@ -36,66 +36,28 @@ class TestResearchAPIRouter:
     @pytest.fixture
     def router(self, context, event_bus):
         """创建研究模式路由器实例"""
-        router = ResearchAPIRouter(context=context, event_bus=event_bus)
+        # 创建模拟插件管理器
+        mock_plugin_manager = MagicMock()
 
-        # 设置mock数据插件（与backtest router相同的设置）
+        # 创建模拟数据插件
         mock_data_plugin = MagicMock()
 
-        # 模拟get_multiple_history_data方法
-        def mock_get_multiple_history_data(
-            securities, count, start_date=None, end_date=None
-        ):
-            dates = pd.date_range("2023-01-01", periods=count, freq="D")
-            all_data = []
-
-            for security in securities:
-                security_data = pd.DataFrame(
-                    {
-                        "security": [security] * count,
-                        "date": dates,
-                        "open": np.random.rand(count),
-                        "high": np.random.rand(count),
-                        "low": np.random.rand(count),
-                        "close": np.random.rand(count),
-                        "volume": np.random.randint(1000, 10000, count),
-                    }
-                )
-                all_data.append(security_data)
-
-            if all_data:
-                result = pd.concat(all_data, ignore_index=True)
-                return result.sort_values(["security", "date"])
-            else:
-                return pd.DataFrame()
+        # 设置数据插件的方法识别
+        mock_data_plugin.get_history_data = MagicMock()
+        mock_data_plugin.get_current_price = MagicMock()
+        mock_data_plugin.get_snapshot = MagicMock()
+        mock_data_plugin.get_multiple_history_data = MagicMock()
 
         mock_data_plugin.get_multiple_history_data.side_effect = (
-            mock_get_multiple_history_data
+            self._mock_get_multiple_history_data
         )
-
-        # 模拟get_market_snapshot方法
-        def mock_get_market_snapshot(securities):
-            snapshot = {}
-            for security in securities:
-                snapshot[security] = {
-                    "last_price": 15.0 if security.startswith("000001") else 20.0,
-                    "volume": 1000 if security.startswith("000001") else 2000,
-                    "datetime": pd.Timestamp.now(),
-                }
-            return snapshot
-
-        mock_data_plugin.get_market_snapshot.side_effect = mock_get_market_snapshot
-
-        # 模拟get_stock_basic_info方法 (回退到基本信息生成)
+        mock_data_plugin.get_snapshot.side_effect = self._mock_get_snapshot
         mock_data_plugin.get_stock_basic_info.side_effect = Exception(
             "Plugin method not available"
         )
-
-        # 模拟get_fundamentals方法 (回退到空DataFrame)
         mock_data_plugin.get_fundamentals.side_effect = Exception(
             "Plugin method not available"
         )
-
-        # 模拟交易日相关方法
         mock_data_plugin.get_trading_day.return_value = "2024-01-01"
         mock_data_plugin.get_trading_days_range.return_value = [
             "2023-12-25",
@@ -109,9 +71,7 @@ class TestResearchAPIRouter:
             for i in range(1, 13)
             for j in range(1, 29)
             if j % 7 not in [0, 6]
-        ]  # 模拟250个工作日
-
-        # 模拟涨跌停检查方法
+        ]
         mock_data_plugin.check_limit_status.return_value = {
             "000001.XSHE": {
                 "limit_up": False,
@@ -122,8 +82,125 @@ class TestResearchAPIRouter:
             }
         }
 
-        router.set_data_plugin(mock_data_plugin)
+        # 创建模拟技术指标插件
+        mock_indicators_plugin = MagicMock()
+        mock_indicators_plugin.metadata.name = "technical_indicators_plugin"
+        mock_indicators_plugin.metadata.category = "analysis"
+        mock_indicators_plugin.metadata.tags = ["indicators", "technical"]
+
+        # 正确设置计算方法 - 直接设置为函数而不是MagicMock
+        def mock_calculate_macd(close):
+            periods = len(close)
+            return pd.DataFrame(
+                {
+                    "MACD": np.random.randn(periods) * 0.1,
+                    "MACD_signal": np.random.randn(periods) * 0.1,
+                    "MACD_hist": np.random.randn(periods) * 0.05,
+                }
+            )
+
+        def mock_calculate_kdj(high, low, close):
+            periods = len(close)
+            return pd.DataFrame(
+                {
+                    "K": np.random.uniform(0, 100, periods),
+                    "D": np.random.uniform(0, 100, periods),
+                    "J": np.random.uniform(0, 100, periods),
+                }
+            )
+
+        def mock_calculate_rsi(close):
+            periods = len(close)
+            return pd.DataFrame({"RSI": np.random.uniform(0, 100, periods)})
+
+        def mock_calculate_cci(high, low, close):
+            periods = len(close)
+            return pd.DataFrame({"CCI": np.random.randn(periods) * 50})
+
+        mock_indicators_plugin.calculate_macd = mock_calculate_macd
+        mock_indicators_plugin.calculate_kdj = mock_calculate_kdj
+        mock_indicators_plugin.calculate_rsi = mock_calculate_rsi
+        mock_indicators_plugin.calculate_cci = mock_calculate_cci
+
+        # 设置插件管理器返回的插件
+        mock_plugin_manager.get_all_plugins.return_value = {
+            "mock_data_plugin": mock_data_plugin,
+            "technical_indicators_plugin": mock_indicators_plugin,
+        }
+
+        # 创建路由器
+        router = ResearchAPIRouter(
+            context=context, event_bus=event_bus, plugin_manager=mock_plugin_manager
+        )
+
         return router
+
+    def _mock_get_multiple_history_data(
+        self, securities, count, start_date=None, end_date=None
+    ):
+        """模拟历史数据获取"""
+        dates = pd.date_range("2023-01-01", periods=count, freq="D")
+        all_data = []
+        for security in securities:
+            security_data = pd.DataFrame(
+                {
+                    "security": [security] * count,
+                    "date": dates,
+                    "open": np.random.rand(count),
+                    "high": np.random.rand(count),
+                    "low": np.random.rand(count),
+                    "close": np.random.rand(count),
+                    "volume": np.random.randint(1000, 10000, count),
+                }
+            )
+            all_data.append(security_data)
+        if all_data:
+            result = pd.concat(all_data, ignore_index=True)
+            return result.sort_values(["security", "date"])
+        return pd.DataFrame()
+
+    def _mock_get_snapshot(self, securities):
+        """模拟市场快照获取"""
+        snapshot = {}
+        for security in securities:
+            snapshot[security] = {
+                "last_price": 15.0 if security.startswith("000001") else 20.0,
+                "volume": 1000 if security.startswith("000001") else 2000,
+                "datetime": pd.Timestamp.now(),
+            }
+        return snapshot
+
+    def _mock_calculate_macd(self, close):
+        """模拟MACD计算"""
+        periods = len(close)
+        return pd.DataFrame(
+            {
+                "MACD": np.random.randn(periods) * 0.1,
+                "MACD_signal": np.random.randn(periods) * 0.1,
+                "MACD_hist": np.random.randn(periods) * 0.05,
+            }
+        )
+
+    def _mock_calculate_kdj(self, high, low, close):
+        """模拟KDJ计算"""
+        periods = len(close)
+        return pd.DataFrame(
+            {
+                "K": np.random.uniform(0, 100, periods),
+                "D": np.random.uniform(0, 100, periods),
+                "J": np.random.uniform(0, 100, periods),
+            }
+        )
+
+    def _mock_calculate_rsi(self, close):
+        """模拟RSI计算"""
+        periods = len(close)
+        return pd.DataFrame({"RSI": np.random.uniform(0, 100, periods)})
+
+    def _mock_calculate_cci(self, high, low, close):
+        """模拟CCI计算"""
+        periods = len(close)
+        return pd.DataFrame({"CCI": np.random.randn(periods) * 50})
 
     def test_router_initialization(self, router, context):
         """测试路由器初始化"""
@@ -246,6 +323,63 @@ class TestResearchAPIRouter:
             NotImplementedError, match="Trade queries are not supported"
         ):
             router.get_trades()
+
+    def test_get_current_data(self, router):
+        """测试获取当前数据 - 策略data参数的数据源"""
+        # 临时替换mock方法，避免side_effect的干扰
+        mock_snapshot = {
+            "STOCK_A": {
+                "last_price": 10.5,
+                "open": 10.0,
+                "high": 10.8,
+                "low": 9.8,
+                "volume": 50000,
+                "money": 525000.0,
+                "price": 10.5,
+            }
+        }
+
+        # 直接设置mock返回值，绕过side_effect
+        data_plugin = router._get_data_plugin()
+        data_plugin.get_snapshot = MagicMock(return_value=mock_snapshot)
+
+        # 测试获取当前数据
+        result = router.get_current_data(["STOCK_A"])
+        assert isinstance(result, dict)
+        assert "STOCK_A" in result
+        assert "price" in result["STOCK_A"]
+        assert "close" in result["STOCK_A"]
+        assert "open" in result["STOCK_A"]
+        assert "high" in result["STOCK_A"]
+        assert "low" in result["STOCK_A"]
+        assert "volume" in result["STOCK_A"]
+        assert "money" in result["STOCK_A"]
+
+        # 验证数据格式
+        assert result["STOCK_A"]["price"] == 10.5
+        assert result["STOCK_A"]["close"] == 10.5
+        assert result["STOCK_A"]["volume"] == 50000
+
+    def test_data_plugin_integration(self, router):
+        """测试数据插件集成"""
+        # 验证数据插件能够被正确发现
+        data_plugin = router._get_data_plugin()
+        assert data_plugin is not None
+
+        # 验证数据插件具有必要的方法
+        assert hasattr(data_plugin, "get_history_data")
+        assert hasattr(data_plugin, "get_snapshot")
+        assert hasattr(data_plugin, "get_current_price")
+        assert hasattr(data_plugin, "get_multiple_history_data")
+
+    def test_data_plugin_fallback(self, router):
+        """测试数据插件不可用时的回退机制"""
+        # 设置插件管理器返回None（模拟无数据插件）
+        router._plugin_manager = None
+
+        # 测试各种数据获取方法的回退
+        result = router.get_current_data(["STOCK_A"])
+        assert result == {}
 
     def test_get_history(self, router):
         """测试获取历史数据"""
@@ -468,13 +602,12 @@ class TestResearchAPIRouter:
 
     def test_log_function(self, router):
         """测试日志功能"""
-        # 测试不同级别的日志
-        router.log("Research mode test info message", "info")
-        router.log("Research mode test warning message", "warning")
-        router.log("Research mode test error message", "error")
-
-        # 测试无效级别
-        router.log("Research mode test invalid level", "invalid")
+        # 根据PTrade官方文档，log函数"仅在回测、交易模块可用"
+        # 研究模式不支持log功能，调用log方法应该抛出NotImplementedError
+        with pytest.raises(
+            NotImplementedError, match="log function is not supported in research mode"
+        ):
+            router.log("test message")
 
     def test_research_mode_characteristics(self, router):
         """测试研究模式的特征"""
@@ -493,7 +626,6 @@ class TestResearchAPIRouter:
         assert router.is_mode_supported("get_MACD")
         assert router.is_mode_supported("set_universe")
         assert router.is_mode_supported("set_benchmark")
-        assert router.is_mode_supported("log")
         assert router.is_mode_supported("check_limit")
         assert router.is_mode_supported("handle_data")
 

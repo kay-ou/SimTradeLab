@@ -72,6 +72,7 @@ bandit = "^1.7.0"
 build = "^1.2.2.post1"
 # Windows-specific development tools
 pywin32 = { version = "^306", markers = "sys_platform == 'win32'" }
+pandas-stubs = "^2.3.0.250703"
 
 [tool.poetry.group.web.dependencies]
 fastapi = ">=0.68.0"

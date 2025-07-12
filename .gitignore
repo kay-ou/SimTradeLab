@@ -69,5 +69,6 @@ logs/
 web/uploads/
 cache/
 .roo/
+.augment/
 CLAUDE.md
 GEMINI.md

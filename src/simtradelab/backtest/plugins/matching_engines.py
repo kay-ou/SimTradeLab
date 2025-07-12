@@ -48,7 +48,9 @@ class SimpleMatchingEngine(BaseMatchingEngine):
         self._enable_partial_fill = (
             config.get("enable_partial_fill", True) if config else True
         )
-        self._match_mode = config.get("match_mode", "immediate") if config else "immediate"
+        self._match_mode = (
+            config.get("match_mode", "immediate") if config else "immediate"
+        )
 
     def _on_initialize(self) -> None:
         """初始化撮合引擎"""
@@ -161,11 +163,11 @@ class SimpleMatchingEngine(BaseMatchingEngine):
     def can_match(self, order: Order, market_data: MarketData) -> bool:
         """
         判断订单是否可以撮合
-        
+
         Args:
             order: 待撮合的订单
             market_data: 当前市场数据
-            
+
         Returns:
             是否可以撮合
         """
@@ -174,11 +176,11 @@ class SimpleMatchingEngine(BaseMatchingEngine):
     def get_fill_price(self, order: Order, market_data: MarketData) -> Decimal:
         """
         获取成交价格
-        
+
         Args:
             order: 订单信息
             market_data: 市场数据
-            
+
         Returns:
             成交价格
         """
@@ -187,11 +189,11 @@ class SimpleMatchingEngine(BaseMatchingEngine):
     def get_fill_quantity(self, order: Order, market_data: MarketData) -> Decimal:
         """
         获取成交数量
-        
+
         Args:
             order: 订单信息
             market_data: 市场数据
-            
+
         Returns:
             成交数量
         """
@@ -379,11 +381,11 @@ class DepthMatchingEngine(BaseMatchingEngine):
     def can_match(self, order: Order, market_data: MarketData) -> bool:
         """
         判断订单是否可以撮合
-        
+
         Args:
             order: 待撮合的订单
             market_data: 当前市场数据
-            
+
         Returns:
             是否可以撮合
         """
@@ -392,17 +394,17 @@ class DepthMatchingEngine(BaseMatchingEngine):
     def get_fill_price(self, order: Order, market_data: MarketData) -> Decimal:
         """
         获取成交价格
-        
+
         Args:
             order: 订单信息
             market_data: 市场数据
-            
+
         Returns:
             成交价格
         """
         # 计算市场冲击
         market_impact = self.get_market_impact(order, market_data)
-        
+
         # 计算成交价格（包含市场冲击）
         base_price = self._get_base_price(order, market_data)
         impact_adjustment = base_price * market_impact
@@ -415,11 +417,11 @@ class DepthMatchingEngine(BaseMatchingEngine):
     def get_fill_quantity(self, order: Order, market_data: MarketData) -> Decimal:
         """
         获取成交数量
-        
+
         Args:
             order: 订单信息
             market_data: 市场数据
-            
+
         Returns:
             成交数量
         """
@@ -588,11 +590,11 @@ class StrictLimitMatchingEngine(BaseMatchingEngine):
     def can_match(self, order: Order, market_data: MarketData) -> bool:
         """
         判断订单是否可以撮合
-        
+
         Args:
             order: 待撮合的订单
             market_data: 当前市场数据
-            
+
         Returns:
             是否可以撮合
         """
@@ -601,11 +603,11 @@ class StrictLimitMatchingEngine(BaseMatchingEngine):
     def get_fill_price(self, order: Order, market_data: MarketData) -> Decimal:
         """
         获取成交价格
-        
+
         Args:
             order: 订单信息
             market_data: 市场数据
-            
+
         Returns:
             成交价格
         """
@@ -614,11 +616,11 @@ class StrictLimitMatchingEngine(BaseMatchingEngine):
     def get_fill_quantity(self, order: Order, market_data: MarketData) -> Decimal:
         """
         获取成交数量
-        
+
         Args:
             order: 订单信息
             market_data: 市场数据
-            
+
         Returns:
             成交数量
         """

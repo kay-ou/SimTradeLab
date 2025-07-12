@@ -19,6 +19,28 @@ from ..base import BasePlugin, PluginConfig, PluginMetadata
 class MockDataPlugin(BasePlugin):
     """Mock数据源插件"""
 
+    # 自注册机制：标记为自动注册的核心插件
+    AUTO_REGISTER = True
+
+    # 默认配置
+    DEFAULT_CONFIG = {
+        "enabled": True,
+        "seed": 42,
+        "base_prices": {
+            "STOCK_A": 10.0,  # 支持策略中的STOCK_A
+            "000001.SZ": 15.0,
+            "000002.SZ": 12.0,
+            "000858.SZ": 25.0,
+            "600000.SH": 8.0,
+            "600036.SH": 35.0,
+            "600519.SH": 1800.0,
+            "688001.SH": 50.0,
+            "300001.SZ": 30.0,
+        },
+        "volatility": 0.02,
+        "trend": 0.0001,
+    }
+
     METADATA = PluginMetadata(
         name="mock_data_plugin",
         version="1.0.0",
@@ -303,15 +325,17 @@ class MockDataPlugin(BasePlugin):
         else:
             return pd.DataFrame()
 
-    def get_market_snapshot(self, securities: List[str]) -> Dict[str, Dict[str, Any]]:
+    def get_snapshot(self, securities: List[str]) -> Dict[str, Dict[str, Any]]:
         """
-        获取市场快照数据
+        获取行情快照（PTrade API兼容）
+
+        注意：该函数仅在交易模块可用
 
         Args:
             securities: 证券代码列表
 
         Returns:
-            市场快照数据字典
+            行情快照数据字典
         """
         if not self._enabled:
             raise RuntimeError("Mock Data Plugin is disabled")
@@ -330,6 +354,7 @@ class MockDataPlugin(BasePlugin):
                         "open": float(latest["open"]),
                         "high": float(latest["high"]),
                         "low": float(latest["low"]),
+                        "close": float(latest["close"]),  # 添加close字段
                         "volume": int(latest["volume"]),
                         "money": float(latest["money"]),
                         "datetime": latest["date"],
@@ -345,6 +370,7 @@ class MockDataPlugin(BasePlugin):
                     "open": base_price,
                     "high": base_price,
                     "low": base_price,
+                    "close": base_price,  # 添加close字段
                     "volume": 100000,
                     "money": base_price * 100000,
                     "datetime": datetime.now(),

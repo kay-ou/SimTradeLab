@@ -1,5 +1,26 @@
 # PTrade API 完整接口总结
 
+## 策略生命周期函数使用限制说明 📋
+
+本文档为每个API函数标注了它们只能在特定的策略生命周期函数中使用，标注格式为 `{函数名}`：
+
+### 策略生命周期函数说明
+- **`{initialize}`** - 只能在 `initialize(context)` 中调用
+- **`{handle_data}`** - 只能在 `handle_data(context, data)` 中调用
+- **`{before_trading_start}`** - 只能在 `before_trading_start(context, data)` 中调用
+- **`{after_trading_end}`** - 只能在 `after_trading_end(context, data)` 中调用
+- **`{tick_data}`** - 只能在 `tick_data(context, data)` 中调用
+- **`{on_order_response}`** - 只能在 `on_order_response(context, order)` 中调用
+- **`{on_trade_response}`** - 只能在 `on_trade_response(context, trade)` 中调用
+- **`{all}`** - 可以在所有策略生命周期函数中调用
+- **`{函数A|函数B}`** - 可以在函数A或函数B中调用
+
+### 使用限制原因
+- **初始化专用**：配置类函数只能在策略启动时设置
+- **交易时段专用**：交易类函数只能在交易时段调用
+- **事件响应专用**：回调函数只能在对应事件触发时调用
+- **数据获取通用**：查询类函数通常可以在任何时候调用
+
 ## 策略生命周期函数 (7个)
 
 ### 核心生命周期函数
@@ -16,180 +37,180 @@
 ## 设置函数 (12个)
 
 ### 基础设置
-- **set_universe(securities)** - 设置股票池 *[回测/交易]*
-- **set_benchmark(benchmark)** - 设置基准 *[回测/交易]*
-- **set_commission(commission)** - 设置佣金费率 *[仅回测]*
-- **set_fixed_slippage(slippage)** - 设置固定滑点 *[仅回测]*
-- **set_slippage(slippage)** - 设置滑点 *[仅回测]*
-- **set_volume_ratio(ratio)** - 设置成交比例 *[仅回测]*
-- **set_limit_mode(mode)** - 设置回测成交数量限制模式 *[仅回测]*
-- **set_yesterday_position(positions)** - 设置底仓 *[仅回测]*
-- **set_parameters(params)** - 设置策略配置参数 *[回测/交易]*
+- **set_universe(securities)** - 设置股票池 *[回测/交易]* `{initialize}`
+- **set_benchmark(benchmark)** - 设置基准 *[回测/交易]* `{initialize}`
+- **set_commission(commission)** - 设置佣金费率 *[仅回测]* `{initialize}`
+- **set_fixed_slippage(slippage)** - 设置固定滑点 *[仅回测]* `{initialize}`
+- **set_slippage(slippage)** - 设置滑点 *[仅回测]* `{initialize}`
+- **set_volume_ratio(ratio)** - 设置成交比例 *[仅回测]* `{initialize}`
+- **set_limit_mode(mode)** - 设置回测成交数量限制模式 *[仅回测]* `{initialize}`
+- **set_yesterday_position(positions)** - 设置底仓 *[仅回测]* `{initialize}`
+- **set_parameters(params)** - 设置策略配置参数 *[回测/交易]* `{initialize}`
 
 ### 定时函数
-- **run_daily(func, time)** - 按日周期处理 *[回测/交易]*
-- **run_interval(func, interval)** - 按设定周期处理 *[仅交易]*
+- **run_daily(func, time)** - 按日周期处理 *[回测/交易]* `{initialize}`
+- **run_interval(func, interval)** - 按设定周期处理 *[仅交易]* `{initialize}`
 
 ### 期货设置
-- **set_future_commission(commission)** - 设置期货手续费 *[仅回测]*
-- **set_margin_rate(security, rate)** - 设置期货保证金比例 *[回测/交易]*
+- **set_future_commission(commission)** - 设置期货手续费 *[仅回测]* `{initialize}`
+- **set_margin_rate(security, rate)** - 设置期货保证金比例 *[回测/交易]* `{initialize}`
 
 ## 获取信息函数 (50+个)
 
 ### 基础信息 (3个)
-- **get_trading_day(date, offset=0)** - 获取交易日期 *[研究/回测/交易]*
-- **get_all_trades_days()** - 获取全部交易日期 *[研究/回测/交易]*
-- **get_trade_days(start_date, end_date)** - 获取指定范围交易日期 *[研究/回测/交易]*
+- **get_trading_day(date, offset=0)** - 获取交易日期 *[研究/回测/交易]* `{all}`
+- **get_all_trades_days()** - 获取全部交易日期 *[研究/回测/交易]* `{all}`
+- **get_trade_days(start_date, end_date)** - 获取指定范围交易日期 *[研究/回测/交易]* `{all}`
 
 ### 市场信息 (3个)
-- **get_market_list()** - 获取市场列表 *[研究/回测/交易]*
-- **get_market_detail(market)** - 获取市场详细信息 *[研究/回测/交易]*
-- **get_cb_list()** - 获取可转债市场代码表 *[仅交易]*
+- **get_market_list()** - 获取市场列表 *[研究/回测/交易]* `{all}`
+- **get_market_detail(market)** - 获取市场详细信息 *[研究/回测/交易]* `{all}`
+- **get_cb_list()** - 获取可转债市场代码表 *[仅交易]* `{all}`
 
 ### 行情信息 (10个)
-- **get_history(count, frequency, field, security_list, fq, include, fill, is_dict, start_date, end_date)** - 获取历史行情 *[回测/交易]*
-- **get_price(security, start_date, end_date, frequency, fields, count)** - 获取历史数据 *[研究/回测/交易]*
-- **get_individual_entrust(security_list)** - 获取逐笔委托行情 *[仅交易]*
-- **get_individual_transaction(security_list)** - 获取逐笔成交行情 *[仅交易]*
-- **get_tick_direction(security_list)** - 获取分时成交行情 *[仅交易]*
-- **get_sort_msg(market, category, sort_type)** - 获取板块、行业的涨幅排名 *[仅交易]*
-- **get_etf_info(etf_code)** - 获取ETF信息 *[仅交易]*
-- **get_etf_stock_info(etf_code)** - 获取ETF成分券信息 *[仅交易]*
-- **get_gear_price(security_list)** - 获取指定代码的档位行情价格 *[仅交易]*
-- **get_snapshot(security_list)** - 获取行情快照 *[仅交易]*
-- **get_cb_info(cb_code)** - 获取可转债基础信息 *[研究/交易]*
+- **get_history(count, frequency, field, security_list, fq, include, fill, is_dict, start_date, end_date)** - 获取历史行情 *[回测/交易]* `{all}`
+- **get_price(security, start_date, end_date, frequency, fields, count)** - 获取历史数据 *[研究/回测/交易]* `{all}`
+- **get_individual_entrust(security_list)** - 获取逐笔委托行情 *[仅交易]* `{tick_data}`
+- **get_individual_transaction(security_list)** - 获取逐笔成交行情 *[仅交易]* `{tick_data}`
+- **get_tick_direction(security_list)** - 获取分时成交行情 *[仅交易]* `{tick_data}`
+- **get_sort_msg(market, category, sort_type)** - 获取板块、行业的涨幅排名 *[仅交易]* `{handle_data|before_trading_start|after_trading_end}`
+- **get_etf_info(etf_code)** - 获取ETF信息 *[仅交易]* `{all}`
+- **get_etf_stock_info(etf_code)** - 获取ETF成分券信息 *[仅交易]* `{all}`
+- **get_gear_price(security_list)** - 获取指定代码的档位行情价格 *[仅交易]* `{handle_data|tick_data}`
+- **get_snapshot(security_list)** - 获取行情快照 *[仅交易]* `{handle_data|tick_data}`
+- **get_cb_info(cb_code)** - 获取可转债基础信息 *[研究/交易]* `{all}`
 
 ### 股票信息 (12个)
-- **get_stock_name(security_list)** - 获取股票名称 *[研究/回测/交易]*
-- **get_stock_info(security_list)** - 获取股票基础信息 *[研究/回测/交易]*
-- **get_stock_status(security_list)** - 获取股票状态信息 *[研究/回测/交易]*
-- **get_stock_exrights(security_list)** - 获取股票除权除息信息 *[研究/回测/交易]*
-- **get_stock_blocks(security_list)** - 获取股票所属板块信息 *[研究/回测/交易]*
-- **get_index_stocks(index_code)** - 获取指数成份股 *[研究/回测/交易]*
-- **get_etf_stock_list(etf_code)** - 获取ETF成分券列表 *[仅交易]*
-- **get_industry_stocks(industry_code)** - 获取行业成份股 *[研究/回测/交易]*
-- **get_fundamentals(stocks, table, fields, date)** - 获取财务数据信息 *[研究/回测/交易]*
-- **get_Ashares(date)** - 获取指定日期A股代码列表 *[研究/回测/交易]*
-- **get_etf_list()** - 获取ETF代码 *[仅交易]*
-- **get_ipo_stocks()** - 获取当日IPO申购标的 *[仅交易]*
+- **get_stock_name(security_list)** - 获取股票名称 *[研究/回测/交易]* `{all}`
+- **get_stock_info(security_list)** - 获取股票基础信息 *[研究/回测/交易]* `{all}`
+- **get_stock_status(security_list)** - 获取股票状态信息 *[研究/回测/交易]* `{all}`
+- **get_stock_exrights(security_list)** - 获取股票除权除息信息 *[研究/回测/交易]* `{all}`
+- **get_stock_blocks(security_list)** - 获取股票所属板块信息 *[研究/回测/交易]* `{all}`
+- **get_index_stocks(index_code)** - 获取指数成份股 *[研究/回测/交易]* `{all}`
+- **get_etf_stock_list(etf_code)** - 获取ETF成分券列表 *[仅交易]* `{all}`
+- **get_industry_stocks(industry_code)** - 获取行业成份股 *[研究/回测/交易]* `{all}`
+- **get_fundamentals(stocks, table, fields, date)** - 获取财务数据信息 *[研究/回测/交易]* `{all}`
+- **get_Ashares(date)** - 获取指定日期A股代码列表 *[研究/回测/交易]* `{all}`
+- **get_etf_list()** - 获取ETF代码 *[仅交易]* `{all}`
+- **get_ipo_stocks()** - 获取当日IPO申购标的 *[仅交易]* `{before_trading_start|handle_data}`
 
 ### 其他信息 (8个)
-- **get_trades_file()** - 获取对账数据文件 *[仅回测]*
-- **convert_position_from_csv(file_path)** - 获取设置底仓的参数列表 *[仅回测]*
-- **get_user_name()** - 获取登录终端的资金账号 *[回测/交易]*
-- **get_deliver(start_date, end_date)** - 获取历史交割单信息 *[仅交易]*
-- **get_fundjour(start_date, end_date)** - 获取历史资金流水信息 *[仅交易]*
-- **get_research_path()** - 获取研究路径 *[回测/交易]*
-- **get_trade_name()** - 获取交易名称 *[仅交易]*
+- **get_trades_file()** - 获取对账数据文件 *[仅回测]* `{after_trading_end}`
+- **convert_position_from_csv(file_path)** - 获取设置底仓的参数列表 *[仅回测]* `{initialize}`
+- **get_user_name()** - 获取登录终端的资金账号 *[回测/交易]* `{all}`
+- **get_deliver(start_date, end_date)** - 获取历史交割单信息 *[仅交易]* `{after_trading_end}`
+- **get_fundjour(start_date, end_date)** - 获取历史资金流水信息 *[仅交易]* `{after_trading_end}`
+- **get_research_path()** - 获取研究路径 *[回测/交易]* `{initialize}`
+- **get_trade_name()** - 获取交易名称 *[仅交易]* `{all}`
 
 ## 交易相关函数 (30+个)
 
 ### 股票交易函数 (11个)
-- **order(security, amount, limit_price=None)** - 按数量买卖 *[回测/交易]*
-- **order_target(security, target_amount)** - 指定目标数量买卖 *[回测/交易]*
-- **order_value(security, value)** - 指定目标价值买卖 *[回测/交易]*
-- **order_target_value(security, target_value)** - 指定持仓市值买卖 *[回测/交易]*
-- **order_market(security, amount)** - 按市价进行委托 *[仅交易]*
-- **ipo_stocks_order(amount_per_stock=10000)** - 新股一键申购 *[仅交易]*
-- **after_trading_order(security, amount, limit_price)** - 盘后固定价委托 *[仅交易]*
-- **after_trading_cancel_order(order_id)** - 盘后固定价委托撤单 *[仅交易]*
-- **etf_basket_order(etf_code, amount, side)** - ETF成分券篮子下单 *[仅交易]*
-- **etf_purchase_redemption(etf_code, amount, side)** - ETF基金申赎接口 *[仅交易]*
-- **get_positions(security_list)** - 获取多支股票持仓信息 *[回测/交易]*
+- **order(security, amount, limit_price=None)** - 按数量买卖 *[回测/交易]* `{handle_data|tick_data}`
+- **order_target(security, target_amount)** - 指定目标数量买卖 *[回测/交易]* `{handle_data|tick_data}`
+- **order_value(security, value)** - 指定目标价值买卖 *[回测/交易]* `{handle_data|tick_data}`
+- **order_target_value(security, target_value)** - 指定持仓市值买卖 *[回测/交易]* `{handle_data|tick_data}`
+- **order_market(security, amount)** - 按市价进行委托 *[仅交易]* `{handle_data|tick_data}`
+- **ipo_stocks_order(amount_per_stock=10000)** - 新股一键申购 *[仅交易]* `{before_trading_start}`
+- **after_trading_order(security, amount, limit_price)** - 盘后固定价委托 *[仅交易]* `{after_trading_end}`
+- **after_trading_cancel_order(order_id)** - 盘后固定价委托撤单 *[仅交易]* `{after_trading_end}`
+- **etf_basket_order(etf_code, amount, side)** - ETF成分券篮子下单 *[仅交易]* `{handle_data|tick_data}`
+- **etf_purchase_redemption(etf_code, amount, side)** - ETF基金申赎接口 *[仅交易]* `{handle_data|tick_data}`
+- **get_positions(security_list)** - 获取多支股票持仓信息 *[回测/交易]* `{all}`
 
 ### 公共交易函数 (11个)
-- **order_tick(security, amount, limit_price, tick_type)** - tick行情触发买卖 *[仅交易]*
-- **cancel_order(order_id)** - 撤单 *[回测/交易]*
-- **cancel_order_ex(order_id)** - 撤单扩展 *[仅交易]*
-- **debt_to_stock_order(cb_code, amount)** - 债转股委托 *[仅交易]*
-- **get_open_orders(security=None)** - 获取未完成订单 *[回测/交易]*
-- **get_order(order_id)** - 获取指定订单 *[回测/交易]*
-- **get_orders(security=None)** - 获取全部订单 *[回测/交易]*
-- **get_all_orders()** - 获取账户当日全部订单 *[仅交易]*
-- **get_trades(security=None)** - 获取当日成交订单 *[回测/交易]*
-- **get_position(security)** - 获取持仓信息 *[回测/交易]*
+- **order_tick(security, amount, limit_price, tick_type)** - tick行情触发买卖 *[仅交易]* `{tick_data}`
+- **cancel_order(order_id)** - 撤单 *[回测/交易]* `{handle_data|tick_data|on_order_response}`
+- **cancel_order_ex(order_id)** - 撤单扩展 *[仅交易]* `{handle_data|tick_data|on_order_response}`
+- **debt_to_stock_order(cb_code, amount)** - 债转股委托 *[仅交易]* `{handle_data|tick_data}`
+- **get_open_orders(security=None)** - 获取未完成订单 *[回测/交易]* `{all}`
+- **get_order(order_id)** - 获取指定订单 *[回测/交易]* `{all}`
+- **get_orders(security=None)** - 获取全部订单 *[回测/交易]* `{all}`
+- **get_all_orders()** - 获取账户当日全部订单 *[仅交易]* `{all}`
+- **get_trades(security=None)** - 获取当日成交订单 *[回测/交易]* `{all}`
+- **get_position(security)** - 获取持仓信息 *[回测/交易]* `{all}`
 
 ## 融资融券专用函数 (19个)
 
 ### 融资融券交易类函数 (7个)
-- **margin_trade(security, amount, limit_price=None)** - 担保品买卖 *[两融回测/两融交易]*
-- **margincash_open(security, amount, limit_price=None)** - 融资买入 *[仅两融交易]*
-- **margincash_close(security, amount, limit_price=None)** - 卖券还款 *[仅两融交易]*
-- **margincash_direct_refund(amount)** - 直接还款 *[仅两融交易]*
-- **marginsec_open(security, amount, limit_price=None)** - 融券卖出 *[仅两融交易]*
-- **marginsec_close(security, amount, limit_price=None)** - 买券还券 *[仅两融交易]*
-- **marginsec_direct_refund(security, amount)** - 直接还券 *[仅两融交易]*
+- **margin_trade(security, amount, limit_price=None)** - 担保品买卖 *[两融回测/两融交易]* `{handle_data|tick_data}`
+- **margincash_open(security, amount, limit_price=None)** - 融资买入 *[仅两融交易]* `{handle_data|tick_data}`
+- **margincash_close(security, amount, limit_price=None)** - 卖券还款 *[仅两融交易]* `{handle_data|tick_data}`
+- **margincash_direct_refund(amount)** - 直接还款 *[仅两融交易]* `{handle_data|after_trading_end}`
+- **marginsec_open(security, amount, limit_price=None)** - 融券卖出 *[仅两融交易]* `{handle_data|tick_data}`
+- **marginsec_close(security, amount, limit_price=None)** - 买券还券 *[仅两融交易]* `{handle_data|tick_data}`
+- **marginsec_direct_refund(security, amount)** - 直接还券 *[仅两融交易]* `{handle_data|after_trading_end}`
 
 ### 融资融券查询类函数 (12个)
-- **get_margincash_stocks()** - 获取融资标的列表 *[仅两融交易]*
-- **get_marginsec_stocks()** - 获取融券标的列表 *[仅两融交易]*
-- **get_margin_contract()** - 合约查询 *[仅两融交易]*
-- **get_margin_contractreal()** - 实时合约查询 *[仅两融交易]*
-- **get_margin_assert()** - 信用资产查询 *[仅两融交易]*
-- **get_assure_security_list()** - 担保券查询 *[仅两融交易]*
-- **get_margincash_open_amount(security)** - 融资标的最大可买数量查询 *[仅两融交易]*
-- **get_margincash_close_amount(security)** - 卖券还款标的最大可卖数量查询 *[仅两融交易]*
-- **get_marginsec_open_amount(security)** - 融券标的最大可卖数量查询 *[仅两融交易]*
-- **get_marginsec_close_amount(security)** - 买券还券标的最大可买数量查询 *[仅两融交易]*
-- **get_margin_entrans_amount(security)** - 现券还券数量查询 *[仅两融交易]*
-- **get_enslo_security_info(security)** - 融券头寸信息查询 *[仅两融交易]*
+- **get_margincash_stocks()** - 获取融资标的列表 *[仅两融交易]* `{all}`
+- **get_marginsec_stocks()** - 获取融券标的列表 *[仅两融交易]* `{all}`
+- **get_margin_contract()** - 合约查询 *[仅两融交易]* `{all}`
+- **get_margin_contractreal()** - 实时合约查询 *[仅两融交易]* `{handle_data|tick_data}`
+- **get_margin_assert()** - 信用资产查询 *[仅两融交易]* `{all}`
+- **get_assure_security_list()** - 担保券查询 *[仅两融交易]* `{all}`
+- **get_margincash_open_amount(security)** - 融资标的最大可买数量查询 *[仅两融交易]* `{handle_data|tick_data}`
+- **get_margincash_close_amount(security)** - 卖券还款标的最大可卖数量查询 *[仅两融交易]* `{handle_data|tick_data}`
+- **get_marginsec_open_amount(security)** - 融券标的最大可卖数量查询 *[仅两融交易]* `{handle_data|tick_data}`
+- **get_marginsec_close_amount(security)** - 买券还券标的最大可买数量查询 *[仅两融交易]* `{handle_data|tick_data}`
+- **get_margin_entrans_amount(security)** - 现券还券数量查询 *[仅两融交易]* `{handle_data|tick_data}`
+- **get_enslo_security_info(security)** - 融券头寸信息查询 *[仅两融交易]* `{all}`
 
 ## 期货专用函数 (7个)
 
 ### 期货交易类函数 (4个)
-- **buy_open(security, amount, limit_price=None)** - 开多 *[回测/交易]*
-- **sell_close(security, amount, limit_price=None)** - 多平 *[回测/交易]*
-- **sell_open(security, amount, limit_price=None)** - 空开 *[回测/交易]*
-- **buy_close(security, amount, limit_price=None)** - 空平 *[回测/交易]*
+- **buy_open(security, amount, limit_price=None)** - 开多 *[回测/交易]* `{handle_data|tick_data}`
+- **sell_close(security, amount, limit_price=None)** - 多平 *[回测/交易]* `{handle_data|tick_data}`
+- **sell_open(security, amount, limit_price=None)** - 空开 *[回测/交易]* `{handle_data|tick_data}`
+- **buy_close(security, amount, limit_price=None)** - 空平 *[回测/交易]* `{handle_data|tick_data}`
 
 ### 期货查询类函数 (2个)
-- **get_margin_rate(security)** - 获取用户设置的保证金比例 *[仅回测]*
-- **get_instruments()** - 获取合约信息 *[回测/交易]*
+- **get_margin_rate(security)** - 获取用户设置的保证金比例 *[仅回测]* `{all}`
+- **get_instruments()** - 获取合约信息 *[回测/交易]* `{all}`
 
 ### 期货设置类函数 (1个)
-- **set_future_commission(commission)** - 设置期货手续费 *[仅回测]*
+- **set_future_commission(commission)** - 设置期货手续费 *[仅回测]* `{initialize}`
 
 ## 期权专用函数 (15个)
 
 ### 期权查询类函数 (6个)
-- **get_opt_objects()** - 获取期权标的列表 *[研究/回测/交易]*
-- **get_opt_last_dates(underlying)** - 获取期权标的到期日列表 *[研究/回测/交易]*
-- **get_opt_contracts(underlying, last_date)** - 获取期权标的对应合约列表 *[研究/回测/交易]*
-- **get_contract_info(contract)** - 获取期权合约信息 *[研究/回测/交易]*
-- **get_covered_lock_amount(underlying)** - 获取期权标的可备兑锁定数量 *[仅交易]*
-- **get_covered_unlock_amount(underlying)** - 获取期权标的允许备兑解锁数量 *[仅交易]*
+- **get_opt_objects()** - 获取期权标的列表 *[研究/回测/交易]* `{all}`
+- **get_opt_last_dates(underlying)** - 获取期权标的到期日列表 *[研究/回测/交易]* `{all}`
+- **get_opt_contracts(underlying, last_date)** - 获取期权标的对应合约列表 *[研究/回测/交易]* `{all}`
+- **get_contract_info(contract)** - 获取期权合约信息 *[研究/回测/交易]* `{all}`
+- **get_covered_lock_amount(underlying)** - 获取期权标的可备兑锁定数量 *[仅交易]* `{handle_data|tick_data}`
+- **get_covered_unlock_amount(underlying)** - 获取期权标的允许备兑解锁数量 *[仅交易]* `{handle_data|tick_data}`
 
 ### 期权交易类函数 (7个)
-- **buy_open(security, amount, limit_price=None)** - 权利仓开仓 *[仅交易]*
-- **sell_close(security, amount, limit_price=None)** - 权利仓平仓 *[仅交易]*
-- **sell_open(security, amount, limit_price=None)** - 义务仓开仓 *[仅交易]*
-- **buy_close(security, amount, limit_price=None)** - 义务仓平仓 *[仅交易]*
-- **open_prepared(security, amount, limit_price=None)** - 备兑开仓 *[仅交易]*
-- **close_prepared(security, amount, limit_price=None)** - 备兑平仓 *[仅交易]*
-- **option_exercise(security, amount)** - 行权 *[仅交易]*
+- **buy_open(security, amount, limit_price=None)** - 权利仓开仓 *[仅交易]* `{handle_data|tick_data}`
+- **sell_close(security, amount, limit_price=None)** - 权利仓平仓 *[仅交易]* `{handle_data|tick_data}`
+- **sell_open(security, amount, limit_price=None)** - 义务仓开仓 *[仅交易]* `{handle_data|tick_data}`
+- **buy_close(security, amount, limit_price=None)** - 义务仓平仓 *[仅交易]* `{handle_data|tick_data}`
+- **open_prepared(security, amount, limit_price=None)** - 备兑开仓 *[仅交易]* `{handle_data|tick_data}`
+- **close_prepared(security, amount, limit_price=None)** - 备兑平仓 *[仅交易]* `{handle_data|tick_data}`
+- **option_exercise(security, amount)** - 行权 *[仅交易]* `{handle_data|after_trading_end}`
 
 ### 期权其他函数 (2个)
-- **option_covered_lock(security, amount)** - 期权标的备兑锁定 *[仅交易]*
-- **option_covered_unlock(security, amount)** - 期权标的备兑解锁 *[仅交易]*
+- **option_covered_lock(security, amount)** - 期权标的备兑锁定 *[仅交易]* `{handle_data|tick_data}`
+- **option_covered_unlock(security, amount)** - 期权标的备兑解锁 *[仅交易]* `{handle_data|tick_data}`
 
 ## 计算函数 (4个)
 
 ### 技术指标计算函数
-- **get_MACD(close, short=12, long=26, m=9)** - 异同移动平均线 *[回测/交易]*
-- **get_KDJ(high, low, close, n=9, m1=3, m2=3)** - 随机指标 *[回测/交易]*
-- **get_RSI(close, n=6)** - 相对强弱指标 *[回测/交易]*
-- **get_CCI(high, low, close, n=14)** - 顺势指标 *[回测/交易]*
+- **get_MACD(close, short=12, long=26, m=9)** - 异同移动平均线 *[回测/交易]* `{all}`
+- **get_KDJ(high, low, close, n=9, m1=3, m2=3)** - 随机指标 *[回测/交易]* `{all}`
+- **get_RSI(close, n=6)** - 相对强弱指标 *[回测/交易]* `{all}`
+- **get_CCI(high, low, close, n=14)** - 顺势指标 *[回测/交易]* `{all}`
 
 ## 其他函数 (7个)
 
 ### 工具函数
-- **log** - 日志记录 (支持 debug, info, warning, error, critical 级别) *[回测/交易]*
-- **is_trade()** - 业务代码场景判断 *[回测/交易]*
-- **check_limit(security, query_date=None)** - 代码涨跌停状态判断 *[研究/回测/交易]*
-- **send_email(send_email_info, get_email_info, smtp_code, info, path, subject)** - 发送邮箱信息 *[仅交易]*
-- **send_qywx(corp_id, secret, agent_id, info, path, toparty, touser, totag)** - 发送企业微信信息 *[仅交易]*
-- **permission_test(account=None, end_date=None)** - 权限校验 *[仅交易]*
-- **create_dir(user_path=None)** - 创建文件路径 *[仅交易]*
+- **log** - 日志记录 (支持 debug, info, warning, error, critical 级别) *[回测/交易]* `{all}`
+- **is_trade()** - 业务代码场景判断 *[回测/交易]* `{all}`
+- **check_limit(security, query_date=None)** - 代码涨跌停状态判断 *[研究/回测/交易]* `{all}`
+- **send_email(send_email_info, get_email_info, smtp_code, info, path, subject)** - 发送邮箱信息 *[仅交易]* `{after_trading_end|on_order_response|on_trade_response}`
+- **send_qywx(corp_id, secret, agent_id, info, path, toparty, touser, totag)** - 发送企业微信信息 *[仅交易]* `{after_trading_end|on_order_response|on_trade_response}`
+- **permission_test(account=None, end_date=None)** - 权限校验 *[仅交易]* `{initialize}`
+- **create_dir(user_path=None)** - 创建文件路径 *[仅交易]* `{initialize}`
 
 ## 对象定义 (11个核心对象)
 
@@ -423,3 +444,102 @@ g.flag = 0               # 标志位
 20. **get_MACD()** - 技术指标MACD
 
 本总结涵盖了PTrade量化交易平台的完整API体系，为插件系统的PTrade兼容层提供了完整的参考规范。
+
+---
+
+## 按策略生命周期函数分类的API统计 📊
+
+### initialize(context) 专用API (15个)
+**功能**：策略初始化时的配置设置
+| API类型 | 数量 | 主要功能 |
+|---------|------|----------|
+| 基础设置 | 9 | 股票池、基准、佣金、滑点等配置 |
+| 定时函数 | 2 | 定时任务调度设置 |
+| 期货设置 | 2 | 期货手续费、保证金设置 |
+| 其他工具 | 2 | 权限校验、目录创建、底仓设置 |
+
+**核心API**：`set_universe()`, `set_benchmark()`, `set_commission()`, `run_daily()`, `run_interval()`
+
+### handle_data(context, data) 专用API (35个)
+**功能**：主策略逻辑执行，包含大部分交易操作
+| API类型 | 数量 | 主要功能 |
+|---------|------|----------|
+| 股票交易 | 6 | 基础买卖、目标交易 |
+| 融资融券交易 | 6 | 两融买卖、还款还券 |
+| 期货交易 | 4 | 期货开平仓 |
+| 期权交易 | 9 | 期权开平仓、备兑操作 |
+| 高级交易 | 3 | ETF申赎、债转股 |
+| 交易管理 | 3 | 撤单、查询 |
+| 实时行情 | 4 | 排名、档位价格、快照 |
+
+**核心API**：`order()`, `order_target()`, `cancel_order()`, `get_snapshot()`
+
+### before_trading_start(context, data) 专用API (2个)
+**功能**：盘前准备工作
+- **get_ipo_stocks()** - 获取当日IPO申购标的
+- **ipo_stocks_order()** - 新股一键申购
+
+### after_trading_end(context, data) 专用API (8个)
+**功能**：盘后处理和数据整理
+| API类型 | 数量 | 主要功能 |
+|---------|------|----------|
+| 盘后交易 | 2 | 盘后固定价委托和撤单 |
+| 数据文件 | 3 | 对账文件、交割单、资金流水 |
+| 通知推送 | 2 | 邮件、企业微信通知 |
+| 期权操作 | 1 | 期权行权 |
+
+**核心API**：`after_trading_order()`, `get_trades_file()`, `send_email()`
+
+### tick_data(context, data) 专用API (18个)
+**功能**：tick级别的实时数据处理和高频交易
+| API类型 | 数量 | 主要功能 |
+|---------|------|----------|
+| 实时行情 | 5 | 逐笔委托、成交、分时数据 |
+| 高频交易 | 13 | tick触发交易、所有交易类API |
+
+**核心API**：`order_tick()`, `get_individual_entrust()`, `get_tick_direction()`
+
+### on_order_response(context, order) 专用API (4个)
+**功能**：委托回报事件处理
+- **cancel_order()** - 撤单操作
+- **cancel_order_ex()** - 撤单扩展
+- **send_email()** - 邮件通知
+- **send_qywx()** - 企业微信通知
+
+### on_trade_response(context, trade) 专用API (2个)
+**功能**：成交回报事件处理
+- **send_email()** - 邮件通知
+- **send_qywx()** - 企业微信通知
+
+### 通用API (可在所有函数中调用) (95个)
+**功能**：数据查询、信息获取、技术指标计算等
+| API类型 | 数量 | 主要功能 |
+|---------|------|----------|
+| 基础信息 | 3 | 交易日期查询 |
+| 市场信息 | 3 | 市场列表、详情 |
+| 股票信息 | 11 | 股票基础信息、财务数据 |
+| 行情数据 | 3 | 历史行情、可转债信息 |
+| 交易查询 | 6 | 持仓、订单、成交查询 |
+| 融资融券查询 | 8 | 两融标的、合约、资产查询 |
+| 期货期权查询 | 6 | 合约信息、保证金查询 |
+| 技术指标 | 4 | MACD、KDJ、RSI、CCI |
+| 工具函数 | 3 | 日志、场景判断、涨跌停 |
+| 其他信息 | 48 | 用户信息、路径等 |
+
+### 策略生命周期函数使用频率统计 🎯
+
+| 生命周期函数 | 专用API数 | 可用总API数 | 使用频率 | 主要用途 |
+|-------------|-----------|-------------|----------|----------|
+| **initialize** | 15 | 110 | ⭐⭐⭐ | 策略配置和初始化 |
+| **handle_data** | 35 | 130 | ⭐⭐⭐⭐⭐ | 主策略逻辑和交易执行 |
+| **before_trading_start** | 2 | 97 | ⭐⭐ | 盘前准备 |
+| **after_trading_end** | 8 | 103 | ⭐⭐ | 盘后处理 |
+| **tick_data** | 18 | 113 | ⭐⭐⭐⭐ | 高频交易和实时数据 |
+| **on_order_response** | 4 | 99 | ⭐ | 委托事件处理 |
+| **on_trade_response** | 2 | 97 | ⭐ | 成交事件处理 |
+
+**关键发现**：
+- **handle_data** 是最核心的函数，可使用130个API，承担主要的策略逻辑
+- **tick_data** 专用于高频交易，有18个专用API用于实时数据处理
+- **initialize** 负责策略配置，有15个专用的设置类API
+- **事件回调函数** 主要用于异常处理和通知，API数量较少但很重要

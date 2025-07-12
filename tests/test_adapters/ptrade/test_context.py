@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-PTrade上下文管理器测试
+PTrade Context 单元测试
 
-测试PTradeContext的功能和属性管理
+专注测试 PTradeContext 基础功能和核心逻辑的正确性。
+对于完整的 PTrade 规范兼容性测试，请参考 test_context_advanced.py。
 """
 
 import pytest
@@ -11,6 +12,7 @@ from simtradelab.adapters.ptrade.context import PTradeContext
 from simtradelab.adapters.ptrade.models import Blotter, Portfolio, Position
 
 
+@pytest.mark.unit
 class TestPTradeContext:
     """测试PTrade上下文"""
 
@@ -33,7 +35,8 @@ class TestPTradeContext:
         """测试上下文初始化"""
         assert context.portfolio is portfolio
         assert context.blotter is blotter
-        assert context.current_dt is None
+        # current_dt 在 __post_init__ 中会被自动设置为当前时间
+        assert context.current_dt is not None
         assert context.universe == []
         assert context.benchmark is None
 

@@ -279,7 +279,7 @@ class CSVDataPlugin(BasePlugin):
         else:
             return pd.DataFrame()
 
-    def get_market_snapshot(self, securities: List[str]) -> Dict[str, Dict[str, Any]]:
+    def get_snapshot(self, securities: List[str]) -> Dict[str, Dict[str, Any]]:
         """
         获取市场快照数据
 
