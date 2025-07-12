@@ -131,7 +131,7 @@ class PTradeAdapter:
             # v5.0: 注入可插拔的回测引擎
             return BacktestAPIRouter(self.core, backtest_config)
         else:
-            return LiveTradingAPIRouter(self.core)
+            return TradingAPIRouter(self.core)
     
     # ... (其他方法保持不变)
 ```
