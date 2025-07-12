@@ -182,8 +182,30 @@ class TestBacktestEngine:
 class TestBacktestEngineIntegration:
     """BacktestEngine集成测试"""
 
-    def test_run_simple_strategy(self):
+    @patch(
+        "src.simtradelab.adapters.ptrade.adapter.PTradeAdapter._get_active_data_plugin"
+    )
+    def test_run_simple_strategy(self, mock_get_active_data_plugin):
         """测试运行简单策略"""
+        # 创建Mock数据插件
+        mock_data_plugin = MagicMock()
+        mock_data_plugin.get_snapshot.return_value = {
+            "000001.XSHE": {
+                "last_price": 15.0,
+                "pre_close": 14.8,
+                "open": 14.9,
+                "high": 15.2,
+                "low": 14.7,
+                "close": 15.0,
+                "volume": 100000,
+                "money": 1500000.0,
+                "datetime": "2023-01-01",
+                "price": 15.0,
+            }
+        }
+        mock_data_plugin.get_current_price.return_value = 15.0
+        mock_get_active_data_plugin.return_value = mock_data_plugin
+
         # 创建简单策略文件
         strategy_content = """
 def initialize(context):
@@ -231,8 +253,30 @@ def handle_data(context, data):
 class TestRunStrategyFunction:
     """run_strategy函数测试"""
 
-    def test_run_strategy_function(self):
+    @patch(
+        "src.simtradelab.adapters.ptrade.adapter.PTradeAdapter._get_active_data_plugin"
+    )
+    def test_run_strategy_function(self, mock_get_active_data_plugin):
         """测试run_strategy便捷函数"""
+        # 创建Mock数据插件
+        mock_data_plugin = MagicMock()
+        mock_data_plugin.get_snapshot.return_value = {
+            "000001.XSHE": {
+                "last_price": 15.0,
+                "pre_close": 14.8,
+                "open": 14.9,
+                "high": 15.2,
+                "low": 14.7,
+                "close": 15.0,
+                "volume": 100000,
+                "money": 1500000.0,
+                "datetime": "2023-01-01",
+                "price": 15.0,
+            }
+        }
+        mock_data_plugin.get_current_price.return_value = 15.0
+        mock_get_active_data_plugin.return_value = mock_data_plugin
+
         strategy_content = """
 def initialize(context):
     context.set_universe(['000001.XSHE'])
@@ -257,8 +301,30 @@ def handle_data(context, data):
         finally:
             Path(strategy_file).unlink()
 
-    def test_run_strategy_with_custom_params(self):
+    @patch(
+        "src.simtradelab.adapters.ptrade.adapter.PTradeAdapter._get_active_data_plugin"
+    )
+    def test_run_strategy_with_custom_params(self, mock_get_active_data_plugin):
         """测试带自定义参数的run_strategy"""
+        # 创建Mock数据插件
+        mock_data_plugin = MagicMock()
+        mock_data_plugin.get_snapshot.return_value = {
+            "000001.XSHE": {
+                "last_price": 15.0,
+                "pre_close": 14.8,
+                "open": 14.9,
+                "high": 15.2,
+                "low": 14.7,
+                "close": 15.0,
+                "volume": 100000,
+                "money": 1500000.0,
+                "datetime": "2023-01-01",
+                "price": 15.0,
+            }
+        }
+        mock_data_plugin.get_current_price.return_value = 15.0
+        mock_get_active_data_plugin.return_value = mock_data_plugin
+
         strategy_content = """
 def initialize(context):
     context.set_universe(['000001.XSHE'])
