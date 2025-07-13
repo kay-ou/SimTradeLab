@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from simtradelab.plugins.base import BasePlugin, PluginConfig, PluginMetadata
 from simtradelab.plugins.config.base_config import BasePluginConfig
@@ -109,9 +109,7 @@ class BaseBacktestPlugin(BasePlugin, ABC):
     """
 
     def __init__(
-        self, 
-        metadata: PluginMetadata, 
-        config: Optional[BasePluginConfig] = None
+        self, metadata: PluginMetadata, config: Optional[BasePluginConfig] = None
     ):
         # E8修复：统一使用BasePluginConfig，不再接受Dict配置
         super().__init__(metadata, config)

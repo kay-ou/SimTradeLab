@@ -7,7 +7,7 @@
 """
 
 from decimal import Decimal
-from typing import Dict, Optional
+from typing import Dict
 
 from pydantic import Field, field_validator
 

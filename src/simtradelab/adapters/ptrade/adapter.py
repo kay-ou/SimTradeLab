@@ -22,7 +22,6 @@ from .models import Portfolio
 from .routers import BacktestAPIRouter, ResearchAPIRouter, TradingAPIRouter
 from .utils import PTradeAdapterError, PTradeAPIError, PTradeCompatibilityError
 
-
 # 数据源优先级定义
 DATA_SOURCE_PRIORITIES = {
     "csv_data_plugin": 30,

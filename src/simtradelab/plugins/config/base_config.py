@@ -27,6 +27,8 @@ class BasePluginConfig(BaseModel):
     3. **多环境配置**：根据 APP_ENV 环境变量加载不同环境的配置
     """
 
+    enabled: bool = True  # 插件是否启用
+
     @model_validator(mode="before")
     @classmethod
     def _resolve_env_vars(cls, data: Any) -> Any:

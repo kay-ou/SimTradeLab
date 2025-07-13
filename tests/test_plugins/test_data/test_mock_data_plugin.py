@@ -12,8 +12,8 @@ import pandas as pd
 import pytest
 
 from src.simtradelab.plugins.base import PluginConfig, PluginState
-from src.simtradelab.plugins.data.mock_data_plugin import MockDataPlugin
 from src.simtradelab.plugins.data.base_data_source import DataFrequency, MarketType
+from src.simtradelab.plugins.data.mock_data_plugin import MockDataPlugin
 
 
 class TestMockDataPlugin:

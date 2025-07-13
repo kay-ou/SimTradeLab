@@ -8,13 +8,11 @@
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, Optional, Set
 
 from pydantic import Field, field_validator
 
 from simtradelab.plugins.config.base_config import BasePluginConfig
-
-from .base_data_source import DataFrequency, MarketType
 
 
 class DataSourceConfig(BasePluginConfig):

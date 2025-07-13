@@ -9,9 +9,8 @@
 E8修复：使用统一的Pydantic配置模型进行配置验证
 """
 
-from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 
@@ -27,7 +26,7 @@ class LinearSlippageModel(BaseSlippageModel):
     - 回测初期的简单测试
     - 流动性较好的主流股票
     - 保守的滑点估计
-    
+
     E8修复：使用LinearSlippageModelConfig进行类型安全的配置验证
     """
 
@@ -39,17 +38,17 @@ class LinearSlippageModel(BaseSlippageModel):
         category="slippage_model",
         tags=["backtest", "slippage", "linear", "simple"],
     )
-    
+
     # E8修复：定义配置模型类
     config_model = LinearSlippageModelConfig
 
     def __init__(
-        self, 
-        metadata: PluginMetadata, 
-        config: Optional[LinearSlippageModelConfig] = None
+        self,
+        metadata: PluginMetadata,
+        config: Optional[LinearSlippageModelConfig] = None,
     ):
         super().__init__(metadata, config)
-        
+
         # E8修复：通过类型安全的配置对象访问参数
         if config:
             self._base_slippage_rate = config.base_slippage_rate
@@ -83,7 +82,7 @@ class LinearSlippageModel(BaseSlippageModel):
     ) -> Decimal:
         """
         计算线性滑点
-        
+
         使用基础滑点率计算，可根据成交量和波动性调整
 
         Args:
@@ -96,7 +95,7 @@ class LinearSlippageModel(BaseSlippageModel):
         """
         # 基础滑点金额
         base_slippage = fill_price * order.quantity * self._base_slippage_rate
-        
+
         # 应用最小和最大滑点限制
         slippage_amount = max(base_slippage, self._min_slippage)
         slippage_amount = min(slippage_amount, self._max_slippage)
@@ -130,7 +129,7 @@ class VolumeBasedSlippageModel(BaseSlippageModel):
     - 小订单相对较低的滑点
     - 大订单更高的滑点
     - 支持多种冲击曲线
-    
+
     E8修复：使用VolumeBasedSlippageModelConfig进行类型安全的配置验证
     """
 
@@ -142,17 +141,17 @@ class VolumeBasedSlippageModel(BaseSlippageModel):
         category="slippage_model",
         tags=["backtest", "slippage", "volume", "dynamic"],
     )
-    
+
     # E8修复：定义配置模型类
     config_model = VolumeBasedSlippageModelConfig
 
     def __init__(
-        self, 
-        metadata: PluginMetadata, 
-        config: Optional[VolumeBasedSlippageModelConfig] = None
+        self,
+        metadata: PluginMetadata,
+        config: Optional[VolumeBasedSlippageModelConfig] = None,
     ):
         super().__init__(metadata, config)
-        
+
         # E8修复：通过类型安全的配置对象访问参数
         if config:
             self._base_slippage_rate = config.base_slippage_rate
@@ -190,7 +189,7 @@ class VolumeBasedSlippageModel(BaseSlippageModel):
     ) -> Decimal:
         """
         计算基于成交量的滑点
-        
+
         考虑订单大小相对于市场成交量的影响
 
         Args:
@@ -203,14 +202,14 @@ class VolumeBasedSlippageModel(BaseSlippageModel):
         """
         # 基础滑点
         base_slippage = fill_price * order.quantity * self._base_slippage_rate
-        
+
         # 计算成交量冲击
         volume_ratio = float(order.quantity) / float(market_data.volume)
         volume_impact = self._calculate_volume_impact(volume_ratio)
-        
+
         # 总滑点 = 基础滑点 * (1 + 成交量冲击)
         total_slippage = base_slippage * (Decimal("1") + volume_impact)
-        
+
         # 应用限制
         slippage_amount = max(total_slippage, self._min_slippage)
         slippage_amount = min(slippage_amount, self._max_slippage)
@@ -225,16 +224,16 @@ class VolumeBasedSlippageModel(BaseSlippageModel):
     def _calculate_volume_impact(self, volume_ratio: float) -> Decimal:
         """
         计算成交量冲击系数
-        
+
         Args:
             volume_ratio: 订单量/市场成交量比例
-            
+
         Returns:
             冲击系数
         """
         if volume_ratio <= 0:
             return Decimal("0")
-            
+
         # 根据配置的冲击曲线计算
         if self._volume_impact_curve == "linear":
             impact = volume_ratio * float(self._volume_impact_factor)
@@ -245,7 +244,7 @@ class VolumeBasedSlippageModel(BaseSlippageModel):
         else:
             # 默认使用平方根
             impact = np.sqrt(volume_ratio) * float(self._volume_impact_factor)
-            
+
         return Decimal(str(min(impact, 1.0)))  # 限制最大冲击为100%
 
     def get_slippage_rate(self, order: Order, market_data: MarketData) -> Decimal:
@@ -261,5 +260,5 @@ class VolumeBasedSlippageModel(BaseSlippageModel):
         """
         volume_ratio = float(order.quantity) / float(market_data.volume)
         volume_impact = self._calculate_volume_impact(volume_ratio)
-        
+
         return self._base_slippage_rate * (Decimal("1") + volume_impact)

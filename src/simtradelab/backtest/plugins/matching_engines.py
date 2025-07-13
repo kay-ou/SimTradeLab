@@ -16,9 +16,9 @@ from typing import List, Optional
 
 from .base import BaseMatchingEngine, Fill, MarketData, Order, PluginMetadata
 from .config import (
+    DepthMatchingEngineConfig,
+    LimitMatchingEngineConfig,
     SimpleMatchingEngineConfig,
-    DepthMatchingEngineConfig, 
-    LimitMatchingEngineConfig
 )
 
 
@@ -30,7 +30,7 @@ class SimpleMatchingEngine(BaseMatchingEngine):
     - 市价单按当前价格成交
     - 限价单按限价或更优价格成交
     - 完全成交，不考虑流动性限制
-    
+
     E8修复：使用SimpleMatchingEngineConfig进行类型安全的配置验证
     """
 
@@ -42,17 +42,17 @@ class SimpleMatchingEngine(BaseMatchingEngine):
         category="matching_engine",
         tags=["backtest", "matching", "simple"],
     )
-    
+
     # E8修复：定义配置模型类
     config_model = SimpleMatchingEngineConfig
 
     def __init__(
-        self, 
-        metadata: PluginMetadata, 
-        config: Optional[SimpleMatchingEngineConfig] = None
+        self,
+        metadata: PluginMetadata,
+        config: Optional[SimpleMatchingEngineConfig] = None,
     ):
         super().__init__(metadata, config)
-        
+
         # E8修复：通过类型安全的配置对象访问参数
         if config:
             self._price_tolerance = config.price_tolerance
@@ -237,12 +237,12 @@ class DepthMatchingEngine(BaseMatchingEngine):
     config_model = DepthMatchingEngineConfig
 
     def __init__(
-        self, 
-        metadata: PluginMetadata, 
-        config: Optional[DepthMatchingEngineConfig] = None
+        self,
+        metadata: PluginMetadata,
+        config: Optional[DepthMatchingEngineConfig] = None,
     ):
         super().__init__(metadata, config)
-        
+
         # E8修复：通过类型安全的配置对象访问参数
         if config:
             self._price_tolerance = config.price_tolerance
@@ -475,12 +475,12 @@ class StrictLimitMatchingEngine(BaseMatchingEngine):
     config_model = LimitMatchingEngineConfig
 
     def __init__(
-        self, 
-        metadata: PluginMetadata, 
-        config: Optional[LimitMatchingEngineConfig] = None
+        self,
+        metadata: PluginMetadata,
+        config: Optional[LimitMatchingEngineConfig] = None,
     ):
         super().__init__(metadata, config)
-        
+
         # E8修复：通过类型安全的配置对象访问参数
         if config:
             self._price_tolerance = config.price_tolerance

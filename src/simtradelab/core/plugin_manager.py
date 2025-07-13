@@ -17,7 +17,6 @@ from typing import Any, Dict, List, Optional, Set, Type, Union
 from ..exceptions import SimTradeLabError
 from ..plugins.base import BasePlugin, PluginMetadata, PluginState
 from ..plugins.config.base_config import BasePluginConfig
-from ..plugins.config.validator import ConfigValidator
 from .event_bus import EventBus
 from .events.cloud_event import CloudEvent
 
@@ -274,11 +273,14 @@ class PluginManager:
             try:
                 # E8修复：强制配置验证
                 plugin_config = config or registry.config
-                
+
                 # 如果插件定义了配置模型，确保使用正确的配置类型
-                if hasattr(registry.plugin_class, "config_model") and registry.plugin_class.config_model is not None:
+                if (
+                    hasattr(registry.plugin_class, "config_model")
+                    and registry.plugin_class.config_model is not None
+                ):
                     config_model_class = registry.plugin_class.config_model
-                    
+
                     if plugin_config is None:
                         # 创建默认配置
                         plugin_config = config_model_class()
@@ -288,16 +290,20 @@ class PluginManager:
                         if isinstance(plugin_config, dict):
                             # 从字典创建配置对象
                             plugin_config = config_model_class(**plugin_config)
-                        elif hasattr(plugin_config, 'model_dump'):
+                        elif hasattr(plugin_config, "model_dump"):
                             # 从其他Pydantic模型转换
-                            plugin_config = config_model_class(**plugin_config.model_dump())
+                            plugin_config = config_model_class(
+                                **plugin_config.model_dump()
+                            )
                         else:
                             raise PluginLoadError(
                                 f"插件 {plugin_name} 需要 {config_model_class.__name__} 类型的配置，"
                                 f"但提供了 {type(plugin_config).__name__}"
                             )
-                        self._logger.info(f"插件 {plugin_name} 配置已转换为 {config_model_class.__name__}")
-                    
+                        self._logger.info(
+                            f"插件 {plugin_name} 配置已转换为 {config_model_class.__name__}"
+                        )
+
                     self._logger.info(f"插件 {plugin_name} 配置验证成功")
                 else:
                     # 如果插件没有定义配置模型，使用基础配置或None
@@ -900,7 +906,7 @@ class PluginManager:
                     if plugin_class:
                         # 获取默认配置
                         default_config = getattr(plugin_class, "DEFAULT_CONFIG", {})
-                        config = PluginConfig(data=default_config)
+                        config = BasePluginConfig(**default_config)
 
                         # 显式注册插件
                         registered_name = self.register_plugin(plugin_class, config)
@@ -1077,9 +1083,7 @@ class PluginManager:
             default_config = getattr(plugin_class, "DEFAULT_CONFIG", {})
 
             # 创建插件配置
-            from ..plugins.base import PluginConfig
-
-            config = PluginConfig(config=default_config)
+            config = BasePluginConfig(**default_config)
 
             # 注册、加载并启动插件
             plugin_name = self.register_plugin(plugin_class, config)

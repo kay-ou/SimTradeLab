@@ -35,10 +35,7 @@ from .matching_engines import (
 )
 
 # 滑点模型实现
-from .slippage_models import (
-    LinearSlippageModel,
-    VolumeBasedSlippageModel,
-)
+from .slippage_models import LinearSlippageModel, VolumeBasedSlippageModel
 
 __all__ = [
     # 基础类

@@ -262,7 +262,7 @@ class BasePlugin(abc.ABC):
                 self._logger.info(f"Initializing plugin {self._metadata.name}")
 
                 # 验证配置
-                self._validate_config(self._config.config)
+                self._validate_config(self._config)
 
                 # 调用子类初始化方法
                 self._on_initialize()

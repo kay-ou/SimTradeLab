@@ -6,6 +6,7 @@ EventBus CloudEvent标准测试
 """
 
 import asyncio
+
 import pytest
 
 from simtradelab.core.event_bus import EventBus
@@ -39,7 +40,7 @@ class TestCloudEventBus:
             source="test_source",
             data={"message": "hello world"},
             priority=5,
-            tags={"env": "test"}
+            tags={"env": "test"},
         )
 
         event_bus.publish_cloud_event(cloud_event)
@@ -67,7 +68,7 @@ class TestCloudEventBus:
             data={"value": 42},
             source="test_source",
             priority=3,
-            tags={"type": "test"}
+            tags={"type": "test"},
         )
 
         assert len(received_events) == 1
@@ -137,11 +138,7 @@ class TestCloudEventBus:
 
         # 异步发布事件
         await event_bus.publish_cloud_event_async(
-            CloudEvent(
-                type="async.test",
-                source="async_source",
-                data={"async": True}
-            )
+            CloudEvent(type="async.test", source="async_source", data={"async": True})
         )
 
         assert len(received_events) == 1
@@ -182,18 +179,14 @@ class TestCloudEventBus:
 
         # 发布被阻止的事件
         blocked_event = CloudEvent(
-            type="filter.test",
-            source="test",
-            data={"message": "blocked"}
+            type="filter.test", source="test", data={"message": "blocked"}
         )
         blocked_event.add_tag("blocked", "true")
         event_bus.publish_cloud_event(blocked_event)
 
         # 发布正常事件
         normal_event = CloudEvent(
-            type="filter.test",
-            source="test",
-            data={"message": "normal"}
+            type="filter.test", source="test", data={"message": "normal"}
         )
         event_bus.publish_cloud_event(normal_event)
 
@@ -231,13 +224,11 @@ class TestCloudEventBus:
             type="chain.test",
             source="parent",
             data={"step": "parent"},
-            correlation_id="test-correlation-123"
+            correlation_id="test-correlation-123",
         )
 
         child_event = parent_event.create_correlated_event(
-            "chain.test",
-            data={"step": "child"},
-            source="child"
+            "chain.test", data={"step": "child"}, source="child"
         )
 
         # 发布事件链
