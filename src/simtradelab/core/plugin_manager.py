@@ -17,7 +17,8 @@ from typing import Any, Dict, List, Optional, Set, Type, Union
 from ..exceptions import SimTradeLabError
 from ..plugins.base import BasePlugin, PluginConfig, PluginMetadata, PluginState
 from ..plugins.config.validator import ConfigValidator
-from .event_bus import Event, EventBus
+from .event_bus import EventBus
+from .events.cloud_event import CloudEvent
 
 
 class PluginManagerError(SimTradeLabError):
@@ -837,22 +838,22 @@ class PluginManager:
         self._event_bus.subscribe("plugin.stopped", self._on_plugin_stopped)
         self._event_bus.subscribe("plugin.unloaded", self._on_plugin_unloaded)
 
-    def _on_plugin_loaded(self, event: Event) -> None:
+    def _on_plugin_loaded(self, event: CloudEvent) -> None:
         """处理插件加载事件"""
         plugin_name = event.data["plugin_name"]
         self._logger.debug(f"Plugin loaded event: {plugin_name}")
 
-    def _on_plugin_started(self, event: Event) -> None:
+    def _on_plugin_started(self, event: CloudEvent) -> None:
         """处理插件启动事件"""
         plugin_name = event.data["plugin_name"]
         self._logger.debug(f"Plugin started event: {plugin_name}")
 
-    def _on_plugin_stopped(self, event: Event) -> None:
+    def _on_plugin_stopped(self, event: CloudEvent) -> None:
         """处理插件停止事件"""
         plugin_name = event.data["plugin_name"]
         self._logger.debug(f"Plugin stopped event: {plugin_name}")
 
-    def _on_plugin_unloaded(self, event: Event) -> None:
+    def _on_plugin_unloaded(self, event: CloudEvent) -> None:
         """处理插件卸载事件"""
         plugin_name = event.data["plugin_name"]
         self._logger.debug(f"Plugin unloaded event: {plugin_name}")
