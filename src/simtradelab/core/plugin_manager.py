@@ -681,7 +681,16 @@ class PluginManager:
 
         for plugin_name, registry in plugins_by_order:
             if registry.instance:
-                results[plugin_name] = True  # 已加载
+                # 插件已经加载，但如果需要启动且尚未启动，则启动它
+                if start and registry.instance.state != PluginState.STARTED:
+                    try:
+                        self.start_plugin(plugin_name)
+                        results[plugin_name] = True
+                    except Exception as e:
+                        self._logger.error(f"Failed to start plugin {plugin_name}: {e}")
+                        results[plugin_name] = False
+                else:
+                    results[plugin_name] = True  # 已加载
                 continue
 
             try:
@@ -867,7 +876,9 @@ class PluginManager:
 
             # 定义核心插件映射：插件名 -> 模块路径
             core_plugins = {
-                "mock_data_plugin": "simtradelab.plugins.data.mock_data_plugin.MockDataPlugin",
+                "mock_data_plugin": (
+                    "simtradelab.plugins.data.mock_data_plugin.MockDataPlugin"
+                ),
                 # 可以根据需要添加更多核心插件
             }
 
@@ -878,13 +889,26 @@ class PluginManager:
                     if plugin_class:
                         # 获取默认配置
                         default_config = getattr(plugin_class, "DEFAULT_CONFIG", {})
-                        config = PluginConfig(config=default_config)
+                        config = PluginConfig(data=default_config)
 
                         # 显式注册插件
                         registered_name = self.register_plugin(plugin_class, config)
                         self._logger.info(
                             f"Explicitly registered core plugin: {registered_name}"
                         )
+
+                        # 立即加载插件实例以确保可用性
+                        try:
+                            self.load_plugin(registered_name)
+                            self._logger.info(
+                                f"Loaded core plugin instance: {registered_name}"
+                            )
+                        except Exception as load_error:
+                            self._logger.warning(
+                                f"Failed to load core plugin {registered_name}: "
+                                f"{load_error}"
+                            )
+
                         registered_count += 1
 
                 except Exception as e:
@@ -893,7 +917,8 @@ class PluginManager:
                     )
 
             self._logger.info(
-                f"Core plugin registration completed. Registered {registered_count} plugins."
+                f"Core plugin registration completed. "
+                f"Registered {registered_count} plugins."
             )
 
         except Exception as e:

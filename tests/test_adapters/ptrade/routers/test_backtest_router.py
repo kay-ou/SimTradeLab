@@ -359,7 +359,9 @@ class TestBacktestAPIRouter:
         value_with_slippage = theoretical_value + expected_slippage
 
         # 验证佣金成本
-        expected_commission = value_with_slippage * router._trading_service._commission_rate
+        expected_commission = (
+            value_with_slippage * router._trading_service._commission_rate
+        )
         expected_total_cost = value_with_slippage + expected_commission
 
         # 允许1%误差（由于四舍五入等原因）

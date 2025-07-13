@@ -29,15 +29,16 @@ class BacktestAPIRouter(BaseAPIRouter):
         api_validator: Optional[APIValidator] = None,
     ):
         super().__init__(context, event_bus, lifecycle_controller, api_validator)
-        
+
+        # 保存配置参数
+        self._slippage_rate = slippage_rate
+        self._commission_rate = commission_rate
+
         # 初始化回测服务
-        self._trading_service = BacktestService(
-            context=context,
-            event_bus=event_bus
-        )
+        self._trading_service = BacktestService(context=context, event_bus=event_bus)
         self._trading_service.set_commission(commission_rate)
         self._trading_service.set_slippage(slippage_rate)
-        
+
         self._data_plugin = None  # 将在设置时从适配器获取
         self._supported_apis = {
             # === 已实际实现的API ===
@@ -124,13 +125,17 @@ class BacktestAPIRouter(BaseAPIRouter):
         self, security: str, target_amount: int, limit_price: Optional[float] = None
     ) -> Optional[str]:
         """指定目标数量买卖 - 委托给交易服务"""
-        return self._trading_service.execute_order_target(security, target_amount, limit_price)
+        return self._trading_service.execute_order_target(
+            security, target_amount, limit_price
+        )
 
     def order_target_value(
         self, security: str, target_value: float, limit_price: Optional[float] = None
     ) -> Optional[str]:
         """指定持仓市值买卖 - 委托给交易服务"""
-        return self._trading_service.execute_order_target_value(security, target_value, limit_price)
+        return self._trading_service.execute_order_target_value(
+            security, target_value, limit_price
+        )
 
     def order_market(self, security: str, amount: int) -> Optional[str]:
         """按市价进行委托 - 委托给交易服务"""
@@ -237,7 +242,8 @@ class BacktestAPIRouter(BaseAPIRouter):
     ) -> str:
         """按日周期处理 - 每日定时执行指定函数"""
         self._logger.warning(
-            "run_daily is not fully supported in backtest mode, function will be stored but not scheduled"
+            "run_daily is not fully supported in backtest mode, "
+            "function will be stored but not scheduled"
         )
         # 在回测模式下，我们只是记录这个函数，实际的执行由回测引擎控制
         job_id = f"daily_{id(func)}_{time_str}"
@@ -256,7 +262,8 @@ class BacktestAPIRouter(BaseAPIRouter):
     ) -> str:
         """按设定周期处理 - 按指定间隔重复执行函数"""
         self._logger.warning(
-            "run_interval is not fully supported in backtest mode, function will be stored but not scheduled"
+            "run_interval is not fully supported in backtest mode, "
+            "function will be stored but not scheduled"
         )
         # 在回测模式下，我们只是记录这个函数
         job_id = f"interval_{id(func)}_{interval}"
@@ -293,3 +300,77 @@ class BacktestAPIRouter(BaseAPIRouter):
         getattr(self.context, "_trade_response_callbacks").append(func)
         self._logger.info("Trade response callback registered")
         return True
+
+    def get_current_data(
+        self, security_list: Optional[List[str]] = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        获取当前数据 - 回测模式下必须使用真实数据源
+
+        Args:
+            security_list: 证券代码列表，如果为None则使用context.universe
+
+        Returns:
+            包含当前数据的字典，格式: {security: {field: value}}
+
+        Raises:
+            RuntimeError: 当没有可用的数据源时抛出异常
+        """
+        if security_list is None:
+            security_list = list(self.context.universe) if self.context.universe else []
+
+        if not security_list:
+            return {}
+
+        # 回测模式：必须使用真实数据源，不允许模拟数据回退
+        current_data = {}
+
+        # 获取数据插件
+        data_plugin = self._get_data_plugin()
+        if not data_plugin:
+            raise RuntimeError(
+                "No data plugin available for backtest mode. "
+                "Simulated data fallback is not allowed in backtest environment."
+            )
+
+        if not hasattr(data_plugin, "get_history_data"):
+            raise RuntimeError(
+                f"Data plugin {type(data_plugin).__name__} "
+                "does not support get_history_data method"
+            )
+
+        try:
+            for security in security_list:
+                # 获取最近1天的历史数据作为"当前"数据
+                history_data = data_plugin.get_history_data(
+                    security=security, count=1, frequency="1d"
+                )
+
+                if history_data.empty:
+                    self._logger.error(
+                        f"No historical data available for {security} in backtest mode"
+                    )
+                    raise RuntimeError(
+                        f"No historical data available for {security}. "
+                        "Cannot proceed with backtest without real data."
+                    )
+
+                latest_data = history_data.iloc[-1]
+                current_data[security] = {
+                    "price": float(latest_data["close"]),
+                    "close": float(latest_data["close"]),
+                    "open": float(latest_data["open"]),
+                    "high": float(latest_data["high"]),
+                    "low": float(latest_data["low"]),
+                    "volume": int(latest_data["volume"]),
+                    "last_price": float(latest_data["close"]),
+                }
+
+        except Exception as e:
+            self._logger.error(f"Critical error accessing data in backtest mode: {e}")
+            raise RuntimeError(
+                f"Failed to get real data for backtest: {e}. "
+                "Backtest cannot proceed without valid data sources."
+            )
+
+        return current_data

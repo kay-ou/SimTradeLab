@@ -8,19 +8,17 @@ Mock数据源插件
 
 import random
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Union
 
 import numpy as np
 import pandas as pd
 
-from ..base import BasePlugin, PluginConfig, PluginMetadata
+from ..base import PluginConfig, PluginMetadata
+from .base_data_source import BaseDataSourcePlugin, DataFrequency, MarketType
 
 
-class MockDataPlugin(BasePlugin):
+class MockDataPlugin(BaseDataSourcePlugin):
     """Mock数据源插件"""
-
-    # E4修复：移除AUTO_REGISTER，改为显式注册
-    # AUTO_REGISTER = True  # 已移除，现在通过PluginManager显式注册
 
     # 默认配置
     DEFAULT_CONFIG = {
@@ -30,22 +28,19 @@ class MockDataPlugin(BasePlugin):
             "STOCK_A": 10.0,  # 支持策略中的STOCK_A
             "000001.SZ": 15.0,
             "000002.SZ": 12.0,
-            "000858.SZ": 25.0,
             "600000.SH": 8.0,
             "600036.SH": 35.0,
-            "600519.SH": 1800.0,
-            "688001.SH": 50.0,
-            "300001.SZ": 30.0,
         },
-        "volatility": 0.02,
-        "trend": 0.0001,
+        "volatility": 0.02,  # 日波动率
+        "trend": 0.0001,  # 趋势系数
     }
 
+    # 插件元数据
     METADATA = PluginMetadata(
         name="mock_data_plugin",
         version="1.0.0",
-        description="Mock Data Source Plugin for Development and Testing",
-        author="SimTradeLab",
+        description="Mock数据源插件，用于生成模拟数据",
+        author="SimTradeLab Team",
         dependencies=[],
         tags=["data", "mock", "testing", "development"],
         category="data_source",
@@ -55,490 +50,366 @@ class MockDataPlugin(BasePlugin):
     def __init__(self, metadata: PluginMetadata, config: Optional[PluginConfig] = None):
         super().__init__(metadata, config)
 
+        # 设置支持的市场和频率
+        self._supported_markets = {MarketType.STOCK_CN}
+        self._supported_frequencies = {DataFrequency.DAILY, DataFrequency.MINUTE_1}
+        self._data_delay = 0
+
         # 模拟数据配置
-        self._enabled = self._config.config.get("enabled", True)
-        self._seed = self._config.config.get("seed", 42)  # 随机种子确保可重复性
-        self._base_prices = self._config.config.get(
-            "base_prices",
-            {
-                "000001.SZ": 15.0,
-                "000002.SZ": 12.0,
-                "000858.SZ": 25.0,
-                "600000.SH": 8.0,
-                "600036.SH": 35.0,
-                "600519.SH": 1800.0,
-                "688001.SH": 50.0,
-                "300001.SZ": 30.0,
-            },
+        self._enabled = self._config.data.get("enabled", True)
+        self._seed = self._config.data.get("seed", 42)
+        self._base_prices = self._config.data.get(
+            "base_prices", self.DEFAULT_CONFIG["base_prices"]
         )
-        self._volatility = self._config.config.get("volatility", 0.02)  # 日波动率
-        self._trend = self._config.config.get("trend", 0.0001)  # 趋势系数
+        self._volatility = self._config.data.get("volatility", 0.02)
+        self._trend = self._config.data.get("trend", 0.0001)
+
+        # 随机种子
+        random.seed(self._seed)
+        np.random.seed(self._seed)
 
         # 数据缓存
-        self._data_cache: Dict[str, Any] = {}
+        self._data_cache: Dict[str, pd.DataFrame] = {}
 
-        # 设置随机种子
-        if self._seed is not None:
-            np.random.seed(self._seed)
-            random.seed(self._seed)
+        self._logger.info(
+            "MockDataPlugin initialized with base prices: %s", self._base_prices
+        )
+
+    # ================================
+    # BaseDataSourcePlugin 抽象方法实现
+    # ================================
+
+    def get_supported_markets(self) -> Set[MarketType]:
+        """获取支持的市场类型"""
+        return self._supported_markets.copy()
+
+    def get_supported_frequencies(self) -> Set[DataFrequency]:
+        """获取支持的数据频率"""
+        return self._supported_frequencies.copy()
+
+    def get_data_delay(self) -> int:
+        """获取数据延迟时间（秒）"""
+        return self._data_delay
+
+    def is_available(self) -> bool:
+        """检查数据源是否可用"""
+        return self._enabled
+
+    def get_history_data(
+        self,
+        security: str,
+        count: int = 30,
+        frequency: Union[str, DataFrequency] = DataFrequency.DAILY,
+        fields: Optional[List[str]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        fq: str = "pre",
+        include_now: bool = True,
+        fill_gaps: bool = True,
+    ) -> pd.DataFrame:
+        """获取单个证券的历史数据"""
+        if not self._enabled:
+            return pd.DataFrame()
+
+        # 标准化频率
+        freq = self._normalize_frequency(frequency)
+
+        # 生成模拟数据
+        base_price = self._base_prices.get(security, 10.0)
+
+        # 创建日期范围
+        end_dt = datetime.now() if include_now else datetime.now() - timedelta(days=1)
+        if freq == DataFrequency.DAILY:
+            start_dt = end_dt - timedelta(days=count)
+            date_range = pd.date_range(start=start_dt, end=end_dt, freq="D")
+        else:
+            start_dt = end_dt - timedelta(minutes=count)
+            date_range = pd.date_range(start=start_dt, end=end_dt, freq="min")
+
+        # 生成价格序列
+        prices = []
+        current_price = base_price
+
+        for _ in range(len(date_range)):
+            # 随机游走模型
+            change = np.random.normal(self._trend, self._volatility)
+            current_price *= 1 + change
+            prices.append(current_price)
+
+        # 创建OHLC数据
+        df_data = []
+        for i, (date, close) in enumerate(zip(date_range, prices)):
+            # 模拟日内波动
+            daily_volatility = self._volatility * 0.5
+            high = close * (1 + abs(np.random.normal(0, daily_volatility)))
+            low = close * (1 - abs(np.random.normal(0, daily_volatility)))
+            open_price = prices[i - 1] if i > 0 else close
+            volume = int(np.random.uniform(1000, 10000))
+
+            df_data.append(
+                {
+                    "date": date,
+                    "open": open_price,
+                    "high": max(open_price, close, high),
+                    "low": min(open_price, close, low),
+                    "close": close,
+                    "volume": volume,
+                    "amount": volume * close,
+                }
+            )
+
+        df = pd.DataFrame(df_data)
+        df.set_index("date", inplace=True)
+
+        # 只返回最后count条记录
+        return df.tail(count)
+
+    def get_multiple_history_data(
+        self,
+        security_list: List[str],
+        count: int = 30,
+        frequency: Union[str, DataFrequency] = DataFrequency.DAILY,
+        fields: Optional[List[str]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        fq: str = "pre",
+        include_now: bool = True,
+        fill_gaps: bool = True,
+        as_dict: bool = False,
+    ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+        """获取多个证券的历史数据"""
+        if as_dict:
+            result = {}
+            for security in security_list:
+                result[security] = self.get_history_data(
+                    security,
+                    count,
+                    frequency,
+                    fields,
+                    start_date,
+                    end_date,
+                    fq,
+                    include_now,
+                    fill_gaps,
+                )
+            return result
+        else:
+            # 返回合并的DataFrame
+            all_data = []
+            for security in security_list:
+                data = self.get_history_data(
+                    security,
+                    count,
+                    frequency,
+                    fields,
+                    start_date,
+                    end_date,
+                    fq,
+                    include_now,
+                    fill_gaps,
+                )
+                data["security"] = security
+                all_data.append(data.reset_index())
+
+            if all_data:
+                return pd.concat(all_data, ignore_index=True)
+            else:
+                return pd.DataFrame()
+
+    def get_current_price(self, security_list: List[str]) -> Dict[str, float]:
+        """获取证券的当前价格"""
+        prices = {}
+        for security in security_list:
+            base_price = self._base_prices.get(security, 10.0)
+            # 添加少量随机波动
+            current_price = base_price * (1 + np.random.normal(0, 0.01))
+            prices[security] = round(current_price, 2)
+        return prices
+
+    def get_snapshot(
+        self, security_list: List[str], fields: Optional[List[str]] = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """获取证券的实时快照数据"""
+        snapshot = {}
+        for security in security_list:
+            base_price = self._base_prices.get(security, 10.0)
+            current_price = base_price * (1 + np.random.normal(0, 0.01))
+
+            snapshot[security] = {
+                "last_price": round(current_price, 2),
+                "open": round(current_price * 0.99, 2),
+                "high": round(current_price * 1.02, 2),
+                "low": round(current_price * 0.98, 2),
+                "close": round(current_price, 2),
+                "volume": int(np.random.uniform(1000, 10000)),
+                "amount": round(current_price * np.random.uniform(1000, 10000), 2),
+                "bid1": round(current_price * 0.999, 2),
+                "ask1": round(current_price * 1.001, 2),
+                "datetime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            }
+        return snapshot
+
+    # ================================
+    # 交易日历方法
+    # ================================
+
+    def get_trading_day(
+        self, date: str, offset: int = 0, market: Optional[MarketType] = None
+    ) -> str:
+        """获取交易日"""
+        dt = datetime.strptime(date, "%Y-%m-%d")
+        # 简单实现：跳过周末
+        while offset != 0:
+            if offset > 0:
+                dt += timedelta(days=1)
+                if dt.weekday() < 5:  # 周一到周五
+                    offset -= 1
+            else:
+                dt -= timedelta(days=1)
+                if dt.weekday() < 5:  # 周一到周五
+                    offset += 1
+        return dt.strftime("%Y-%m-%d")
+
+    def get_all_trading_days(self, market: Optional[MarketType] = None) -> List[str]:
+        """获取所有交易日"""
+        # 返回最近一年的交易日
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365)
+
+        trading_days = []
+        current_date = start_date
+        while current_date <= end_date:
+            if current_date.weekday() < 5:  # 周一到周五
+                trading_days.append(current_date.strftime("%Y-%m-%d"))
+            current_date += timedelta(days=1)
+
+        return trading_days
+
+    def get_trading_days_range(
+        self, start_date: str, end_date: str, market: Optional[MarketType] = None
+    ) -> List[str]:
+        """获取指定日期范围内的交易日"""
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+
+        trading_days = []
+        current_date = start_dt
+        while current_date <= end_dt:
+            if current_date.weekday() < 5:  # 周一到周五
+                trading_days.append(current_date.strftime("%Y-%m-%d"))
+            current_date += timedelta(days=1)
+
+        return trading_days
+
+    def is_trading_day(self, date: str, market: Optional[MarketType] = None) -> bool:
+        """判断是否为交易日"""
+        dt = datetime.strptime(date, "%Y-%m-%d")
+        return dt.weekday() < 5  # 周一到周五
+
+    # ================================
+    # 市场状态和基本面数据方法
+    # ================================
+
+    def check_limit_status(
+        self, security_list: List[str], date: Optional[str] = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """检查证券的涨跌停状态"""
+        limit_status = {}
+        for security in security_list:
+            current_price = self._base_prices.get(security, 10.0)
+            limit_up_price = current_price * 1.1  # 10%涨停
+            limit_down_price = current_price * 0.9  # 10%跌停
+
+            limit_status[security] = {
+                "limit_up": False,  # 模拟数据通常不涨跌停
+                "limit_down": False,
+                "limit_up_price": round(limit_up_price, 2),
+                "limit_down_price": round(limit_down_price, 2),
+                "current_price": round(current_price, 2),
+            }
+        return limit_status
+
+    def get_fundamentals(
+        self, security_list: List[str], table: str, fields: List[str], date: str
+    ) -> pd.DataFrame:
+        """获取基本面数据"""
+        # 生成模拟基本面数据
+        data = []
+        for security in security_list:
+            row = {"code": security, "date": date}
+            for field in fields:
+                if field == "revenue":
+                    row[field] = np.random.uniform(1e6, 1e9)  # 营收
+                elif field == "net_profit":
+                    row[field] = np.random.uniform(1e5, 1e8)  # 净利润
+                elif field == "total_assets":
+                    row[field] = np.random.uniform(1e7, 1e10)  # 总资产
+                else:
+                    row[field] = np.random.uniform(0, 100)  # 其他指标
+            data.append(row)
+
+        return pd.DataFrame(data)
+
+    def get_security_info(self, security_list: List[str]) -> Dict[str, Dict[str, Any]]:
+        """获取证券基本信息"""
+        info = {}
+        for security in security_list:
+            if security.endswith(".SZ"):
+                market = "SZSE"
+            elif security.endswith(".SH"):
+                market = "SSE"
+            else:
+                market = "MOCK"
+
+            info[security] = {
+                "name": f"模拟股票{security}",
+                "market": market,
+                "type": "stock",
+                "listed_date": "2020-01-01",
+                "delist_date": None,
+            }
+        return info
+
+    # ================================
+    # BasePlugin 抽象方法实现
+    # ================================
 
     def _on_initialize(self) -> None:
-        """初始化Mock数据插件"""
-        if not self._enabled:
-            self._logger.info("Mock Data Plugin is disabled by configuration")
-            return
+        """插件初始化时调用"""
+        self._logger.info("MockDataPlugin initializing...")
 
-        self._logger.info("Initializing Mock Data Plugin")
-        self._logger.info(f"Random seed: {self._seed}")
-        self._logger.info(
-            f"Base prices configured for {len(self._base_prices)} securities"
-        )
-        self._logger.info(f"Volatility: {self._volatility}, Trend: {self._trend}")
+    def _on_start(self) -> None:
+        """插件启动时调用"""
+        self._logger.info("MockDataPlugin started")
+
+    def _on_stop(self) -> None:
+        """插件停止时调用"""
+        self._logger.info("MockDataPlugin stopped")
+
+    # ================================
+    # 插件管理方法
+    # ================================
+
+    def initialize(self) -> None:
+        """初始化插件"""
+        super().initialize()  # 调用父类方法来正确管理插件状态
+        self._logger.info("MockDataPlugin initialized")
+
+    def shutdown(self) -> None:
+        """关闭插件"""
+        self._data_cache.clear()
+        self._logger.info("MockDataPlugin shutdown")
 
     def is_enabled(self) -> bool:
         """检查插件是否启用"""
         return self._enabled
 
     def enable(self) -> None:
-        """启用Mock数据插件"""
+        """启用插件"""
         self._enabled = True
-        self._logger.info("Mock Data Plugin enabled")
+        self._logger.info("MockDataPlugin enabled")
 
     def disable(self) -> None:
-        """禁用Mock数据插件"""
+        """禁用插件"""
         self._enabled = False
-        self._data_cache.clear()
-        self._logger.info("Mock Data Plugin disabled and cache cleared")
-
-    def _get_base_price(self, security: str) -> float:
-        """
-        根据证券代码获取基础价格
-
-        Args:
-            security: 证券代码
-
-        Returns:
-            基础价格
-        """
-        # 如果在配置中有指定价格，使用配置价格
-        if security in self._base_prices:
-            return self._base_prices[security]
-
-        # 根据不同板块设置不同的基础价格
-        if security.startswith("688"):  # 科创板
-            return 50.0
-        elif security.startswith("300"):  # 创业板
-            return 30.0
-        elif security.startswith("600"):  # 沪市主板
-            return 20.0
-        elif security.startswith("000"):  # 深市主板
-            return 15.0
-        else:
-            return 10.0
-
-    def _generate_price_series(
-        self, security: str, days: int, start_date: Optional[datetime] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        生成价格序列
-
-        Args:
-            security: 证券代码
-            days: 天数
-            start_date: 起始日期
-
-        Returns:
-            价格数据列表
-        """
-        if not self._enabled:
-            raise RuntimeError("Mock Data Plugin is disabled")
-
-        # 生成日期范围
-        if start_date is None:
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=days)
-        else:
-            end_date = start_date + timedelta(days=days)
-
-        date_range = pd.date_range(start=start_date, end=end_date, freq="D")
-        # 过滤掉周末（简单处理）
-        date_range = date_range[date_range.dayofweek < 5][:days]
-
-        # 基础价格
-        base_price = self._get_base_price(security)
-
-        # 生成价格数据
-        data = []
-        current_price = base_price
-
-        for i, date in enumerate(date_range):
-            # 价格变化（随机游走 + 小趋势）
-            price_change = np.random.normal(self._trend, self._volatility)
-            current_price *= 1 + price_change
-
-            # 确保价格不会过低
-            if current_price < base_price * 0.1:
-                current_price = base_price * 0.1
-
-            # 生成OHLC数据
-            open_price = current_price * (1 + np.random.normal(0, 0.005))
-            high_price = current_price * (1 + abs(np.random.normal(0, 0.01)))
-            low_price = current_price * (1 - abs(np.random.normal(0, 0.01)))
-            close_price = current_price
-
-            # 确保OHLC关系正确
-            high_price = max(high_price, open_price, close_price)
-            low_price = min(low_price, open_price, close_price)
-
-            # 生成成交量
-            volume = np.random.randint(10000, 1000000)
-
-            data.append(
-                {
-                    "date": date.strftime("%Y-%m-%d"),
-                    "security": security,
-                    "open": round(open_price, 2),
-                    "high": round(high_price, 2),
-                    "low": round(low_price, 2),
-                    "close": round(close_price, 2),
-                    "volume": volume,
-                    "money": round(volume * close_price, 2),
-                    "price": round(close_price, 2),
-                }
-            )
-
-        return data
-
-    def get_history_data(
-        self,
-        security: str,
-        count: int,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-    ) -> pd.DataFrame:
-        """
-        获取历史数据
-
-        Args:
-            security: 证券代码
-            count: 数据条数
-            start_date: 开始日期
-            end_date: 结束日期
-
-        Returns:
-            历史数据DataFrame
-        """
-        if not self._enabled:
-            raise RuntimeError("Mock Data Plugin is disabled")
-
-        # 生成缓存键
-        cache_key = f"{security}_{count}_{start_date}_{end_date}"
-
-        # 检查缓存
-        if cache_key in self._data_cache:
-            return self._data_cache[cache_key].copy()
-
-        # 解析日期
-        start_dt = None
-        if start_date:
-            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-
-        # 生成数据
-        data = self._generate_price_series(security, count, start_dt)
-
-        # 转换为DataFrame
-        df = pd.DataFrame(data)
-        df["date"] = pd.to_datetime(df["date"])
-        df = df.sort_values("date")
-
-        # 应用日期过滤
-        if start_date:
-            df = df[df["date"] >= pd.to_datetime(start_date)]
-        if end_date:
-            df = df[df["date"] <= pd.to_datetime(end_date)]
-
-        # 应用数量限制
-        if count and len(df) > count:
-            df = df.tail(count)
-
-        # 缓存结果
-        self._data_cache[cache_key] = df.copy()
-
-        return df
-
-    def get_current_price(self, security: str) -> float:
-        """
-        获取当前价格
-
-        Args:
-            security: 证券代码
-
-        Returns:
-            当前价格
-        """
-        if not self._enabled:
-            raise RuntimeError("Mock Data Plugin is disabled")
-
-        try:
-            df = self.get_history_data(security, count=1)
-            if not df.empty:
-                return float(df.iloc[-1]["close"])
-        except Exception as e:
-            self._logger.warning(f"Failed to get current price for {security}: {e}")
-
-        # 如果无法获取历史数据，返回基础价格
-        return self._get_base_price(security)
-
-    def get_multiple_history_data(
-        self,
-        securities: List[str],
-        count: int,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-    ) -> pd.DataFrame:
-        """
-        获取多个证券的历史数据
-
-        Args:
-            securities: 证券代码列表
-            count: 数据条数
-            start_date: 开始日期
-            end_date: 结束日期
-
-        Returns:
-            合并的历史数据DataFrame
-        """
-        if not self._enabled:
-            raise RuntimeError("Mock Data Plugin is disabled")
-
-        all_data = []
-
-        for security in securities:
-            df = self.get_history_data(security, count, start_date, end_date)
-            if not df.empty:
-                all_data.append(df)
-
-        if all_data:
-            result = pd.concat(all_data, ignore_index=True)
-            result = result.sort_values(["security", "date"])
-            return result
-        else:
-            return pd.DataFrame()
-
-    def get_snapshot(self, securities: List[str]) -> Dict[str, Dict[str, Any]]:
-        """
-        获取行情快照（PTrade API兼容）
-
-        注意：该函数仅在交易模块可用
-
-        Args:
-            securities: 证券代码列表
-
-        Returns:
-            行情快照数据字典
-        """
-        if not self._enabled:
-            raise RuntimeError("Mock Data Plugin is disabled")
-
-        snapshot = {}
-
-        for security in securities:
-            try:
-                df = self.get_history_data(security, count=1)
-                if not df.empty:
-                    latest = df.iloc[-1]
-                    snapshot[security] = {
-                        "last_price": float(latest["close"]),
-                        "pre_close": float(latest["close"])
-                        * (1 + np.random.normal(0, 0.001)),
-                        "open": float(latest["open"]),
-                        "high": float(latest["high"]),
-                        "low": float(latest["low"]),
-                        "close": float(latest["close"]),  # 添加close字段
-                        "volume": int(latest["volume"]),
-                        "money": float(latest["money"]),
-                        "datetime": latest["date"],
-                        "price": float(latest["close"]),  # PTrade兼容性
-                    }
-            except Exception as e:
-                self._logger.warning(f"Failed to get snapshot for {security}: {e}")
-                # 提供默认值
-                base_price = self._get_base_price(security)
-                snapshot[security] = {
-                    "last_price": base_price,
-                    "pre_close": base_price * (1 + np.random.normal(0, 0.001)),
-                    "open": base_price,
-                    "high": base_price,
-                    "low": base_price,
-                    "close": base_price,  # 添加close字段
-                    "volume": 100000,
-                    "money": base_price * 100000,
-                    "datetime": datetime.now(),
-                    "price": base_price,
-                }
-
-        return snapshot
-
-    def get_fundamentals(
-        self, securities: List[str], table: str, fields: List[str], date: str
-    ) -> pd.DataFrame:
-        """
-        获取基本面数据
-
-        Args:
-            securities: 股票代码列表
-            table: 表格名称（如 income, balance_sheet, cash_flow）
-            fields: 字段列表
-            date: 查询日期
-
-        Returns:
-            包含基本面数据的DataFrame
-        """
-        if not self._enabled:
-            raise RuntimeError("Mock Data Plugin is disabled")
-
-        data = []
-        for security in securities:
-            row = {"code": security, "date": date}
-
-            # 根据不同的表格和字段生成相应的数据
-            for field in fields:
-                if table == "income":  # 利润表
-                    if field in ["revenue", "total_revenue"]:  # 营业收入
-                        row[field] = random.uniform(1000000, 10000000)  # 1M-10M
-                    elif field in ["net_profit", "net_income"]:  # 净利润
-                        row[field] = random.uniform(100000, 1000000)  # 100K-1M
-                    elif field in ["operating_profit"]:  # 营业利润
-                        row[field] = random.uniform(200000, 1500000)  # 200K-1.5M
-                    elif field in ["total_profit"]:  # 利润总额
-                        row[field] = random.uniform(150000, 1200000)  # 150K-1.2M
-                    elif field in ["operating_cost"]:  # 营业成本
-                        row[field] = random.uniform(500000, 8000000)  # 500K-8M
-                    else:
-                        row[field] = random.uniform(0, 500000)
-
-                elif table == "balance_sheet":  # 资产负债表
-                    if field in ["total_assets"]:  # 总资产
-                        row[field] = random.uniform(10000000, 100000000)  # 10M-100M
-                    elif field in ["total_liab"]:  # 总负债
-                        row[field] = random.uniform(5000000, 50000000)  # 5M-50M
-                    elif field in ["total_equity"]:  # 股东权益
-                        row[field] = random.uniform(3000000, 60000000)  # 3M-60M
-                    elif field in ["current_assets"]:  # 流动资产
-                        row[field] = random.uniform(2000000, 40000000)  # 2M-40M
-                    elif field in ["current_liab"]:  # 流动负债
-                        row[field] = random.uniform(1000000, 20000000)  # 1M-20M
-                    elif field in ["fixed_assets"]:  # 固定资产
-                        row[field] = random.uniform(3000000, 50000000)  # 3M-50M
-                    else:
-                        row[field] = random.uniform(0, 10000000)
-
-                elif table == "cash_flow":  # 现金流量表
-                    if field in ["operating_cash_flow"]:  # 经营现金流
-                        row[field] = random.uniform(-1000000, 5000000)  # -1M-5M
-                    elif field in ["investing_cash_flow"]:  # 投资现金流
-                        row[field] = random.uniform(-3000000, 1000000)  # -3M-1M
-                    elif field in ["financing_cash_flow"]:  # 筹资现金流
-                        row[field] = random.uniform(-2000000, 2000000)  # -2M-2M
-                    elif field in ["net_cash_flow"]:  # 现金净流量
-                        row[field] = random.uniform(-1000000, 3000000)  # -1M-3M
-                    else:
-                        row[field] = random.uniform(-500000, 500000)
-
-                else:  # 其他表格或比率数据
-                    if field in ["pe_ratio"]:  # 市盈率
-                        row[field] = random.uniform(10, 50)
-                    elif field in ["pb_ratio"]:  # 市净率
-                        row[field] = random.uniform(1, 10)
-                    elif field in ["roe"]:  # 净资产收益率
-                        row[field] = random.uniform(0.05, 0.25)
-                    elif field in ["eps"]:  # 每股收益
-                        row[field] = random.uniform(0.1, 5.0)
-                    elif field in ["bps"]:  # 每股净资产
-                        row[field] = random.uniform(3.0, 15.0)
-                    elif field in ["debt_ratio"]:  # 资产负债率
-                        row[field] = random.uniform(0.3, 0.8)
-                    elif field in ["current_ratio"]:  # 流动比率
-                        row[field] = random.uniform(1.0, 3.0)
-                    elif field in ["quick_ratio"]:  # 速动比率
-                        row[field] = random.uniform(0.5, 2.0)
-                    else:
-                        row[field] = random.uniform(0, 1000000)
-
-            data.append(row)
-
-        return pd.DataFrame(data)
-
-    def list_available_securities(self) -> List[str]:
-        """
-        列出可用的证券代码
-
-        Returns:
-            证券代码列表
-        """
-        if not self._enabled:
-            return []
-
-        return list(self._base_prices.keys())
-
-    def clear_cache(self) -> None:
-        """清除所有缓存"""
-        self._data_cache.clear()
-        self._logger.info("Cleared all mock data cache")
-
-    def get_cache_stats(self) -> Dict[str, Any]:
-        """获取缓存统计信息"""
-        return {
-            "enabled": self._enabled,
-            "cached_items": len(self._data_cache),
-            "cache_size_mb": sum(
-                df.memory_usage(deep=True).sum() if hasattr(df, "memory_usage") else 0
-                for df in self._data_cache.values()
-            )
-            / (1024 * 1024),
-            "seed": self._seed,
-            "securities_count": len(self._base_prices),
-            "volatility": self._volatility,
-            "trend": self._trend,
-        }
-
-    def update_config(self, new_config: Dict[str, Any]) -> None:
-        """
-        更新插件配置
-
-        Args:
-            new_config: 新的配置字典
-        """
-        self._enabled = new_config.get("enabled", self._enabled)
-        self._seed = new_config.get("seed", self._seed)
-        self._base_prices.update(new_config.get("base_prices", {}))
-        self._volatility = new_config.get("volatility", self._volatility)
-        self._trend = new_config.get("trend", self._trend)
-
-        # 重新设置随机种子
-        if self._seed is not None:
-            np.random.seed(self._seed)
-            random.seed(self._seed)
-
-        # 清除缓存以使用新配置
-        self.clear_cache()
-
-        self._logger.info(
-            f"Mock Data Plugin configuration updated: enabled={self._enabled}"
-        )
-
-    def _on_start(self) -> None:
-        """启动Mock数据插件"""
-        if self._enabled:
-            self._logger.info("Mock Data Plugin started")
-        else:
-            self._logger.info("Mock Data Plugin is disabled, not starting")
-
-    def _on_stop(self) -> None:
-        """停止Mock数据插件"""
-        self._logger.info("Mock Data Plugin stopped")
-
-    def _on_shutdown(self) -> None:
-        """关闭时清理资源"""
-        self.clear_cache()
-        self._logger.info("Mock Data Plugin shutdown completed")
+        self._logger.info("MockDataPlugin disabled")

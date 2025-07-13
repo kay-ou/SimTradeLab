@@ -7,15 +7,16 @@ CSV数据源插件
 
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Union
 
 import numpy as np
 import pandas as pd
 
-from ..base import BasePlugin, PluginConfig, PluginMetadata
+from ..base import PluginConfig, PluginMetadata
+from .base_data_source import BaseDataSourcePlugin, DataFrequency, MarketType
 
 
-class CSVDataPlugin(BasePlugin):
+class CSVDataPlugin(BaseDataSourcePlugin):
     """CSV数据源插件"""
 
     METADATA = PluginMetadata(
@@ -31,6 +32,16 @@ class CSVDataPlugin(BasePlugin):
 
     def __init__(self, metadata: PluginMetadata, config: Optional[PluginConfig] = None):
         super().__init__(metadata, config)
+
+        # 设置支持的市场和频率
+        self._set_supported_modes({MarketType.STOCK_CN})
+        self._supported_markets = {MarketType.STOCK_CN}
+        self._supported_frequencies = {
+            DataFrequency.DAILY,
+            DataFrequency.WEEKLY,
+            DataFrequency.MONTHLY,
+        }
+        self._data_delay = 0  # CSV数据无延迟
 
         # 数据存储目录
         self._data_dir = Path(
@@ -53,6 +64,379 @@ class CSVDataPlugin(BasePlugin):
         self._logger.info(
             f"CSV Data Plugin initialized with data directory: {self._data_dir}"
         )
+
+    # ================================
+    # BaseDataSourcePlugin抽象方法实现
+    # ================================
+
+    def get_supported_markets(self) -> Set[MarketType]:
+        """获取支持的市场类型"""
+        return self._supported_markets.copy()
+
+    def get_supported_frequencies(self) -> Set[DataFrequency]:
+        """获取支持的数据频率"""
+        return self._supported_frequencies.copy()
+
+    def get_data_delay(self) -> int:
+        """获取数据延迟时间"""
+        return self._data_delay
+
+    def is_available(self) -> bool:
+        """检查数据源是否可用"""
+        return self._data_dir.exists() and self._data_dir.is_dir()
+
+    def get_history_data(
+        self,
+        security: str,
+        count: int = 30,
+        frequency: Union[str, DataFrequency] = DataFrequency.DAILY,
+        fields: Optional[List[str]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        fq: str = "pre",
+        include_now: bool = True,
+        fill_gaps: bool = True,
+    ) -> pd.DataFrame:
+        """
+        获取单个证券的历史数据
+
+        Args:
+            security: 证券代码
+            count: 获取数据条数
+            frequency: 数据频率
+            fields: 需要获取的字段列表
+            start_date: 开始日期
+            end_date: 结束日期
+            fq: 复权类型
+            include_now: 是否包含当前时间点的数据
+            fill_gaps: 是否填充数据缺口
+
+        Returns:
+            包含历史数据的DataFrame
+        """
+        # 标准化频率参数
+        freq = self._normalize_frequency(frequency)
+
+        # 检查缓存
+        cache_key = f"{security}_{count}_{start_date}_{end_date}_{freq.value}"
+        if cache_key in self._data_cache:
+            cache_time = self._cache_timestamps.get(cache_key)
+            if (
+                cache_time
+                and (datetime.now() - cache_time).seconds < self._cache_timeout
+            ):
+                cached_df = self._data_cache[cache_key].copy()
+                return self._filter_fields(cached_df, fields)
+
+        file_path = self._data_dir / f"{security}.csv"
+
+        # 如果文件不存在，创建它
+        if not file_path.exists():
+            self._create_stock_data_file(security)
+
+        # 读取CSV文件
+        df = pd.read_csv(file_path)
+        df["date"] = pd.to_datetime(df["date"])
+
+        # 按日期排序
+        df = df.sort_values("date")
+
+        # 应用日期过滤
+        if start_date:
+            df = df[df["date"] >= pd.to_datetime(start_date)]
+        if end_date:
+            df = df[df["date"] <= pd.to_datetime(end_date)]
+
+        # 应用数量限制
+        if count and len(df) > count:
+            df = df.tail(count)
+
+        # 缓存结果
+        self._data_cache[cache_key] = df.copy()
+        self._cache_timestamps[cache_key] = datetime.now()
+
+        return self._filter_fields(df, fields)
+
+    def get_multiple_history_data(
+        self,
+        security_list: List[str],
+        count: int = 30,
+        frequency: Union[str, DataFrequency] = DataFrequency.DAILY,
+        fields: Optional[List[str]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        fq: str = "pre",
+        include_now: bool = True,
+        fill_gaps: bool = True,
+        as_dict: bool = False,
+    ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+        """
+        获取多个证券的历史数据
+        """
+        if as_dict:
+            result_dict = {}
+            for security in security_list:
+                df = self.get_history_data(
+                    security,
+                    count,
+                    frequency,
+                    fields,
+                    start_date,
+                    end_date,
+                    fq,
+                    include_now,
+                    fill_gaps,
+                )
+                if not df.empty:
+                    result_dict[security] = df
+            return result_dict
+        else:
+            all_data = []
+            for security in security_list:
+                df = self.get_history_data(
+                    security,
+                    count,
+                    frequency,
+                    fields,
+                    start_date,
+                    end_date,
+                    fq,
+                    include_now,
+                    fill_gaps,
+                )
+                if not df.empty:
+                    all_data.append(df)
+
+            if all_data:
+                result = pd.concat(all_data, ignore_index=True)
+                result = result.sort_values(["security", "date"])
+                return result
+            else:
+                return pd.DataFrame()
+
+    def get_snapshot(
+        self,
+        security_list: List[str],
+        fields: Optional[List[str]] = None,
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        获取证券的实时快照数据
+        """
+        snapshot = {}
+
+        for security in security_list:
+            try:
+                df = self.get_history_data(security, count=1)
+                if not df.empty:
+                    latest = df.iloc[-1]
+                    snapshot[security] = {
+                        "last_price": float(latest["close"]),
+                        "pre_close": float(latest["close"])
+                        * (1 + np.random.normal(0, 0.001)),
+                        "open": float(latest["open"]),
+                        "high": float(latest["high"]),
+                        "low": float(latest["low"]),
+                        "volume": int(latest["volume"]),
+                        "money": float(latest["money"]),
+                        "datetime": str(latest["date"]),  # 确保datetime转换为字符串
+                        "price": float(latest["close"]),  # PTrade兼容性
+                    }
+            except Exception as e:
+                self._logger.warning(f"Failed to get snapshot for {security}: {e}")
+                # 提供默认值
+                base_price = self._get_base_price(security)
+                snapshot[security] = {
+                    "last_price": base_price,
+                    "pre_close": base_price * (1 + np.random.normal(0, 0.001)),
+                    "open": base_price,
+                    "high": base_price,
+                    "low": base_price,
+                    "volume": 100000,
+                    "money": base_price * 100000,
+                    "datetime": datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),  # 转换为字符串格式
+                    "price": base_price,
+                }
+
+        return snapshot
+
+    def get_current_price(
+        self,
+        security_list: List[str],
+    ) -> Dict[str, float]:
+        """
+        获取证券的当前价格
+        """
+        prices = {}
+        for security in security_list:
+            try:
+                df = self.get_history_data(security, count=1)
+                if not df.empty:
+                    prices[security] = float(df.iloc[-1]["close"])
+                else:
+                    prices[security] = self._get_base_price(security)
+            except Exception as e:
+                self._logger.warning(f"Failed to get current price for {security}: {e}")
+                prices[security] = self._get_base_price(security)
+
+        return prices
+
+    def get_trading_day(
+        self,
+        date: str,
+        offset: int = 0,
+        market: Optional[MarketType] = None,
+    ) -> str:
+        """
+        获取交易日
+        """
+        # 简单实现：仅跳过周末
+        try:
+            current_date = pd.to_datetime(date)
+            days_added = 0
+            direction = 1 if offset >= 0 else -1
+
+            while abs(days_added) < abs(offset):
+                current_date += timedelta(days=direction)
+                # 跳过周末
+                if current_date.weekday() < 5:  # 0-4 是周一到周五
+                    days_added += direction
+
+            return current_date.strftime("%Y-%m-%d")
+        except Exception:
+            return date
+
+    def get_all_trading_days(
+        self,
+        market: Optional[MarketType] = None,
+    ) -> List[str]:
+        """
+        获取所有交易日
+        """
+        # 生成最近两年的交易日
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=730)  # 2年
+
+        trading_days = []
+        current_date = start_date
+
+        while current_date <= end_date:
+            if current_date.weekday() < 5:  # 周一到周五
+                trading_days.append(current_date.strftime("%Y-%m-%d"))
+            current_date += timedelta(days=1)
+
+        return trading_days
+
+    def get_trading_days_range(
+        self,
+        start_date: str,
+        end_date: str,
+        market: Optional[MarketType] = None,
+    ) -> List[str]:
+        """
+        获取指定日期范围内的交易日
+        """
+        try:
+            start = pd.to_datetime(start_date)
+            end = pd.to_datetime(end_date)
+
+            trading_days = []
+            current_date = start
+
+            while current_date <= end:
+                if current_date.weekday() < 5:  # 周一到周五
+                    trading_days.append(current_date.strftime("%Y-%m-%d"))
+                current_date += timedelta(days=1)
+
+            return trading_days
+        except Exception:
+            return []
+
+    def is_trading_day(
+        self,
+        date: str,
+        market: Optional[MarketType] = None,
+    ) -> bool:
+        """
+        判断是否为交易日
+        """
+        try:
+            date_obj = pd.to_datetime(date)
+            return date_obj.weekday() < 5  # 周一到周五
+        except Exception:
+            return False
+
+    def check_limit_status(
+        self,
+        security_list: List[str],
+        date: Optional[str] = None,
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        检查证券的涨跌停状态
+        """
+        limit_status = {}
+
+        for security in security_list:
+            current_price = self.get_current_price([security])[security]
+
+            # 计算涨跌停价格（按10%计算）
+            limit_up_price = current_price * 1.1
+            limit_down_price = current_price * 0.9
+
+            limit_status[security] = {
+                "limit_up": False,  # CSV数据中不模拟涨跌停
+                "limit_down": False,
+                "limit_up_price": round(limit_up_price, 2),
+                "limit_down_price": round(limit_down_price, 2),
+                "current_price": current_price,
+            }
+
+        return limit_status
+
+    def get_security_info(
+        self,
+        security_list: List[str],
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        获取证券基本信息
+        """
+        info = {}
+
+        for security in security_list:
+            if security.endswith(".SZ"):
+                market = "SZSE"
+            elif security.endswith(".SH"):
+                market = "SSE"
+            else:
+                market = "UNKNOWN"
+
+            info[security] = {
+                "name": f"股票{security[:6]}",
+                "market": market,
+                "type": "stock",
+                "listed_date": "2000-01-01",
+                "delist_date": None,
+            }
+
+        return info
+
+    # ================================
+    # 辅助方法
+    # ================================
+
+    def _filter_fields(
+        self, df: pd.DataFrame, fields: Optional[List[str]]
+    ) -> pd.DataFrame:
+        """
+        过滤DataFrame字段
+        """
+        if fields is None:
+            return df
+
+        # 确保date字段总是包含在内
+        available_fields = ["date"] + [f for f in fields if f in df.columns]
+        return df[available_fields]
 
     def _ensure_base_data_files(self) -> None:
         """确保基础数据文件存在"""
@@ -168,163 +552,9 @@ class CSVDataPlugin(BasePlugin):
         else:
             return 10.0
 
-    def get_history_data(
-        self,
-        security: str,
-        count: int,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-    ) -> pd.DataFrame:
-        """
-        获取历史数据
-
-        Args:
-            security: 证券代码
-            count: 数据条数
-            start_date: 开始日期
-            end_date: 结束日期
-
-        Returns:
-            历史数据DataFrame
-        """
-        # 检查缓存
-        cache_key = f"{security}_{count}_{start_date}_{end_date}"
-        if cache_key in self._data_cache:
-            cache_time = self._cache_timestamps.get(cache_key)
-            if (
-                cache_time
-                and (datetime.now() - cache_time).seconds < self._cache_timeout
-            ):
-                return self._data_cache[cache_key].copy()
-
-        file_path = self._data_dir / f"{security}.csv"
-
-        # 如果文件不存在，创建它
-        if not file_path.exists():
-            self._create_stock_data_file(security)
-
-        # 读取CSV文件
-        df = pd.read_csv(file_path)
-        df["date"] = pd.to_datetime(df["date"])
-
-        # 按日期排序
-        df = df.sort_values("date")
-
-        # 应用日期过滤
-        if start_date:
-            df = df[df["date"] >= pd.to_datetime(start_date)]
-        if end_date:
-            df = df[df["date"] <= pd.to_datetime(end_date)]
-
-        # 应用数量限制
-        if count and len(df) > count:
-            df = df.tail(count)
-
-        # 缓存结果
-        self._data_cache[cache_key] = df.copy()
-        self._cache_timestamps[cache_key] = datetime.now()
-
-        return df
-
-    def get_current_price(self, security: str) -> float:
-        """
-        获取当前价格
-
-        Args:
-            security: 证券代码
-
-        Returns:
-            当前价格
-        """
-        try:
-            df = self.get_history_data(security, count=1)
-            if not df.empty:
-                return float(df.iloc[-1]["close"])
-        except Exception as e:
-            self._logger.warning(f"Failed to get current price for {security}: {e}")
-
-        # 如果无法获取历史数据，返回基础价格
-        return self._get_base_price(security)
-
-    def get_multiple_history_data(
-        self,
-        securities: List[str],
-        count: int,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-    ) -> pd.DataFrame:
-        """
-        获取多个证券的历史数据
-
-        Args:
-            securities: 证券代码列表
-            count: 数据条数
-            start_date: 开始日期
-            end_date: 结束日期
-
-        Returns:
-            合并的历史数据DataFrame
-        """
-        all_data = []
-
-        for security in securities:
-            df = self.get_history_data(security, count, start_date, end_date)
-            if not df.empty:
-                all_data.append(df)
-
-        if all_data:
-            result = pd.concat(all_data, ignore_index=True)
-            result = result.sort_values(["security", "date"])
-            return result
-        else:
-            return pd.DataFrame()
-
-    def get_snapshot(self, securities: List[str]) -> Dict[str, Dict[str, Any]]:
-        """
-        获取市场快照数据
-
-        Args:
-            securities: 证券代码列表
-
-        Returns:
-            市场快照数据字典
-        """
-        snapshot = {}
-
-        for security in securities:
-            try:
-                df = self.get_history_data(security, count=1)
-                if not df.empty:
-                    latest = df.iloc[-1]
-                    snapshot[security] = {
-                        "last_price": float(latest["close"]),
-                        "pre_close": float(latest["close"])
-                        * (1 + np.random.normal(0, 0.001)),
-                        "open": float(latest["open"]),
-                        "high": float(latest["high"]),
-                        "low": float(latest["low"]),
-                        "volume": int(latest["volume"]),
-                        "money": float(latest["money"]),
-                        "datetime": latest["date"],
-                        "price": float(latest["close"]),  # PTrade兼容性
-                    }
-            except Exception as e:
-                self._logger.warning(f"Failed to get snapshot for {security}: {e}")
-                # 提供默认值
-                base_price = self._get_base_price(security)
-                snapshot[security] = {
-                    "last_price": base_price,
-                    "pre_close": base_price * (1 + np.random.normal(0, 0.001)),
-                    "open": base_price,
-                    "high": base_price,
-                    "low": base_price,
-                    "volume": 100000,
-                    "money": base_price * 100000,
-                    "datetime": datetime.now(),
-                    "price": base_price,
-                }
-
-        return snapshot
+    # ================================
+    # 工具和管理方法
+    # ================================
 
     def create_custom_data_file(self, security: str, data: pd.DataFrame) -> Path:
         """
@@ -481,7 +711,7 @@ class CSVDataPlugin(BasePlugin):
 
         data = []
         for security in securities:
-            row = {"code": security, "date": date}
+            row: Dict[str, Any] = {"code": security, "date": date}
 
             # 根据不同的表格和字段生成相应的数据
             for field in fields:

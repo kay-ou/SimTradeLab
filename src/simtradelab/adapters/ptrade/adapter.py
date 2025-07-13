@@ -14,12 +14,14 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from ...core.event_bus import EventBus
+from ...plugins.data import DataSourceManager
 from ..base import AdapterConfig, BaseAdapter
 from .context import PTradeContext, PTradeMode
 from .lifecycle_controller import PTradeLifecycleError
 from .models import Portfolio
 from .routers import BacktestAPIRouter, ResearchAPIRouter, TradingAPIRouter
 from .utils import PTradeAdapterError, PTradeAPIError, PTradeCompatibilityError
+
 
 # 数据源优先级定义
 DATA_SOURCE_PRIORITIES = {
@@ -1011,9 +1013,8 @@ class PTradeAdapter(BaseAdapter):
 
                 # 特殊处理log属性
                 if api_name == "log":
-                    # 直接注入log对象，不进行包装
-                    log_obj = getattr(self._api_router, api_name)
-                    setattr(strategy_module, api_name, log_obj)
+                    # 直接注入Python标准logger，策略可以使用log.info()等方法
+                    setattr(strategy_module, api_name, self._logger)
                     injected_count += 1
                     continue
 

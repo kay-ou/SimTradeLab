@@ -182,10 +182,12 @@ class TestCSVDataPlugin:
         plugin.initialize()
 
         security = "000001.SZ"
-        price = plugin.get_current_price(security)
+        prices = plugin.get_current_price([security])  # 传递列表
 
-        assert isinstance(price, float)
-        assert price > 0
+        assert isinstance(prices, dict)
+        assert security in prices
+        assert isinstance(prices[security], float)
+        assert prices[security] > 0
 
     def test_get_current_price_fallback(self, plugin):
         """测试获取当前价格回退机制"""
@@ -193,9 +195,12 @@ class TestCSVDataPlugin:
 
         # 使用不存在的证券代码 - CSV插件会自动生成数据文件
         security = "NONEXISTENT.SZ"
-        price = plugin.get_current_price(security)
+        prices = plugin.get_current_price([security])  # 传递列表
 
         # 验证业务逻辑：即使是不存在的代码，也应该能返回合理的价格
+        assert isinstance(prices, dict)
+        assert security in prices
+        price = prices[security]
         assert price > 0
         # 价格应该基于该代码的基础价格生成（在合理范围内）
         base_price = plugin._get_base_price(security)

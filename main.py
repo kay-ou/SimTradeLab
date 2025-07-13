@@ -11,8 +11,8 @@ def main():
     主函数，配置并运行回测。
     """
     # --- 回测配置 ---
-    # strategy_file = "strategies/simple_dual_ma_strategy.py"
-    strategy_file = "strategies/buy_and_hold_strategy.py"
+    strategy_file = "strategies/simple_dual_ma_strategy.py"
+    # strategy_file = "strategies/buy_and_hold_strategy.py"
     initial_cash = 1000000.0
     days = 10
 
