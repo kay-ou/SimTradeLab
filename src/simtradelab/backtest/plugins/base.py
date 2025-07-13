@@ -12,6 +12,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from simtradelab.plugins.base import BasePlugin, PluginConfig, PluginMetadata
+from simtradelab.plugins.config.base_config import BasePluginConfig
 
 # 重新导出以供其他模块使用
 __all__ = [
@@ -104,17 +105,16 @@ class BaseBacktestPlugin(BasePlugin, ABC):
     回测插件基类
 
     所有回测相关插件都应继承此类，提供统一的插件接口。
+    支持统一的Pydantic配置验证，修复E8配置系统问题。
     """
 
     def __init__(
-        self, metadata: PluginMetadata, config: Optional[Dict[str, Any]] = None
+        self, 
+        metadata: PluginMetadata, 
+        config: Optional[BasePluginConfig] = None
     ):
-        # 转换 Dict 配置为 PluginConfig
-        plugin_config = None
-        if config is not None:
-            plugin_config = PluginConfig(config=config)
-
-        super().__init__(metadata, plugin_config)
+        # E8修复：统一使用BasePluginConfig，不再接受Dict配置
+        super().__init__(metadata, config)
         self._backtest_context: Optional[BacktestContext] = None
 
     @abstractmethod

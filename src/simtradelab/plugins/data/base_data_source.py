@@ -11,7 +11,8 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 import pandas as pd
 
-from ..base import BasePlugin, PluginConfig, PluginMetadata
+from ..base import BasePlugin, PluginMetadata
+from ..config.base_config import BasePluginConfig
 
 
 class DataFrequency(Enum):
@@ -47,7 +48,9 @@ class BaseDataSourcePlugin(BasePlugin):
     提供统一的数据访问接口，确保数据格式的一致性
     """
 
-    def __init__(self, metadata: PluginMetadata, config: Optional[PluginConfig] = None):
+    def __init__(
+        self, metadata: PluginMetadata, config: Optional[BasePluginConfig] = None
+    ):
         super().__init__(metadata, config)
         self._supported_markets: Set[MarketType] = set()
         self._supported_frequencies: Set[DataFrequency] = set()

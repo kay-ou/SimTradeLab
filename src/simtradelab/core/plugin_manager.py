@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Type, Union
 
 from ..exceptions import SimTradeLabError
-from ..plugins.base import BasePlugin, PluginConfig, PluginMetadata, PluginState
+from ..plugins.base import BasePlugin, PluginMetadata, PluginState
+from ..plugins.config.base_config import BasePluginConfig
 from ..plugins.config.validator import ConfigValidator
 from .event_bus import EventBus
 from .events.cloud_event import CloudEvent
@@ -51,7 +52,7 @@ class PluginRegistry:
 
     plugin_class: Type[BasePlugin]
     metadata: PluginMetadata
-    config: Optional[PluginConfig] = None
+    config: Optional[BasePluginConfig] = None
     instance: Optional[BasePlugin] = None
     registered_at: float = field(default_factory=time.time)
     load_order: int = 0
@@ -115,7 +116,7 @@ class PluginManager:
     def register_plugin(
         self,
         plugin_class: Type[BasePlugin],
-        config: Optional[PluginConfig] = None,
+        config: Optional[BasePluginConfig] = None,
         load_order: int = 100,
     ) -> str:
         """
@@ -246,14 +247,14 @@ class PluginManager:
             return True
 
     def load_plugin(
-        self, plugin_name: str, config: Optional[PluginConfig] = None
+        self, plugin_name: str, config: Optional[BasePluginConfig] = None
     ) -> BasePlugin:
         """
         加载插件
 
         Args:
             plugin_name: 插件名称
-            config: 插件配置，如果为None则使用注册时的配置
+            config: 插件配置，如果为None则使用注册时的配置或创建默认配置
 
         Returns:
             插件实例
@@ -271,28 +272,37 @@ class PluginManager:
                 raise PluginLoadError(f"Plugin {plugin_name} is already loaded")
 
             try:
-                # 使用提供的配置或注册时的配置
-                plugin_config = config or registry.config or PluginConfig()
-
-                # 如果插件定义了配置模型，则进行配置验证
-                if (
-                    hasattr(registry.plugin_class, "config_model")
-                    and registry.plugin_class.config_model is not None
-                ):
-                    try:
-                        # 获取插件配置数据（存储在 PluginConfig.data 中）
-                        config_data = getattr(plugin_config, "data", {})
-                        if config_data:
-                            # 执行配置验证
-                            validated_config = ConfigValidator.validate(
-                                registry.plugin_class.config_model, config_data
+                # E8修复：强制配置验证
+                plugin_config = config or registry.config
+                
+                # 如果插件定义了配置模型，确保使用正确的配置类型
+                if hasattr(registry.plugin_class, "config_model") and registry.plugin_class.config_model is not None:
+                    config_model_class = registry.plugin_class.config_model
+                    
+                    if plugin_config is None:
+                        # 创建默认配置
+                        plugin_config = config_model_class()
+                        self._logger.info(f"插件 {plugin_name} 使用默认配置")
+                    elif not isinstance(plugin_config, config_model_class):
+                        # 配置类型不匹配，尝试转换
+                        if isinstance(plugin_config, dict):
+                            # 从字典创建配置对象
+                            plugin_config = config_model_class(**plugin_config)
+                        elif hasattr(plugin_config, 'model_dump'):
+                            # 从其他Pydantic模型转换
+                            plugin_config = config_model_class(**plugin_config.model_dump())
+                        else:
+                            raise PluginLoadError(
+                                f"插件 {plugin_name} 需要 {config_model_class.__name__} 类型的配置，"
+                                f"但提供了 {type(plugin_config).__name__}"
                             )
-                            # 将验证后的配置更新到插件配置对象
-                            plugin_config.data = validated_config.model_dump()
-                            self._logger.info(f"插件 {plugin_name} 配置验证成功")
-                    except Exception as e:
-                        self._logger.error(f"插件 {plugin_name} 配置验证失败: {e}")
-                        raise PluginLoadError(f"插件 {plugin_name} 配置验证失败: {e}")
+                        self._logger.info(f"插件 {plugin_name} 配置已转换为 {config_model_class.__name__}")
+                    
+                    self._logger.info(f"插件 {plugin_name} 配置验证成功")
+                else:
+                    # 如果插件没有定义配置模型，使用基础配置或None
+                    if plugin_config is None:
+                        plugin_config = BasePluginConfig()
 
                 # 创建插件实例
                 instance = registry.plugin_class(registry.metadata, plugin_config)

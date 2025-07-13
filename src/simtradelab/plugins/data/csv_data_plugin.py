@@ -12,8 +12,9 @@ from typing import Any, Dict, List, Optional, Set, Union
 import numpy as np
 import pandas as pd
 
-from ..base import PluginConfig, PluginMetadata
+from ..base import PluginMetadata
 from .base_data_source import BaseDataSourcePlugin, DataFrequency, MarketType
+from .config import CSVDataPluginConfig
 
 
 class CSVDataPlugin(BaseDataSourcePlugin):
@@ -30,8 +31,34 @@ class CSVDataPlugin(BaseDataSourcePlugin):
         priority=20,  # 较高优先级，确保在适配器之前加载
     )
 
-    def __init__(self, metadata: PluginMetadata, config: Optional[PluginConfig] = None):
+    # E8修复：定义配置模型类
+    config_model = CSVDataPluginConfig
+
+    def __init__(
+        self, metadata: PluginMetadata, config: Optional[CSVDataPluginConfig] = None
+    ):
         super().__init__(metadata, config)
+
+        # E8修复：通过类型安全的配置对象访问参数
+        if config:
+            self._cache_timeout = config.cache_timeout
+            self._data_dir = config.data_dir or Path(__file__).parent / "data"
+            self._auto_create_missing = config.auto_create_missing
+            self._default_history_days = config.default_history_days
+            self._base_volatility = float(config.base_volatility)
+            self._cleanup_old_data_days = config.cleanup_old_data_days
+        else:
+            # 使用默认配置
+            default_config = CSVDataPluginConfig()
+            self._cache_timeout = default_config.cache_timeout
+            self._data_dir = default_config.data_dir or Path(__file__).parent / "data"
+            self._auto_create_missing = default_config.auto_create_missing
+            self._default_history_days = default_config.default_history_days
+            self._base_volatility = float(default_config.base_volatility)
+            self._cleanup_old_data_days = default_config.cleanup_old_data_days
+
+        # 确保数据目录存在
+        self._data_dir.mkdir(parents=True, exist_ok=True)
 
         # 设置支持的市场和频率
         self._set_supported_modes({MarketType.STOCK_CN})
@@ -43,15 +70,8 @@ class CSVDataPlugin(BaseDataSourcePlugin):
         }
         self._data_delay = 0  # CSV数据无延迟
 
-        # 数据存储目录
-        self._data_dir = Path(
-            self._config.config.get("data_dir", Path(__file__).parent / "data")
-        )
-        self._data_dir.mkdir(parents=True, exist_ok=True)
-
         # 数据缓存
         self._data_cache: Dict[str, pd.DataFrame] = {}
-        self._cache_timeout = self._config.config.get("cache_timeout", 300)  # 5分钟
         self._cache_timestamps: Dict[str, datetime] = {}
 
     def _on_initialize(self) -> None:

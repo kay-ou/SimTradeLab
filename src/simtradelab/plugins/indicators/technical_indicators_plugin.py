@@ -11,7 +11,8 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 
-from ..base import BasePlugin, PluginConfig, PluginMetadata
+from ..base import BasePlugin, PluginMetadata
+from .config import TechnicalIndicatorsConfig
 
 
 class TechnicalIndicatorsPlugin(BasePlugin):
@@ -28,21 +29,55 @@ class TechnicalIndicatorsPlugin(BasePlugin):
         priority=30,  # 中等优先级
     )
 
-    def __init__(self, metadata: PluginMetadata, config: Optional[PluginConfig] = None):
+    # E8修复：定义配置模型类
+    config_model = TechnicalIndicatorsConfig
+
+    def __init__(
+        self,
+        metadata: PluginMetadata,
+        config: Optional[TechnicalIndicatorsConfig] = None,
+    ):
         super().__init__(metadata, config)
+
+        # E8修复：通过类型安全的配置对象访问参数
+        if config:
+            self._cache_timeout = config.cache_timeout
+            self.macd_params = {
+                "short": config.macd_short,
+                "long": config.macd_long,
+                "m": config.macd_signal,
+            }
+            self.kdj_params = {
+                "n": config.kdj_n,
+                "m1": config.kdj_m1,
+                "m2": config.kdj_m2,
+            }
+            self.rsi_params = {"n": config.rsi_period}
+            self.cci_params = {"n": config.cci_period}
+            self._enable_parallel = config.enable_parallel_calculation
+            self._max_cache_size = config.max_cache_size
+        else:
+            # 使用默认配置
+            default_config = TechnicalIndicatorsConfig()
+            self._cache_timeout = default_config.cache_timeout
+            self.macd_params = {
+                "short": default_config.macd_short,
+                "long": default_config.macd_long,
+                "m": default_config.macd_signal,
+            }
+            self.kdj_params = {
+                "n": default_config.kdj_n,
+                "m1": default_config.kdj_m1,
+                "m2": default_config.kdj_m2,
+            }
+            self.rsi_params = {"n": default_config.rsi_period}
+            self.cci_params = {"n": default_config.cci_period}
+            self._enable_parallel = default_config.enable_parallel_calculation
+            self._max_cache_size = default_config.max_cache_size
 
         # 指标计算缓存
         self._calculation_cache: Dict[str, Any] = {}
         self._cache_timestamps: Dict[str, datetime] = {}
-
-        # 从配置加载参数或使用默认值
-        self._cache_timeout = self._config.config.get("cache_timeout", 300)  # 5分钟
-        self.macd_params = self._config.config.get(
-            "macd", {"short": 12, "long": 26, "m": 9}
-        )
-        self.kdj_params = self._config.config.get("kdj", {"n": 9, "m1": 3, "m2": 3})
-        self.rsi_params = self._config.config.get("rsi", {"n": 6})
-        self.cci_params = self._config.config.get("cci", {"n": 14})
 
     def _on_initialize(self) -> None:
         """初始化技术指标插件"""

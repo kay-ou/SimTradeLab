@@ -13,8 +13,9 @@ from typing import Any, Dict, List, Optional, Set, Union
 import numpy as np
 import pandas as pd
 
-from ..base import PluginConfig, PluginMetadata
+from ..base import PluginMetadata
 from .base_data_source import BaseDataSourcePlugin, DataFrequency, MarketType
+from .config import MockDataPluginConfig
 
 
 class MockDataPlugin(BaseDataSourcePlugin):
@@ -47,22 +48,40 @@ class MockDataPlugin(BaseDataSourcePlugin):
         priority=15,  # 中等优先级，低于CSV插件但高于默认插件
     )
 
-    def __init__(self, metadata: PluginMetadata, config: Optional[PluginConfig] = None):
+    # E8修复：定义配置模型类
+    config_model = MockDataPluginConfig
+
+    def __init__(
+        self, metadata: PluginMetadata, config: Optional[MockDataPluginConfig] = None
+    ):
         super().__init__(metadata, config)
+
+        # E8修复：通过类型安全的配置对象访问参数
+        if config:
+            self._enabled = config.enabled
+            self._seed = config.seed
+            self._base_prices = config.base_prices
+            self._volatility = float(config.volatility)
+            self._trend = float(config.trend)
+            self._daily_volatility_factor = float(config.daily_volatility_factor)
+            self._volume_range = config.volume_range
+        else:
+            # 使用默认配置
+            default_config = MockDataPluginConfig()
+            self._enabled = default_config.enabled
+            self._seed = default_config.seed
+            self._base_prices = default_config.base_prices
+            self._volatility = float(default_config.volatility)
+            self._trend = float(default_config.trend)
+            self._daily_volatility_factor = float(
+                default_config.daily_volatility_factor
+            )
+            self._volume_range = default_config.volume_range
 
         # 设置支持的市场和频率
         self._supported_markets = {MarketType.STOCK_CN}
         self._supported_frequencies = {DataFrequency.DAILY, DataFrequency.MINUTE_1}
         self._data_delay = 0
-
-        # 模拟数据配置
-        self._enabled = self._config.data.get("enabled", True)
-        self._seed = self._config.data.get("seed", 42)
-        self._base_prices = self._config.data.get(
-            "base_prices", self.DEFAULT_CONFIG["base_prices"]
-        )
-        self._volatility = self._config.data.get("volatility", 0.02)
-        self._trend = self._config.data.get("trend", 0.0001)
 
         # 随机种子
         random.seed(self._seed)
@@ -144,7 +163,9 @@ class MockDataPlugin(BaseDataSourcePlugin):
             high = close * (1 + abs(np.random.normal(0, daily_volatility)))
             low = close * (1 - abs(np.random.normal(0, daily_volatility)))
             open_price = prices[i - 1] if i > 0 else close
-            volume = int(np.random.uniform(1000, 10000))
+            volume = int(
+                np.random.uniform(self._volume_range["min"], self._volume_range["max"])
+            )
 
             df_data.append(
                 {

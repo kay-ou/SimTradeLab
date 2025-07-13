@@ -6,13 +6,20 @@
 - 简单撮合引擎：基本的价格撮合
 - 深度撮合引擎：考虑订单深度的撮合
 - 限价撮合引擎：严格的限价单撮合
+
+E8修复：使用统一的Pydantic配置模型进行配置验证
 """
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from .base import BaseMatchingEngine, Fill, MarketData, Order, PluginMetadata
+from .config import (
+    SimpleMatchingEngineConfig,
+    DepthMatchingEngineConfig, 
+    LimitMatchingEngineConfig
+)
 
 
 class SimpleMatchingEngine(BaseMatchingEngine):
@@ -23,6 +30,8 @@ class SimpleMatchingEngine(BaseMatchingEngine):
     - 市价单按当前价格成交
     - 限价单按限价或更优价格成交
     - 完全成交，不考虑流动性限制
+    
+    E8修复：使用SimpleMatchingEngineConfig进行类型安全的配置验证
     """
 
     METADATA = PluginMetadata(
@@ -33,24 +42,28 @@ class SimpleMatchingEngine(BaseMatchingEngine):
         category="matching_engine",
         tags=["backtest", "matching", "simple"],
     )
+    
+    # E8修复：定义配置模型类
+    config_model = SimpleMatchingEngineConfig
 
     def __init__(
-        self, metadata: PluginMetadata, config: Optional[Dict[str, Any]] = None
+        self, 
+        metadata: PluginMetadata, 
+        config: Optional[SimpleMatchingEngineConfig] = None
     ):
         super().__init__(metadata, config)
-
-        # 配置参数
-        self._price_tolerance = (
-            Decimal(str(config.get("price_tolerance", 0.01)))
-            if config
-            else Decimal("0.01")
-        )
-        self._enable_partial_fill = (
-            config.get("enable_partial_fill", True) if config else True
-        )
-        self._match_mode = (
-            config.get("match_mode", "immediate") if config else "immediate"
-        )
+        
+        # E8修复：通过类型安全的配置对象访问参数
+        if config:
+            self._price_tolerance = config.price_tolerance
+            self._enable_partial_fill = config.enable_partial_fill
+            self._max_order_size = config.max_order_size
+        else:
+            # 使用默认配置
+            default_config = SimpleMatchingEngineConfig()
+            self._price_tolerance = default_config.price_tolerance
+            self._enable_partial_fill = default_config.enable_partial_fill
+            self._max_order_size = default_config.max_order_size
 
     def _on_initialize(self) -> None:
         """初始化撮合引擎"""
@@ -220,37 +233,41 @@ class DepthMatchingEngine(BaseMatchingEngine):
         tags=["backtest", "matching", "depth", "market_impact"],
     )
 
+    # E8修复：定义配置模型类
+    config_model = DepthMatchingEngineConfig
+
     def __init__(
-        self, metadata: PluginMetadata, config: Optional[Dict[str, Any]] = None
+        self, 
+        metadata: PluginMetadata, 
+        config: Optional[DepthMatchingEngineConfig] = None
     ):
         super().__init__(metadata, config)
-
-        # 配置参数
-        self._volume_impact_factor = (
-            Decimal(str(config.get("volume_impact_factor", 0.001)))
-            if config
-            else Decimal("0.001")
-        )
-        self._max_fill_ratio = (
-            Decimal(str(config.get("max_fill_ratio", 0.1)))
-            if config
-            else Decimal("0.1")
-        )
-        self._min_fill_amount = (
-            Decimal(str(config.get("min_fill_amount", 100)))
-            if config
-            else Decimal("100")
-        )
-        self._min_depth_ratio = (
-            Decimal(str(config.get("min_depth_ratio", 0.05)))
-            if config
-            else Decimal("0.05")
-        )
-        self._max_spread_ratio = (
-            Decimal(str(config.get("max_spread_ratio", 0.02)))
-            if config
-            else Decimal("0.02")
-        )
+        
+        # E8修复：通过类型安全的配置对象访问参数
+        if config:
+            self._price_tolerance = config.price_tolerance
+            self._enable_partial_fill = config.enable_partial_fill
+            self._max_order_size = config.max_order_size
+            self._depth_levels = config.depth_levels
+            self._liquidity_factor = config.liquidity_factor
+            self._volume_impact_factor = config.volume_impact_factor
+            self._max_fill_ratio = config.max_fill_ratio
+            self._min_fill_amount = config.min_fill_amount
+            self._min_depth_ratio = config.min_depth_ratio
+            self._max_spread_ratio = config.max_spread_ratio
+        else:
+            # 使用默认配置
+            default_config = DepthMatchingEngineConfig()
+            self._price_tolerance = default_config.price_tolerance
+            self._enable_partial_fill = default_config.enable_partial_fill
+            self._max_order_size = default_config.max_order_size
+            self._depth_levels = default_config.depth_levels
+            self._liquidity_factor = default_config.liquidity_factor
+            self._volume_impact_factor = default_config.volume_impact_factor
+            self._max_fill_ratio = default_config.max_fill_ratio
+            self._min_fill_amount = default_config.min_fill_amount
+            self._min_depth_ratio = default_config.min_depth_ratio
+            self._max_spread_ratio = default_config.max_spread_ratio
 
     def _on_initialize(self) -> None:
         """初始化深度撮合引擎"""
@@ -454,24 +471,39 @@ class StrictLimitMatchingEngine(BaseMatchingEngine):
         tags=["backtest", "matching", "limit", "strict"],
     )
 
+    # E8修复：定义配置模型类
+    config_model = LimitMatchingEngineConfig
+
     def __init__(
-        self, metadata: PluginMetadata, config: Optional[Dict[str, Any]] = None
+        self, 
+        metadata: PluginMetadata, 
+        config: Optional[LimitMatchingEngineConfig] = None
     ):
         super().__init__(metadata, config)
-
-        # 配置参数
-        self._allow_market_order = (
-            config.get("allow_market_order", True) if config else True
-        )
-        self._price_precision = int(config.get("price_precision", 2)) if config else 2
-        self._allow_partial_fills = (
-            config.get("allow_partial_fills", True) if config else True
-        )
-        self._price_tolerance = (
-            Decimal(str(config.get("price_tolerance", 0.001)))
-            if config
-            else Decimal("0.001")
-        )
+        
+        # E8修复：通过类型安全的配置对象访问参数
+        if config:
+            self._price_tolerance = config.price_tolerance
+            self._enable_partial_fill = config.enable_partial_fill
+            self._max_order_size = config.max_order_size
+            self._strict_limit_check = config.strict_limit_check
+            self._order_queue_enabled = config.order_queue_enabled
+            self._max_queue_size = config.max_queue_size
+            self._allow_market_order = config.allow_market_order
+            self._price_precision = config.price_precision
+            self._allow_partial_fills = config.allow_partial_fills
+        else:
+            # 使用默认配置
+            default_config = LimitMatchingEngineConfig()
+            self._price_tolerance = default_config.price_tolerance
+            self._enable_partial_fill = default_config.enable_partial_fill
+            self._max_order_size = default_config.max_order_size
+            self._strict_limit_check = default_config.strict_limit_check
+            self._order_queue_enabled = default_config.order_queue_enabled
+            self._max_queue_size = default_config.max_queue_size
+            self._allow_market_order = default_config.allow_market_order
+            self._price_precision = default_config.price_precision
+            self._allow_partial_fills = default_config.allow_partial_fills
 
     def _on_initialize(self) -> None:
         """初始化严格限价撮合引擎"""

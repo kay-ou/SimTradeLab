@@ -36,10 +36,8 @@ from .matching_engines import (
 
 # 滑点模型实现
 from .slippage_models import (
-    DynamicSlippageModel,
-    FixedSlippageModel,
     LinearSlippageModel,
-    VolatilityBasedSlippageModel,
+    VolumeBasedSlippageModel,
 )
 
 __all__ = [
@@ -61,10 +59,8 @@ __all__ = [
     "DepthMatchingEngine",
     "StrictLimitMatchingEngine",
     # 滑点模型实现
-    "FixedSlippageModel",
-    "DynamicSlippageModel",
-    "VolatilityBasedSlippageModel",
     "LinearSlippageModel",
+    "VolumeBasedSlippageModel",
     # 手续费模型实现
     "ChinaAStockCommissionModel",
     "FixedCommissionModel",
