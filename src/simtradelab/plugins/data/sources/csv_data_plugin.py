@@ -12,9 +12,9 @@ from typing import Any, Dict, List, Optional, Set, Union
 import numpy as np
 import pandas as pd
 
-from ..base import PluginMetadata
-from .base_data_source import BaseDataSourcePlugin, DataFrequency, MarketType
-from .config import CSVDataPluginConfig
+from ...base import PluginMetadata
+from ..base_data_source import BaseDataSourcePlugin, DataFrequency, MarketType
+from ..config import CSVDataPluginConfig
 
 
 class CSVDataPlugin(BaseDataSourcePlugin):

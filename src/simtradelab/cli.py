@@ -85,6 +85,7 @@ def main() -> None:
     if not strategy_path.exists():
         print(f"策略文件不存在: {strategy_path}", file=sys.stderr)
         sys.exit(1)
+        return
 
     # 验证数据文件（如果提供）
     if args.data:
@@ -92,6 +93,7 @@ def main() -> None:
         if not data_path.exists():
             print(f"数据文件不存在: {data_path}", file=sys.stderr)
             sys.exit(1)
+            return
 
     # 准备运行参数
     run_kwargs = {

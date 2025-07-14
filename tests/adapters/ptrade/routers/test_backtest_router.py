@@ -11,7 +11,6 @@ PTrade回测路由器测试
 
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
@@ -22,7 +21,7 @@ from simtradelab.adapters.ptrade.models import Blotter, Portfolio, Position
 from simtradelab.adapters.ptrade.routers.backtest import BacktestAPIRouter
 from simtradelab.core.event_bus import EventBus
 from simtradelab.plugins.data.config import CSVDataPluginConfig
-from simtradelab.plugins.data.csv_data_plugin import CSVDataPlugin
+from simtradelab.plugins.data.sources.csv_data_plugin import CSVDataPlugin
 
 
 class TestBacktestAPIRouter:
@@ -116,7 +115,7 @@ class TestBacktestAPIRouter:
     def real_data_plugin(self, temp_data_dir):
         """创建真实数据插件"""
         config = CSVDataPluginConfig(
-            data_dir=str(temp_data_dir),
+            data_dir=temp_data_dir,
         )
         plugin = CSVDataPlugin(CSVDataPlugin.METADATA, config)
         plugin.initialize()

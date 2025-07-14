@@ -17,7 +17,7 @@ import pandas as pd
 import pytest
 
 from simtradelab.plugins.data.config import CSVDataPluginConfig
-from simtradelab.plugins.data.csv_data_plugin import CSVDataPlugin
+from simtradelab.plugins.data.sources.csv_data_plugin import CSVDataPlugin
 from simtradelab.plugins.indicators.config import TechnicalIndicatorsConfig
 from simtradelab.plugins.indicators.technical_indicators_plugin import (
     TechnicalIndicatorsPlugin,

@@ -12,7 +12,6 @@ Mock数据源插件测试 - 彻底重写版
 
 import random
 import threading
-from datetime import datetime
 from decimal import Decimal
 
 import numpy as np
@@ -23,7 +22,7 @@ from pydantic import ValidationError
 from simtradelab.plugins.base import PluginMetadata, PluginState
 from simtradelab.plugins.data.base_data_source import DataFrequency, MarketType
 from simtradelab.plugins.data.config import MockDataPluginConfig
-from simtradelab.plugins.data.mock_data_plugin import MockDataPlugin
+from simtradelab.plugins.data.sources.mock_data_plugin import MockDataPlugin
 
 
 @pytest.fixture(scope="module")

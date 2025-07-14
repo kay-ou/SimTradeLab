@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 
 from simtradelab.plugins.data.config import CSVDataPluginConfig
-from simtradelab.plugins.data.csv_data_plugin import CSVDataPlugin
+from simtradelab.plugins.data.sources.csv_data_plugin import CSVDataPlugin
 
 
 class TestCSVDataPlugin:
