@@ -39,7 +39,10 @@ class TestBacktestEngine:
 
         config = {
             "matching_engine": {"type": "simple", "params": {}},
-            "slippage_model": {"type": "fixed", "params": {"base_slippage_rate": 0.001}},
+            "slippage_model": {
+                "type": "fixed",
+                "params": {"base_slippage_rate": 0.001},
+            },
             "commission_model": {
                 "type": "fixed",
                 "params": {"commission_rate": 0.0003},

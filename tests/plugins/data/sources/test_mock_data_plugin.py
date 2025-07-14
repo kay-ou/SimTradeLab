@@ -79,9 +79,17 @@ class TestMockDataPluginConfig:
         [
             ("seed", -1, "Input should be greater than or equal to 0"),
             ("seed", 2**32, "Input should be less than or equal to 2147483647"),
-            ("volatility", Decimal("-0.1"), "Input should be greater than or equal to 0"),
+            (
+                "volatility",
+                Decimal("-0.1"),
+                "Input should be greater than or equal to 0",
+            ),
             ("volatility", Decimal("1.1"), "Input should be less than or equal to 1"),
-            ("trend", Decimal("-0.02"), "Input should be greater than or equal to -0.01"),
+            (
+                "trend",
+                Decimal("-0.02"),
+                "Input should be greater than or equal to -0.01",
+            ),
             ("trend", Decimal("0.02"), "Input should be less than or equal to 0.01"),
             ("base_prices", {"STOCK_A": 0.0}, "基础价格必须大于0"),
             ("base_prices", {"STOCK_A": -10.0}, "基础价格必须大于0"),
@@ -179,17 +187,19 @@ class TestMockDataPluginDataGeneration:
         assert isinstance(df, pd.DataFrame)
         assert not df.empty
         assert len(df) <= 10
-        
+
         expected_columns = {"open", "high", "low", "close", "volume", "amount"}
         assert expected_columns.issubset(df.columns)
-        
+
         # 数据质量验证
         assert (df["high"] >= df["low"]).all()
         assert (df["high"] >= df["open"]).all()
         assert (df["high"] >= df["close"]).all()
         assert (df["low"] <= df["open"]).all()
         assert (df["low"] <= df["close"]).all()
-        assert (df[["open", "high", "low", "close", "volume", "amount"]] > 0).all().all()
+        assert (
+            (df[["open", "high", "low", "close", "volume", "amount"]] > 0).all().all()
+        )
 
     @pytest.mark.parametrize("frequency", [DataFrequency.DAILY, DataFrequency.MINUTE_1])
     def test_get_history_data_frequencies(self, plugin, frequency):
@@ -202,13 +212,13 @@ class TestMockDataPluginDataGeneration:
     def test_get_multiple_history_data(self, plugin):
         """测试获取多个证券的历史数据。"""
         securities = ["TEST.S", "ANOTHER.S"]
-        
+
         # 测试字典返回格式
         data_dict = plugin.get_multiple_history_data(securities, count=5, as_dict=True)
         assert isinstance(data_dict, dict)
         assert set(data_dict.keys()) == set(securities)
         assert isinstance(data_dict["TEST.S"], pd.DataFrame)
-        
+
         # 测试DataFrame返回格式
         data_df = plugin.get_multiple_history_data(securities, count=5, as_dict=False)
         assert isinstance(data_df, pd.DataFrame)
@@ -218,13 +228,13 @@ class TestMockDataPluginDataGeneration:
     def test_get_current_price_and_snapshot(self, plugin):
         """测试获取当前价格和市场快照。"""
         securities = ["TEST.S", "ANOTHER.S"]
-        
+
         # 当前价格
         prices = plugin.get_current_price(securities)
         assert isinstance(prices, dict)
         assert set(prices.keys()) == set(securities)
         assert all(isinstance(p, float) and p > 0 for p in prices.values())
-        
+
         # 市场快照
         snapshot = plugin.get_snapshot(securities)
         assert isinstance(snapshot, dict)
@@ -234,13 +244,13 @@ class TestMockDataPluginDataGeneration:
 
     def test_data_generation_statistical_properties(self, plugin):
         """测试生成数据的统计特性是否与配置大致相符。"""
-        df = plugin.get_history_data("TEST.S", count=252) # 约一年的日线数据
+        df = plugin.get_history_data("TEST.S", count=252)  # 约一年的日线数据
         returns = df["close"].pct_change().dropna()
-        
+
         # 检查波动率是否在合理范围内（由于随机性，设定一个较宽的容忍度）
         # 理论日波动率是 0.02
         assert 0.01 < returns.std() < 0.03
-        
+
         # 检查趋势是否为正
         # 理论日趋势是 0.0001
         assert returns.mean() > 0
@@ -253,35 +263,35 @@ class TestMockDataPluginConsistencyAndConcurrency:
         """测试相同的种子和配置应生成完全相同的数据。"""
         config1 = MockDataPluginConfig(seed=42, base_prices={"TEST.S": 100.0})
         plugin1 = MockDataPlugin(default_plugin_metadata, config1)
-        
+
         config2 = MockDataPluginConfig(seed=42, base_prices={"TEST.S": 100.0})
         plugin2 = MockDataPlugin(default_plugin_metadata, config2)
-        
+
         end_date = "2023-01-10"
-        
+
         # 第一次调用
         np.random.seed(42)
         random.seed(42)
         df1 = plugin1.get_history_data("TEST.S", count=10, end_date=end_date)
-        
+
         # 第二次调用前重置种子
         np.random.seed(42)
         random.seed(42)
         df2 = plugin2.get_history_data("TEST.S", count=10, end_date=end_date)
-        
+
         pd.testing.assert_frame_equal(df1, df2)
 
     def test_different_seeds_produce_different_data(self, default_plugin_metadata):
         """测试不同的种子应生成不同的数据。"""
         config1 = MockDataPluginConfig(seed=42)
         plugin1 = MockDataPlugin(default_plugin_metadata, config1)
-        
+
         config2 = MockDataPluginConfig(seed=123)
         plugin2 = MockDataPlugin(default_plugin_metadata, config2)
-        
+
         df1 = plugin1.get_history_data("TEST.S", count=10)
         df2 = plugin2.get_history_data("TEST.S", count=10)
-        
+
         assert not df1.equals(df2)
 
     def test_concurrent_data_access_is_safe(self, default_plugin_metadata):

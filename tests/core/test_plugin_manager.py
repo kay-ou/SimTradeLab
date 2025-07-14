@@ -30,7 +30,12 @@ from simtradelab.core.plugin_manager import (
     PluginManager,
     PluginRegistrationError,
 )
-from simtradelab.plugins.base import BasePlugin, PluginMetadata, PluginState, PluginError
+from simtradelab.plugins.base import (
+    BasePlugin,
+    PluginError,
+    PluginMetadata,
+    PluginState,
+)
 from simtradelab.plugins.config.base_config import BasePluginConfig
 
 # region Test Plugin Definitions
@@ -283,9 +288,7 @@ class TestPluginLifecycle:
         load_results = plugin_manager.load_all_plugins(start=True)
         assert load_results["simple_plugin"] is True
         assert load_results["dependent_plugin"] is True
-        assert (
-            plugin_manager.get_plugin("simple_plugin").state == PluginState.STARTED
-        )
+        assert plugin_manager.get_plugin("simple_plugin").state == PluginState.STARTED
         assert (
             plugin_manager.get_plugin("dependent_plugin").state == PluginState.STARTED
         )
@@ -381,7 +384,7 @@ class TestErrorHandling:
         # 捕获异常并检查其 cause
         with pytest.raises(PluginLoadError) as excinfo:
             plugin_manager.load_plugin(plugin_name, config=config)
-        
+
         # 在 with 块之外进行断言
         # BasePlugin.initialize() 方法会将 RuntimeError 包装成 PluginError
         assert isinstance(excinfo.value.__cause__, PluginError)
@@ -420,7 +423,9 @@ class TestErrorHandling:
         plugin_manager.start_plugin("simple_plugin")
 
         with pytest.raises(PluginLoadError):
-             plugin_manager.load_plugin("failing_plugin", config={"fail_on": "initialize"})
+            plugin_manager.load_plugin(
+                "failing_plugin", config={"fail_on": "initialize"}
+            )
 
         # 验证正常插件的状态
         simple_plugin = plugin_manager.get_plugin("simple_plugin")
@@ -483,7 +488,7 @@ class TestEventBusIntegration:
         bus = EventBus()
         # 关键：先创建不带 event_bus 的 manager
         manager = PluginManager(auto_register_builtin=False)
-        
+
         mock_handler = MagicMock()
         bus.subscribe("plugin.*", mock_handler)
 
@@ -513,9 +518,7 @@ class TestEventBusIntegration:
             "plugin.unloaded",
             "plugin.unregistered",
         ]
-        called_event_types = [
-            call.args[0].type for call in mock_handler.call_args_list
-        ]
+        called_event_types = [call.args[0].type for call in mock_handler.call_args_list]
         assert called_event_types == expected_event_types
 
         # 5. 详细验证某个事件的内容

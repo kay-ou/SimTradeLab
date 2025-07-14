@@ -140,7 +140,9 @@ class MockDataPlugin(BaseDataSourcePlugin):
         if end_date:
             end_dt = pd.to_datetime(end_date)
         else:
-            end_dt = datetime.now() if include_now else datetime.now() - timedelta(days=1)
+            end_dt = (
+                datetime.now() if include_now else datetime.now() - timedelta(days=1)
+            )
 
         if freq == DataFrequency.DAILY:
             start_dt = end_dt - timedelta(days=count)

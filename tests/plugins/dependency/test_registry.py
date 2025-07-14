@@ -3,12 +3,13 @@
 插件注册表测试
 """
 
-import pytest
-from pathlib import Path
 import tempfile
+from pathlib import Path
 from typing import Generator
 
-from simtradelab.plugins.dependency.manifest import PluginManifest, PluginCategory
+import pytest
+
+from simtradelab.plugins.dependency.manifest import PluginCategory, PluginManifest
 from simtradelab.plugins.dependency.registry import PluginRegistry
 
 
@@ -66,7 +67,7 @@ class TestPluginRegistry:
 
         assert registry.unregister_plugin("test_plugin")
         assert not registry.has_plugin("test_plugin")
-        assert not registry.unregister_plugin("non_existent_plugin") # 注销不存在的插件
+        assert not registry.unregister_plugin("non_existent_plugin")  # 注销不存在的插件
 
     def test_register_from_directory(self, temp_dir: Path):
         """测试从目录注册插件"""
@@ -91,20 +92,24 @@ class TestPluginRegistry:
         manifest2_path = plugin2_dir / "plugin_manifest.json"
         with open(manifest2_path, "w") as f:
             import json
-            json.dump({
-                "name": "plugin2",
-                "version": "2.0.0",
-                "description": "Plugin two.",
-                "author": "Author Two",
-                "category": "strategy",
-            }, f)
-        
+
+            json.dump(
+                {
+                    "name": "plugin2",
+                    "version": "2.0.0",
+                    "description": "Plugin two.",
+                    "author": "Author Two",
+                    "category": "strategy",
+                },
+                f,
+            )
+
         # 创建一个无效的插件目录
         invalid_dir = temp_dir / "invalid_plugin"
         invalid_dir.mkdir()
         invalid_manifest_path = invalid_dir / "plugin_manifest.yaml"
         with open(invalid_manifest_path, "w") as f:
-            f.write("name: invalid\nversion: 1.0.0\n") # 无效清单
+            f.write("name: invalid\nversion: 1.0.0\n")  # 无效清单
 
         count = registry.register_from_directory(temp_dir)
         assert count == 2
@@ -125,7 +130,7 @@ class TestPluginRegistry:
             description="Another utility plugin.",
             author="Another Author",
             category=PluginCategory.UTILITY,
-            tags=["utility", "extra"]
+            tags=["utility", "extra"],
         )
         registry.register_plugin(manifest2)
 
@@ -145,9 +150,10 @@ class TestPluginRegistry:
         assert len(results) == 1
         assert results[0].name == "another_plugin"
 
-        results = registry.search_plugins(keyword="plugin", category=PluginCategory.UTILITY)
+        results = registry.search_plugins(
+            keyword="plugin", category=PluginCategory.UTILITY
+        )
         assert len(results) == 2
-
 
     def test_get_dependencies_and_dependents(self, basic_manifest: PluginManifest):
         """测试获取插件的依赖和被依赖关系"""
@@ -162,14 +168,14 @@ class TestPluginRegistry:
             category=PluginCategory.UTILITY,
             dependencies={"test_plugin": ">=1.0.0"},
         )
-        
+
         registry.register_plugin(basic_manifest)
         registry.register_plugin(dependent_manifest)
 
         # 测试 get_plugin_dependencies
         deps = registry.get_plugin_dependencies("dependent_plugin")
         assert deps == {"test_plugin": ">=1.0.0"}
-        
+
         # 测试 get_plugin_dependents
         dependents = registry.get_plugin_dependents("test_plugin")
         assert dependents == ["dependent_plugin"]
@@ -188,12 +194,11 @@ class TestPluginRegistry:
         assert not registry.has_plugin("test_plugin")
         assert registry.list_plugins() == []
 
-
     def test_get_statistics(self, basic_manifest: PluginManifest):
         """测试获取注册表统计信息"""
         registry = PluginRegistry()
         registry.register_plugin(basic_manifest)
-        
+
         stats = registry.get_statistics()
         assert stats["total_plugins"] == 1
         assert stats["by_category"]["utility"] == 1
@@ -202,7 +207,7 @@ class TestPluginRegistry:
     def test_validate_registry(self, basic_manifest: PluginManifest):
         """测试验证注册表"""
         registry = PluginRegistry()
-        
+
         # 注册一个依赖不存在插件的清单
         dependent_manifest = PluginManifest(
             name="dependent_plugin",
@@ -213,7 +218,7 @@ class TestPluginRegistry:
             dependencies={"non_existent_plugin": ">=1.0.0"},
         )
         registry.register_plugin(dependent_manifest)
-        
+
         report = registry.validate_registry()
         assert "dependent_plugin" in report
         assert "依赖插件不存在: non_existent_plugin" in report["dependent_plugin"]

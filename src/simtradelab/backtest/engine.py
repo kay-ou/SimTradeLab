@@ -122,7 +122,9 @@ class BacktestEngine:
                 engine_class = self._available_plugins["matching_engines"][engine_type]
                 metadata = engine_class.METADATA
                 # E9修复：使用配置管理器创建配置对象
-                plugin_config = self._config_manager.create_validated_config(engine_class, engine_params)
+                plugin_config = self._config_manager.create_validated_config(
+                    engine_class, engine_params
+                )
                 self._matching_engine = engine_class(metadata, plugin_config)
                 self.logger.info(f"Configured matching engine: {engine_type}")
             else:
@@ -140,7 +142,9 @@ class BacktestEngine:
                 ]
                 metadata = slippage_class.METADATA
                 # E9修复：使用配置管理器创建配置对象
-                plugin_config = self._config_manager.create_validated_config(slippage_class, slippage_params)
+                plugin_config = self._config_manager.create_validated_config(
+                    slippage_class, slippage_params
+                )
                 self._slippage_model = slippage_class(metadata, plugin_config)
                 self.logger.info(f"Configured slippage model: {slippage_type}")
             else:
@@ -158,7 +162,9 @@ class BacktestEngine:
                 ]
                 metadata = commission_class.METADATA
                 # E9修复：使用配置管理器创建配置对象
-                plugin_config = self._config_manager.create_validated_config(commission_class, commission_params)
+                plugin_config = self._config_manager.create_validated_config(
+                    commission_class, commission_params
+                )
                 self._commission_model = commission_class(metadata, plugin_config)
                 self.logger.info(f"Configured commission model: {commission_type}")
             else:

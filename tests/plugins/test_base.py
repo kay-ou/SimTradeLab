@@ -62,7 +62,7 @@ class MockPlugin(BasePlugin):
 
     def _validate_config(self, config):
         # E9修复：适应Pydantic配置对象
-        if hasattr(config, 'config') and isinstance(config.config, dict):
+        if hasattr(config, "config") and isinstance(config.config, dict):
             if "invalid_key" in config.config:
                 raise PluginConfigError("Invalid configuration")
         elif isinstance(config, dict) and "invalid_key" in config:

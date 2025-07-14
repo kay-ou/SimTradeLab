@@ -51,9 +51,7 @@ class ChinaAStockCommissionModel(BaseCommissionModel):
     _DEFAULT_EXCHANGE_FEE_RATE = Decimal("0.0000487")  # 经手费万0.487
     _DEFAULT_REGULATORY_FEE_RATE = Decimal("0.00002")  # 监管费万0.2
 
-    def __init__(
-        self, metadata: PluginMetadata, config: CommissionModelConfig
-    ):
+    def __init__(self, metadata: PluginMetadata, config: CommissionModelConfig):
         super().__init__(metadata, config)
 
         # E9修复：直接使用Pydantic配置对象，不再支持向后兼容
@@ -180,9 +178,7 @@ class FixedCommissionModel(BaseCommissionModel):
     _DEFAULT_MIN_COMMISSION = Decimal("1.0")
     _DEFAULT_MAX_COMMISSION = Decimal("1000.0")
 
-    def __init__(
-        self, metadata: PluginMetadata, config: FixedCommissionModelConfig
-    ):
+    def __init__(self, metadata: PluginMetadata, config: FixedCommissionModelConfig):
         super().__init__(metadata, config)
 
         # E9修复：直接使用Pydantic配置对象，统一的费率配置
@@ -263,9 +259,7 @@ class TieredCommissionModel(BaseCommissionModel):
     _DEFAULT_MIN_COMMISSION = Decimal("1.0")
     _DEFAULT_MAX_VALUE = Decimal("999999999")  # 代替infinity
 
-    def __init__(
-        self, metadata: PluginMetadata, config: TieredCommissionModelConfig
-    ):
+    def __init__(self, metadata: PluginMetadata, config: TieredCommissionModelConfig):
         super().__init__(metadata, config)
 
         # E9修复：直接使用Pydantic配置对象，不再支持向后兼容
@@ -275,7 +269,7 @@ class TieredCommissionModel(BaseCommissionModel):
         self._min_commission = config.min_commission
         self._tier_thresholds = config.tier_thresholds
         self._tier_rates = config.tier_rates
-        
+
         # 构建阶梯配置
         self._tiers = self._build_tiers_from_config()
 
@@ -283,35 +277,39 @@ class TieredCommissionModel(BaseCommissionModel):
         """从Pydantic配置构建阶梯配置"""
         tiers = []
         sorted_thresholds = sorted(self._tier_thresholds.items(), key=lambda x: x[1])
-        
+
         # 添加第一个阶梯：0到第一个阈值
         if sorted_thresholds:
             first_tier_rate = self._tier_rates.get("tier1", Decimal("0.0003"))
-            tiers.append({
-                "min_value": Decimal("0"),
-                "max_value": sorted_thresholds[0][1], 
-                "rate": first_tier_rate,
-            })
-        
+            tiers.append(
+                {
+                    "min_value": Decimal("0"),
+                    "max_value": sorted_thresholds[0][1],
+                    "rate": first_tier_rate,
+                }
+            )
+
         for i, (tier_name, threshold) in enumerate(sorted_thresholds):
             tier_rate_key = f"tier{i+2}"  # 从tier2开始，因为tier1已用于0-第一阈值
             if tier_rate_key not in self._tier_rates:
                 tier_rate_key = tier_name
-            
+
             rate = self._tier_rates.get(tier_rate_key, Decimal("0.0003"))
-            
+
             # 设置最大值为下一个阈值或无穷大
             if i < len(sorted_thresholds) - 1:
                 max_value = sorted_thresholds[i + 1][1]
             else:
                 max_value = Decimal("999999999")  # 代替无穷大
-            
-            tiers.append({
-                "min_value": threshold,
-                "max_value": max_value,
-                "rate": rate,
-            })
-        
+
+            tiers.append(
+                {
+                    "min_value": threshold,
+                    "max_value": max_value,
+                    "rate": rate,
+                }
+            )
+
         return tiers
 
     def _on_initialize(self) -> None:
@@ -411,9 +409,7 @@ class ComprehensiveCommissionModel(BaseCommissionModel):
     _DEFAULT_OTHER_FEE_RATE = Decimal("0.00001")
     _DEFAULT_MIN_COMMISSION = Decimal("1.0")
 
-    def __init__(
-        self, metadata: PluginMetadata, config: CommissionModelConfig
-    ):
+    def __init__(self, metadata: PluginMetadata, config: CommissionModelConfig):
         super().__init__(metadata, config)
 
         # E9修复：直接使用Pydantic配置对象，不再支持向后兼容
@@ -538,9 +534,7 @@ class PerShareCommissionModel(BaseCommissionModel):
     _DEFAULT_MIN_COMMISSION = Decimal("1.0")
     _DEFAULT_MAX_COMMISSION = Decimal("100.0")
 
-    def __init__(
-        self, metadata: PluginMetadata, config: CommissionModelConfig
-    ):
+    def __init__(self, metadata: PluginMetadata, config: CommissionModelConfig):
         super().__init__(metadata, config)
 
         # E9修复：直接使用Pydantic配置对象，不再支持向后兼容

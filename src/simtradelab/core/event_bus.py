@@ -402,10 +402,12 @@ class EventBus:
         with self._lock:
             # 获取精确匹配的订阅
             subscriptions = self._subscriptions.get(cloud_event.type, []).copy()
-            
+
             # 添加模式匹配的订阅
             for pattern, pattern_subscriptions in self._subscriptions.items():
-                if pattern != cloud_event.type and self._match_pattern(pattern, cloud_event.type):
+                if pattern != cloud_event.type and self._match_pattern(
+                    pattern, cloud_event.type
+                ):
                     subscriptions.extend(pattern_subscriptions)
 
         # 需要移除的一次性订阅
@@ -475,10 +477,12 @@ class EventBus:
         with self._lock:
             # 获取精确匹配的订阅
             subscriptions = self._subscriptions.get(cloud_event.type, []).copy()
-            
+
             # 添加模式匹配的订阅
             for pattern, pattern_subscriptions in self._subscriptions.items():
-                if pattern != cloud_event.type and self._match_pattern(pattern, cloud_event.type):
+                if pattern != cloud_event.type and self._match_pattern(
+                    pattern, cloud_event.type
+                ):
                     subscriptions.extend(pattern_subscriptions)
 
         # 需要移除的一次性订阅
@@ -655,17 +659,17 @@ class EventBus:
     def _match_pattern(self, pattern: str, event_type: str) -> bool:
         """
         检查事件类型是否匹配模式
-        
+
         支持 Unix shell-style wildcards:
         - * 匹配零个或多个字符
         - ? 匹配单个字符
         - [seq] 匹配 seq 中的任意字符
         - [!seq] 匹配不在 seq 中的任意字符
-        
+
         Args:
             pattern: 模式字符串 (e.g., "plugin.*")
             event_type: 事件类型 (e.g., "plugin.registered")
-            
+
         Returns:
             是否匹配
         """

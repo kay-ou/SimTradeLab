@@ -4,11 +4,9 @@ AkShare 数据源插件
 
 基于 AkShare 库提供中国市场金融数据。
 """
-from typing import Any
-
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import akshare as ak
 import pandas as pd
@@ -81,6 +79,7 @@ class AkShareDataSource(BaseDataSourcePlugin):
     def _on_stop(self) -> None:
         """插件停止时调用。"""
         logger.info("AkShare数据源插件已停止。")
+
     def get_supported_markets(self) -> Set[MarketType]:
         """返回支持的市场类型。"""
         return {MarketType.STOCK_CN}
@@ -249,7 +248,5 @@ class AkShareDataSource(BaseDataSourcePlugin):
     ) -> pd.DataFrame:
         raise NotImplementedError("get_fundamentals 方法尚未在AkShare插件中实现。")
 
-    def get_security_info(
-        self, security_list: List[str]
-    ) -> Dict[str, Dict[str, Any]]:
+    def get_security_info(self, security_list: List[str]) -> Dict[str, Dict[str, Any]]:
         raise NotImplementedError("get_security_info 方法尚未在AkShare插件中实现。")

@@ -2,9 +2,12 @@
 """
 PluginSandbox 的单元测试
 """
-import pytest
 from unittest.mock import MagicMock
-from simtradelab.plugins.security.plugin_sandbox import ThreadSandbox, SandboxError
+
+import pytest
+
+from simtradelab.plugins.security.plugin_sandbox import SandboxError, ThreadSandbox
+
 
 def test_thread_sandbox_executes_successfully():
     """
@@ -12,12 +15,13 @@ def test_thread_sandbox_executes_successfully():
     """
     plugin_mock = MagicMock()
     sandbox = ThreadSandbox(plugin=plugin_mock)
-    
+
     def sample_function(a, b):
         return a + b
-        
+
     result = sandbox.execute(sample_function, 1, b=2)
     assert result == 3
+
 
 def test_thread_sandbox_handles_exception():
     """
@@ -25,9 +29,11 @@ def test_thread_sandbox_handles_exception():
     """
     plugin_mock = MagicMock()
     sandbox = ThreadSandbox(plugin=plugin_mock)
-    
+
     def error_function():
         raise ValueError("Test error")
-        
-    with pytest.raises(SandboxError, match="Error executing in thread sandbox: Test error"):
+
+    with pytest.raises(
+        SandboxError, match="Error executing in thread sandbox: Test error"
+    ):
         sandbox.execute(error_function)

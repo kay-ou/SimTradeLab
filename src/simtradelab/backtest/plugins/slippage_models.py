@@ -18,8 +18,8 @@ from .base import BaseSlippageModel, MarketData, Order, PluginMetadata
 from .config import (
     FixedSlippageModelConfig,
     LinearSlippageModelConfig,
-    VolumeBasedSlippageModelConfig,
     VolatilityBasedSlippageModelConfig,
+    VolumeBasedSlippageModelConfig,
 )
 
 
@@ -35,7 +35,7 @@ class LinearSlippageModel(BaseSlippageModel):
 
     METADATA = PluginMetadata(
         name="LinearSlippageModel",
-        version="1.1.0", # 版本提升，因为修复了重大bug
+        version="1.1.0",  # 版本提升，因为修复了重大bug
         description="线性滑点计算模型",
         author="SimTradeLab",
         category="slippage_model",
@@ -260,7 +260,7 @@ class FixedSlippageModel(BaseSlippageModel):
         计算固定滑点
         """
         slippage_amount = fill_price * order.quantity * self._base_slippage_rate
-        
+
         slippage_amount = max(slippage_amount, self._min_slippage)
         slippage_amount = min(slippage_amount, self._max_slippage)
 
@@ -409,7 +409,7 @@ class VolatilityBasedSlippageModel(BaseSlippageModel):
 
     METADATA = PluginMetadata(
         name="VolatilityBasedSlippageModel",
-        version="1.1.0", # 版本提升，修复配置bug
+        version="1.1.0",  # 版本提升，修复配置bug
         description="基于波动率的滑点模型",
         author="SimTradeLab",
         category="slippage_model",
@@ -484,7 +484,7 @@ class VolatilityBasedSlippageModel(BaseSlippageModel):
         returns = np.diff(price_array) / price_array[:-1]
         if returns.size == 0:
             return Decimal("1.0")
-        
+
         volatility = np.std(returns)
         volatility_factor = 1.0 + float(volatility) * float(self._volatility_multiplier)
         return Decimal(str(max(0.1, min(volatility_factor, 3.0))))

@@ -108,6 +108,7 @@ class TestManifestValidator:
         manifest_path = temp_dir / "manifest.json"
         with open(manifest_path, "w", encoding="utf-8") as f:
             import json
+
             json.dump(manifest_content, f)
 
         manifest = ManifestValidator.load_from_file(manifest_path)
@@ -160,7 +161,6 @@ class TestManifestValidator:
         txt_path.touch()
         with pytest.raises(ValueError, match="不支持的清单文件格式: .txt"):
             ManifestValidator.load_from_file(txt_path)
-
 
     def test_is_compatible_with(self):
         """测试插件兼容性检查"""
@@ -248,7 +248,9 @@ class TestManifestValidator:
 
     def test_create_template(self):
         """测试创建清单模板"""
-        template = ManifestValidator.create_template("my_template", PluginCategory.STRATEGY)
+        template = ManifestValidator.create_template(
+            "my_template", PluginCategory.STRATEGY
+        )
         assert template.name == "my_template"
         assert template.category == PluginCategory.STRATEGY
         assert template.version == "1.0.0"

@@ -3,12 +3,18 @@
 PermissionManager 的单元测试
 """
 import pytest
-from simtradelab.plugins.security.permission_manager import PermissionManager, Permission
+
+from simtradelab.plugins.security.permission_manager import (
+    Permission,
+    PermissionManager,
+)
+
 
 @pytest.fixture
 def manager():
     """提供一个 PermissionManager 实例"""
     return PermissionManager()
+
 
 def test_grant_and_has_permission(manager: PermissionManager):
     """
@@ -18,6 +24,7 @@ def test_grant_and_has_permission(manager: PermissionManager):
     manager.grant("test_plugin", Permission.FILE_READ)
     assert manager.has_permission("test_plugin", Permission.FILE_READ)
 
+
 def test_revoke_permission(manager: PermissionManager):
     """
     测试：撤销权限后，应检查不到该权限。
@@ -26,6 +33,7 @@ def test_revoke_permission(manager: PermissionManager):
     assert manager.has_permission("test_plugin", Permission.FILE_WRITE)
     manager.revoke("test_plugin", Permission.FILE_WRITE)
     assert not manager.has_permission("test_plugin", Permission.FILE_WRITE)
+
 
 def test_multiple_permissions(manager: PermissionManager):
     """
@@ -38,9 +46,10 @@ def test_multiple_permissions(manager: PermissionManager):
     assert manager.has_permission("plugin1", Permission.FILE_READ)
     assert manager.has_permission("plugin1", Permission.NETWORK_ACCESS)
     assert not manager.has_permission("plugin1", Permission.FILE_WRITE)
-    
+
     assert not manager.has_permission("plugin2", Permission.FILE_READ)
     assert manager.has_permission("plugin2", Permission.FILE_WRITE)
+
 
 def test_revoke_non_existent_permission(manager: PermissionManager):
     """

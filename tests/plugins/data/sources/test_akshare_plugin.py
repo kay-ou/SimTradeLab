@@ -11,8 +11,9 @@ import datetime
 4.  配置模型健壮且符合预期。
 """
 
-from unittest.mock import MagicMock, patch
 from datetime import datetime
+from unittest.mock import MagicMock, patch
+
 import pandas as pd
 import pytest
 

@@ -11,14 +11,18 @@ from typing import Any, Callable
 
 from ..base import BasePlugin
 
+
 class SandboxError(Exception):
     """沙箱相关异常"""
+
     pass
+
 
 class BaseSandbox(abc.ABC):
     """
     沙箱抽象基类
     """
+
     def __init__(self, plugin: BasePlugin):
         self.plugin = plugin
 
@@ -37,12 +41,14 @@ class BaseSandbox(abc.ABC):
         """
         raise NotImplementedError
 
+
 class ThreadSandbox(BaseSandbox):
     """
     线程级沙箱
 
     为每个插件提供一个独立的线程来执行其代码，实现基础的隔离。
     """
+
     def execute(self, func: Callable, *args, **kwargs) -> Any:
         """
         在一个新的线程中执行函数。
@@ -62,6 +68,8 @@ class ThreadSandbox(BaseSandbox):
         thread.join()  # 等待线程执行完毕
 
         if exception:
-            raise SandboxError(f"Error executing in thread sandbox: {exception}") from exception
+            raise SandboxError(
+                f"Error executing in thread sandbox: {exception}"
+            ) from exception
 
         return result

@@ -134,8 +134,11 @@ class TestPluginManagerConfigValidation:
         with pytest.raises(PluginLoadError):
             manager.load_plugin(plugin_name, invalid_config_dict)
 
-    @patch('simtradelab.core.plugin_manager.PluginManager._register_core_plugins', MagicMock(return_value=None))
-    @patch('simtradelab.core.plugin_manager.get_config_manager')
+    @patch(
+        "simtradelab.core.plugin_manager.PluginManager._register_core_plugins",
+        MagicMock(return_value=None),
+    )
+    @patch("simtradelab.core.plugin_manager.get_config_manager")
     def test_load_plugin_with_wrong_config_type(self, mock_get_config_manager, *args):
         """
         测试场景：加载插件时传入一个不兼容的配置对象。
@@ -162,7 +165,7 @@ class TestPluginManagerConfigValidation:
 
         # 验证原始错误是ValidationError
         assert isinstance(excinfo.value.__cause__, ValidationError)
-        
+
         # 验证ConfigManager被正确调用
         mock_config_manager.create_validated_config.assert_called_once_with(
             MockTestPluginWithConfigModel, wrong_config_object

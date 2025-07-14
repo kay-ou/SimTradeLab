@@ -180,15 +180,9 @@ class FixedSlippageModelConfig(SlippageModelConfig):
 class LinearSlippageModelConfig(SlippageModelConfig):
     """线性滑点模型配置"""
 
-    base_rate: Decimal = Field(
-        default=Decimal("0.001"), description="基础滑点率", ge=0
-    )
-    slope: Decimal = Field(
-        default=Decimal("0.1"), description="滑点率随成交量变化的斜率", ge=0
-    )
-    reference_size: Decimal = Field(
-        default=Decimal("10000"), description="参考成交量", gt=0
-    )
+    base_rate: Decimal = Field(default=Decimal("0.001"), description="基础滑点率", ge=0)
+    slope: Decimal = Field(default=Decimal("0.1"), description="滑点率随成交量变化的斜率", ge=0)
+    reference_size: Decimal = Field(default=Decimal("10000"), description="参考成交量", gt=0)
     max_slippage_rate: Decimal = Field(
         default=Decimal("0.01"), description="最大滑点率", ge=0
     )
@@ -229,6 +223,7 @@ class VolatilityBasedSlippageModelConfig(SlippageModelConfig):
         title="基于波动率的滑点模型配置",
         description="考虑历史价格波动率的滑点模型配置选项",
     )
+
 
 class FixedCommissionModelConfig(CommissionModelConfig):
     """固定手续费模型配置"""

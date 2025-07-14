@@ -99,7 +99,9 @@ def test_validate_missing_env_variable_raises_error(monkeypatch):
     monkeypatch.delenv("DEV_API_KEY", raising=False)  # 删除开发环境需要的环境变量
 
     with pytest.raises(ValidationError, match="环境变量 'DEV_API_KEY' 未设置"):
-        ConfigValidator.validate(SamplePluginConfig, VALID_CONFIG_DATA, env="development")
+        ConfigValidator.validate(
+            SamplePluginConfig, VALID_CONFIG_DATA, env="development"
+        )
 
 
 def test_validate_invalid_data_type_raises_error(monkeypatch):
@@ -243,7 +245,9 @@ def test_validate_deep_merge_functionality(monkeypatch):
         },
     }
 
-    config = ConfigValidator.validate(SamplePluginConfig, complex_data, env="production")
+    config = ConfigValidator.validate(
+        SamplePluginConfig, complex_data, env="production"
+    )
 
     assert config.api_key == "prod_key"
     assert config.api_secret == "default_secret"  # 继承
@@ -274,7 +278,9 @@ def test_validate_only_env_specific_config(monkeypatch):
         }
     }
 
-    config = ConfigValidator.validate(SamplePluginConfig, env_only_data, env="production")
+    config = ConfigValidator.validate(
+        SamplePluginConfig, env_only_data, env="production"
+    )
 
     assert config.api_key == "prod_key"
     assert config.api_secret == "prod_secret"

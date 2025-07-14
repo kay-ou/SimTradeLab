@@ -5,14 +5,16 @@ SimTradeLab 插件资源监控器
 本文件定义了资源监控器，用于监控插件的CPU、内存等资源使用情况。
 """
 
-import time
 import threading
-from typing import Dict, Any
+import time
+from typing import Any, Dict
+
 
 class ResourceMonitor:
     """
     资源监控器
     """
+
     def __init__(self, interval: int = 60):
         self._interval = interval
         self._running = False

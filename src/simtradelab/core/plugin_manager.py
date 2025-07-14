@@ -310,7 +310,9 @@ class PluginManager:
             except Exception as e:
                 self._stats["failed"] += 1
                 self._logger.error(f"Failed to load plugin {plugin_name}: {e}")
-                raise PluginLoadError(f"Failed to load plugin {plugin_name}: {e}") from e
+                raise PluginLoadError(
+                    f"Failed to load plugin {plugin_name}: {e}"
+                ) from e
 
     def unload_plugin(self, plugin_name: str) -> bool:
         """

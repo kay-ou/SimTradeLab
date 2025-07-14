@@ -8,19 +8,23 @@ SimTradeLab 插件权限管理器
 from enum import Enum
 from typing import Dict, Set
 
+
 class Permission(Enum):
     """
     权限枚举
     """
+
     FILE_READ = "file.read"
     FILE_WRITE = "file.write"
     NETWORK_ACCESS = "network.access"
     SYSTEM_CALL = "system.call"
 
+
 class PermissionManager:
     """
     权限管理器
     """
+
     def __init__(self):
         self._permissions: Dict[str, Set[Permission]] = {}
 
