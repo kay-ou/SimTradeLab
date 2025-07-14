@@ -104,10 +104,14 @@ class PluginManifest(BaseModel):
         """验证版本格式"""
         from packaging import version
 
-        try:
-            version.parse(v)
-        except Exception:
-            raise ValueError(f"无效的版本格式: {v}")
+        # 强制使用 MAJOR.MINOR.PATCH 格式
+        parsed_version = version.parse(v)
+        if (
+            not parsed_version.is_devrelease
+            and not parsed_version.is_prerelease
+            and len(parsed_version.release) != 3
+        ):
+            raise ValueError(f"版本必须遵循 MAJOR.MINOR.PATCH 格式, 但得到: {v}")
         return v
 
     @field_validator("dependencies")
