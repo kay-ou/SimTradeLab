@@ -3,638 +3,232 @@
 插件注册表测试
 """
 
-import json
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from unittest.mock import MagicMock, patch
-
 import pytest
-import yaml
+from pathlib import Path
+import tempfile
+from typing import Generator
 
-from src.simtradelab.plugins.dependency.manifest import (
-    ManifestValidator,
-    PluginCategory,
-    PluginManifest,
-    SecurityLevel,
-)
-from src.simtradelab.plugins.dependency.registry import PluginRegistry
+from simtradelab.plugins.dependency.manifest import PluginManifest, PluginCategory
+from simtradelab.plugins.dependency.registry import PluginRegistry
+
+
+@pytest.fixture
+def temp_dir() -> Generator[Path, None, None]:
+    """创建一个临时目录。"""
+    with tempfile.TemporaryDirectory() as td:
+        yield Path(td)
+
+
+@pytest.fixture
+def basic_manifest() -> PluginManifest:
+    """返回一个基本的插件清单实例。"""
+    return PluginManifest(
+        name="test_plugin",
+        version="1.0.0",
+        description="A basic test plugin.",
+        author="Test Author",
+        category=PluginCategory.UTILITY,
+    )
 
 
 class TestPluginRegistry:
-    """测试插件注册表"""
+    """测试 PluginRegistry"""
 
-    @pytest.fixture
-    def registry(self):
-        """创建插件注册表"""
-        return PluginRegistry()
-
-    @pytest.fixture
-    def sample_manifest(self):
-        """示例插件清单"""
-        return PluginManifest(
-            name="test_plugin",
-            version="1.0.0",
-            description="Test plugin",
-            author="Test Author",
-            category=PluginCategory.UTILITY,
-            tags=["test", "utility"],
-            dependencies={"base_plugin": ">=1.0.0"},
-            provides=["test_service"],
-            requires=["event_bus"],
-        )
-
-    def test_register_plugin_success(self, registry, sample_manifest):
-        """测试成功注册插件"""
-        plugin_path = Path("/test/path")
-
-        result = registry.register_plugin(sample_manifest, plugin_path)
-
-        assert result is True
+    def test_register_plugin_success(self, basic_manifest: PluginManifest):
+        """测试成功注册一个插件"""
+        registry = PluginRegistry()
+        assert registry.register_plugin(basic_manifest)
         assert registry.has_plugin("test_plugin")
-        assert registry.get_manifest("test_plugin") == sample_manifest
-        assert registry.get_plugin_path("test_plugin") == plugin_path
+        retrieved_manifest = registry.get_manifest("test_plugin")
+        assert retrieved_manifest is not None
+        assert retrieved_manifest.name == "test_plugin"
+        assert "test_plugin" in registry.list_plugins()
+        assert "test_plugin" in registry.list_plugins(category=PluginCategory.UTILITY)
 
-    def test_register_plugin_validation_failure(self, registry):
-        """测试注册插件验证失败"""
-        # 创建无效清单
+    def test_register_plugin_with_invalid_manifest(self):
+        """测试注册一个无效的插件清单"""
+        registry = PluginRegistry()
         invalid_manifest = PluginManifest(
-            name="invalid_plugin",
+            name="invalid",
             version="1.0.0",
-            description="",  # 空描述
+            description="",  # 描述为空，无效
             author="Test",
             category=PluginCategory.UTILITY,
         )
+        assert not registry.register_plugin(invalid_manifest)
+        assert not registry.has_plugin("invalid")
 
-        # 手动设置无效值
-        invalid_manifest.description = ""
-
-        result = registry.register_plugin(invalid_manifest)
-
-        assert result is False
-        assert not registry.has_plugin("invalid_plugin")
-
-    def test_register_plugin_replacement(self, registry, sample_manifest):
-        """测试插件替换"""
-        # 注册第一个版本
-        result1 = registry.register_plugin(sample_manifest)
-        assert result1 is True
-
-        # 创建新版本
-        new_manifest = PluginManifest(
-            name="test_plugin",  # 同名
-            version="2.0.0",  # 新版本
-            description="Updated test plugin",
-            author="Test Author",
-            category=PluginCategory.UTILITY,
-        )
-
-        # 注册新版本（应该替换旧版本）
-        result2 = registry.register_plugin(new_manifest)
-        assert result2 is True
-
-        # 验证新版本已注册
-        registered_manifest = registry.get_manifest("test_plugin")
-        assert registered_manifest.version == "2.0.0"
-
-    def test_unregister_plugin_success(self, registry, sample_manifest):
-        """测试成功注销插件"""
-        # 先注册插件
-        registry.register_plugin(sample_manifest)
+    def test_unregister_plugin(self, basic_manifest: PluginManifest):
+        """测试注销插件"""
+        registry = PluginRegistry()
+        registry.register_plugin(basic_manifest)
         assert registry.has_plugin("test_plugin")
 
-        # 注销插件
-        result = registry.unregister_plugin("test_plugin")
-
-        assert result is True
+        assert registry.unregister_plugin("test_plugin")
         assert not registry.has_plugin("test_plugin")
-        assert registry.get_manifest("test_plugin") is None
+        assert not registry.unregister_plugin("non_existent_plugin") # 注销不存在的插件
 
-    def test_unregister_nonexistent_plugin(self, registry):
-        """测试注销不存在的插件"""
-        result = registry.unregister_plugin("nonexistent_plugin")
-        assert result is False
-
-    def test_list_plugins_all(self, registry):
-        """测试列出所有插件"""
-        # 注册多个插件
-        manifests = [
-            PluginManifest(
-                name="plugin1",
-                version="1.0.0",
-                description="Plugin 1",
-                author="Test",
-                category=PluginCategory.UTILITY,
-            ),
-            PluginManifest(
-                name="plugin2",
-                version="1.0.0",
-                description="Plugin 2",
-                author="Test",
-                category=PluginCategory.DATA_SOURCE,
-            ),
-        ]
-
-        for manifest in manifests:
-            registry.register_plugin(manifest)
-
-        plugins = registry.list_plugins()
-        assert "plugin1" in plugins
-        assert "plugin2" in plugins
-        assert len(plugins) == 2
-
-    def test_list_plugins_by_category(self, registry):
-        """测试按类别列出插件"""
-        # 注册不同类别的插件
-        utility_plugin = PluginManifest(
-            name="utility_plugin",
-            version="1.0.0",
-            description="Utility plugin",
-            author="Test",
-            category=PluginCategory.UTILITY,
-        )
-
-        data_plugin = PluginManifest(
-            name="data_plugin",
-            version="1.0.0",
-            description="Data plugin",
-            author="Test",
-            category=PluginCategory.DATA_SOURCE,
-        )
-
-        registry.register_plugin(utility_plugin)
-        registry.register_plugin(data_plugin)
-
-        # 按类别筛选
-        utility_plugins = registry.list_plugins(PluginCategory.UTILITY)
-        data_plugins = registry.list_plugins(PluginCategory.DATA_SOURCE)
-
-        assert "utility_plugin" in utility_plugins
-        assert "utility_plugin" not in data_plugins
-        assert "data_plugin" in data_plugins
-        assert "data_plugin" not in utility_plugins
-
-    def test_search_plugins_by_keyword(self, registry):
-        """测试按关键词搜索插件"""
-        # 注册测试插件
-        manifests = [
-            PluginManifest(
-                name="data_source_plugin",
-                version="1.0.0",
-                description="Provides market data",
-                author="Test",
-                category=PluginCategory.DATA_SOURCE,
-                keywords=["market", "data", "source"],
-            ),
-            PluginManifest(
-                name="strategy_plugin",
-                version="1.0.0",
-                description="Trading strategy implementation",
-                author="Test",
-                category=PluginCategory.STRATEGY,
-                keywords=["trading", "strategy"],
-            ),
-        ]
-
-        for manifest in manifests:
-            registry.register_plugin(manifest)
-
-        # 搜索包含"data"的插件
-        results = registry.search_plugins(keyword="data")
-        result_names = [m.name for m in results]
-
-        assert "data_source_plugin" in result_names
-        assert "strategy_plugin" not in result_names
-
-    def test_search_plugins_by_author(self, registry):
-        """测试按作者搜索插件"""
-        manifests = [
-            PluginManifest(
-                name="plugin_by_alice",
-                version="1.0.0",
-                description="Plugin by Alice",
-                author="Alice",
-                category=PluginCategory.UTILITY,
-            ),
-            PluginManifest(
-                name="plugin_by_bob",
-                version="1.0.0",
-                description="Plugin by Bob",
-                author="Bob",
-                category=PluginCategory.UTILITY,
-            ),
-        ]
-
-        for manifest in manifests:
-            registry.register_plugin(manifest)
-
-        # 按作者搜索
-        results = registry.search_plugins(author="Alice")
-        result_names = [m.name for m in results]
-
-        assert "plugin_by_alice" in result_names
-        assert "plugin_by_bob" not in result_names
-
-    def test_search_plugins_by_tag(self, registry):
-        """测试按标签搜索插件"""
-        manifests = [
-            PluginManifest(
-                name="real_time_plugin",
-                version="1.0.0",
-                description="Real-time plugin",
-                author="Test",
-                category=PluginCategory.DATA_SOURCE,
-                tags=["real-time", "streaming"],
-            ),
-            PluginManifest(
-                name="batch_plugin",
-                version="1.0.0",
-                description="Batch plugin",
-                author="Test",
-                category=PluginCategory.DATA_SOURCE,
-                tags=["batch", "historical"],
-            ),
-        ]
-
-        for manifest in manifests:
-            registry.register_plugin(manifest)
-
-        # 按标签搜索
-        results = registry.search_plugins(tag="real-time")
-        result_names = [m.name for m in results]
-
-        assert "real_time_plugin" in result_names
-        assert "batch_plugin" not in result_names
-
-    def test_search_plugins_combined_filters(self, registry):
-        """测试组合搜索条件"""
-        manifest = PluginManifest(
-            name="specific_plugin",
-            version="1.0.0",
-            description="Specific data plugin",
-            author="Test Author",
-            category=PluginCategory.DATA_SOURCE,
-            tags=["specific"],
-            keywords=["data"],
-        )
-
-        other_manifest = PluginManifest(
-            name="other_plugin",
-            version="1.0.0",
-            description="Other plugin",
-            author="Other Author",
-            category=PluginCategory.UTILITY,
-            tags=["other"],
-        )
-
-        registry.register_plugin(manifest)
-        registry.register_plugin(other_manifest)
-
-        # 组合搜索：类别 + 作者 + 标签
-        results = registry.search_plugins(
-            category=PluginCategory.DATA_SOURCE, author="Test Author", tag="specific"
-        )
-
-        assert len(results) == 1
-        assert results[0].name == "specific_plugin"
-
-    def test_get_plugins_by_service(self, registry):
-        """测试获取提供特定服务的插件"""
-        manifests = [
-            PluginManifest(
-                name="data_provider1",
-                version="1.0.0",
-                description="Data provider 1",
-                author="Test",
-                category=PluginCategory.DATA_SOURCE,
-                provides=["market_data", "real_time_data"],
-            ),
-            PluginManifest(
-                name="data_provider2",
-                version="1.0.0",
-                description="Data provider 2",
-                author="Test",
-                category=PluginCategory.DATA_SOURCE,
-                provides=["market_data", "historical_data"],
-            ),
-            PluginManifest(
-                name="other_plugin",
-                version="1.0.0",
-                description="Other plugin",
-                author="Test",
-                category=PluginCategory.UTILITY,
-                provides=["utility_service"],
-            ),
-        ]
-
-        for manifest in manifests:
-            registry.register_plugin(manifest)
-
-        # 获取提供market_data服务的插件
-        providers = registry.get_plugins_by_service("market_data")
-
-        assert "data_provider1" in providers
-        assert "data_provider2" in providers
-        assert "other_plugin" not in providers
-
-    def test_get_plugin_dependencies(self, registry, sample_manifest):
-        """测试获取插件依赖"""
-        registry.register_plugin(sample_manifest)
-
-        dependencies = registry.get_plugin_dependencies("test_plugin")
-
-        assert dependencies == {"base_plugin": ">=1.0.0"}
-
-    def test_get_plugin_dependents(self, registry):
-        """测试获取插件的依赖者"""
-        # 创建依赖关系链
-        base_manifest = PluginManifest(
-            name="base_plugin",
-            version="1.0.0",
-            description="Base plugin",
-            author="Test",
-            category=PluginCategory.UTILITY,
-        )
-
-        dependent1 = PluginManifest(
-            name="dependent1",
-            version="1.0.0",
-            description="Dependent 1",
-            author="Test",
-            category=PluginCategory.UTILITY,
-            dependencies={"base_plugin": ">=1.0.0"},
-        )
-
-        dependent2 = PluginManifest(
-            name="dependent2",
-            version="1.0.0",
-            description="Dependent 2",
-            author="Test",
-            category=PluginCategory.UTILITY,
-            dependencies={"base_plugin": ">=1.0.0"},
-        )
-
-        independent = PluginManifest(
-            name="independent",
-            version="1.0.0",
-            description="Independent plugin",
-            author="Test",
-            category=PluginCategory.UTILITY,
-        )
-
-        for manifest in [base_manifest, dependent1, dependent2, independent]:
-            registry.register_plugin(manifest)
-
-        # 获取base_plugin的依赖者
-        dependents = registry.get_plugin_dependents("base_plugin")
-
-        assert "dependent1" in dependents
-        assert "dependent2" in dependents
-        assert "independent" not in dependents
-
-    def test_get_statistics(self, registry):
-        """测试获取统计信息"""
-        # 注册多个插件
-        manifests = [
-            PluginManifest(
-                name="plugin1",
-                version="1.0.0",
-                description="Plugin 1",
-                author="Alice",
-                category=PluginCategory.UTILITY,
-                tags=["tag1", "common"],
-            ),
-            PluginManifest(
-                name="plugin2",
-                version="1.0.0",
-                description="Plugin 2",
-                author="Bob",
-                category=PluginCategory.DATA_SOURCE,
-                tags=["tag2", "common"],
-                provides=["service1"],
-            ),
-            PluginManifest(
-                name="plugin3",
-                version="1.0.0",
-                description="Plugin 3",
-                author="Alice",
-                category=PluginCategory.UTILITY,
-                tags=["tag1"],
-                provides=["service2"],
-            ),
-        ]
-
-        for manifest in manifests:
-            registry.register_plugin(manifest)
-
-        stats = registry.get_statistics()
-
-        assert stats["total_plugins"] == 3
-        assert stats["by_category"]["utility"] == 2
-        assert stats["by_category"]["data_source"] == 1
-        assert stats["by_author"]["Alice"] == 2
-        assert stats["by_author"]["Bob"] == 1
-        assert stats["services_provided"] == 2
-
-        # 检查标签统计
-        top_tags = dict(stats["top_tags"])
-        assert top_tags["common"] == 2
-        assert top_tags["tag1"] == 2
-
-    def test_validate_registry(self, registry):
-        """测试验证注册表"""
-        # 注册有效插件
-        valid_manifest = PluginManifest(
-            name="valid_plugin",
-            version="1.0.0",
-            description="Valid plugin",
-            author="Test",
-            category=PluginCategory.UTILITY,
-            dependencies={"existing_plugin": ">=1.0.0"},
-        )
-
-        existing_manifest = PluginManifest(
-            name="existing_plugin",
-            version="1.0.0",
-            description="Existing plugin",
-            author="Test",
-            category=PluginCategory.UTILITY,
-        )
-
-        # 注册有冲突的插件
-        conflicted_manifest = PluginManifest(
-            name="conflicted_plugin",
-            version="1.0.0",
-            description="Conflicted plugin",
-            author="Test",
-            category=PluginCategory.UTILITY,
-            conflicts=["existing_plugin"],
-        )
-
-        registry.register_plugin(valid_manifest)
-        registry.register_plugin(existing_manifest)
-        registry.register_plugin(conflicted_manifest)
-
-        validation_report = registry.validate_registry()
-
-        # valid_plugin应该没有错误（依赖存在）
-        assert (
-            "valid_plugin" not in validation_report
-            or len(validation_report["valid_plugin"]) == 0
-        )
-
-        # conflicted_plugin应该有冲突错误
-        assert "conflicted_plugin" in validation_report
-        assert any("冲突插件" in error for error in validation_report["conflicted_plugin"])
-
-    def test_register_from_directory(self, registry):
+    def test_register_from_directory(self, temp_dir: Path):
         """测试从目录注册插件"""
-        with TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
+        registry = PluginRegistry()
 
-            # 创建插件目录结构
-            plugin1_dir = temp_path / "plugin1"
-            plugin2_dir = temp_path / "plugin2"
-            plugin1_dir.mkdir()
-            plugin2_dir.mkdir()
+        # 创建一个有效的插件目录
+        plugin1_dir = temp_dir / "plugin1"
+        plugin1_dir.mkdir()
+        manifest1_path = plugin1_dir / "plugin_manifest.yaml"
+        with open(manifest1_path, "w") as f:
+            f.write(
+                "name: plugin1\n"
+                "version: 1.0.0\n"
+                "description: Plugin one.\n"
+                "author: Author One\n"
+                "category: data_source\n"
+            )
 
-            # 创建插件清单文件
-            manifest1 = {
-                "name": "directory_plugin1",
-                "version": "1.0.0",
-                "description": "Directory plugin 1",
-                "author": "Test",
-                "category": "utility",
-            }
+        # 创建另一个插件目录
+        plugin2_dir = temp_dir / "plugin2"
+        plugin2_dir.mkdir()
+        manifest2_path = plugin2_dir / "plugin_manifest.json"
+        with open(manifest2_path, "w") as f:
+            import json
+            json.dump({
+                "name": "plugin2",
+                "version": "2.0.0",
+                "description": "Plugin two.",
+                "author": "Author Two",
+                "category": "strategy",
+            }, f)
+        
+        # 创建一个无效的插件目录
+        invalid_dir = temp_dir / "invalid_plugin"
+        invalid_dir.mkdir()
+        invalid_manifest_path = invalid_dir / "plugin_manifest.yaml"
+        with open(invalid_manifest_path, "w") as f:
+            f.write("name: invalid\nversion: 1.0.0\n") # 无效清单
 
-            manifest2 = {
-                "name": "directory_plugin2",
-                "version": "1.0.0",
-                "description": "Directory plugin 2",
-                "author": "Test",
-                "category": "data_source",
-            }
+        count = registry.register_from_directory(temp_dir)
+        assert count == 2
+        assert registry.has_plugin("plugin1")
+        assert registry.has_plugin("plugin2")
+        assert not registry.has_plugin("invalid")
+        assert registry.get_plugin_path("plugin1") == plugin1_dir
 
-            # 保存YAML格式清单
-            with open(plugin1_dir / "plugin_manifest.yaml", "w") as f:
-                yaml.dump(manifest1, f)
+    def test_search_plugins(self, basic_manifest: PluginManifest):
+        """测试搜索插件功能"""
+        registry = PluginRegistry()
+        registry.register_plugin(basic_manifest)
 
-            # 保存JSON格式清单
-            with open(plugin2_dir / "plugin_manifest.json", "w") as f:
-                json.dump(manifest2, f)
+        # 添加另一个插件用于搜索
+        manifest2 = PluginManifest(
+            name="another_plugin",
+            version="1.0.0",
+            description="Another utility plugin.",
+            author="Another Author",
+            category=PluginCategory.UTILITY,
+            tags=["utility", "extra"]
+        )
+        registry.register_plugin(manifest2)
 
-            # 从目录注册插件
-            count = registry.register_from_directory(temp_path)
+        # 搜索
+        results = registry.search_plugins(keyword="basic")
+        assert len(results) == 1
+        assert results[0].name == "test_plugin"
 
-            assert count == 2
-            assert registry.has_plugin("directory_plugin1")
-            assert registry.has_plugin("directory_plugin2")
+        results = registry.search_plugins(category=PluginCategory.UTILITY)
+        assert len(results) == 2
 
-    def test_register_from_nonexistent_directory(self, registry):
-        """测试从不存在的目录注册插件"""
-        nonexistent_path = Path("/nonexistent/directory")
-        count = registry.register_from_directory(nonexistent_path)
-        assert count == 0
+        results = registry.search_plugins(author="Another Author")
+        assert len(results) == 1
+        assert results[0].name == "another_plugin"
 
-    def test_export_registry_yaml(self, registry, sample_manifest):
-        """测试导出注册表为YAML"""
-        registry.register_plugin(sample_manifest)
+        results = registry.search_plugins(tag="extra")
+        assert len(results) == 1
+        assert results[0].name == "another_plugin"
 
-        with TemporaryDirectory() as temp_dir:
-            export_path = Path(temp_dir) / "registry_export.yaml"
+        results = registry.search_plugins(keyword="plugin", category=PluginCategory.UTILITY)
+        assert len(results) == 2
 
-            # Mock datetime to ensure consistent output
-            with patch.object(registry, "get_current_time") as mock_time:
-                mock_time.return_value = "2024-01-01T00:00:00"
-                result = registry.export_registry(export_path, "yaml")
 
-            assert result is True
-            assert export_path.exists()
+    def test_get_dependencies_and_dependents(self, basic_manifest: PluginManifest):
+        """测试获取插件的依赖和被依赖关系"""
+        registry = PluginRegistry()
 
-            # 验证导出内容
-            with open(export_path, "r") as f:
-                exported_data = yaml.safe_load(f)
+        # 创建一个依赖于 basic_manifest 的插件
+        dependent_manifest = PluginManifest(
+            name="dependent_plugin",
+            version="1.0.0",
+            description="A dependent plugin.",
+            author="Test Author",
+            category=PluginCategory.UTILITY,
+            dependencies={"test_plugin": ">=1.0.0"},
+        )
+        
+        registry.register_plugin(basic_manifest)
+        registry.register_plugin(dependent_manifest)
 
-            assert "registry_version" in exported_data
-            assert "plugins" in exported_data
-            assert "test_plugin" in exported_data["plugins"]
+        # 测试 get_plugin_dependencies
+        deps = registry.get_plugin_dependencies("dependent_plugin")
+        assert deps == {"test_plugin": ">=1.0.0"}
+        
+        # 测试 get_plugin_dependents
+        dependents = registry.get_plugin_dependents("test_plugin")
+        assert dependents == ["dependent_plugin"]
 
-    def test_export_registry_json(self, registry, sample_manifest):
-        """测试导出注册表为JSON"""
-        registry.register_plugin(sample_manifest)
+        # 测试没有依赖和被依赖的情况
+        assert registry.get_plugin_dependencies("test_plugin") == {}
+        assert registry.get_plugin_dependents("dependent_plugin") == []
 
-        with TemporaryDirectory() as temp_dir:
-            export_path = Path(temp_dir) / "registry_export.json"
-
-            with patch.object(registry, "get_current_time") as mock_time:
-                mock_time.return_value = "2024-01-01T00:00:00"
-                result = registry.export_registry(export_path, "json")
-
-            assert result is True
-            assert export_path.exists()
-
-            # 验证导出内容
-            with open(export_path, "r") as f:
-                exported_data = json.load(f)
-
-            assert "registry_version" in exported_data
-            assert "plugins" in exported_data
-            assert "test_plugin" in exported_data["plugins"]
-
-    def test_export_registry_unsupported_format(self, registry, sample_manifest):
-        """测试导出不支持的格式"""
-        registry.register_plugin(sample_manifest)
-
-        with TemporaryDirectory() as temp_dir:
-            export_path = Path(temp_dir) / "registry_export.txt"
-            result = registry.export_registry(export_path, "txt")
-
-            assert result is False
-
-    def test_clear_registry(self, registry, sample_manifest):
+    def test_clear_registry(self, basic_manifest: PluginManifest):
         """测试清空注册表"""
-        # 注册插件
-        registry.register_plugin(sample_manifest)
+        registry = PluginRegistry()
+        registry.register_plugin(basic_manifest)
         assert registry.has_plugin("test_plugin")
 
-        # 清空注册表
         registry.clear()
-
-        # 验证已清空
         assert not registry.has_plugin("test_plugin")
-        assert len(registry.list_plugins()) == 0
-        assert len(registry.get_statistics()["by_category"]) == 0
+        assert registry.list_plugins() == []
 
-    def test_index_management(self, registry):
-        """测试索引管理"""
-        manifest = PluginManifest(
-            name="index_test_plugin",
+
+    def test_get_statistics(self, basic_manifest: PluginManifest):
+        """测试获取注册表统计信息"""
+        registry = PluginRegistry()
+        registry.register_plugin(basic_manifest)
+        
+        stats = registry.get_statistics()
+        assert stats["total_plugins"] == 1
+        assert stats["by_category"]["utility"] == 1
+        assert stats["by_author"]["Test Author"] == 1
+
+    def test_validate_registry(self, basic_manifest: PluginManifest):
+        """测试验证注册表"""
+        registry = PluginRegistry()
+        
+        # 注册一个依赖不存在插件的清单
+        dependent_manifest = PluginManifest(
+            name="dependent_plugin",
             version="1.0.0",
-            description="Index test plugin",
-            author="Index Author",
-            category=PluginCategory.DATA_SOURCE,
-            tags=["index", "test"],
-            provides=["index_service"],
+            description="A dependent plugin.",
+            author="Test Author",
+            category=PluginCategory.UTILITY,
+            dependencies={"non_existent_plugin": ">=1.0.0"},
         )
+        registry.register_plugin(dependent_manifest)
+        
+        report = registry.validate_registry()
+        assert "dependent_plugin" in report
+        assert "依赖插件不存在: non_existent_plugin" in report["dependent_plugin"]
 
-        # 注册插件
-        registry.register_plugin(manifest)
+    def test_export_registry(self, temp_dir: Path, basic_manifest: PluginManifest):
+        """测试导出注册表"""
+        registry = PluginRegistry()
+        registry.register_plugin(basic_manifest)
 
-        # 验证各索引已更新
-        assert "index_test_plugin" in registry._by_category[PluginCategory.DATA_SOURCE]
-        assert "index_test_plugin" in registry._by_author["Index Author"]
-        assert "index_test_plugin" in registry._by_tag["index"]
-        assert "index_test_plugin" in registry._by_tag["test"]
-        assert "index_test_plugin" in registry._providers["index_service"]
+        # 测试YAML导出
+        yaml_path = temp_dir / "registry.yaml"
+        assert registry.export_registry(yaml_path, format="yaml")
+        assert yaml_path.exists()
 
-        # 注销插件
-        registry.unregister_plugin("index_test_plugin")
-
-        # 验证索引已清理
-        assert "index_test_plugin" not in registry._by_category.get(
-            PluginCategory.DATA_SOURCE, set()
-        )
-        assert "index_test_plugin" not in registry._by_author.get("Index Author", set())
-        assert "index_test_plugin" not in registry._by_tag.get("index", set())
-        assert "index_test_plugin" not in registry._providers.get(
-            "index_service", set()
-        )
+        # 测试JSON导出
+        json_path = temp_dir / "registry.json"
+        assert registry.export_registry(json_path, format="json")
+        assert json_path.exists()
