@@ -14,6 +14,7 @@ SimTradeLab v5.0 事件总线系统
 
 import asyncio
 import concurrent.futures
+import fnmatch
 import logging
 import threading
 import weakref
@@ -399,7 +400,13 @@ class EventBus:
             return results
 
         with self._lock:
+            # 获取精确匹配的订阅
             subscriptions = self._subscriptions.get(cloud_event.type, []).copy()
+            
+            # 添加模式匹配的订阅
+            for pattern, pattern_subscriptions in self._subscriptions.items():
+                if pattern != cloud_event.type and self._match_pattern(pattern, cloud_event.type):
+                    subscriptions.extend(pattern_subscriptions)
 
         # 需要移除的一次性订阅
         to_remove = []
@@ -466,7 +473,13 @@ class EventBus:
             return results
 
         with self._lock:
+            # 获取精确匹配的订阅
             subscriptions = self._subscriptions.get(cloud_event.type, []).copy()
+            
+            # 添加模式匹配的订阅
+            for pattern, pattern_subscriptions in self._subscriptions.items():
+                if pattern != cloud_event.type and self._match_pattern(pattern, cloud_event.type):
+                    subscriptions.extend(pattern_subscriptions)
 
         # 需要移除的一次性订阅
         to_remove = []
@@ -638,6 +651,25 @@ class EventBus:
         """
         self.unsubscribe(subscription_id)
         self._logger.debug(f"Cleaned up dead subscription {subscription_id}")
+
+    def _match_pattern(self, pattern: str, event_type: str) -> bool:
+        """
+        检查事件类型是否匹配模式
+        
+        支持 Unix shell-style wildcards:
+        - * 匹配零个或多个字符
+        - ? 匹配单个字符
+        - [seq] 匹配 seq 中的任意字符
+        - [!seq] 匹配不在 seq 中的任意字符
+        
+        Args:
+            pattern: 模式字符串 (e.g., "plugin.*")
+            event_type: 事件类型 (e.g., "plugin.registered")
+            
+        Returns:
+            是否匹配
+        """
+        return fnmatch.fnmatch(event_type, pattern)
 
     def shutdown(self) -> None:
         """

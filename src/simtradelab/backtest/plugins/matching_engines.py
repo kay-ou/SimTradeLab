@@ -244,6 +244,9 @@ class DepthMatchingEngine(BaseMatchingEngine):
         super().__init__(metadata, config)
 
         # E8修复：通过类型安全的配置对象访问参数
+        if isinstance(config, dict):
+            config = DepthMatchingEngineConfig(**config)
+
         if config:
             self._price_tolerance = config.price_tolerance
             self._enable_partial_fill = config.enable_partial_fill
@@ -482,6 +485,9 @@ class StrictLimitMatchingEngine(BaseMatchingEngine):
         super().__init__(metadata, config)
 
         # E8修复：通过类型安全的配置对象访问参数
+        if isinstance(config, dict):
+            config = LimitMatchingEngineConfig(**config)
+
         if config:
             self._price_tolerance = config.price_tolerance
             self._enable_partial_fill = config.enable_partial_fill

@@ -115,8 +115,9 @@ class BasePlugin(abc.ABC):
     """
 
     METADATA: PluginMetadata = PluginMetadata(name="BasePlugin", version="0.0.0")
+    config_model: Optional[type] = None  # 插件配置模型类
 
-    def __init__(self, metadata: PluginMetadata, config: Optional[PluginConfig] = None):
+    def __init__(self, metadata: PluginMetadata, config: Optional[Any] = None):
         """
         初始化插件
 
@@ -128,7 +129,7 @@ class BasePlugin(abc.ABC):
         self._config = config or PluginConfig()
         self._state = PluginState.UNINITIALIZED
         self._logger = logging.getLogger(f"plugin.{metadata.name}")
-        self._event_handlers: Dict[str, List[Callable]] = {}
+        self._event_handlers: Dict[str, List[Callable[..., Any]]] = {}
         self._lock = threading.RLock()
         self._start_time: Optional[float] = None
         self._error_count = 0
@@ -293,7 +294,8 @@ class BasePlugin(abc.ABC):
         with self._lock:
             if self._state not in [PluginState.INITIALIZED, PluginState.STOPPED]:
                 raise PluginStateError(
-                    f"Plugin {self._metadata.name} cannot be started from state {self._state}"
+                    f"Plugin {self._metadata.name} cannot be started from state "
+                    f"{self._state}"
                 )
 
             if not self._config.enabled:
@@ -449,7 +451,9 @@ class BasePlugin(abc.ABC):
             self._logger.error(f"Failed to shutdown plugin {self._metadata.name}: {e}")
             raise PluginError(f"Plugin shutdown failed: {e}")
 
-    def register_event_handler(self, event_type: str, handler: Callable) -> None:
+    def register_event_handler(
+        self, event_type: str, handler: Callable[..., Any]
+    ) -> None:
         """
         注册事件处理器
 
@@ -462,7 +466,9 @@ class BasePlugin(abc.ABC):
         self._event_handlers[event_type].append(handler)
         self._logger.debug(f"Registered event handler for {event_type}")
 
-    def unregister_event_handler(self, event_type: str, handler: Callable) -> None:
+    def unregister_event_handler(
+        self, event_type: str, handler: Callable[..., Any]
+    ) -> None:
         """
         取消注册事件处理器
 
@@ -574,22 +580,20 @@ class BasePlugin(abc.ABC):
 
     # 可选的钩子方法 - 子类可以选择性重写
 
-    def _validate_config(self, config: Dict[str, Any]) -> None:
+    def _validate_config(self, config: Any) -> None:
         """
         验证插件配置
         子类可以重写此方法来实现自定义配置验证
 
         Args:
-            config: 要验证的配置字典
+            config: 要验证的配置对象
 
         Raises:
             PluginConfigError: 配置无效时抛出
         """
         pass
 
-    def _on_config_changed(
-        self, old_config: Dict[str, Any], new_config: Dict[str, Any]
-    ) -> None:
+    def _on_config_changed(self, old_config: Any, new_config: Any) -> None:
         """
         配置变更时调用
         子类可以重写此方法来处理配置变更
@@ -639,7 +643,7 @@ class BasePlugin(abc.ABC):
         Args:
             state: 包含插件状态的字典。
         """
-        pass
+        _ = state  # 避免未使用参数警告
 
     # =========================================
     # ModeAwarePlugin接口实现
@@ -654,7 +658,8 @@ class BasePlugin(abc.ABC):
         if not self.is_mode_available(mode):
             supported_modes = [m.value for m in self._supported_modes]
             raise PluginConfigError(
-                f"Mode '{mode.value}' is not supported by plugin '{self._metadata.name}'. "
+                f"Mode '{mode.value}' is not supported by plugin "
+                f"'{self._metadata.name}'. "
                 f"Supported modes: {', '.join(supported_modes)}"
             )
 
@@ -695,4 +700,4 @@ class BasePlugin(abc.ABC):
             old_mode: 旧模式
             new_mode: 新模式
         """
-        pass
+        _ = old_mode, new_mode  # 避免未使用参数警告

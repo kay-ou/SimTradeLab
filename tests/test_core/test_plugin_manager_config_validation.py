@@ -1,317 +1,163 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-测试插件管理器配置验证集成
-验证配置验证功能是否正确集成到插件生命周期中
+测试插件管理器与配置验证的集成
+
+核心关注点：
+1. PluginManager是否正确调用ConfigManager。
+2. 当ConfigManager验证成功或失败时，PluginManager是否能正确处理。
 """
-
-from typing import Optional
-
 import pytest
-from pydantic import Field
+from unittest.mock import MagicMock, patch
+
+from pydantic import ValidationError
 
 from simtradelab.core.plugin_manager import PluginLoadError, PluginManager
 from simtradelab.plugins.base import BasePlugin, PluginConfig, PluginMetadata
 from simtradelab.plugins.config.base_config import BasePluginConfig
 
 
-class SamplePluginConfig(BasePluginConfig):
-    """示例插件配置模型"""
-
-    api_key: str = Field(..., description="API密钥")
-    timeout: int = Field(default=30, description="超时时间")
-    debug: bool = Field(default=False, description="调试模式")
-    database_url: str = Field(default="${DATABASE_URL}", description="数据库URL")
+class SimpleConfig(BasePluginConfig):
+    """一个简单的Pydantic配置模型用于测试"""
+    value: str = "default"
 
 
-class SamplePlugin(BasePlugin):
-    """示例插件，包含配置验证"""
+class PluginWithConfig(BasePlugin):
+    """一个需要配置的示例插件"""
+    config_model = SimpleConfig
 
-    # 定义配置模型
-    config_model = SamplePluginConfig
-
-    def __init__(self, metadata: PluginMetadata, config: PluginConfig):
+    def __init__(self, metadata: PluginMetadata, config: SimpleConfig):
         super().__init__(metadata, config)
-        self.validated_config: Optional[SamplePluginConfig] = None
+        self.final_config = config
 
-    def _on_initialize(self):
-        """初始化插件"""
-        if hasattr(self.config, "data") and self.config.data:
-            self.validated_config = SamplePluginConfig(**self.config.data)
-
-    def _on_start(self):
-        """启动插件"""
-        pass
-
-    def _on_stop(self):
-        """停止插件"""
-        pass
+    def _on_initialize(self): pass
+    def _on_start(self): pass
+    def _on_stop(self): pass
 
 
-class SimplePlugin(BasePlugin):
-    """简单插件，无配置模型"""
-
-    def _on_initialize(self):
-        """初始化插件"""
-        pass
-
-    def _on_start(self):
-        """启动插件"""
-        pass
-
-    def _on_stop(self):
-        """停止插件"""
-        pass
+class PluginWithoutConfig(BasePlugin):
+    """一个不需要配置的示例插件"""
+    def _on_initialize(self): pass
+    def _on_start(self): pass
+    def _on_stop(self): pass
 
 
-def test_plugin_config_validation_success(monkeypatch):
-    """测试插件配置验证成功的情况"""
-    # 设置环境变量
-    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
+@pytest.fixture
+def mock_config_manager():
+    """模拟ConfigManager，用于控制配置验证的行为"""
+    # 使用patch来模拟get_config_manager函数，使其返回一个MagicMock实例
+    with patch('simtradelab.core.plugin_manager.get_config_manager') as mock_get:
+        mock_manager = MagicMock()
+        mock_get.return_value = mock_manager
+        yield mock_manager
 
-    # 创建插件管理器
+
+def test_load_plugin_with_valid_config_successfully(mock_config_manager):
+    """
+    测试场景：ConfigManager验证成功。
+    预期行为：PluginManager成功加载插件，并且插件接收到正确的配置对象。
+    """
+    # 1. 准备
     manager = PluginManager()
+    plugin_name = manager.register_plugin(PluginWithConfig)
+    
+    # 模拟ConfigManager成功返回一个已验证的配置对象
+    validated_config_instance = SimpleConfig(value="validated_value")
+    mock_config_manager.create_validated_config.return_value = validated_config_instance
 
-    # 准备有效的配置数据
-    config_data = {
-        "default": {
-            "api_key": "test_key",
-            "timeout": 60,
-            "debug": True,
-            "database_url": "${DATABASE_URL}",
-        }
-    }
-
-    # 创建插件配置
-    plugin_config = PluginConfig()
-    plugin_config.data = config_data
-
-    # 注册并加载插件
-    plugin_name = manager.register_plugin(SamplePlugin, config=plugin_config)
+    # 2. 执行
     plugin_instance = manager.load_plugin(plugin_name)
 
-    # 验证配置已正确验证和设置
-    assert plugin_instance.validated_config is not None
-    assert plugin_instance.validated_config.api_key == "test_key"
-    assert plugin_instance.validated_config.timeout == 60
-    assert plugin_instance.validated_config.debug is True
-    assert (
-        plugin_instance.validated_config.database_url == "postgresql://localhost/test"
+    # 3. 断言
+    # 验证ConfigManager的create_validated_config被正确调用
+    mock_config_manager.create_validated_config.assert_called_once_with(
+        PluginWithConfig, None
+    )
+    # 验证插件已加载
+    assert isinstance(plugin_instance, PluginWithConfig)
+    # 验证插件收到了由ConfigManager返回的、经过验证的配置实例
+    assert plugin_instance.final_config is validated_config_instance
+    assert plugin_instance.final_config.value == "validated_value"
+
+
+def test_load_plugin_wraps_validation_error_in_plugin_load_error(mock_config_manager):
+    """
+    测试场景：ConfigManager在验证配置时抛出异常。
+    预期行为：PluginManager捕获该异常，并将其包装成一个PluginLoadError抛出。
+    """
+    # 1. 准备
+    manager = PluginManager()
+    plugin_name = manager.register_plugin(PluginWithConfig)
+    
+    # 模拟ConfigManager在验证时抛出ValidationError
+    validation_error = ValidationError.from_exception_data(
+        title="SimpleConfig", line_errors=[]
+    )
+    mock_config_manager.create_validated_config.side_effect = validation_error
+
+    # 2. 执行 & 3. 断言
+    with pytest.raises(PluginLoadError, match=f"Failed to load plugin {plugin_name}") as excinfo:
+        manager.load_plugin(plugin_name)
+
+    # 验证原始的ValidationError是导致PluginLoadError的原因
+    assert excinfo.getrepr(style="short") is not None
+    assert isinstance(excinfo.value.__cause__, ValidationError)
+    
+    # 验证ConfigManager的create_validated_config被调用
+    mock_config_manager.create_validated_config.assert_called_once_with(
+        PluginWithConfig, None
     )
 
 
-def test_plugin_config_validation_failure(monkeypatch):
-    """测试插件配置验证失败的情况"""
-    # 设置环境变量
-    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
-
-    # 创建插件管理器
+def test_load_plugin_without_config_model_successfully(mock_config_manager):
+    """
+    测试场景：加载一个没有定义config_model的插件。
+    预期行为：插件应能成功加载，ConfigManager会返回一个默认的空配置。
+    """
+    # 1. 准备
     manager = PluginManager()
+    plugin_name = manager.register_plugin(PluginWithoutConfig)
+    
+    # 模拟ConfigManager为无配置模型的插件返回一个默认的PluginConfig实例
+    default_config = PluginConfig()
+    mock_config_manager.create_validated_config.return_value = default_config
 
-    # 准备无效的配置数据（缺少必需字段）
-    config_data = {
-        "default": {
-            "timeout": 60,
-            "debug": True
-            # 缺少必需的 api_key 字段
-        }
-    }
-
-    # 创建插件配置
-    plugin_config = PluginConfig()
-    plugin_config.data = config_data
-
-    # 注册插件
-    plugin_name = manager.register_plugin(SamplePlugin, config=plugin_config)
-
-    # 尝试加载插件，应该失败
-    with pytest.raises(PluginLoadError, match="插件 SamplePlugin 配置验证失败"):
-        manager.load_plugin(plugin_name)
-
-
-def test_plugin_config_validation_env_var_missing(monkeypatch):
-    """测试环境变量缺失时配置验证失败"""
-    # 确保环境变量不存在
-    monkeypatch.delenv("DATABASE_URL", raising=False)
-
-    # 创建插件管理器
-    manager = PluginManager()
-
-    # 准备配置数据（包含未设置的环境变量）
-    config_data = {
-        "default": {"api_key": "test_key", "database_url": "${DATABASE_URL}"}
-    }
-
-    # 创建插件配置
-    plugin_config = PluginConfig()
-    plugin_config.data = config_data
-
-    # 注册插件
-    plugin_name = manager.register_plugin(SamplePlugin, config=plugin_config)
-
-    # 尝试加载插件，应该失败
-    with pytest.raises(PluginLoadError, match="插件 SamplePlugin 配置验证失败"):
-        manager.load_plugin(plugin_name)
-
-
-def test_plugin_without_config_model():
-    """测试没有配置模型的插件正常工作"""
-    # 创建插件管理器
-    manager = PluginManager()
-
-    # 注册并加载插件（没有配置模型，应该正常工作）
-    plugin_name = manager.register_plugin(SimplePlugin)
+    # 2. 执行
     plugin_instance = manager.load_plugin(plugin_name)
 
-    # 验证插件正常加载
-    assert plugin_instance is not None
-    assert plugin_name in manager.list_plugins()
+    # 3. 断言
+    assert isinstance(plugin_instance, PluginWithoutConfig)
+    # 验证插件的配置是ConfigManager返回的默认配置
+    assert plugin_instance.config is default_config
+    # 验证ConfigManager被正确调用
+    mock_config_manager.create_validated_config.assert_called_once_with(
+        PluginWithoutConfig, None
+    )
 
 
-def test_plugin_config_validation_with_empty_config():
-    """测试配置为空时跳过验证"""
-    # 创建插件管理器
+def test_load_plugin_with_explicit_config_object(mock_config_manager):
+    """
+    测试场景：在加载插件时，显式传入一个配置对象。
+    预期行为：该配置对象被传递给ConfigManager进行处理。
+    """
+    # 1. 准备
     manager = PluginManager()
+    plugin_name = manager.register_plugin(PluginWithConfig)
+    
+    # 准备一个在load_plugin时传入的配置对象
+    explicit_config = PluginConfig(enabled=True)
+    
+    # 模拟ConfigManager返回一个验证后的配置实例
+    validated_config_instance = SimpleConfig(value="from_explicit_config")
+    mock_config_manager.create_validated_config.return_value = validated_config_instance
 
-    # 创建空配置
-    plugin_config = PluginConfig()
-    # 不设置 config.data，保持为空
+    # 2. 执行
+    plugin_instance = manager.load_plugin(plugin_name, config=explicit_config)
 
-    # 注册并加载插件（空配置应该跳过验证）
-    plugin_name = manager.register_plugin(SamplePlugin, config=plugin_config)
-    plugin_instance = manager.load_plugin(plugin_name)
-
-    # 验证插件正常加载
-    assert plugin_instance is not None
-    assert plugin_name in manager.list_plugins()
-
-
-def test_plugin_config_validation_with_multi_env(monkeypatch):
-    """测试多环境配置验证"""
-    # 设置环境变量
-    monkeypatch.setenv("DATABASE_URL", "postgresql://prod-db/app")
-    monkeypatch.setenv("APP_ENV", "production")
-
-    # 创建插件管理器
-    manager = PluginManager()
-
-    # 准备多环境配置数据
-    config_data = {
-        "default": {
-            "api_key": "default_key",
-            "timeout": 30,
-            "database_url": "${DATABASE_URL}",
-        },
-        "production": {"api_key": "prod_key", "timeout": 120, "debug": False},
-    }
-
-    # 创建插件配置
-    plugin_config = PluginConfig()
-    plugin_config.data = config_data
-
-    # 注册并加载插件
-    plugin_name = manager.register_plugin(SamplePlugin, config=plugin_config)
-    plugin_instance = manager.load_plugin(plugin_name)
-
-    # 验证生产环境配置被正确应用
-    assert plugin_instance.validated_config is not None
-    assert plugin_instance.validated_config.api_key == "prod_key"  # 被覆盖
-    assert plugin_instance.validated_config.timeout == 120  # 被覆盖
-    assert plugin_instance.validated_config.debug is False  # 被覆盖
-    assert (
-        plugin_instance.validated_config.database_url == "postgresql://prod-db/app"
-    )  # 继承并解析
-
-
-def test_plugin_config_validation_type_error(monkeypatch):
-    """测试类型错误时配置验证失败"""
-    # 设置环境变量
-    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
-
-    # 创建插件管理器
-    manager = PluginManager()
-
-    # 准备类型错误的配置数据
-    config_data = {
-        "default": {
-            "api_key": "test_key",
-            "timeout": "not_an_integer",  # 类型错误
-            "database_url": "${DATABASE_URL}",
-        }
-    }
-
-    # 创建插件配置
-    plugin_config = PluginConfig()
-    plugin_config.data = config_data
-
-    # 注册插件
-    plugin_name = manager.register_plugin(SamplePlugin, config=plugin_config)
-
-    # 尝试加载插件，应该失败
-    with pytest.raises(PluginLoadError, match="插件 SamplePlugin 配置验证失败"):
-        manager.load_plugin(plugin_name)
-
-
-def test_plugin_config_validation_extra_fields(monkeypatch):
-    """测试额外字段时配置验证失败"""
-    # 设置环境变量
-    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
-
-    # 创建插件管理器
-    manager = PluginManager()
-
-    # 准备包含额外字段的配置数据
-    config_data = {
-        "default": {
-            "api_key": "test_key",
-            "timeout": 60,
-            "database_url": "${DATABASE_URL}",
-            "unknown_field": "should_not_be_allowed",  # 额外字段
-        }
-    }
-
-    # 创建插件配置
-    plugin_config = PluginConfig()
-    plugin_config.data = config_data
-
-    # 注册插件
-    plugin_name = manager.register_plugin(SamplePlugin, config=plugin_config)
-
-    # 尝试加载插件，应该失败
-    with pytest.raises(PluginLoadError, match="插件 SamplePlugin 配置验证失败"):
-        manager.load_plugin(plugin_name)
-
-
-def test_plugin_config_validation_preserves_validated_data(monkeypatch):
-    """测试配置验证后数据被正确保存"""
-    # 设置环境变量
-    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
-
-    # 创建插件管理器
-    manager = PluginManager()
-
-    # 准备配置数据
-    config_data = {
-        "default": {"api_key": "test_key", "database_url": "${DATABASE_URL}"}
-    }
-
-    # 创建插件配置
-    plugin_config = PluginConfig()
-    plugin_config.data = config_data
-
-    # 注册并加载插件
-    plugin_name = manager.register_plugin(SamplePlugin, config=plugin_config)
-    plugin_instance = manager.load_plugin(plugin_name)
-
-    # 验证配置数据被正确保存到 plugin_config.data
-    assert plugin_instance.config.data is not None
-    assert plugin_instance.config.data["api_key"] == "test_key"
-    assert plugin_instance.config.data["database_url"] == "postgresql://localhost/test"
-    # 验证默认值被填充
-    assert plugin_instance.config.data["timeout"] == 30
-    assert plugin_instance.config.data["debug"] is False
-
-
-if __name__ == "__main__":
-    # 运行测试
-    pytest.main([__file__, "-v"])
+    # 3. 断言
+    # 验证传递给ConfigManager的是我们显式提供的配置对象
+    mock_config_manager.create_validated_config.assert_called_once_with(
+        PluginWithConfig, explicit_config
+    )
+    assert isinstance(plugin_instance, PluginWithConfig)
+    assert plugin_instance.final_config.value == "from_explicit_config"

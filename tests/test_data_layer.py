@@ -19,6 +19,7 @@ from src.simtradelab.plugins.data import (
     DataSourceManager,
     MarketType,
 )
+from src.simtradelab.plugins.data.config import CSVDataPluginConfig
 
 
 class TestBaseDataSourcePlugin:
@@ -47,7 +48,8 @@ class TestCSVDataPlugin:
         metadata = PluginMetadata(
             name="test_csv_plugin", version="1.0.0", description="Test CSV Data Plugin"
         )
-        config = PluginConfig()
+        # E9修复：使用正确的配置类
+        config = CSVDataPluginConfig()
         return CSVDataPlugin(metadata, config)
 
     def test_plugin_metadata(self, csv_plugin):
@@ -175,7 +177,7 @@ class TestDataSourceManager:
         metadata = PluginMetadata(
             name="test_csv_plugin", version="1.0.0", description="Test CSV Data Plugin"
         )
-        config = PluginConfig()
+        config = CSVDataPluginConfig()
         csv_plugin = CSVDataPlugin(metadata, config)
 
         # 注册数据源
@@ -257,7 +259,7 @@ class TestDataLayerIntegration:
         metadata = PluginMetadata(
             name="test_csv_plugin", version="1.0.0", description="Test CSV Data Plugin"
         )
-        config = PluginConfig()
+        config = CSVDataPluginConfig()
         csv_plugin = CSVDataPlugin(metadata, config)
 
         # 通过插件直接获取
@@ -285,7 +287,7 @@ class TestDataLayerIntegration:
         metadata1 = PluginMetadata(
             name="csv1", version="1.0.0", description="CSV Plugin 1"
         )
-        plugin1 = CSVDataPlugin(metadata1, PluginConfig())
+        plugin1 = CSVDataPlugin(metadata1, CSVDataPluginConfig())
         config1 = DataSourceConfig(priority=1, enabled=True)
         manager.register_data_source("csv1", plugin1, config1)
         manager.initialize()
@@ -297,7 +299,7 @@ class TestDataLayerIntegration:
         metadata2 = PluginMetadata(
             name="csv2", version="1.0.0", description="CSV Plugin 2"
         )
-        plugin2 = CSVDataPlugin(metadata2, PluginConfig())
+        plugin2 = CSVDataPlugin(metadata2, CSVDataPluginConfig())
         config2 = DataSourceConfig(priority=0, enabled=True)  # 更高优先级
         manager.register_data_source("csv2", plugin2, config2)
 

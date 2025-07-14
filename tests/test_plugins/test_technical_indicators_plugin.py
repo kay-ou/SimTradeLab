@@ -16,8 +16,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from simtradelab.plugins.base import PluginConfig
+from simtradelab.plugins.data.config import CSVDataPluginConfig
 from simtradelab.plugins.data.csv_data_plugin import CSVDataPlugin
+from simtradelab.plugins.indicators.config import TechnicalIndicatorsConfig
 from simtradelab.plugins.indicators.technical_indicators_plugin import (
     TechnicalIndicatorsPlugin,
 )
@@ -35,13 +36,12 @@ class TestTechnicalIndicatorsPlugin:
     @pytest.fixture
     def real_data_plugin(self, temp_data_dir):
         """创建真实的数据插件，避免Mock"""
-        config = PluginConfig(
-            config={
-                "data_dir": str(temp_data_dir),
-                "base_stocks": ["000001.XSHE", "000002.XSHE"],
-            }
+        csv_config = CSVDataPluginConfig(
+            data_dir=temp_data_dir,
+            supported_markets={"stock_cn"},
+            supported_frequencies={"1d"},
         )
-        plugin = CSVDataPlugin(CSVDataPlugin.METADATA, config)
+        plugin = CSVDataPlugin(CSVDataPlugin.METADATA, csv_config)
         plugin.initialize()
         return plugin
 
@@ -49,8 +49,8 @@ class TestTechnicalIndicatorsPlugin:
     def plugin(self):
         """技术指标插件fixture"""
         metadata = TechnicalIndicatorsPlugin.METADATA
-        config = PluginConfig()
-        plugin = TechnicalIndicatorsPlugin(metadata, config)
+        tech_config = TechnicalIndicatorsConfig()
+        plugin = TechnicalIndicatorsPlugin(metadata, tech_config)
         plugin.initialize()
         return plugin
 

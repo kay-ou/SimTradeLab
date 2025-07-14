@@ -11,6 +11,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Type
 
+from ..core.config.config_manager import PluginConfigManager
 from .plugins.base import (
     BaseCommissionModel,
     BaseMatchingEngine,
@@ -59,6 +60,9 @@ class BacktestEngine:
             commission_model: 手续费模型插件
         """
         self.logger = logging.getLogger(__name__)
+
+        # E9修复：添加统一配置管理器
+        self._config_manager = PluginConfigManager()
 
         # 插件实例
         self._matching_engine = matching_engine
@@ -117,7 +121,9 @@ class BacktestEngine:
             if engine_type in self._available_plugins["matching_engines"]:
                 engine_class = self._available_plugins["matching_engines"][engine_type]
                 metadata = engine_class.METADATA
-                self._matching_engine = engine_class(metadata, engine_params)
+                # E9修复：使用配置管理器创建配置对象
+                plugin_config = self._config_manager.create_validated_config(engine_class, engine_params)
+                self._matching_engine = engine_class(metadata, plugin_config)
                 self.logger.info(f"Configured matching engine: {engine_type}")
             else:
                 raise ValueError(f"Unknown matching engine type: {engine_type}")
@@ -133,7 +139,9 @@ class BacktestEngine:
                     slippage_type
                 ]
                 metadata = slippage_class.METADATA
-                self._slippage_model = slippage_class(metadata, slippage_params)
+                # E9修复：使用配置管理器创建配置对象
+                plugin_config = self._config_manager.create_validated_config(slippage_class, slippage_params)
+                self._slippage_model = slippage_class(metadata, plugin_config)
                 self.logger.info(f"Configured slippage model: {slippage_type}")
             else:
                 raise ValueError(f"Unknown slippage model type: {slippage_type}")
@@ -149,7 +157,9 @@ class BacktestEngine:
                     commission_type
                 ]
                 metadata = commission_class.METADATA
-                self._commission_model = commission_class(metadata, commission_params)
+                # E9修复：使用配置管理器创建配置对象
+                plugin_config = self._config_manager.create_validated_config(commission_class, commission_params)
+                self._commission_model = commission_class(metadata, plugin_config)
                 self.logger.info(f"Configured commission model: {commission_type}")
             else:
                 raise ValueError(f"Unknown commission model type: {commission_type}")

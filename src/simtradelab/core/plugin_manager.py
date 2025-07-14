@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Set, Type, Union
 from ..exceptions import SimTradeLabError
 from ..plugins.base import BasePlugin, PluginMetadata, PluginState
 from ..plugins.config.base_config import BasePluginConfig
+from .config.config_manager import get_config_manager
 from .event_bus import EventBus
 from .events.cloud_event import CloudEvent
 
@@ -51,7 +52,7 @@ class PluginRegistry:
 
     plugin_class: Type[BasePlugin]
     metadata: PluginMetadata
-    config: Optional[BasePluginConfig] = None
+    config: Optional[Any] = None  # 可以是BasePluginConfig或任何Pydantic模型
     instance: Optional[BasePlugin] = None
     registered_at: float = field(default_factory=time.time)
     load_order: int = 0
@@ -81,6 +82,9 @@ class PluginManager:
         self._lock = threading.RLock()
         self._logger = logging.getLogger(__name__)
         self._auto_register_builtin = auto_register_builtin
+
+        # E9修复：集成统一配置管理器
+        self._config_manager = get_config_manager()
 
         # 插件状态统计
         self._stats = {"registered": 0, "loaded": 0, "active": 0, "failed": 0}
@@ -245,9 +249,7 @@ class PluginManager:
 
             return True
 
-    def load_plugin(
-        self, plugin_name: str, config: Optional[BasePluginConfig] = None
-    ) -> BasePlugin:
+    def load_plugin(self, plugin_name: str, config: Optional[Any] = None) -> BasePlugin:
         """
         加载插件
 
@@ -271,44 +273,12 @@ class PluginManager:
                 raise PluginLoadError(f"Plugin {plugin_name} is already loaded")
 
             try:
-                # E8修复：强制配置验证
-                plugin_config = config or registry.config
+                # E9修复：使用统一配置管理器替换丑陋的配置验证代码
+                plugin_config = self._config_manager.create_validated_config(
+                    registry.plugin_class, config or registry.config
+                )
 
-                # 如果插件定义了配置模型，确保使用正确的配置类型
-                if (
-                    hasattr(registry.plugin_class, "config_model")
-                    and registry.plugin_class.config_model is not None
-                ):
-                    config_model_class = registry.plugin_class.config_model
-
-                    if plugin_config is None:
-                        # 创建默认配置
-                        plugin_config = config_model_class()
-                        self._logger.info(f"插件 {plugin_name} 使用默认配置")
-                    elif not isinstance(plugin_config, config_model_class):
-                        # 配置类型不匹配，尝试转换
-                        if isinstance(plugin_config, dict):
-                            # 从字典创建配置对象
-                            plugin_config = config_model_class(**plugin_config)
-                        elif hasattr(plugin_config, "model_dump"):
-                            # 从其他Pydantic模型转换
-                            plugin_config = config_model_class(
-                                **plugin_config.model_dump()
-                            )
-                        else:
-                            raise PluginLoadError(
-                                f"插件 {plugin_name} 需要 {config_model_class.__name__} 类型的配置，"
-                                f"但提供了 {type(plugin_config).__name__}"
-                            )
-                        self._logger.info(
-                            f"插件 {plugin_name} 配置已转换为 {config_model_class.__name__}"
-                        )
-
-                    self._logger.info(f"插件 {plugin_name} 配置验证成功")
-                else:
-                    # 如果插件没有定义配置模型，使用基础配置或None
-                    if plugin_config is None:
-                        plugin_config = BasePluginConfig()
+                self._logger.info(f"插件 {plugin_name} 配置验证成功")
 
                 # 创建插件实例
                 instance = registry.plugin_class(registry.metadata, plugin_config)
@@ -340,7 +310,7 @@ class PluginManager:
             except Exception as e:
                 self._stats["failed"] += 1
                 self._logger.error(f"Failed to load plugin {plugin_name}: {e}")
-                raise PluginLoadError(f"Failed to load plugin {plugin_name}: {e}")
+                raise PluginLoadError(f"Failed to load plugin {plugin_name}: {e}") from e
 
     def unload_plugin(self, plugin_name: str) -> bool:
         """
@@ -822,7 +792,7 @@ class PluginManager:
 
         return self._discover_plugins_in_module(module)
 
-    def _discover_plugins_in_module(self, module) -> List[str]:
+    def _discover_plugins_in_module(self, module: Any) -> List[str]:
         """在模块中发现插件类"""
         discovered = []
 
@@ -856,30 +826,35 @@ class PluginManager:
 
     def _on_plugin_loaded(self, event: CloudEvent) -> None:
         """处理插件加载事件"""
-        plugin_name = event.data["plugin_name"]
-        self._logger.debug(f"Plugin loaded event: {plugin_name}")
+        if event.data:
+            plugin_name = event.data["plugin_name"]
+            self._logger.debug(f"Plugin loaded event: {plugin_name}")
 
     def _on_plugin_started(self, event: CloudEvent) -> None:
         """处理插件启动事件"""
-        plugin_name = event.data["plugin_name"]
-        self._logger.debug(f"Plugin started event: {plugin_name}")
+        if event.data:
+            plugin_name = event.data["plugin_name"]
+            self._logger.debug(f"Plugin started event: {plugin_name}")
 
     def _on_plugin_stopped(self, event: CloudEvent) -> None:
         """处理插件停止事件"""
-        plugin_name = event.data["plugin_name"]
-        self._logger.debug(f"Plugin stopped event: {plugin_name}")
+        if event.data:
+            plugin_name = event.data["plugin_name"]
+            self._logger.debug(f"Plugin stopped event: {plugin_name}")
 
     def _on_plugin_unloaded(self, event: CloudEvent) -> None:
         """处理插件卸载事件"""
-        plugin_name = event.data["plugin_name"]
-        self._logger.debug(f"Plugin unloaded event: {plugin_name}")
+        if event.data:
+            plugin_name = event.data["plugin_name"]
+            self._logger.debug(f"Plugin unloaded event: {plugin_name}")
 
-    def __enter__(self):
+    def __enter__(self) -> "PluginManager":
         """上下文管理器入口"""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """上下文管理器出口"""
+        _ = exc_type, exc_val, exc_tb  # 避免未使用参数警告
         self.shutdown()
 
     def _register_core_plugins(self) -> None:
@@ -976,7 +951,7 @@ class PluginManager:
 
             # 验证是否为BasePlugin子类
             if issubclass(plugin_class, base_plugin_class):
-                return plugin_class
+                return plugin_class  # type: ignore[no-any-return]
             else:
                 self._logger.warning(f"{plugin_class} is not a BasePlugin subclass")
                 return None

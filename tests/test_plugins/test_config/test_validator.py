@@ -23,7 +23,7 @@ class NestedConfig(BasePluginConfig):
     secret: str = "${NESTED_SECRET}"
 
 
-class TestPluginConfig(BasePluginConfig):
+class SamplePluginConfig(BasePluginConfig):
     """测试插件配置模型"""
 
     api_key: str = Field(..., description="API密钥")
@@ -56,7 +56,7 @@ def test_validate_default_config(monkeypatch):
     monkeypatch.setenv("DB_PASSWORD", "default_db_pass")
 
     config = ConfigValidator.validate(
-        TestPluginConfig, VALID_CONFIG_DATA, env="default"
+        SamplePluginConfig, VALID_CONFIG_DATA, env="default"
     )
 
     assert config.api_key == "default_key"
@@ -70,7 +70,7 @@ def test_validate_production_config_overrides_default(monkeypatch):
     monkeypatch.setenv("DB_PASSWORD", "prod_db_pass")
 
     config = ConfigValidator.validate(
-        TestPluginConfig, VALID_CONFIG_DATA, env="production"
+        SamplePluginConfig, VALID_CONFIG_DATA, env="production"
     )
 
     assert config.api_key == "prod_key"  # 被覆盖
@@ -85,7 +85,7 @@ def test_validate_development_config_with_env_variable(monkeypatch):
     monkeypatch.setenv("DB_PASSWORD", "dev_db_pass")
 
     config = ConfigValidator.validate(
-        TestPluginConfig, VALID_CONFIG_DATA, env="development"
+        SamplePluginConfig, VALID_CONFIG_DATA, env="development"
     )
 
     assert config.api_key == "dev_key_from_env"
@@ -99,7 +99,7 @@ def test_validate_missing_env_variable_raises_error(monkeypatch):
     monkeypatch.delenv("DEV_API_KEY", raising=False)  # 删除开发环境需要的环境变量
 
     with pytest.raises(ValidationError, match="环境变量 'DEV_API_KEY' 未设置"):
-        ConfigValidator.validate(TestPluginConfig, VALID_CONFIG_DATA, env="development")
+        ConfigValidator.validate(SamplePluginConfig, VALID_CONFIG_DATA, env="development")
 
 
 def test_validate_invalid_data_type_raises_error(monkeypatch):
@@ -115,7 +115,7 @@ def test_validate_invalid_data_type_raises_error(monkeypatch):
     }
 
     with pytest.raises(ValidationError):
-        ConfigValidator.validate(TestPluginConfig, invalid_data)
+        ConfigValidator.validate(SamplePluginConfig, invalid_data)
 
 
 def test_validate_extra_field_raises_error(monkeypatch):
@@ -131,7 +131,7 @@ def test_validate_extra_field_raises_error(monkeypatch):
     }
 
     with pytest.raises(ValidationError) as exc_info:
-        ConfigValidator.validate(TestPluginConfig, invalid_data)
+        ConfigValidator.validate(SamplePluginConfig, invalid_data)
     assert "Extra inputs are not permitted" in str(exc_info.value)
 
 
@@ -147,7 +147,7 @@ def test_validate_missing_required_field_raises_error(monkeypatch):
     }
 
     with pytest.raises(ValidationError) as exc_info:
-        ConfigValidator.validate(TestPluginConfig, invalid_data)
+        ConfigValidator.validate(SamplePluginConfig, invalid_data)
     assert "Field required" in str(exc_info.value)
 
 
@@ -164,7 +164,7 @@ def test_nested_config_with_env_var(monkeypatch):
         }
     }
 
-    config = ConfigValidator.validate(TestPluginConfig, data)
+    config = ConfigValidator.validate(SamplePluginConfig, data)
 
     assert config.sub_config is not None
     assert config.sub_config.secret == "super_secret"
@@ -184,7 +184,7 @@ def test_nested_config_missing_env_var_raises_error(monkeypatch):
     }
 
     with pytest.raises(ValidationError, match="环境变量 'NESTED_SECRET' 未设置"):
-        ConfigValidator.validate(TestPluginConfig, data)
+        ConfigValidator.validate(SamplePluginConfig, data)
 
 
 def test_validate_auto_env_detection(monkeypatch):
@@ -193,7 +193,7 @@ def test_validate_auto_env_detection(monkeypatch):
     monkeypatch.setenv("DB_PASSWORD", "auto_env_pass")
 
     # 不指定 env 参数，应该自动使用 APP_ENV 环境变量
-    config = ConfigValidator.validate(TestPluginConfig, VALID_CONFIG_DATA)
+    config = ConfigValidator.validate(SamplePluginConfig, VALID_CONFIG_DATA)
 
     assert config.api_key == "prod_key"  # 使用了 production 环境配置
     assert config.timeout == 30
@@ -211,7 +211,7 @@ def test_validate_default_env_when_app_env_not_set(monkeypatch):
     }
 
     # 不指定 env 参数且 APP_ENV 未设置，应该使用 development 作为默认值
-    config = ConfigValidator.validate(TestPluginConfig, simple_config_data)
+    config = ConfigValidator.validate(SamplePluginConfig, simple_config_data)
 
     # 应该使用 development 环境配置，并继承默认配置
     assert config.api_key == "dev_key"  # 来自 development 环境
@@ -243,7 +243,7 @@ def test_validate_deep_merge_functionality(monkeypatch):
         },
     }
 
-    config = ConfigValidator.validate(TestPluginConfig, complex_data, env="production")
+    config = ConfigValidator.validate(SamplePluginConfig, complex_data, env="production")
 
     assert config.api_key == "prod_key"
     assert config.api_secret == "default_secret"  # 继承
@@ -259,7 +259,7 @@ def test_validate_empty_config_data():
     empty_data = {}
 
     with pytest.raises(ValidationError):
-        ConfigValidator.validate(TestPluginConfig, empty_data)
+        ConfigValidator.validate(SamplePluginConfig, empty_data)
 
 
 def test_validate_only_env_specific_config(monkeypatch):
@@ -274,7 +274,7 @@ def test_validate_only_env_specific_config(monkeypatch):
         }
     }
 
-    config = ConfigValidator.validate(TestPluginConfig, env_only_data, env="production")
+    config = ConfigValidator.validate(SamplePluginConfig, env_only_data, env="production")
 
     assert config.api_key == "prod_key"
     assert config.api_secret == "prod_secret"

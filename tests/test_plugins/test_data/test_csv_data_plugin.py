@@ -12,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from simtradelab.plugins.base import PluginConfig
+from simtradelab.plugins.data.config import CSVDataPluginConfig
 from simtradelab.plugins.data.csv_data_plugin import CSVDataPlugin
 
 
@@ -28,8 +28,11 @@ class TestCSVDataPlugin:
     @pytest.fixture
     def plugin_config(self, temp_data_dir):
         """创建插件配置"""
-        return PluginConfig(
-            config={"data_dir": str(temp_data_dir), "cache_timeout": 60}
+        return CSVDataPluginConfig(
+            data_dir=temp_data_dir,
+            cache_timeout=60,
+            supported_markets={"stock_cn"},
+            supported_frequencies={"1d"},
         )
 
     @pytest.fixture
@@ -64,9 +67,13 @@ class TestCSVDataPlugin:
         """测试数据目录创建"""
         # 使用不存在的目录
         non_existent_dir = Path("/tmp/test_csv_plugin_data")
-        config = PluginConfig(config={"data_dir": str(non_existent_dir)})
+        csv_config = CSVDataPluginConfig(
+            data_dir=non_existent_dir,
+            supported_markets={"stock_cn"},
+            supported_frequencies={"1d"},
+        )
 
-        plugin = CSVDataPlugin(CSVDataPlugin.METADATA, config)
+        plugin = CSVDataPlugin(CSVDataPlugin.METADATA, csv_config)
         plugin.initialize()
 
         try:
@@ -503,11 +510,14 @@ class TestCSVDataPlugin:
 
     def test_config_parameters(self, temp_data_dir):
         """测试配置参数"""
-        config = PluginConfig(
-            config={"data_dir": str(temp_data_dir), "cache_timeout": 120}
+        csv_config = CSVDataPluginConfig(
+            data_dir=temp_data_dir,
+            cache_timeout=120,
+            supported_markets={"stock_cn"},
+            supported_frequencies={"1d"},
         )
 
-        plugin = CSVDataPlugin(CSVDataPlugin.METADATA, config)
+        plugin = CSVDataPlugin(CSVDataPlugin.METADATA, csv_config)
         plugin.initialize()
 
         assert plugin._data_dir == temp_data_dir

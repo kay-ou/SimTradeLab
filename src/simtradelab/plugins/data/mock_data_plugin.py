@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Set, Union
 import numpy as np
 import pandas as pd
 
-from ..base import PluginMetadata
+from ..base import PluginMetadata, PluginState
 from .base_data_source import BaseDataSourcePlugin, DataFrequency, MarketType
 from .config import MockDataPluginConfig
 
@@ -61,8 +61,8 @@ class MockDataPlugin(BaseDataSourcePlugin):
             self._enabled = config.enabled
             self._seed = config.seed
             self._base_prices = config.base_prices
-            self._volatility = float(config.volatility)
-            self._trend = float(config.trend)
+            self._volatility = config.volatility
+            self._trend = config.trend
             self._daily_volatility_factor = float(config.daily_volatility_factor)
             self._volume_range = config.volume_range
         else:
@@ -127,7 +127,7 @@ class MockDataPlugin(BaseDataSourcePlugin):
         fill_gaps: bool = True,
     ) -> pd.DataFrame:
         """获取单个证券的历史数据"""
-        if not self._enabled:
+        if not self._enabled or count <= 0:
             return pd.DataFrame()
 
         # 标准化频率
@@ -137,7 +137,11 @@ class MockDataPlugin(BaseDataSourcePlugin):
         base_price = self._base_prices.get(security, 10.0)
 
         # 创建日期范围
-        end_dt = datetime.now() if include_now else datetime.now() - timedelta(days=1)
+        if end_date:
+            end_dt = pd.to_datetime(end_date)
+        else:
+            end_dt = datetime.now() if include_now else datetime.now() - timedelta(days=1)
+
         if freq == DataFrequency.DAILY:
             start_dt = end_dt - timedelta(days=count)
             date_range = pd.date_range(start=start_dt, end=end_dt, freq="D")
@@ -151,7 +155,7 @@ class MockDataPlugin(BaseDataSourcePlugin):
 
         for _ in range(len(date_range)):
             # 随机游走模型
-            change = np.random.normal(self._trend, self._volatility)
+            change = np.random.normal(float(self._trend), float(self._volatility))
             current_price *= 1 + change
             prices.append(current_price)
 
@@ -159,7 +163,7 @@ class MockDataPlugin(BaseDataSourcePlugin):
         df_data = []
         for i, (date, close) in enumerate(zip(date_range, prices)):
             # 模拟日内波动
-            daily_volatility = self._volatility * 0.5
+            daily_volatility = float(self._volatility) * 0.5
             high = close * (1 + abs(np.random.normal(0, daily_volatility)))
             low = close * (1 - abs(np.random.normal(0, daily_volatility)))
             open_price = prices[i - 1] if i > 0 else close
@@ -239,6 +243,8 @@ class MockDataPlugin(BaseDataSourcePlugin):
 
     def get_current_price(self, security_list: List[str]) -> Dict[str, float]:
         """获取证券的当前价格"""
+        if not self._enabled:
+            return {}
         prices = {}
         for security in security_list:
             base_price = self._base_prices.get(security, 10.0)
@@ -251,6 +257,8 @@ class MockDataPlugin(BaseDataSourcePlugin):
         self, security_list: List[str], fields: Optional[List[str]] = None
     ) -> Dict[str, Dict[str, Any]]:
         """获取证券的实时快照数据"""
+        if not self._enabled:
+            return {}
         snapshot = {}
         for security in security_list:
             base_price = self._base_prices.get(security, 10.0)
@@ -357,7 +365,7 @@ class MockDataPlugin(BaseDataSourcePlugin):
         # 生成模拟基本面数据
         data = []
         for security in security_list:
-            row = {"code": security, "date": date}
+            row: Dict[str, Any] = {"code": security, "date": date}
             for field in fields:
                 if field == "revenue":
                     row[field] = np.random.uniform(1e6, 1e9)  # 营收
@@ -418,6 +426,7 @@ class MockDataPlugin(BaseDataSourcePlugin):
 
     def shutdown(self) -> None:
         """关闭插件"""
+        super().shutdown()
         self._data_cache.clear()
         self._logger.info("MockDataPlugin shutdown")
 

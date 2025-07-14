@@ -21,7 +21,7 @@ from simtradelab.adapters.ptrade.context import PTradeContext
 from simtradelab.adapters.ptrade.models import Blotter, Portfolio, Position
 from simtradelab.adapters.ptrade.routers.backtest import BacktestAPIRouter
 from simtradelab.core.event_bus import EventBus
-from simtradelab.plugins.base import PluginConfig
+from simtradelab.plugins.data.config import CSVDataPluginConfig
 from simtradelab.plugins.data.csv_data_plugin import CSVDataPlugin
 
 
@@ -115,11 +115,8 @@ class TestBacktestAPIRouter:
     @pytest.fixture
     def real_data_plugin(self, temp_data_dir):
         """创建真实数据插件"""
-        config = PluginConfig(
-            config={
-                "data_dir": str(temp_data_dir),
-                "base_stocks": ["000001.XSHE", "000002.XSHE"],
-            }
+        config = CSVDataPluginConfig(
+            data_dir=str(temp_data_dir),
         )
         plugin = CSVDataPlugin(CSVDataPlugin.METADATA, config)
         plugin.initialize()

@@ -1,21 +1,27 @@
 # -*- coding: utf-8 -*-
 """
-PluginManager插件管理器测试
+PluginManager 核心功能测试
 
-专注测试插件系统在量化交易框架中的核心业务价值：
-1. 插件的动态加载和扩展能力
-2. 插件间的依赖关系管理
-3. 插件热重载和状态保持
-4. 插件系统的稳定性和错误隔离
+该测试文件旨在全面验证 PluginManager 的核心功能，确保其在各种场景下的稳定性、
+可靠性和可扩展性。测试重点包括：
+1.  插件注册与注销的原子性与正确性。
+2.  插件完整的生命周期管理（加载、启动、停止、卸载）。
+3.  插件热重载及其状态保持能力。
+4.  从目录动态发现和加载插件的机制。
+5.  强大的错误隔离机制和系统稳定性。
+6.  在并发环境下的线程安全性。
+7.  与事件总线的集成和事件发布。
 """
 
 import tempfile
 import threading
 import time
 from pathlib import Path
+from typing import Optional
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import Field
 
 from simtradelab.core.event_bus import EventBus
 from simtradelab.core.plugin_manager import (
@@ -24,94 +30,56 @@ from simtradelab.core.plugin_manager import (
     PluginManager,
     PluginRegistrationError,
 )
-from simtradelab.plugins.base import (
-    BasePlugin,
-    PluginConfig,
-    PluginMetadata,
-    PluginState,
-)
+from simtradelab.plugins.base import BasePlugin, PluginMetadata, PluginState, PluginError
+from simtradelab.plugins.config.base_config import BasePluginConfig
+
+# region Test Plugin Definitions
+# ==============================================================================
+# 定义一系列用于测试的模拟插件，覆盖不同场景
+# ==============================================================================
 
 
-# 测试插件类定义
-class MockDataSourcePlugin(BasePlugin):
-    """模拟数据源插件"""
+class SimplePlugin(BasePlugin):
+    """一个最简单的插件，用于基础功能测试"""
 
-    METADATA = PluginMetadata(
-        name="mock_data_source",
-        version="1.0.0",
-        description="Mock Data Source Plugin",
-        author="SimTradeLab",
-        dependencies=[],
-        tags=["data", "mock"],
-        category="data_source",
-        priority=10,
-    )
-
-    def __init__(self, metadata, config=None):
-        super().__init__(metadata, config)
-        self.data_fetched = []
+    METADATA = PluginMetadata(name="simple_plugin", version="1.0.0")
 
     def _on_initialize(self):
-        self._logger.info("Mock data source plugin initialized")
+        self.initialized = True
 
     def _on_start(self):
-        self._logger.info("Mock data source plugin started")
+        self.started = True
 
     def _on_stop(self):
-        self._logger.info("Mock data source plugin stopped")
-
-    def fetch_data(self, symbol):
-        """模拟数据获取"""
-        data = {"symbol": symbol, "price": 100.0, "volume": 1000}
-        self.data_fetched.append(data)
-        return data
+        self.stopped = True
 
 
-class MockStrategyPlugin(BasePlugin):
-    """模拟策略插件"""
+class DependentPlugin(BasePlugin):
+    """一个依赖于 SimplePlugin 的插件"""
 
     METADATA = PluginMetadata(
-        name="mock_strategy",
-        version="1.0.0",
-        description="Mock Strategy Plugin",
-        dependencies=["mock_data_source"],  # 依赖数据源插件
-        category="strategy",
-        priority=20,
+        name="dependent_plugin", version="1.0.0", dependencies=["simple_plugin"]
     )
 
-    def __init__(self, metadata, config=None):
-        super().__init__(metadata, config)
-        self.signals_generated = []
-
     def _on_initialize(self):
-        self._logger.info("Mock strategy plugin initialized")
+        pass
 
     def _on_start(self):
-        self._logger.info("Mock strategy plugin started")
+        pass
 
     def _on_stop(self):
-        self._logger.info("Mock strategy plugin stopped")
-
-    def generate_signal(self, data):
-        """模拟信号生成"""
-        signal = {"action": "BUY", "symbol": data["symbol"], "confidence": 0.8}
-        self.signals_generated.append(signal)
-        return signal
+        pass
 
 
 class StatefulPlugin(BasePlugin):
-    """有状态的插件，用于测试热重载"""
+    """一个有状态的插件，用于测试热重载和状态保持"""
 
-    METADATA = PluginMetadata(
-        name="stateful_plugin",
-        version="1.0.0",
-        description="Stateful Plugin for Hot Reload Testing",
-    )
+    METADATA = PluginMetadata(name="stateful_plugin", version="1.0.0")
 
     def __init__(self, metadata, config=None):
         super().__init__(metadata, config)
         self.counter = 0
-        self.processed_orders = []
+        self.data = []
 
     def _on_initialize(self):
         pass
@@ -122,245 +90,362 @@ class StatefulPlugin(BasePlugin):
     def _on_stop(self):
         pass
 
-    def process_order(self, order_id):
-        """处理订单"""
+    def process(self, item):
+        """模拟处理业务"""
         self.counter += 1
-        self.processed_orders.append(order_id)
+        self.data.append(item)
 
     def get_state(self):
-        """获取插件状态"""
-        return {"counter": self.counter, "processed_orders": self.processed_orders}
+        """获取插件状态，用于持久化"""
+        return {"counter": self.counter, "data": self.data}
 
     def set_state(self, state):
-        """设置插件状态"""
+        """恢复插件状态"""
         self.counter = state.get("counter", 0)
-        self.processed_orders = state.get("processed_orders", [])
+        self.data = state.get("data", [])
+
+
+class FailingPluginConfig(BasePluginConfig):
+    """FailingPlugin 的配置模型"""
+
+    fail_on: Optional[str] = Field(None, description="在哪个阶段失败")
 
 
 class FailingPlugin(BasePlugin):
-    """会失败的插件，用于测试错误处理"""
+    """一个在不同生命周期阶段会失败的插件，用于测试错误处理"""
 
-    METADATA = PluginMetadata(
-        name="failing_plugin",
-        version="1.0.0",
-        description="Plugin that fails during initialization",
-    )
+    METADATA = PluginMetadata(name="failing_plugin", version="1.0.0")
+    config_model = FailingPluginConfig
+
+    def __init__(self, metadata, config: FailingPluginConfig):
+        super().__init__(metadata, config)
+        self.fail_on = config.fail_on
 
     def _on_initialize(self):
-        raise RuntimeError("Plugin initialization failed")
+        if self.fail_on == "initialize":
+            raise RuntimeError("Initialization failed intentionally")
 
     def _on_start(self):
-        raise RuntimeError("Plugin start failed")
+        if self.fail_on == "start":
+            raise RuntimeError("Start failed intentionally")
 
     def _on_stop(self):
-        raise RuntimeError("Plugin stop failed")
+        if self.fail_on == "stop":
+            raise RuntimeError("Stop failed intentionally")
+
+    def _on_shutdown(self):
+        if self.fail_on == "shutdown":
+            raise RuntimeError("Shutdown failed intentionally")
 
 
-class TestQuantitativeTradingPluginSystem:
-    """测试量化交易插件系统的核心业务能力"""
+# endregion
 
-    def _get_plugin_state(self, plugin_manager, plugin_name):
-        """辅助方法：获取插件状态"""
-        info = plugin_manager.get_plugin_info(plugin_name)
-        if not info:
-            return None
-        state_str = info["state"]
-        if state_str == "unloaded":
-            return PluginState.UNINITIALIZED
-        return PluginState(state_str)
+# region Fixtures
+# ==============================================================================
+# Pytest Fixtures，用于准备测试环境
+# ==============================================================================
+
+
+@pytest.fixture
+def event_bus():
+    """提供一个 EventBus 实例，并在测试结束后自动关闭"""
+    bus = EventBus()
+    yield bus
+    bus.shutdown()
+
+
+@pytest.fixture
+def plugin_manager(event_bus):
+    """提供一个 PluginManager 实例，并在测试结束后自动关闭"""
+    manager = PluginManager(event_bus=event_bus, auto_register_builtin=False)
+    yield manager
+    manager.shutdown()
+
+
+# endregion
+
+
+class TestPluginRegistration:
+    """测试插件的注册和注销功能"""
+
+    def test_register_plugin_success(self, plugin_manager):
+        """测试成功注册一个插件"""
+        plugin_name = plugin_manager.register_plugin(SimplePlugin)
+        assert plugin_name == "simple_plugin"
+        assert "simple_plugin" in plugin_manager.list_plugins()
+        assert plugin_manager.get_plugin("simple_plugin") is None  # 尚未加载
+
+    def test_register_plugin_with_custom_load_order(self, plugin_manager):
+        """测试使用自定义加载顺序注册插件"""
+        plugin_manager.register_plugin(SimplePlugin, load_order=50)
+        plugin_info = plugin_manager.get_plugin_info("simple_plugin")
+        assert plugin_info["load_order"] == 50
+
+    def test_register_duplicate_plugin_fails(self, plugin_manager):
+        """测试重复注册同一个插件会失败"""
+        plugin_manager.register_plugin(SimplePlugin)
+        with pytest.raises(
+            PluginRegistrationError, match="Plugin simple_plugin is already registered"
+        ):
+            plugin_manager.register_plugin(SimplePlugin)
+
+    def test_register_invalid_plugin_type_fails(self, plugin_manager):
+        """测试注册一个非 BasePlugin 子类会失败"""
+
+        class NotAPlugin:
+            pass
+
+        with pytest.raises(
+            PluginRegistrationError, match="is not a valid BasePlugin subclass"
+        ):
+            plugin_manager.register_plugin(NotAPlugin)
+
+    def test_unregister_plugin_success(self, plugin_manager):
+        """测试成功注销一个插件"""
+        plugin_name = plugin_manager.register_plugin(SimplePlugin)
+        assert plugin_name in plugin_manager.list_plugins()
+
+        unregistered = plugin_manager.unregister_plugin(plugin_name)
+        assert unregistered is True
+        assert plugin_name not in plugin_manager.list_plugins()
+
+    def test_unregister_nonexistent_plugin(self, plugin_manager):
+        """测试注销一个不存在的插件"""
+        assert plugin_manager.unregister_plugin("nonexistent") is False
+
+    def test_unregister_loaded_plugin(self, plugin_manager):
+        """测试注销一个已加载的插件会自动先卸载"""
+        plugin_name = plugin_manager.register_plugin(SimplePlugin)
+        plugin_manager.load_plugin(plugin_name)
+        assert plugin_manager.get_plugin(plugin_name) is not None
+
+        unregistered = plugin_manager.unregister_plugin(plugin_name)
+        assert unregistered is True
+        assert plugin_name not in plugin_manager.list_plugins()
+        assert plugin_manager.get_plugin(plugin_name) is None
+
+
+class TestPluginLifecycle:
+    """测试插件完整的生命周期管理"""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, plugin_manager):
+        """为本类所有测试注册 SimplePlugin"""
+        self.plugin_name = plugin_manager.register_plugin(SimplePlugin)
+
+    def test_load_plugin_success(self, plugin_manager):
+        """测试成功加载插件"""
+        instance = plugin_manager.load_plugin(self.plugin_name)
+        assert isinstance(instance, SimplePlugin)
+        assert instance.state == PluginState.INITIALIZED
+        assert instance.initialized is True
+        assert plugin_manager.get_plugin(self.plugin_name) is instance
+
+    def test_load_non_registered_plugin_fails(self, plugin_manager):
+        """测试加载未注册的插件会失败"""
+        with pytest.raises(PluginLoadError, match="is not registered"):
+            plugin_manager.load_plugin("nonexistent")
+
+    def test_load_already_loaded_plugin_fails(self, plugin_manager):
+        """测试重复加载插件会失败"""
+        plugin_manager.load_plugin(self.plugin_name)
+        with pytest.raises(PluginLoadError, match="is already loaded"):
+            plugin_manager.load_plugin(self.plugin_name)
+
+    def test_start_plugin_success(self, plugin_manager):
+        """测试成功启动插件"""
+        instance = plugin_manager.load_plugin(self.plugin_name)
+        plugin_manager.start_plugin(self.plugin_name)
+        assert instance.state == PluginState.STARTED
+        assert instance.started is True
+
+    def test_stop_plugin_success(self, plugin_manager):
+        """测试成功停止插件"""
+        instance = plugin_manager.load_plugin(self.plugin_name)
+        plugin_manager.start_plugin(self.plugin_name)
+        plugin_manager.stop_plugin(self.plugin_name)
+        assert instance.state == PluginState.STOPPED
+        assert instance.stopped is True
+
+    def test_unload_plugin_success(self, plugin_manager):
+        """测试成功卸载插件"""
+        plugin_manager.load_plugin(self.plugin_name)
+        plugin_manager.start_plugin(self.plugin_name)
+        unloaded = plugin_manager.unload_plugin(self.plugin_name)
+        assert unloaded is True
+        assert plugin_manager.get_plugin(self.plugin_name) is None
+
+    def test_load_all_and_unload_all(self, plugin_manager):
+        """测试批量加载和卸载插件"""
+        plugin_manager.register_plugin(DependentPlugin)
+
+        # 按加载顺序排序
+        load_results = plugin_manager.load_all_plugins(start=True)
+        assert load_results["simple_plugin"] is True
+        assert load_results["dependent_plugin"] is True
+        assert (
+            plugin_manager.get_plugin("simple_plugin").state == PluginState.STARTED
+        )
+        assert (
+            plugin_manager.get_plugin("dependent_plugin").state == PluginState.STARTED
+        )
+
+        # 按加载顺序逆序卸载
+        unload_results = plugin_manager.unload_all_plugins()
+        assert unload_results["simple_plugin"] is True
+        assert unload_results["dependent_plugin"] is True
+        assert plugin_manager.get_plugin("simple_plugin") is None
+        assert plugin_manager.get_plugin("dependent_plugin") is None
+
+
+class TestPluginHotReload:
+    """测试插件热重载与状态保持"""
 
     @pytest.fixture
-    def event_bus(self):
-        """事件总线fixture"""
-        bus = EventBus()
-        yield bus
-        bus.shutdown()
+    def stateful_plugin(self, plugin_manager):
+        """提供一个已加载并运行的有状态插件"""
+        plugin_name = plugin_manager.register_plugin(StatefulPlugin)
+        instance = plugin_manager.load_plugin(plugin_name)
+        plugin_manager.start_plugin(plugin_name)
+        return instance
 
-    @pytest.fixture
-    def plugin_manager(self, event_bus):
-        """插件管理器fixture"""
-        manager = PluginManager(event_bus)
-        yield manager
-        # 清理所有插件
-        manager.shutdown()
+    def test_reload_with_state_preservation(self, plugin_manager, stateful_plugin):
+        """测试热重载能成功保持和恢复状态"""
+        # 1. 模拟业务操作，改变插件状态
+        stateful_plugin.process("item1")
+        stateful_plugin.process("item2")
+        assert stateful_plugin.counter == 2
+        assert stateful_plugin.data == ["item1", "item2"]
 
-    def test_modular_trading_system_extension(self, plugin_manager):
-        """测试模块化交易系统扩展 - 插件系统的核心价值"""
-        # 模拟量化交易系统通过插件扩展功能
+        # 2. 执行热重载
+        reloaded = plugin_manager.reload_plugin("stateful_plugin")
+        assert reloaded is True
 
-        # 注册数据源插件类
-        plugin_manager.register_plugin(MockDataSourcePlugin)
+        # 3. 获取重载后的新实例
+        new_instance = plugin_manager.get_plugin("stateful_plugin")
+        assert new_instance is not None
+        assert new_instance is not stateful_plugin  # 确认是新实例
+        assert new_instance.state == PluginState.INITIALIZED  # 重载后回到初始化状态
 
-        # 注册策略插件类
-        plugin_manager.register_plugin(MockStrategyPlugin)
+        # 4. 验证状态已恢复
+        assert new_instance.counter == 2
+        assert new_instance.data == ["item1", "item2"]
 
-        # 启动插件系统
-        plugin_manager.load_all_plugins(start=True)
-
-        # 验证业务价值：模块化系统正常工作
-        loaded_plugins = plugin_manager.list_plugins(filter_loaded=True)
-        # 至少应该包含我们注册的2个插件，可能还有自动发现的插件
-        assert len(loaded_plugins) >= 2
-        assert "mock_data_source" in loaded_plugins
-        assert "mock_strategy" in loaded_plugins
-
-        # 验证插件状态
-        data_state = self._get_plugin_state(plugin_manager, "mock_data_source")
-        strategy_state = self._get_plugin_state(plugin_manager, "mock_strategy")
-        assert data_state == PluginState.STARTED
-        assert strategy_state == PluginState.STARTED
-
-        # 获取插件实例进行业务逻辑测试
-        data_plugin = plugin_manager.get_plugin("mock_data_source")
-        strategy_plugin = plugin_manager.get_plugin("mock_strategy")
-
-        # 模拟交易流程：数据获取 → 策略分析 → 信号生成
-        data = data_plugin.fetch_data("000001.XSHE")
-        signal = strategy_plugin.generate_signal(data)
-
-        # 验证模块化协作
-        assert data["symbol"] == "000001.XSHE"
-        assert signal["action"] == "BUY"
-        assert len(data_plugin.data_fetched) == 1
-        assert len(strategy_plugin.signals_generated) == 1
-
-    def test_plugin_dependency_management(self, plugin_manager):
-        """测试插件依赖关系管理 - 复杂系统架构的关键能力"""
-        # 模拟有依赖关系的插件系统
-
-        # 先注册依赖插件（策略依赖数据源）
-
-        # 以错误顺序注册（策略先于数据源）
-        plugin_manager.register_plugin(MockStrategyPlugin)
-        plugin_manager.register_plugin(MockDataSourcePlugin)
-
-        # 启动插件系统 - 应该按依赖顺序启动
-        plugin_manager.load_all_plugins(start=True)
-
-        # 验证业务价值：依赖管理确保正确的启动顺序
-        loaded_plugins = plugin_manager.list_plugins(filter_loaded=True)
-        # 至少应该包含我们注册的2个插件，可能还有自动发现的插件
-        assert len(loaded_plugins) >= 2
-
-        # 验证依赖插件先启动
-        data_info = plugin_manager.get_plugin_info("mock_data_source")
-        strategy_info = plugin_manager.get_plugin_info("mock_strategy")
-
-        assert data_info["state"] == PluginState.STARTED.value
-        assert strategy_info["state"] == PluginState.STARTED.value
-
-        # 验证依赖关系正确识别
-        assert "mock_data_source" in strategy_info["dependencies"]
-
-    def test_plugin_hot_reload_with_state_preservation(self, plugin_manager):
-        """测试插件热重载与状态保持 - 生产系统的关键需求"""
-        # 模拟生产环境中的插件热重载场景
-
-        # 注册有状态的插件
-        plugin_manager.register_plugin(StatefulPlugin)
-        plugin_manager.load_plugin("stateful_plugin")
+        # 5. 启动新实例并继续业务操作
         plugin_manager.start_plugin("stateful_plugin")
+        new_instance.process("item3")
+        assert new_instance.counter == 3
+        assert new_instance.data == ["item1", "item2", "item3"]
 
-        # 获取插件实例
-        stateful_plugin = plugin_manager.get_plugin("stateful_plugin")
 
-        # 模拟插件处理业务数据
-        stateful_plugin.process_order("ORD_001")
-        stateful_plugin.process_order("ORD_002")
-        stateful_plugin.process_order("ORD_003")
+class TestPluginDiscovery:
+    """测试从目录动态发现插件"""
 
-        # 验证插件状态
-        assert stateful_plugin.counter == 3
-        assert len(stateful_plugin.processed_orders) == 3
+    @pytest.fixture
+    def plugin_dir(self):
+        """创建一个临时目录用于存放插件文件"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir)
 
-        # 执行热重载 - 使用内置的reload功能
-        assert plugin_manager.reload_plugin("stateful_plugin"), "插件热重载应该成功"
+    def test_discover_from_file(self, plugin_manager, plugin_dir):
+        """测试从单个 Python 文件中发现并注册插件"""
+        plugin_code = """
+from simtradelab.plugins.base import BasePlugin, PluginMetadata
 
-        # reload_plugin只重新加载，需要手动启动
-        assert plugin_manager.start_plugin("stateful_plugin"), "重载后启动插件应该成功"
+class DiscoveredPlugin(BasePlugin):
+    METADATA = PluginMetadata(name="discovered_plugin", version="1.0.0")
+    def _on_initialize(self): pass
+    def _on_start(self): pass
+    def _on_stop(self): pass
+"""
+        (plugin_dir / "my_plugin.py").write_text(plugin_code)
 
-        # 获取重载后的插件实例
-        reloaded_plugin = plugin_manager.get_plugin("stateful_plugin")
-        assert reloaded_plugin is not None, "重载后应该可以获取到插件实例"
-        assert (
-            self._get_plugin_state(plugin_manager, "stateful_plugin")
-            == PluginState.STARTED
-        )
+        loaded_plugins = plugin_manager.load_plugins_from_directory(plugin_dir)
+        assert "discovered_plugin" in loaded_plugins
+        assert "discovered_plugin" in plugin_manager.list_plugins()
 
-        # 继续处理新订单验证插件功能正常
-        reloaded_plugin.process_order("ORD_004")
-        assert reloaded_plugin.counter == 4  # 状态被保持，继续累加
-        assert "ORD_004" in reloaded_plugin.processed_orders
+    def test_discovery_nonexistent_directory_fails(self, plugin_manager):
+        """测试从不存在的目录发现插件会失败"""
+        with pytest.raises(PluginDiscoveryError, match="does not exist"):
+            plugin_manager.load_plugins_from_directory("nonexistent_dir")
 
-        # 验证业务价值：热重载成功保持了插件状态，业务无中断
-        assert len(reloaded_plugin.processed_orders) == 4
-        expected_orders = ["ORD_001", "ORD_002", "ORD_003", "ORD_004"]
-        for order in expected_orders:
-            assert order in reloaded_plugin.processed_orders
 
-    def test_plugin_error_isolation_and_system_stability(self, plugin_manager):
-        """测试插件错误隔离和系统稳定性 - 生产环境的可靠性保证"""
-        # 模拟生产环境中插件失败但系统继续运行的场景
+class TestErrorHandling:
+    """测试插件管理器的错误处理和隔离机制"""
 
-        # 注册正常工作的插件
-        plugin_manager.register_plugin(MockDataSourcePlugin)
+    def test_load_fail_on_initialize(self, plugin_manager):
+        """测试插件在初始化阶段失败"""
+        plugin_name = plugin_manager.register_plugin(FailingPlugin)
+        config = {"fail_on": "initialize"}
 
-        # 注册会失败的插件
+        # 捕获异常并检查其 cause
+        with pytest.raises(PluginLoadError) as excinfo:
+            plugin_manager.load_plugin(plugin_name, config=config)
+        
+        # 在 with 块之外进行断言
+        # BasePlugin.initialize() 方法会将 RuntimeError 包装成 PluginError
+        assert isinstance(excinfo.value.__cause__, PluginError)
+        assert "Initialization failed intentionally" in str(excinfo.value.__cause__)
+
+        # 验证失败的插件未被加载
+        assert plugin_manager.get_plugin(plugin_name) is None
+        stats = plugin_manager.get_stats()
+        assert stats["failed"] == 1
+
+    def test_start_fail_on_start(self, plugin_manager):
+        """测试插件在启动阶段失败"""
+        plugin_name = plugin_manager.register_plugin(FailingPlugin)
+        # 提供一个在启动时会失败的配置
+        config = {"fail_on": "start"}
+        # 加载应该成功
+        plugin_manager.load_plugin(plugin_name, config=config)
+
+        # 启动应该失败并返回 False
+        assert plugin_manager.start_plugin(plugin_name) is False
+
+        # 验证插件状态为 ERROR
+        instance = plugin_manager.get_plugin(plugin_name)
+        assert instance.state == PluginState.ERROR
+
+    def test_error_isolation(self, plugin_manager):
+        """测试一个插件的失败不影响其他插件"""
+        # 注册一个会失败的插件和一个正常的插件
         plugin_manager.register_plugin(FailingPlugin)
+        plugin_manager.register_plugin(SimplePlugin)
 
-        # 启动所有插件 - 好插件应该正常，坏插件应该失败但不影响系统
-        plugin_manager.load_all_plugins(start=True)
+        # 批量加载和启动
+        # 注意：load_all_plugins 会使用注册时的配置，这里我们需要在加载时提供配置
+        # 因此我们手动加载
+        plugin_manager.load_plugin("simple_plugin")
+        plugin_manager.start_plugin("simple_plugin")
 
-        # 验证业务价值：系统容错能力
-        loaded_plugins = plugin_manager.list_plugins(filter_loaded=True)
+        with pytest.raises(PluginLoadError):
+             plugin_manager.load_plugin("failing_plugin", config={"fail_on": "initialize"})
 
-        # 好插件应该正常启动
-        assert "mock_data_source" in loaded_plugins
-        assert (
-            self._get_plugin_state(plugin_manager, "mock_data_source")
-            == PluginState.STARTED
-        )
+        # 验证正常插件的状态
+        simple_plugin = plugin_manager.get_plugin("simple_plugin")
+        assert simple_plugin is not None
+        assert simple_plugin.state == PluginState.STARTED
 
-        # 坏插件应该失败但被隔离
-        assert "failing_plugin" in plugin_manager.list_plugins()  # 注册了但可能没启动
-        # 插件加载了但启动失败，可能处于任何非started状态
-        bad_state = self._get_plugin_state(plugin_manager, "failing_plugin")
-        # 由于插件启动失败，它可能处于多种状态，只要不是STARTED就说明隔离生效了
-        assert (
-            bad_state != PluginState.STARTED
-        ), f"失败的插件不应该处于STARTED状态，实际状态: {bad_state}"
+        # 验证失败的插件未被加载
+        assert plugin_manager.get_plugin("failing_plugin") is None
 
-        # 验证好插件仍然可以正常工作
-        good_plugin = plugin_manager.get_plugin("mock_data_source")
-        data = good_plugin.fetch_data("000001.XSHE")
-        assert data["symbol"] == "000001.XSHE"
-        assert len(good_plugin.data_fetched) == 1
 
-        # 验证系统整体稳定性
-        all_plugins = plugin_manager.get_all_plugins()
-        assert len(all_plugins) >= 1  # 至少有一个好插件
-        assert "mock_data_source" in all_plugins
+class TestConcurrency:
+    """测试插件管理器在多线程环境下的线程安全性"""
 
-    def test_concurrent_plugin_operations(self, plugin_manager):
-        """测试并发插件操作 - 多线程交易环境的稳定性"""
-        # 模拟高并发交易系统中的插件操作
+    def test_concurrent_register_and_load(self, plugin_manager):
+        """测试多线程并发注册和加载插件"""
+        num_threads = 10
+        errors = []
 
-        operation_results = []
-        lock = threading.Lock()
-
-        def plugin_worker(worker_id):
-            """插件操作工作线程"""
+        def worker(plugin_id):
             try:
-                # 创建插件类
-                plugin_name = f"worker_plugin_{worker_id}"
-                metadata = PluginMetadata(
-                    name=plugin_name,
-                    version="1.0.0",
-                    description=f"Worker Plugin {worker_id}",
-                )
-
-                class WorkerPlugin(BasePlugin):
-                    METADATA = metadata
+                # 每个线程定义自己独特的插件
+                class ThreadPlugin(BasePlugin):
+                    METADATA = PluginMetadata(
+                        name=f"thread_plugin_{plugin_id}", version="1.0.0"
+                    )
 
                     def _on_initialize(self):
                         pass
@@ -371,182 +456,69 @@ class TestQuantitativeTradingPluginSystem:
                     def _on_stop(self):
                         pass
 
-                # 并发操作：注册、加载、启动、停止
-                plugin_manager.register_plugin(WorkerPlugin)
+                plugin_name = plugin_manager.register_plugin(ThreadPlugin)
+                time.sleep(0.01)  # 增加并发冲突的可能性
                 plugin_manager.load_plugin(plugin_name)
-                plugin_manager.start_plugin(plugin_name)
-                time.sleep(0.01)  # 模拟插件工作
-                plugin_manager.stop_plugin(plugin_name)
-
-                with lock:
-                    operation_results.append(
-                        {
-                            "worker_id": worker_id,
-                            "plugin_name": plugin_name,
-                            "status": "success",
-                        }
-                    )
-
             except Exception as e:
-                with lock:
-                    operation_results.append(
-                        {"worker_id": worker_id, "error": str(e), "status": "failed"}
-                    )
+                errors.append(e)
 
-        # 启动多个并发线程
-        threads = []
-        for i in range(5):
-            thread = threading.Thread(target=plugin_worker, args=(i,))
-            threads.append(thread)
-            thread.start()
-
-        # 等待所有线程完成
-        for thread in threads:
-            thread.join()
-
-        # 验证业务价值：并发环境下系统稳定
-        assert len(operation_results) == 5
-
-        successful_operations = [
-            r for r in operation_results if r["status"] == "success"
+        threads = [
+            threading.Thread(target=worker, args=(i,)) for i in range(num_threads)
         ]
-        failed_operations = [r for r in operation_results if r["status"] == "failed"]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
 
-        # 大部分操作应该成功（允许少量并发冲突）
-        assert (
-            len(successful_operations) >= 3
-        ), f"并发操作成功率过低: {len(successful_operations)}/5"
+        assert not errors, f"Concurrent operations failed with errors: {errors}"
+        assert len(plugin_manager.list_plugins(filter_loaded=True)) == num_threads
 
-        # 验证插件管理器状态一致性
-        all_plugins = plugin_manager.get_all_plugins()
 
-        # 验证系统在并发压力下保持稳定
-        stats = plugin_manager.get_stats()
-        assert stats["registered"] >= len(successful_operations)  # 至少注册了成功的插件数量
+class TestEventBusIntegration:
+    """测试插件管理器与事件总线的集成"""
 
-    def test_plugin_discovery_and_registration_workflow(self, plugin_manager):
-        """测试插件发现和注册工作流程 - 动态扩展能力验证"""
-        # 模拟插件发现和动态注册的完整流程
+    def test_plugin_lifecycle_events_are_published(self):
+        """验证插件生命周期事件被正确发布"""
+        # 手动创建实例以完全控制生命周期
+        bus = EventBus()
+        # 关键：先创建不带 event_bus 的 manager
+        manager = PluginManager(auto_register_builtin=False)
+        
+        mock_handler = MagicMock()
+        bus.subscribe("plugin.*", mock_handler)
 
-        # 初始状态：记录初始插件数量（可能包含自动发现的插件）
-        initial_plugin_count = len(plugin_manager.list_plugins())
+        # 关键：在所有操作之前，将带有订阅者的 bus 设置给 manager
+        manager.set_event_bus(bus)
 
-        # 动态发现和注册插件
-        plugins_to_register = [
-            ("数据源插件", MockDataSourcePlugin),
-            ("策略插件", MockStrategyPlugin),
-            ("状态插件", StatefulPlugin),
+        # 1. 触发所有生命周期事件
+        plugin_name = manager.register_plugin(SimplePlugin)
+        instance = manager.load_plugin(plugin_name)
+        manager.start_plugin(plugin_name)
+        manager.stop_plugin(plugin_name)
+        manager.unload_plugin(plugin_name)
+        manager.unregister_plugin(plugin_name)
+
+        # 2. 手动关闭总线以确保所有事件都被处理
+        bus.shutdown()
+
+        # 3. 验证总调用次数
+        assert mock_handler.call_count == 6
+
+        # 4. 验证事件类型顺序
+        expected_event_types = [
+            "plugin.registered",
+            "plugin.loaded",
+            "plugin.started",
+            "plugin.stopped",
+            "plugin.unloaded",
+            "plugin.unregistered",
         ]
+        called_event_types = [
+            call.args[0].type for call in mock_handler.call_args_list
+        ]
+        assert called_event_types == expected_event_types
 
-        registered_plugins = []
-        for description, plugin_class in plugins_to_register:
-            plugin_manager.register_plugin(plugin_class)
-            registered_plugins.append((description, plugin_class))
-
-        # 验证注册结果
-        assert len(plugin_manager.list_plugins()) == initial_plugin_count + 3
-
-        # 批量启动插件
-        load_results = plugin_manager.load_all_plugins(start=True)
-
-        # 验证所有插件都正常启动
-        for description, plugin_class in registered_plugins:
-            plugin_name = plugin_class.METADATA.name
-            assert plugin_name in plugin_manager.list_plugins(), f"{description}未正确注册"
-            assert load_results.get(plugin_name, False), f"{description}加载失败"
-            assert (
-                self._get_plugin_state(plugin_manager, plugin_name)
-                == PluginState.STARTED
-            ), f"{description}未正确启动"
-
-        # 验证插件信息
-        all_plugins = plugin_manager.get_all_plugins()
-        assert len(all_plugins) == initial_plugin_count + 3
-
-        for plugin_name, plugin_instance in all_plugins.items():
-            info = plugin_manager.get_plugin_info(plugin_name)
-            assert "name" in info
-            assert "state" in info
-            assert info["state"] == PluginState.STARTED.value
-
-    def test_plugin_lifecycle_management(self, plugin_manager):
-        """测试插件生命周期管理 - 完整的插件管理验证"""
-        # 模拟完整的插件生命周期
-
-        # 创建并注册插件
-        plugin_name = MockDataSourcePlugin.METADATA.name
-
-        # 1. 注册阶段
-        plugin_manager.register_plugin(MockDataSourcePlugin)
-        assert plugin_name in plugin_manager.list_plugins()
-        assert (
-            self._get_plugin_state(plugin_manager, plugin_name)
-            == PluginState.UNINITIALIZED
-        )
-
-        # 2. 加载和启动阶段
-        plugin_manager.load_plugin(plugin_name)
-        plugin_manager.start_plugin(plugin_name)
-        assert (
-            self._get_plugin_state(plugin_manager, plugin_name) == PluginState.STARTED
-        )
-
-        # 3. 运行期间功能验证
-        plugin = plugin_manager.get_plugin(plugin_name)
-        data = plugin.fetch_data("000001.XSHE")
-        assert data is not None
-        assert len(plugin.data_fetched) == 1
-
-        # 4. 停止阶段
-        plugin_manager.stop_plugin(plugin_name)
-        assert (
-            self._get_plugin_state(plugin_manager, plugin_name) == PluginState.STOPPED
-        )
-
-        # 5. 注销阶段
-        plugin_manager.unregister_plugin(plugin_name)
-        assert plugin_name not in plugin_manager.list_plugins()
-
-        # 验证完整生命周期后系统状态
-        # 只检查我们注册的插件是否被正确移除，可能还有自动发现的插件存在
-        assert plugin_name not in plugin_manager.list_plugins()
-        assert plugin_name not in plugin_manager.get_all_plugins()
-
-    def test_plugin_configuration_management(self, plugin_manager):
-        """测试插件配置管理 - 灵活配置的核心需求"""
-        # 模拟插件配置管理场景
-
-        # 创建带配置的插件
-        config = PluginConfig(
-            config={
-                "data_source": "mock",
-                "refresh_interval": 1000,
-                "cache_size": 100,
-                "enabled_symbols": ["000001.XSHE", "000002.XSHE"],
-            }
-        )
-
-        plugin_manager.register_plugin(MockDataSourcePlugin, config=config)
-        plugin_manager.load_plugin("mock_data_source")
-        plugin_manager.start_plugin("mock_data_source")
-
-        # 验证配置被正确应用
-        plugin_info = plugin_manager.get_plugin_info("mock_data_source")
-        assert plugin_info is not None, "应该能获取到插件信息"
-        # 注意：config可能存储在plugin实例中，通过get_plugin获取
-        plugin = plugin_manager.get_plugin("mock_data_source")
-        assert plugin._config.config["data_source"] == "mock"
-        assert plugin._config.config["refresh_interval"] == 1000
-
-        # 测试运行时配置访问
-        plugin = plugin_manager.get_plugin("mock_data_source")
-        runtime_config = plugin._config.config
-        assert runtime_config["cache_size"] == 100
-        assert "000001.XSHE" in runtime_config["enabled_symbols"]
-
-        # 验证插件使用配置工作
-        for symbol in runtime_config["enabled_symbols"]:
-            data = plugin.fetch_data(symbol)
-            assert data["symbol"] == symbol
-
-        assert len(plugin.data_fetched) == 2
+        # 5. 详细验证某个事件的内容
+        reg_event = mock_handler.call_args_list[0].args[0]
+        assert reg_event.source == "plugin_manager"
+        assert reg_event.data["plugin_name"] == "simple_plugin"

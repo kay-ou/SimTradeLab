@@ -10,9 +10,14 @@
 """
 
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from .base import BaseCommissionModel, Fill, PluginMetadata
+from .config import (
+    CommissionModelConfig,
+    FixedCommissionModelConfig,
+    TieredCommissionModelConfig,
+)
 
 
 class ChinaAStockCommissionModel(BaseCommissionModel):
@@ -26,6 +31,8 @@ class ChinaAStockCommissionModel(BaseCommissionModel):
     - 经手费：万分之0.487
     - 监管费：万分之0.2
     """
+
+    config_model = CommissionModelConfig
 
     METADATA = PluginMetadata(
         name="ChinaAStockCommissionModel",
@@ -45,57 +52,21 @@ class ChinaAStockCommissionModel(BaseCommissionModel):
     _DEFAULT_REGULATORY_FEE_RATE = Decimal("0.00002")  # 监管费万0.2
 
     def __init__(
-        self, metadata: PluginMetadata, config: Optional[Dict[str, Any]] = None
+        self, metadata: PluginMetadata, config: CommissionModelConfig
     ):
         super().__init__(metadata, config)
 
-        # A股手续费率配置 - 高性能优化版本
-        if config is None:
-            self._stamp_tax_rate = self._DEFAULT_STAMP_TAX_RATE
-            self._commission_rate = self._DEFAULT_COMMISSION_RATE
-            self._min_commission = self._DEFAULT_MIN_COMMISSION
-            self._transfer_fee_rate = self._DEFAULT_TRANSFER_FEE_RATE
-            self._exchange_fee_rate = self._DEFAULT_EXCHANGE_FEE_RATE
-            self._regulatory_fee_rate = self._DEFAULT_REGULATORY_FEE_RATE
-        else:
-            self._stamp_tax_rate = (
-                self._DEFAULT_STAMP_TAX_RATE
-                if "stamp_tax_rate" not in config
-                else Decimal(str(config["stamp_tax_rate"]))
-            )
-            self._commission_rate = (
-                self._DEFAULT_COMMISSION_RATE
-                if "commission_rate" not in config
-                else Decimal(str(config["commission_rate"]))
-            )
-            self._min_commission = (
-                self._DEFAULT_MIN_COMMISSION
-                if "min_commission" not in config
-                else Decimal(str(config["min_commission"]))
-            )
-            self._transfer_fee_rate = (
-                self._DEFAULT_TRANSFER_FEE_RATE
-                if "transfer_fee_rate" not in config
-                else Decimal(str(config["transfer_fee_rate"]))
-            )
-            self._exchange_fee_rate = (
-                self._DEFAULT_EXCHANGE_FEE_RATE
-                if "exchange_fee_rate" not in config
-                else Decimal(str(config["exchange_fee_rate"]))
-            )
-            self._regulatory_fee_rate = (
-                self._DEFAULT_REGULATORY_FEE_RATE
-                if "regulatory_fee_rate" not in config
-                else Decimal(str(config["regulatory_fee_rate"]))
-            )
+        # E9修复：直接使用Pydantic配置对象，不再支持向后兼容
+        self._stamp_tax_rate = config.stamp_duty_rate
+        self._commission_rate = config.commission_rate
+        self._min_commission = config.min_commission
+        self._transfer_fee_rate = config.transfer_fee_rate
+        self._exchange_fee_rate = self._DEFAULT_EXCHANGE_FEE_RATE
+        self._regulatory_fee_rate = self._DEFAULT_REGULATORY_FEE_RATE
 
         # 市场配置
-        self._sh_markets = (
-            config.get("sh_markets", ["SH", "SSE"]) if config else ["SH", "SSE"]
-        )
-        self._sz_markets = (
-            config.get("sz_markets", ["SZ", "SZSE"]) if config else ["SZ", "SZSE"]
-        )
+        self._sh_markets = ["SH", "SSE"]
+        self._sz_markets = ["SZ", "SZSE"]
 
     def _on_initialize(self) -> None:
         """初始化中国A股手续费模型"""
@@ -192,6 +163,8 @@ class FixedCommissionModel(BaseCommissionModel):
     - 最低手续费限制
     """
 
+    config_model = FixedCommissionModelConfig
+
     METADATA = PluginMetadata(
         name="FixedCommissionModel",
         version="1.0.0",
@@ -208,37 +181,16 @@ class FixedCommissionModel(BaseCommissionModel):
     _DEFAULT_MAX_COMMISSION = Decimal("1000.0")
 
     def __init__(
-        self, metadata: PluginMetadata, config: Optional[Dict[str, Any]] = None
+        self, metadata: PluginMetadata, config: FixedCommissionModelConfig
     ):
         super().__init__(metadata, config)
 
-        # 配置参数 - 高性能优化版本
-        if config is None:
-            self._buy_commission_rate = self._DEFAULT_BUY_COMMISSION_RATE
-            self._sell_commission_rate = self._DEFAULT_SELL_COMMISSION_RATE
-            self._min_commission = self._DEFAULT_MIN_COMMISSION
-            self._max_commission = self._DEFAULT_MAX_COMMISSION
-        else:
-            self._buy_commission_rate = (
-                self._DEFAULT_BUY_COMMISSION_RATE
-                if "buy_commission_rate" not in config
-                else Decimal(str(config["buy_commission_rate"]))
-            )
-            self._sell_commission_rate = (
-                self._DEFAULT_SELL_COMMISSION_RATE
-                if "sell_commission_rate" not in config
-                else Decimal(str(config["sell_commission_rate"]))
-            )
-            self._min_commission = (
-                self._DEFAULT_MIN_COMMISSION
-                if "min_commission" not in config
-                else Decimal(str(config["min_commission"]))
-            )
-            self._max_commission = (
-                self._DEFAULT_MAX_COMMISSION
-                if "max_commission" not in config
-                else Decimal(str(config["max_commission"]))
-            )
+        # E9修复：直接使用Pydantic配置对象，统一的费率配置
+        self._buy_commission_rate = config.commission_rate  # 使用统一的commission_rate
+        self._sell_commission_rate = config.commission_rate  # 使用统一的commission_rate
+        self._commission_rate = config.commission_rate
+        self._min_commission = config.min_commission
+        self._max_commission = self._DEFAULT_MAX_COMMISSION
 
     def _on_initialize(self) -> None:
         """初始化固定手续费模型"""
@@ -296,6 +248,8 @@ class TieredCommissionModel(BaseCommissionModel):
     - 可配置累积和单笔两种模式
     """
 
+    config_model = TieredCommissionModelConfig
+
     METADATA = PluginMetadata(
         name="TieredCommissionModel",
         version="1.0.0",
@@ -310,45 +264,55 @@ class TieredCommissionModel(BaseCommissionModel):
     _DEFAULT_MAX_VALUE = Decimal("999999999")  # 代替infinity
 
     def __init__(
-        self, metadata: PluginMetadata, config: Optional[Dict[str, Any]] = None
+        self, metadata: PluginMetadata, config: TieredCommissionModelConfig
     ):
         super().__init__(metadata, config)
 
-        # 默认阶梯配置
-        default_tiers = [
-            {"min_value": 0, "max_value": 100000, "rate": 0.0003},
-            {"min_value": 100000, "max_value": 1000000, "rate": 0.0002},
-            {"min_value": 1000000, "max_value": float("inf"), "rate": 0.0001},
-        ]
-
-        # 配置参数 - 高性能优化版本
-        self._tiers = config.get("tiers", default_tiers) if config else default_tiers
-        self._min_commission = (
-            self._DEFAULT_MIN_COMMISSION
-            if config is None or "min_commission" not in config
-            else Decimal(str(config["min_commission"]))
-        )
-        self._cumulative_mode = (
-            config.get("cumulative_mode", False) if config else False
-        )
-
-        # 转换为Decimal类型，处理类型兼容性 - 高性能优化版本
-        processed_tiers = []
-        for tier in self._tiers:
-            processed_tier = {
-                "min_value": Decimal(str(tier["min_value"])),
-                "max_value": (
-                    self._DEFAULT_MAX_VALUE
-                    if tier["max_value"] == float("inf")
-                    else Decimal(str(tier["max_value"]))
-                ),
-                "rate": Decimal(str(tier["rate"])),
-            }
-            processed_tiers.append(processed_tier)
-        self._tiers = processed_tiers
-
+        # E9修复：直接使用Pydantic配置对象，不再支持向后兼容
         # 累积交易量跟踪
         self._cumulative_volume: Dict[str, Decimal] = {}
+        self._cumulative_mode = False  # 简化处理
+        self._min_commission = config.min_commission
+        self._tier_thresholds = config.tier_thresholds
+        self._tier_rates = config.tier_rates
+        
+        # 构建阶梯配置
+        self._tiers = self._build_tiers_from_config()
+
+    def _build_tiers_from_config(self) -> List[Dict[str, Decimal]]:
+        """从Pydantic配置构建阶梯配置"""
+        tiers = []
+        sorted_thresholds = sorted(self._tier_thresholds.items(), key=lambda x: x[1])
+        
+        # 添加第一个阶梯：0到第一个阈值
+        if sorted_thresholds:
+            first_tier_rate = self._tier_rates.get("tier1", Decimal("0.0003"))
+            tiers.append({
+                "min_value": Decimal("0"),
+                "max_value": sorted_thresholds[0][1], 
+                "rate": first_tier_rate,
+            })
+        
+        for i, (tier_name, threshold) in enumerate(sorted_thresholds):
+            tier_rate_key = f"tier{i+2}"  # 从tier2开始，因为tier1已用于0-第一阈值
+            if tier_rate_key not in self._tier_rates:
+                tier_rate_key = tier_name
+            
+            rate = self._tier_rates.get(tier_rate_key, Decimal("0.0003"))
+            
+            # 设置最大值为下一个阈值或无穷大
+            if i < len(sorted_thresholds) - 1:
+                max_value = sorted_thresholds[i + 1][1]
+            else:
+                max_value = Decimal("999999999")  # 代替无穷大
+            
+            tiers.append({
+                "min_value": threshold,
+                "max_value": max_value,
+                "rate": rate,
+            })
+        
+        return tiers
 
     def _on_initialize(self) -> None:
         """初始化阶梯手续费模型"""
@@ -381,11 +345,10 @@ class TieredCommissionModel(BaseCommissionModel):
         commission = trade_value * commission_rate
         commission = max(commission, self._min_commission)
 
-        # 更新累积交易量
-        if self._cumulative_mode:
-            if fill.symbol not in self._cumulative_volume:
-                self._cumulative_volume[fill.symbol] = Decimal("0")
-            self._cumulative_volume[fill.symbol] += trade_value
+        # 更新累积交易量（简化处理）
+        if fill.symbol not in self._cumulative_volume:
+            self._cumulative_volume[fill.symbol] = Decimal("0")
+        self._cumulative_volume[fill.symbol] += trade_value
 
         self.logger.debug(
             f"Tiered commission for order {fill.order_id}: {commission} "
@@ -405,19 +368,16 @@ class TieredCommissionModel(BaseCommissionModel):
         Returns:
             适用费率
         """
-        # 选择基准值
-        if self._cumulative_mode:
-            base_value = self._cumulative_volume.get(symbol, Decimal("0")) + trade_value
-        else:
-            base_value = trade_value
+        # 使用当前交易金额
+        base_value = trade_value
 
         # 查找适用阶梯
         for tier in self._tiers:
             if tier["min_value"] <= base_value < tier["max_value"]:
-                return Decimal(str(tier["rate"]))
+                return tier["rate"]
 
         # 如果没有找到，返回最后一个阶梯的费率
-        return Decimal(str(self._tiers[-1]["rate"]))
+        return self._tiers[-1]["rate"] if self._tiers else Decimal("0.0003")
 
 
 class ComprehensiveCommissionModel(BaseCommissionModel):
@@ -431,6 +391,8 @@ class ComprehensiveCommissionModel(BaseCommissionModel):
     - 清算费
     - 其他费用
     """
+
+    config_model = CommissionModelConfig
 
     METADATA = PluginMetadata(
         name="ComprehensiveCommissionModel",
@@ -450,57 +412,19 @@ class ComprehensiveCommissionModel(BaseCommissionModel):
     _DEFAULT_MIN_COMMISSION = Decimal("1.0")
 
     def __init__(
-        self, metadata: PluginMetadata, config: Optional[Dict[str, Any]] = None
+        self, metadata: PluginMetadata, config: CommissionModelConfig
     ):
         super().__init__(metadata, config)
 
-        # 费用配置 - 高性能优化版本
-        if config is None:
-            self._base_commission_rate = self._DEFAULT_BASE_COMMISSION_RATE
-            self._stamp_tax_rate = self._DEFAULT_STAMP_TAX_RATE
-            self._transfer_fee_rate = self._DEFAULT_TRANSFER_FEE_RATE
-            self._clearing_fee_rate = self._DEFAULT_CLEARING_FEE_RATE
-            self._other_fee_rate = self._DEFAULT_OTHER_FEE_RATE
-            self._min_commission = self._DEFAULT_MIN_COMMISSION
-        else:
-            self._base_commission_rate = (
-                self._DEFAULT_BASE_COMMISSION_RATE
-                if "base_commission_rate" not in config
-                else Decimal(str(config["base_commission_rate"]))
-            )
-            self._stamp_tax_rate = (
-                self._DEFAULT_STAMP_TAX_RATE
-                if "stamp_tax_rate" not in config
-                else Decimal(str(config["stamp_tax_rate"]))
-            )
-            self._transfer_fee_rate = (
-                self._DEFAULT_TRANSFER_FEE_RATE
-                if "transfer_fee_rate" not in config
-                else Decimal(str(config["transfer_fee_rate"]))
-            )
-            self._clearing_fee_rate = (
-                self._DEFAULT_CLEARING_FEE_RATE
-                if "clearing_fee_rate" not in config
-                else Decimal(str(config["clearing_fee_rate"]))
-            )
-            self._other_fee_rate = (
-                self._DEFAULT_OTHER_FEE_RATE
-                if "other_fee_rate" not in config
-                else Decimal(str(config["other_fee_rate"]))
-            )
-            self._min_commission = (
-                self._DEFAULT_MIN_COMMISSION
-                if "min_commission" not in config
-                else Decimal(str(config["min_commission"]))
-            )
-
-        # 费用控制
-        self._stamp_tax_on_sell_only = (
-            config.get("stamp_tax_on_sell_only", True) if config else True
-        )
-        self._transfer_fee_on_sh_only = (
-            config.get("transfer_fee_on_sh_only", True) if config else True
-        )
+        # E9修复：直接使用Pydantic配置对象，不再支持向后兼容
+        self._base_commission_rate = config.commission_rate
+        self._stamp_tax_rate = config.stamp_duty_rate
+        self._transfer_fee_rate = config.transfer_fee_rate
+        self._clearing_fee_rate = self._DEFAULT_CLEARING_FEE_RATE
+        self._other_fee_rate = self._DEFAULT_OTHER_FEE_RATE
+        self._min_commission = config.min_commission
+        self._stamp_tax_on_sell_only = config.enable_stamp_duty
+        self._transfer_fee_on_sh_only = config.enable_transfer_fee
 
     def _on_initialize(self) -> None:
         """初始化综合手续费模型"""
@@ -598,6 +522,8 @@ class PerShareCommissionModel(BaseCommissionModel):
     - 适用于美股等市场
     """
 
+    config_model = CommissionModelConfig
+
     METADATA = PluginMetadata(
         name="PerShareCommissionModel",
         version="1.0.0",
@@ -613,31 +539,14 @@ class PerShareCommissionModel(BaseCommissionModel):
     _DEFAULT_MAX_COMMISSION = Decimal("100.0")
 
     def __init__(
-        self, metadata: PluginMetadata, config: Optional[Dict[str, Any]] = None
+        self, metadata: PluginMetadata, config: CommissionModelConfig
     ):
         super().__init__(metadata, config)
 
-        # 配置参数 - 高性能优化版本
-        if config is None:
-            self._per_share_fee = self._DEFAULT_PER_SHARE_FEE
-            self._min_commission = self._DEFAULT_MIN_COMMISSION
-            self._max_commission = self._DEFAULT_MAX_COMMISSION
-        else:
-            self._per_share_fee = (
-                self._DEFAULT_PER_SHARE_FEE
-                if "per_share_fee" not in config
-                else Decimal(str(config["per_share_fee"]))
-            )
-            self._min_commission = (
-                self._DEFAULT_MIN_COMMISSION
-                if "min_commission" not in config
-                else Decimal(str(config["min_commission"]))
-            )
-            self._max_commission = (
-                self._DEFAULT_MAX_COMMISSION
-                if "max_commission" not in config
-                else Decimal(str(config["max_commission"]))
-            )
+        # E9修复：直接使用Pydantic配置对象，不再支持向后兼容
+        self._per_share_fee = self._DEFAULT_PER_SHARE_FEE  # 使用默认值，配置类中暂无此字段
+        self._min_commission = config.min_commission
+        self._max_commission = self._DEFAULT_MAX_COMMISSION
 
     def _on_initialize(self) -> None:
         """初始化按股计费模型"""

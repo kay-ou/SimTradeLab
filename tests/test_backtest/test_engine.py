@@ -39,10 +39,10 @@ class TestBacktestEngine:
 
         config = {
             "matching_engine": {"type": "simple", "params": {}},
-            "slippage_model": {"type": "fixed", "params": {"buy_slippage_rate": 0.001}},
+            "slippage_model": {"type": "fixed", "params": {"base_slippage_rate": 0.001}},
             "commission_model": {
                 "type": "fixed",
-                "params": {"buy_commission_rate": 0.0003},
+                "params": {"commission_rate": 0.0003},
             },
         }
 
@@ -147,18 +147,17 @@ class TestBacktestEngine:
         """测试完整的订单流程"""
         engine = BacktestEngine()
 
-        # 配置插件
+        # 配置插件 - E9修复：使用统一的配置字段名称
         config = {
             "matching_engine": {"type": "simple", "params": {}},
             "slippage_model": {
                 "type": "fixed",
-                "params": {"buy_slippage_rate": 0.001, "sell_slippage_rate": 0.001},
+                "params": {"base_slippage_rate": 0.001},  # 使用统一的字段名
             },
             "commission_model": {
                 "type": "fixed",
                 "params": {
-                    "buy_commission_rate": 0.0003,
-                    "sell_commission_rate": 0.0003,
+                    "commission_rate": 0.0003,  # 使用统一的字段名
                 },
             },
         }

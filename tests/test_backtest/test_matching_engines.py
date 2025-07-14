@@ -33,7 +33,7 @@ class TestSimpleMatchingEngine:
 
         engine = SimpleMatchingEngine(metadata)
         assert engine.metadata == metadata
-        assert hasattr(engine, "_match_mode")
+        assert hasattr(engine, "_price_tolerance")
 
     def test_can_match_market_order(self):
         """测试市价单匹配"""

@@ -9,7 +9,7 @@
 from decimal import Decimal
 from typing import Dict, Optional
 
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from simtradelab.plugins.config.base_config import BasePluginConfig
 
@@ -107,9 +107,11 @@ class CommissionModelConfig(BasePluginConfig):
 class SimpleMatchingEngineConfig(MatchingEngineConfig):
     """简单撮合引擎配置"""
 
-    class Config:
-        title = "简单撮合引擎配置"
-        description = "基本的价格撮合引擎配置选项"
+    model_config = ConfigDict(
+        title="简单撮合引擎配置",
+        description="基本的价格撮合引擎配置选项",
+        extra="ignore",
+    )
 
 
 class DepthMatchingEngineConfig(MatchingEngineConfig):
@@ -139,9 +141,10 @@ class DepthMatchingEngineConfig(MatchingEngineConfig):
         default=Decimal("0.02"), description="最大价差比例", ge=0, le=1
     )
 
-    class Config:
-        title = "深度撮合引擎配置"
-        description = "考虑订单深度的撮合引擎配置选项"
+    model_config = ConfigDict(
+        title="深度撮合引擎配置",
+        description="考虑订单深度的撮合引擎配置选项",
+    )
 
 
 class LimitMatchingEngineConfig(MatchingEngineConfig):
@@ -159,17 +162,41 @@ class LimitMatchingEngineConfig(MatchingEngineConfig):
 
     allow_partial_fills: bool = Field(default=True, description="是否允许部分成交")
 
-    class Config:
-        title = "限价撮合引擎配置"
-        description = "严格限价单撮合引擎配置选项"
+    model_config = ConfigDict(
+        title="限价撮合引擎配置",
+        description="严格限价单撮合引擎配置选项",
+    )
+
+
+class FixedSlippageModelConfig(SlippageModelConfig):
+    """固定滑点模型配置"""
+
+    model_config = ConfigDict(
+        title="固定滑点模型配置",
+        description="固定滑点率模型配置选项",
+    )
 
 
 class LinearSlippageModelConfig(SlippageModelConfig):
     """线性滑点模型配置"""
 
-    class Config:
-        title = "线性滑点模型配置"
-        description = "线性滑点计算模型配置选项"
+    base_rate: Decimal = Field(
+        default=Decimal("0.001"), description="基础滑点率", ge=0
+    )
+    slope: Decimal = Field(
+        default=Decimal("0.1"), description="滑点率随成交量变化的斜率", ge=0
+    )
+    reference_size: Decimal = Field(
+        default=Decimal("10000"), description="参考成交量", gt=0
+    )
+    max_slippage_rate: Decimal = Field(
+        default=Decimal("0.01"), description="最大滑点率", ge=0
+    )
+
+    model_config = ConfigDict(
+        title="线性滑点模型配置",
+        description="线性滑点计算模型配置选项",
+    )
 
 
 class VolumeBasedSlippageModelConfig(SlippageModelConfig):
@@ -185,17 +212,31 @@ class VolumeBasedSlippageModelConfig(SlippageModelConfig):
         pattern="^(linear|square_root|logarithmic)$",
     )
 
-    class Config:
-        title = "基于成交量的滑点模型配置"
-        description = "考虑成交量影响的滑点模型配置选项"
+    model_config = ConfigDict(
+        title="基于成交量的滑点模型配置",
+        description="考虑成交量影响的滑点模型配置选项",
+    )
 
+
+class VolatilityBasedSlippageModelConfig(SlippageModelConfig):
+    """基于波动率的滑点模型配置"""
+
+    max_history_length: int = Field(
+        default=30, description="用于计算波动率的最大历史价格数量", ge=10, le=100
+    )
+
+    model_config = ConfigDict(
+        title="基于波动率的滑点模型配置",
+        description="考虑历史价格波动率的滑点模型配置选项",
+    )
 
 class FixedCommissionModelConfig(CommissionModelConfig):
     """固定手续费模型配置"""
 
-    class Config:
-        title = "固定手续费模型配置"
-        description = "固定费率手续费模型配置选项"
+    model_config = ConfigDict(
+        title="固定手续费模型配置",
+        description="固定费率手续费模型配置选项",
+    )
 
 
 class TieredCommissionModelConfig(CommissionModelConfig):
@@ -229,9 +270,10 @@ class TieredCommissionModelConfig(CommissionModelConfig):
                 raise ValueError("费率必须在0-1%之间")
         return v
 
-    class Config:
-        title = "分层手续费模型配置"
-        description = "根据交易金额分层计费的手续费模型配置选项"
+    model_config = ConfigDict(
+        title="分层手续费模型配置",
+        description="根据交易金额分层计费的手续费模型配置选项",
+    )
 
 
 # 配置映射字典，用于插件自动配置模型选择
@@ -239,6 +281,7 @@ BACKTEST_PLUGIN_CONFIG_MAPPING = {
     "SimpleMatchingEngine": SimpleMatchingEngineConfig,
     "DepthMatchingEngine": DepthMatchingEngineConfig,
     "LimitMatchingEngine": LimitMatchingEngineConfig,
+    "FixedSlippageModel": FixedSlippageModelConfig,
     "LinearSlippageModel": LinearSlippageModelConfig,
     "VolumeBasedSlippageModel": VolumeBasedSlippageModelConfig,
     "FixedCommissionModel": FixedCommissionModelConfig,

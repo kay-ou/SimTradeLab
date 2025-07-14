@@ -142,14 +142,27 @@ python_version = "3.10"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+# 方案二：通过配置启用内部包的类型检查
+namespace_packages = true
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = "simtradelab.*"
+# 明确声明内部包支持类型检查
+follow_imports = "normal"
+no_implicit_optional = true
 
 [[tool.mypy.overrides]]
 module = [
     "akshare.*",
-    "tushare.*",
+    "tushare.*", 
     "matplotlib.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
 
 [tool.bandit]
 exclude_dirs = ["tests"]

@@ -20,7 +20,8 @@ class ConcreteAkShareDataSource(AkShareDataSource):
     def __init__(self, config: AkShareDataPluginConfig):
         """使用正确的方式初始化"""
         metadata = PluginMetadata(name="TestAkShare", version="1.0.0")
-        plugin_config = PluginConfig(enabled=True, config={"akshare_config": config})
+        plugin_config = PluginConfig(enabled=True)
+        plugin_config.data = config.model_dump()
         super(AkShareDataSource, self).__init__(metadata, plugin_config)
         self._akshare_config = config
 

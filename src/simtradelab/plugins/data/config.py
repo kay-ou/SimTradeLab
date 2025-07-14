@@ -38,6 +38,12 @@ class DataSourceConfig(BasePluginConfig):
 class CSVDataPluginConfig(DataSourceConfig):
     """CSV数据插件配置模型"""
 
+    model_config = {
+        "title": "CSV数据插件配置",
+        "description": "CSV格式数据源插件的配置选项",
+        "extra": "ignore",
+    }
+
     data_dir: Optional[Path] = Field(default=None, description="数据文件存储目录")
 
     auto_create_missing: bool = Field(default=True, description="是否自动创建缺失的数据文件")
@@ -63,13 +69,15 @@ class CSVDataPluginConfig(DataSourceConfig):
                 v = Path(v)
         return v
 
-    class Config:
-        title = "CSV数据插件配置"
-        description = "CSV格式数据源插件的配置选项"
-
 
 class MockDataPluginConfig(DataSourceConfig):
     """Mock数据插件配置模型"""
+
+    model_config = {
+        "title": "Mock数据插件配置",
+        "description": "模拟数据源插件的配置选项",
+        "extra": "ignore",
+    }
 
     enabled: bool = Field(default=True, description="是否启用模拟数据插件")
 
@@ -119,13 +127,15 @@ class MockDataPluginConfig(DataSourceConfig):
             raise ValueError("最小成交量必须大于0")
         return v
 
-    class Config:
-        title = "Mock数据插件配置"
-        description = "模拟数据源插件的配置选项"
-
 
 class ExternalDataSourceConfig(DataSourceConfig):
     """外部数据源配置模型（如数据库、API等）"""
+
+    model_config = {
+        "title": "外部数据源配置",
+        "description": "外部数据源（数据库、API等）的配置选项",
+        "extra": "ignore",
+    }
 
     connection_string: Optional[str] = Field(default=None, description="外部数据源连接字符串")
 
@@ -143,13 +153,15 @@ class ExternalDataSourceConfig(DataSourceConfig):
 
     enable_cache: bool = Field(default=True, description="是否启用请求缓存")
 
-    class Config:
-        title = "外部数据源配置"
-        description = "外部数据源（数据库、API等）的配置选项"
-
 
 class TDXDataSourceConfig(DataSourceConfig):
     """通达信数据源配置模型"""
+
+    model_config = {
+        "title": "通达信数据源配置",
+        "description": "通达信数据源插件的配置选项",
+        "extra": "ignore",
+    }
 
     server_ip: str = Field(default="119.147.212.81", description="通达信服务器IP地址")
 
@@ -164,10 +176,6 @@ class TDXDataSourceConfig(DataSourceConfig):
     enable_heartbeat: bool = Field(default=True, description="是否启用心跳保持连接")
 
     heartbeat_interval: int = Field(default=60, description="心跳间隔（秒）", ge=10, le=300)
-
-    class Config:
-        title = "通达信数据源配置"
-        description = "通达信数据源插件的配置选项"
 
 
 # 配置映射字典，用于插件自动配置模型选择

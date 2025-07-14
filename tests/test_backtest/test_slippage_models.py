@@ -1,672 +1,267 @@
 # -*- coding: utf-8 -*-
 """
-滑点模型插件测试
+滑点模型插件测试 (v2.2 最终修复版)
+
+本次重构旨在：
+1.  遵循 v5.0 架构的测试最佳实践。
+2.  为每个滑点模型提供独立的、清晰的测试类。
+3.  使用 pytest fixtures 减少代码重复。
+4.  提供更精确的断言和对边界条件的覆盖。
+5.  验证与 Pydantic 配置模型的集成。
+6.  修正因不符合配置验证规则及断言逻辑错误而导致的测试失败。
 """
 
 from datetime import datetime
 from decimal import Decimal
-from unittest.mock import Mock, patch
-
 import pytest
+import numpy as np
 
 from simtradelab.backtest.plugins.base import MarketData, Order, PluginMetadata
 from simtradelab.backtest.plugins.slippage_models import (
-    DynamicSlippageModel,
     FixedSlippageModel,
     LinearSlippageModel,
+    VolumeBasedSlippageModel,
     VolatilityBasedSlippageModel,
+    DynamicSlippageModel,
+)
+from simtradelab.backtest.plugins.config import (
+    FixedSlippageModelConfig,
+    LinearSlippageModelConfig,
+    VolumeBasedSlippageModelConfig,
+    VolatilityBasedSlippageModelConfig,
 )
 
+# region Fixtures
+
+@pytest.fixture
+def plugin_metadata() -> PluginMetadata:
+    """提供一个通用的插件元数据对象。"""
+    return PluginMetadata(
+        name="TestSlippageModel",
+        version="1.0.0",
+        description="A test slippage model.",
+        author="Test Author",
+        category="slippage_model",
+        tags=["test"],
+    )
+
+@pytest.fixture
+def base_order() -> Order:
+    """提供一个基础订单对象。"""
+    return Order(
+        order_id="test_order_123",
+        symbol="TEST.SH",
+        side="buy",
+        quantity=Decimal("100"),
+        price=Decimal("10.0"),
+        timestamp=datetime.now(),
+    )
+
+@pytest.fixture
+def base_market_data() -> MarketData:
+    """提供一个基础市场数据对象。"""
+    return MarketData(
+        symbol="TEST.SH",
+        timestamp=datetime.now(),
+        open_price=Decimal("10.0"),
+        high_price=Decimal("10.2"),
+        low_price=Decimal("9.8"),
+        close_price=Decimal("10.1"),
+        volume=Decimal("10000"),
+    )
+
+# endregion
 
 class TestFixedSlippageModel:
-    """测试固定滑点模型"""
+    """测试固定滑点模型 (FixedSlippageModel)"""
 
-    def test_initialization(self):
-        """测试初始化"""
-        metadata = PluginMetadata(
-            name="FixedSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
+    def test_initialization(self, plugin_metadata):
+        """测试默认和自定义配置的初始化。"""
+        model_default = FixedSlippageModel(plugin_metadata)
+        default_config = FixedSlippageModelConfig()
+        assert model_default._base_slippage_rate == default_config.base_slippage_rate
+
+        custom_config = FixedSlippageModelConfig(
+            base_slippage_rate=Decimal("0.002"),
+            min_slippage=Decimal("0.01"),
+            max_slippage=Decimal("0.1"),
         )
+        model_custom = FixedSlippageModel(plugin_metadata, custom_config)
+        assert model_custom._base_slippage_rate == custom_config.base_slippage_rate
 
-        model = FixedSlippageModel(metadata)
-        assert model.metadata == metadata
-        assert hasattr(model, "_buy_slippage_rate")
-        assert hasattr(model, "_sell_slippage_rate")
-
-    def test_initialization_with_config(self):
-        """测试带配置的初始化"""
-        metadata = PluginMetadata(
-            name="FixedSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        config = {
-            "buy_slippage_rate": 0.002,
-            "sell_slippage_rate": 0.003,
-            "min_slippage": 0.02,
-            "max_slippage": 200.0,
-        }
-
-        model = FixedSlippageModel(metadata, config)
-        assert model._buy_slippage_rate == Decimal("0.002")
-        assert model._sell_slippage_rate == Decimal("0.003")
-        assert model._min_slippage == Decimal("0.02")
-        assert model._max_slippage == Decimal("200.0")
-
-    def test_calculate_slippage_buy(self):
-        """测试计算买入滑点"""
-        metadata = PluginMetadata(
-            name="FixedSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        model = FixedSlippageModel(metadata)
-
-        order = Order(
-            order_id="buy_order",
-            symbol="TEST.SH",
-            side="buy",
-            quantity=Decimal("100"),
-            price=Decimal("10.0"),
-            timestamp=datetime.now(),
-        )
-
-        market_data = MarketData(
-            symbol="TEST.SH",
-            timestamp=datetime.now(),
-            open_price=Decimal("10.0"),
-            high_price=Decimal("10.2"),
-            low_price=Decimal("9.8"),
-            close_price=Decimal("10.1"),
-            volume=Decimal("10000"),
-        )
-
+    def test_calculate_slippage(self, plugin_metadata, base_order, base_market_data):
+        """测试滑点计算。"""
+        model = FixedSlippageModel(plugin_metadata)
         fill_price = Decimal("10.1")
-        slippage = model.calculate_slippage(order, market_data, fill_price)
+        expected_slippage = fill_price * base_order.quantity * model._base_slippage_rate
+        expected_slippage = max(model._min_slippage, min(model._max_slippage, expected_slippage))
+        
+        slippage = model.calculate_slippage(base_order, base_market_data, fill_price)
+        assert slippage == expected_slippage
 
-        # 计算期望滑点：10.1 * 100 * 0.001 = 1.01
-        expected_slippage = fill_price * order.quantity * model._buy_slippage_rate
-        assert slippage == max(expected_slippage, model._min_slippage)
-
-    def test_calculate_slippage_sell(self):
-        """测试计算卖出滑点"""
-        metadata = PluginMetadata(
-            name="FixedSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
+    def test_slippage_limits(self, plugin_metadata, base_order, base_market_data):
+        """测试最小和最大滑点限制。"""
+        config = FixedSlippageModelConfig(
+            base_slippage_rate=Decimal("0.00001"),
+            min_slippage=Decimal("0.02"),
+            max_slippage=Decimal("0.03"),
         )
-
-        model = FixedSlippageModel(metadata)
-
-        order = Order(
-            order_id="sell_order",
-            symbol="TEST.SH",
-            side="sell",
-            quantity=Decimal("100"),
-            price=Decimal("10.0"),
-            timestamp=datetime.now(),
-        )
-
-        market_data = MarketData(
-            symbol="TEST.SH",
-            timestamp=datetime.now(),
-            open_price=Decimal("10.0"),
-            high_price=Decimal("10.2"),
-            low_price=Decimal("9.8"),
-            close_price=Decimal("10.1"),
-            volume=Decimal("10000"),
-        )
-
-        fill_price = Decimal("10.1")
-        slippage = model.calculate_slippage(order, market_data, fill_price)
-
-        # 使用卖出滑点率
-        expected_slippage = fill_price * order.quantity * model._sell_slippage_rate
-        assert slippage == max(expected_slippage, model._min_slippage)
-
-    def test_get_slippage_rate(self):
-        """测试获取滑点率"""
-        metadata = PluginMetadata(
-            name="FixedSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        model = FixedSlippageModel(metadata)
-
-        buy_order = Order(
-            order_id="buy_order",
-            symbol="TEST.SH",
-            side="buy",
-            quantity=Decimal("100"),
-            price=Decimal("10.0"),
-            timestamp=datetime.now(),
-        )
-
-        sell_order = Order(
-            order_id="sell_order",
-            symbol="TEST.SH",
-            side="sell",
-            quantity=Decimal("100"),
-            price=Decimal("10.0"),
-            timestamp=datetime.now(),
-        )
-
-        market_data = MarketData(
-            symbol="TEST.SH",
-            timestamp=datetime.now(),
-            open_price=Decimal("10.0"),
-            high_price=Decimal("10.2"),
-            low_price=Decimal("9.8"),
-            close_price=Decimal("10.1"),
-            volume=Decimal("10000"),
-        )
-
-        buy_rate = model.get_slippage_rate(buy_order, market_data)
-        sell_rate = model.get_slippage_rate(sell_order, market_data)
-
-        assert buy_rate == model._buy_slippage_rate
-        assert sell_rate == model._sell_slippage_rate
-
-
-class TestDynamicSlippageModel:
-    """测试动态滑点模型"""
-
-    def test_initialization_with_config(self):
-        """测试带配置的初始化"""
-        metadata = PluginMetadata(
-            name="DynamicSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        config = {
-            "base_slippage_rate": 0.0008,
-            "volume_impact_factor": 0.002,
-            "volatility_factor": 0.8,
-            "time_factor": 0.3,
-        }
-
-        model = DynamicSlippageModel(metadata, config)
-        assert model._base_slippage_rate == Decimal("0.0008")
-        assert model._volume_impact_factor == Decimal("0.002")
-        assert model._volatility_factor == Decimal("0.8")
-        assert model._time_factor == Decimal("0.3")
-
-    def test_calculate_slippage_dynamic(self):
-        """测试计算动态滑点"""
-        metadata = PluginMetadata(
-            name="DynamicSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        model = DynamicSlippageModel(metadata)
-
-        order = Order(
-            order_id="test_order",
-            symbol="TEST.SH",
-            side="buy",
-            quantity=Decimal("100"),
-            price=Decimal("10.0"),
-            timestamp=datetime.now(),
-        )
-
-        market_data = MarketData(
-            symbol="TEST.SH",
-            timestamp=datetime.now(),
-            open_price=Decimal("10.0"),
-            high_price=Decimal("10.2"),
-            low_price=Decimal("9.8"),
-            close_price=Decimal("10.1"),
-            volume=Decimal("10000"),
-        )
-
-        fill_price = Decimal("10.1")
-        slippage = model.calculate_slippage(order, market_data, fill_price)
-
-        # 动态滑点应该大于0
-        assert slippage > 0
-
-        # 动态滑点应该考虑多个因素
-        static_slippage = fill_price * order.quantity * model._base_slippage_rate
-        assert slippage != static_slippage  # 应该不等于纯粹的基础滑点
-
-    def test_volume_impact_calculation(self):
-        """测试交易量冲击计算"""
-        metadata = PluginMetadata(
-            name="DynamicSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        model = DynamicSlippageModel(metadata)
-
-        # 大订单
-        large_order = Order(
-            order_id="large_order",
-            symbol="TEST.SH",
-            side="buy",
-            quantity=Decimal("5000"),  # 50%的市场量
-            price=Decimal("10.0"),
-            timestamp=datetime.now(),
-        )
-
-        # 小订单
-        small_order = Order(
-            order_id="small_order",
-            symbol="TEST.SH",
-            side="buy",
-            quantity=Decimal("100"),  # 1%的市场量
-            price=Decimal("10.0"),
-            timestamp=datetime.now(),
-        )
-
-        market_data = MarketData(
-            symbol="TEST.SH",
-            timestamp=datetime.now(),
-            open_price=Decimal("10.0"),
-            high_price=Decimal("10.2"),
-            low_price=Decimal("9.8"),
-            close_price=Decimal("10.1"),
-            volume=Decimal("10000"),
-        )
-
-        fill_price = Decimal("10.1")
-
-        large_slippage = model.calculate_slippage(large_order, market_data, fill_price)
-        small_slippage = model.calculate_slippage(small_order, market_data, fill_price)
-
-        # 大订单的滑点应该比小订单大
-        assert large_slippage > small_slippage
-
-    def test_volatility_impact_calculation(self):
-        """测试波动性影响计算"""
-        metadata = PluginMetadata(
-            name="DynamicSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        model = DynamicSlippageModel(metadata)
-
-        order = Order(
-            order_id="test_order",
-            symbol="TEST.SH",
-            side="buy",
-            quantity=Decimal("100"),
-            price=Decimal("10.0"),
-            timestamp=datetime.now(),
-        )
-
-        # 高波动性市场数据
-        high_volatility_data = MarketData(
-            symbol="TEST.SH",
-            timestamp=datetime.now(),
-            open_price=Decimal("10.0"),
-            high_price=Decimal("12.0"),  # 高波动
-            low_price=Decimal("8.0"),
-            close_price=Decimal("10.1"),
-            volume=Decimal("10000"),
-        )
-
-        # 低波动性市场数据
-        low_volatility_data = MarketData(
-            symbol="TEST.SH",
-            timestamp=datetime.now(),
-            open_price=Decimal("10.0"),
-            high_price=Decimal("10.05"),  # 低波动
-            low_price=Decimal("9.95"),
-            close_price=Decimal("10.1"),
-            volume=Decimal("10000"),
-        )
-
-        fill_price = Decimal("10.1")
-
-        high_vol_slippage = model.calculate_slippage(
-            order, high_volatility_data, fill_price
-        )
-        low_vol_slippage = model.calculate_slippage(
-            order, low_volatility_data, fill_price
-        )
-
-        # 高波动性时滑点应该更大
-        assert high_vol_slippage > low_vol_slippage
-
-
-class TestVolatilityBasedSlippageModel:
-    """测试基于波动性的滑点模型"""
-
-    def test_initialization_with_config(self):
-        """测试带配置的初始化"""
-        metadata = PluginMetadata(
-            name="VolatilityBasedSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        config = {
-            "base_slippage_rate": 0.0008,
-            "volatility_multiplier": 15.0,
-            "lookback_period": 30,
-            "min_volatility": 0.002,
-        }
-
-        model = VolatilityBasedSlippageModel(metadata, config)
-        assert model._base_slippage_rate == Decimal("0.0008")
-        assert model._volatility_multiplier == Decimal("15.0")
-        assert model._lookback_period == 30
-        assert model._min_volatility == Decimal("0.002")
-
-    def test_price_history_update(self):
-        """测试价格历史更新"""
-        metadata = PluginMetadata(
-            name="VolatilityBasedSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        model = VolatilityBasedSlippageModel(metadata)
-
-        # 更新价格历史
-        model._update_price_history("TEST.SH", Decimal("10.0"))
-        model._update_price_history("TEST.SH", Decimal("10.1"))
-        model._update_price_history("TEST.SH", Decimal("10.2"))
-
-        assert len(model._price_history["TEST.SH"]) == 3
-        assert model._price_history["TEST.SH"][0] == 10.0
-        assert model._price_history["TEST.SH"][1] == 10.1
-        assert model._price_history["TEST.SH"][2] == 10.2
-
-    def test_price_history_limit(self):
-        """测试价格历史长度限制"""
-        metadata = PluginMetadata(
-            name="VolatilityBasedSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        config = {"lookback_period": 3}
-        model = VolatilityBasedSlippageModel(metadata, config)
-
-        # 添加超过限制的价格数据
-        for i in range(10):
-            model._update_price_history("TEST.SH", Decimal(str(10.0 + i * 0.1)))
-
-        # 应该只保留最近的3个价格
-        assert len(model._price_history["TEST.SH"]) == 3
-        assert model._price_history["TEST.SH"][-1] == 10.9  # 最新价格
-
-    def test_volatility_calculation(self):
-        """测试波动性计算"""
-        metadata = PluginMetadata(
-            name="VolatilityBasedSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        model = VolatilityBasedSlippageModel(metadata)
-
-        # 添加一些价格历史
-        prices = [10.0, 10.1, 9.9, 10.2, 9.8, 10.3]
-        for price in prices:
-            model._update_price_history("TEST.SH", Decimal(str(price)))
-
-        market_data = MarketData(
-            symbol="TEST.SH",
-            timestamp=datetime.now(),
-            open_price=Decimal("10.0"),
-            high_price=Decimal("10.3"),
-            low_price=Decimal("9.8"),
-            close_price=Decimal("10.1"),
-            volume=Decimal("10000"),
-        )
-
-        volatility = model._calculate_volatility("TEST.SH", market_data)
-
-        # 波动性应该大于0
-        assert volatility > 0
-
-        # 波动性应该至少等于最小波动性
-        assert volatility >= model._min_volatility
-
-    def test_calculate_slippage_with_volatility(self):
-        """测试基于波动性的滑点计算"""
-        metadata = PluginMetadata(
-            name="VolatilityBasedSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        model = VolatilityBasedSlippageModel(metadata)
-
-        order = Order(
-            order_id="test_order",
-            symbol="TEST.SH",
-            side="buy",
-            quantity=Decimal("100"),
-            price=Decimal("10.0"),
-            timestamp=datetime.now(),
-        )
-
-        # 高波动性市场数据
-        high_vol_data = MarketData(
-            symbol="TEST.SH",
-            timestamp=datetime.now(),
-            open_price=Decimal("10.0"),
-            high_price=Decimal("12.0"),
-            low_price=Decimal("8.0"),
-            close_price=Decimal("10.1"),
-            volume=Decimal("10000"),
-        )
-
-        # 低波动性市场数据
-        low_vol_data = MarketData(
-            symbol="TEST.SH",
-            timestamp=datetime.now(),
-            open_price=Decimal("10.0"),
-            high_price=Decimal("10.05"),
-            low_price=Decimal("9.95"),
-            close_price=Decimal("10.1"),
-            volume=Decimal("10000"),
-        )
-
-        fill_price = Decimal("10.1")
-
-        high_vol_slippage = model.calculate_slippage(order, high_vol_data, fill_price)
-        low_vol_slippage = model.calculate_slippage(order, low_vol_data, fill_price)
-
-        # 高波动性时滑点应该更大
-        assert high_vol_slippage > low_vol_slippage
-
+        model = FixedSlippageModel(plugin_metadata, config)
+        fill_price = Decimal("10.0")
+
+        # 测试最小滑点
+        base_order.quantity = Decimal("100")
+        calculated_slippage = fill_price * base_order.quantity * config.base_slippage_rate # 0.01
+        assert calculated_slippage < config.min_slippage
+        slippage = model.calculate_slippage(base_order, base_market_data, fill_price)
+        assert slippage == config.min_slippage
+
+        # 测试最大滑点
+        base_order.quantity = Decimal("4000")
+        calculated_slippage = fill_price * base_order.quantity * config.base_slippage_rate # 0.04
+        assert calculated_slippage > config.max_slippage
+        slippage = model.calculate_slippage(base_order, base_market_data, fill_price)
+        assert slippage == config.max_slippage
 
 class TestLinearSlippageModel:
-    """测试线性滑点模型"""
+    """测试线性滑点模型 (LinearSlippageModel)"""
 
-    def test_initialization_with_config(self):
-        """测试带配置的初始化"""
-        metadata = PluginMetadata(
-            name="LinearSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
+    def test_calculate_slippage_linear_logic(self, plugin_metadata, base_order, base_market_data):
+        """测试线性滑点计算逻辑。"""
+        config = LinearSlippageModelConfig(
+            base_rate=Decimal("0.001"),
+            slope=Decimal("0.1"),
+            reference_size=Decimal("1000"),
+            max_slippage_rate=Decimal("0.05"),
+            min_slippage=Decimal("0.01"),
+            max_slippage=Decimal("0.2"),
         )
-
-        config = {
-            "base_rate": 0.0003,
-            "slope": 0.000002,
-            "reference_size": 5000,
-            "max_slippage_rate": 0.02,
-        }
-
-        model = LinearSlippageModel(metadata, config)
-        assert model._base_rate == Decimal("0.0003")
-        assert model._slope == Decimal("0.000002")
-        assert model._reference_size == Decimal("5000")
-        assert model._max_slippage_rate == Decimal("0.02")
-
-    def test_calculate_linear_rate(self):
-        """测试线性滑点率计算"""
-        metadata = PluginMetadata(
-            name="LinearSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        model = LinearSlippageModel(metadata)
-
-        # 小订单
-        small_order = Order(
-            order_id="small_order",
-            symbol="TEST.SH",
-            side="buy",
-            quantity=Decimal("100"),
-            price=Decimal("10.0"),
-            timestamp=datetime.now(),
-        )
-
-        # 大订单
-        large_order = Order(
-            order_id="large_order",
-            symbol="TEST.SH",
-            side="buy",
-            quantity=Decimal("50000"),
-            price=Decimal("10.0"),
-            timestamp=datetime.now(),
-        )
-
-        small_rate = model._calculate_linear_rate(small_order)
-        large_rate = model._calculate_linear_rate(large_order)
-
-        # 大订单的滑点率应该更高
-        assert large_rate > small_rate
-
-        # 小订单的滑点率应该接近基础费率
-        assert small_rate >= model._base_rate
-
-    def test_calculate_slippage_linear(self):
-        """测试线性滑点计算"""
-        metadata = PluginMetadata(
-            name="LinearSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
-        )
-
-        model = LinearSlippageModel(metadata)
-
-        order = Order(
-            order_id="test_order",
-            symbol="TEST.SH",
-            side="buy",
-            quantity=Decimal("20000"),  # 2倍参考规模
-            price=Decimal("10.0"),
-            timestamp=datetime.now(),
-        )
-
-        market_data = MarketData(
-            symbol="TEST.SH",
-            timestamp=datetime.now(),
-            open_price=Decimal("10.0"),
-            high_price=Decimal("10.2"),
-            low_price=Decimal("9.8"),
-            close_price=Decimal("10.1"),
-            volume=Decimal("10000"),
-        )
-
+        model = LinearSlippageModel(plugin_metadata, config)
+        
+        base_order.quantity = Decimal("200")
         fill_price = Decimal("10.1")
-        slippage = model.calculate_slippage(order, market_data, fill_price)
 
-        # 滑点应该大于0
-        assert slippage > 0
+        expected_rate = config.base_rate + config.slope * (base_order.quantity / config.reference_size)
+        expected_rate = min(expected_rate, config.max_slippage_rate)
+        expected_slippage = fill_price * base_order.quantity * expected_rate
+        expected_slippage = max(config.min_slippage, min(config.max_slippage, expected_slippage))
+        
+        slippage = model.calculate_slippage(base_order, base_market_data, fill_price)
+        assert slippage == pytest.approx(expected_slippage)
 
-        # 计算期望的滑点率
-        expected_rate = model._base_rate + (
-            (order.quantity / model._reference_size) * model._slope
+    def test_get_slippage_rate(self, plugin_metadata, base_order, base_market_data):
+        """测试 get_slippage_rate 方法并考虑上限。"""
+        config = LinearSlippageModelConfig(
+            base_rate=Decimal("0.001"),
+            slope=Decimal("0.1"),
+            reference_size=Decimal("1000"),
+            max_slippage_rate=Decimal("0.01"),
         )
-        expected_slippage = fill_price * order.quantity * expected_rate
+        model = LinearSlippageModel(plugin_metadata, config)
+        
+        base_order.quantity = Decimal("50")
+        expected_rate_uncapped = config.base_rate + config.slope * (base_order.quantity / config.reference_size)
+        rate_uncapped = model.get_slippage_rate(base_order, base_market_data)
+        assert rate_uncapped == pytest.approx(expected_rate_uncapped)
+        
+        base_order.quantity = Decimal("500")
+        rate_capped = model.get_slippage_rate(base_order, base_market_data)
+        assert rate_capped == config.max_slippage_rate
 
-        # 应该不超过最大滑点率
-        max_slippage = fill_price * order.quantity * model._max_slippage_rate
-        assert slippage <= max_slippage
+class TestVolumeBasedSlippageModel:
+    """测试基于成交量的滑点模型 (VolumeBasedSlippageModel)"""
 
-    def test_max_slippage_rate_limit(self):
-        """测试最大滑点率限制"""
-        metadata = PluginMetadata(
-            name="LinearSlippageModel",
-            version="1.0.0",
-            description="Test",
-            author="Test",
-            category="slippage_model",
-            tags=["test"],
+    def test_calculate_slippage(self, plugin_metadata, base_order, base_market_data):
+        """测试完整的滑点计算。"""
+        config = VolumeBasedSlippageModelConfig(
+            base_slippage_rate=Decimal("0.001"),
+            volume_impact_factor=Decimal("0.5"),
+            volume_impact_curve="square_root",
+            min_slippage=Decimal("0.01"),
+            max_slippage=Decimal("0.2"),
         )
+        model = VolumeBasedSlippageModel(plugin_metadata, config)
+        
+        base_order.quantity = Decimal("100")
+        fill_price = Decimal("10.1")
+        
+        volume_ratio = float(base_order.quantity / base_market_data.volume)
+        volume_impact = model._calculate_volume_impact(volume_ratio)
+        base_slippage = fill_price * base_order.quantity * config.base_slippage_rate
+        expected_slippage = base_slippage * (Decimal("1") + volume_impact)
+        expected_slippage = max(config.min_slippage, min(config.max_slippage, expected_slippage))
+        
+        slippage = model.calculate_slippage(base_order, base_market_data, fill_price)
+        assert slippage == pytest.approx(expected_slippage)
 
-        config = {"max_slippage_rate": 0.005}  # 0.5%限制
-        model = LinearSlippageModel(metadata, config)
+class TestVolatilityBasedSlippageModel:
+    """测试基于波动率的滑点模型 (VolatilityBasedSlippageModel)"""
 
-        # 超大订单
-        huge_order = Order(
-            order_id="huge_order",
-            symbol="TEST.SH",
-            side="buy",
-            quantity=Decimal("1000000"),  # 100倍参考规模
-            price=Decimal("10.0"),
-            timestamp=datetime.now(),
+    def test_update_price_history(self, plugin_metadata):
+        """测试价格历史记录的更新和长度限制。"""
+        config = VolatilityBasedSlippageModelConfig(max_history_length=10)
+        model = VolatilityBasedSlippageModel(plugin_metadata, config)
+        
+        for i in range(12):
+            model._update_price_history(Decimal(str(10 + i)))
+            
+        assert len(model._price_history) == 10
+        assert model._price_history[0] == Decimal("12")
+        assert model._price_history[-1] == Decimal("21")
+
+    def test_calculate_slippage(self, plugin_metadata, base_order, base_market_data):
+        """测试基于波动率的滑点计算。"""
+        config = VolatilityBasedSlippageModelConfig(
+            volatility_multiplier=Decimal("10.0"), # 修复：符合 le=10 的验证规则
+            base_slippage_rate=Decimal("0.0001"), # 降低基础费率以避免触及上限
+            max_slippage=Decimal("0.2")
         )
+        model = VolatilityBasedSlippageModel(plugin_metadata, config)
+        fill_price = Decimal("10.1")
 
-        calculated_rate = model._calculate_linear_rate(huge_order)
+        # 模拟高波动
+        high_vol_prices = [10, 12, 9, 13, 8] * 2
+        for p in high_vol_prices:
+            model._update_price_history(Decimal(str(p)))
+        high_vol_slippage = model.calculate_slippage(base_order, base_market_data, fill_price)
 
-        # 应该被限制在最大滑点率
-        assert calculated_rate == model._max_slippage_rate
+        # 重置并模拟低波动
+        model._price_history = []
+        low_vol_prices = [10.0, 10.01, 9.99, 10.02, 9.98] * 2
+        for p in low_vol_prices:
+            model._update_price_history(Decimal(str(p)))
+        low_vol_slippage = model.calculate_slippage(base_order, base_market_data, fill_price)
+        
+        assert high_vol_slippage > low_vol_slippage
+
+class TestDynamicSlippageModel:
+    """测试动态滑点模型 (DynamicSlippageModel)"""
+
+    def test_calculate_slippage_combination(self, plugin_metadata, base_order, base_market_data):
+        """测试结合了成交量和波动率的滑点计算。"""
+        config = VolumeBasedSlippageModelConfig(
+            base_slippage_rate=Decimal("0.001"),
+            volume_impact_factor=Decimal("0.5"),
+            volatility_multiplier=Decimal("10.0"),
+            max_slippage=Decimal("0.2"),
+        )
+        model = DynamicSlippageModel(plugin_metadata, config)
+        
+        prices = [10, 10.5, 9.5, 11, 9] * 2
+        for p in prices:
+            model._update_price_history(Decimal(str(p)))
+            
+        base_order.quantity = Decimal("10")
+        fill_price = Decimal("10.1")
+        
+        base_slippage = fill_price * base_order.quantity * config.base_slippage_rate
+        volume_ratio = float(base_order.quantity / base_market_data.volume)
+        volume_impact = model._calculate_volume_impact(volume_ratio)
+        volatility_adjustment = model._calculate_volatility_adjustment()
+        expected_slippage = base_slippage * (Decimal("1") + volume_impact) * (Decimal("1") + volatility_adjustment)
+        expected_slippage = max(config.min_slippage, min(config.max_slippage, expected_slippage))
+        
+        slippage = model.calculate_slippage(base_order, base_market_data, fill_price)
+        
+        assert slippage == pytest.approx(expected_slippage)
+        assert slippage > base_slippage

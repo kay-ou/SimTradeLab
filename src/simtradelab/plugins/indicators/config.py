@@ -17,6 +17,12 @@ from simtradelab.plugins.config.base_config import BasePluginConfig
 class TechnicalIndicatorsConfig(BasePluginConfig):
     """技术指标插件配置模型"""
 
+    model_config = {
+        "title": "技术指标插件配置",
+        "description": "技术指标插件的配置选项",
+        "extra": "ignore",
+    }
+
     cache_timeout: int = Field(default=300, description="指标计算缓存超时时间（秒）", ge=0, le=3600)
 
     # MACD指标参数
@@ -75,13 +81,15 @@ class TechnicalIndicatorsConfig(BasePluginConfig):
                 raise ValueError(f"移动平均线周期 {name} 必须大于0")
         return v
 
-    class Config:
-        title = "技术指标插件配置"
-        description = "技术指标计算插件的配置选项"
-
 
 class AdvancedTechnicalIndicatorsConfig(TechnicalIndicatorsConfig):
     """高级技术指标插件配置模型"""
+
+    model_config = {
+        "title": "高级技术指标插件配置",
+        "description": "高级技术指标插件的配置选项",
+        "extra": "ignore",
+    }
 
     # MACD高级参数
     macd_histogram_multiplier: Decimal = Field(
@@ -104,13 +112,15 @@ class AdvancedTechnicalIndicatorsConfig(TechnicalIndicatorsConfig):
 
     divergence_lookback: int = Field(default=50, description="背离检测回看周期", ge=10, le=200)
 
-    class Config:
-        title = "高级技术指标插件配置"
-        description = "高级技术指标计算插件的配置选项"
-
 
 class CustomIndicatorConfig(BasePluginConfig):
     """自定义指标配置模型"""
+
+    model_config = {
+        "title": "自定义指标配置",
+        "description": "自定义指标的配置选项",
+        "extra": "ignore",
+    }
 
     formula: str = Field(description="自定义指标计算公式")
 
@@ -135,10 +145,6 @@ class CustomIndicatorConfig(BasePluginConfig):
         if not v.strip():
             raise ValueError("输出指标名称不能为空")
         return v
-
-    class Config:
-        title = "自定义指标配置"
-        description = "自定义技术指标的配置选项"
 
 
 # 配置映射字典，用于插件自动配置模型选择

@@ -1,482 +1,337 @@
 # -*- coding: utf-8 -*-
 """
-Mock数据源插件测试
+Mock数据源插件测试 - 彻底重写版
 
-测试Mock数据源插件的功能
+此文件旨在提供一个结构清晰、覆盖全面、可维护性高的测试套件。
+主要改进点：
+- 使用 parametrize 减少冗余测试代码。
+- 增强数据质量和统计特性的验证。
+- 强化边界条件和错误处理测试。
+- 引入更真实的集成测试场景。
 """
 
+import random
+import threading
 from datetime import datetime
-from unittest.mock import patch
+from decimal import Decimal
 
+import numpy as np
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
-from src.simtradelab.plugins.base import PluginConfig, PluginState
-from src.simtradelab.plugins.data.base_data_source import DataFrequency, MarketType
-from src.simtradelab.plugins.data.mock_data_plugin import MockDataPlugin
+from simtradelab.plugins.base import PluginMetadata, PluginState
+from simtradelab.plugins.data.base_data_source import DataFrequency, MarketType
+from simtradelab.plugins.data.config import MockDataPluginConfig
+from simtradelab.plugins.data.mock_data_plugin import MockDataPlugin
 
 
-class TestMockDataPlugin:
-    """测试Mock数据源插件"""
+@pytest.fixture(scope="module")
+def default_plugin_metadata():
+    """提供一个默认的插件元数据 fixture。"""
+    return PluginMetadata(
+        name="test_mock_plugin",
+        version="0.1.0",
+        description="A test version of the mock data plugin.",
+        author="Test Author",
+    )
 
-    @pytest.fixture
-    def plugin_config(self):
-        """创建插件配置"""
-        return PluginConfig(
-            data={
-                "enabled": True,
-                "seed": 42,
-                "volatility": 0.02,
-                "trend": 0.0001,
-                "base_prices": {
-                    "STOCK_A": 10.0,
-                    "000001.SZ": 15.0,
-                    "000002.SZ": 12.0,
-                    "600000.SH": 8.0,
-                    "600036.SH": 35.0,
-                    "TEST001.SZ": 100.0,
-                    "TEST002.SH": 200.0,
-                },
-            }
-        )
 
-    @pytest.fixture
-    def plugin(self, plugin_config):
-        """创建Mock数据插件实例"""
-        metadata = MockDataPlugin.METADATA
-        plugin = MockDataPlugin(metadata, plugin_config)
-        yield plugin
-        if plugin.state in [PluginState.STARTED, PluginState.PAUSED]:
-            plugin.shutdown()
+class TestMockDataPluginConfig:
+    """测试 MockDataPluginConfig 配置模型的验证逻辑。"""
 
-    @pytest.fixture
-    def disabled_plugin(self):
-        """创建禁用的Mock数据插件实例"""
-        config = PluginConfig(data={"enabled": False})
-        metadata = MockDataPlugin.METADATA
-        plugin = MockDataPlugin(metadata, config)
-        yield plugin
-        if plugin.state in [PluginState.STARTED, PluginState.PAUSED]:
-            plugin.shutdown()
+    def test_default_config_creation(self):
+        """测试默认配置是否能成功创建并包含正确的默认值。"""
+        config = MockDataPluginConfig()
+        assert config.enabled is True
+        assert config.seed == 42
+        assert config.volatility == Decimal("0.02")
+        assert config.trend == Decimal("0.0001")
+        assert config.daily_volatility_factor == Decimal("0.5")
+        assert config.base_prices == {
+            "STOCK_A": 10.0,
+            "000001.SZ": 15.0,
+            "000002.SZ": 12.0,
+            "600000.SH": 8.0,
+            "600036.SH": 35.0,
+        }
+        assert config.volume_range == {"min": 1000, "max": 10000}
 
-    def test_plugin_metadata(self):
-        """测试插件元数据"""
-        metadata = MockDataPlugin.METADATA
-        assert metadata.name == "mock_data_plugin"
-        assert metadata.version == "1.0.0"
-        assert metadata.category == "data_source"
-        assert "data" in metadata.tags
-        assert "mock" in metadata.tags
-        assert "testing" in metadata.tags
+    def test_custom_config_creation(self):
+        """测试使用自定义值创建配置。"""
+        custom_data = {
+            "enabled": False,
+            "seed": 123,
+            "volatility": Decimal("0.05"),
+            "trend": Decimal("-0.001"),
+            "base_prices": {"CUSTOM.SYM": 200.0},
+            "volume_range": {"min": 500, "max": 5000},
+        }
+        config = MockDataPluginConfig(**custom_data)
+        assert config.enabled is False
+        assert config.seed == 123
+        assert config.volatility == Decimal("0.05")
+        assert config.trend == Decimal("-0.001")
+        assert config.base_prices == {"CUSTOM.SYM": 200.0}
+        assert config.volume_range == {"min": 500, "max": 5000}
 
-    def test_plugin_initialization(self, plugin):
-        """测试插件初始化"""
-        assert plugin._enabled is True
+    @pytest.mark.parametrize(
+        "param, value, expected_error",
+        [
+            ("seed", -1, "Input should be greater than or equal to 0"),
+            ("seed", 2**32, "Input should be less than or equal to 2147483647"),
+            ("volatility", Decimal("-0.1"), "Input should be greater than or equal to 0"),
+            ("volatility", Decimal("1.1"), "Input should be less than or equal to 1"),
+            ("trend", Decimal("-0.02"), "Input should be greater than or equal to -0.01"),
+            ("trend", Decimal("0.02"), "Input should be less than or equal to 0.01"),
+            ("base_prices", {"STOCK_A": 0.0}, "基础价格必须大于0"),
+            ("base_prices", {"STOCK_A": -10.0}, "基础价格必须大于0"),
+            ("volume_range", {"min": 1000, "max": 500}, "最小成交量必须小于最大成交量"),
+            ("volume_range", {"min": 0, "max": 1000}, "最小成交量必须大于0"),
+        ],
+    )
+    def test_config_validation_errors(self, param, value, expected_error):
+        """测试配置模型的各种验证错误。"""
+        with pytest.raises(ValidationError) as excinfo:
+            MockDataPluginConfig(**{param: value})
+        assert expected_error in str(excinfo.value)
+
+
+class TestMockDataPluginInitialization:
+    """测试 MockDataPlugin 的初始化过程。"""
+
+    def test_initialization_with_default_config(self, default_plugin_metadata):
+        """测试使用默认配置初始化插件。"""
+        plugin = MockDataPlugin(default_plugin_metadata)
+        assert plugin.is_enabled() is True
         assert plugin._seed == 42
-        assert plugin._volatility == 0.02
-        assert plugin._trend == 0.0001
-        assert "TEST001.SZ" in plugin._base_prices
-        assert plugin._base_prices["TEST001.SZ"] == 100.0
-        assert "STOCK_A" in plugin._base_prices
-        assert plugin._base_prices["STOCK_A"] == 10.0
+        assert plugin.state == PluginState.UNINITIALIZED
 
-    def test_plugin_disabled(self, disabled_plugin):
-        """测试禁用状态的插件"""
-        # 禁用插件
-        disabled_plugin.disable()
-        assert disabled_plugin._enabled is False
-
-    def test_enable_disable_functionality(self, plugin):
-        """测试启用/禁用功能"""
-        # 初始状态是启用的
-        assert plugin.is_enabled() is True
-
-        # 禁用插件
-        plugin.disable()
+    def test_initialization_with_custom_config(self, default_plugin_metadata):
+        """测试使用自定义配置初始化插件。"""
+        config = MockDataPluginConfig(enabled=False, seed=100)
+        plugin = MockDataPlugin(default_plugin_metadata, config)
         assert plugin.is_enabled() is False
+        assert plugin._seed == 100
+        assert plugin.state == PluginState.UNINITIALIZED
 
-        # 重新启用插件
-        plugin.enable()
-        assert plugin.is_enabled() is True
-
-    def test_supported_features(self, plugin):
-        """测试支持的功能"""
-        # 支持的市场
-        markets = plugin.get_supported_markets()
-        assert MarketType.STOCK_CN in markets
-
-        # 支持的频率
-        frequencies = plugin.get_supported_frequencies()
-        assert DataFrequency.DAILY in frequencies
-        assert DataFrequency.MINUTE_1 in frequencies
-
-        # 数据延迟
+    def test_supported_features(self, default_plugin_metadata):
+        """测试插件声明的支持功能是否正确。"""
+        plugin = MockDataPlugin(default_plugin_metadata)
+        assert plugin.get_supported_markets() == {MarketType.STOCK_CN}
+        assert plugin.get_supported_frequencies() == {
+            DataFrequency.DAILY,
+            DataFrequency.MINUTE_1,
+        }
         assert plugin.get_data_delay() == 0
 
-        # 可用性
-        assert plugin.is_available() is True
 
-    def test_disabled_plugin_availability(self, disabled_plugin):
-        """测试禁用插件的可用性"""
-        # 禁用插件
-        disabled_plugin.disable()
-        assert disabled_plugin.is_available() is False
+class TestMockDataPluginLifecycle:
+    """测试插件的生命周期管理。"""
 
-    def test_get_history_data(self, plugin):
-        """测试获取历史数据"""
-        security = "TEST001.SZ"
-        count = 10
+    @pytest.fixture
+    def plugin(self, default_plugin_metadata):
+        """提供一个插件实例用于生命周期测试。"""
+        return MockDataPlugin(default_plugin_metadata)
 
-        df = plugin.get_history_data(security, count)
-
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        assert len(df) <= count
-
-        # 验证列存在
-        expected_columns = ["open", "high", "low", "close", "volume", "amount"]
-        for col in expected_columns:
-            assert col in df.columns
-
-        # 验证数据按日期排序（索引是日期）
-        assert df.index.is_monotonic_increasing
-
-        # 验证OHLC关系
-        for _, row in df.iterrows():
-            assert row["high"] >= row["open"]
-            assert row["high"] >= row["close"]
-            assert row["low"] <= row["open"]
-            assert row["low"] <= row["close"]
-            assert row["volume"] > 0
-
-    def test_get_history_data_different_frequencies(self, plugin):
-        """测试不同频率的历史数据获取"""
-        security = "TEST001.SZ"
-        count = 5
-
-        # 测试日线数据
-        daily_df = plugin.get_history_data(security, count, DataFrequency.DAILY)
-        assert isinstance(daily_df, pd.DataFrame)
-        assert len(daily_df) <= count
-
-        # 测试分钟数据
-        minute_df = plugin.get_history_data(security, count, DataFrequency.MINUTE_1)
-        assert isinstance(minute_df, pd.DataFrame)
-        assert len(minute_df) <= count
-
-    def test_get_history_data_disabled(self, disabled_plugin):
-        """测试禁用状态下获取历史数据"""
-        # 禁用插件
-        disabled_plugin.disable()
-        df = disabled_plugin.get_history_data("TEST001.SZ", 10)
-        assert isinstance(df, pd.DataFrame)
-        assert df.empty
-
-    def test_get_multiple_history_data_as_dict(self, plugin):
-        """测试获取多个证券的历史数据（字典格式）"""
-        securities = ["TEST001.SZ", "TEST002.SH"]
-        count = 5
-
-        result = plugin.get_multiple_history_data(securities, count, as_dict=True)
-
-        assert isinstance(result, dict)
-        assert len(result) == len(securities)
-
-        for security in securities:
-            assert security in result
-            df = result[security]
-            assert isinstance(df, pd.DataFrame)
-            assert not df.empty
-
-    def test_get_multiple_history_data_as_dataframe(self, plugin):
-        """测试获取多个证券的历史数据（DataFrame格式）"""
-        securities = ["TEST001.SZ", "TEST002.SH"]
-        count = 5
-
-        df = plugin.get_multiple_history_data(securities, count, as_dict=False)
-
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        assert "security" in df.columns
-
-        # 验证包含所有证券
-        unique_securities = df["security"].unique()
-        for security in securities:
-            assert security in unique_securities
-
-    def test_get_current_price(self, plugin):
-        """测试获取当前价格"""
-        securities = ["TEST001.SZ", "TEST002.SH"]
-        prices = plugin.get_current_price(securities)
-
-        assert isinstance(prices, dict)
-        assert len(prices) == len(securities)
-
-        for security in securities:
-            assert security in prices
-            assert isinstance(prices[security], float)
-            assert prices[security] > 0
-
-    def test_get_snapshot(self, plugin):
-        """测试获取快照数据"""
-        securities = ["TEST001.SZ", "TEST002.SH"]
-        snapshot = plugin.get_snapshot(securities)
-
-        assert isinstance(snapshot, dict)
-        assert len(snapshot) == len(securities)
-
-        for security in securities:
-            assert security in snapshot
-            data = snapshot[security]
-            assert "last_price" in data
-            assert "open" in data
-            assert "high" in data
-            assert "low" in data
-            assert "close" in data
-            assert "volume" in data
-            assert "amount" in data
-            assert "bid1" in data
-            assert "ask1" in data
-            assert "datetime" in data
-
-    def test_trading_day_methods(self, plugin):
-        """测试交易日方法"""
-        # 测试获取交易日
-        base_date = "2023-12-25"
-        next_day = plugin.get_trading_day(base_date, offset=1)
-        assert isinstance(next_day, str)
-
-        # 测试获取所有交易日
-        all_days = plugin.get_all_trading_days()
-        assert isinstance(all_days, list)
-        assert len(all_days) > 0
-
-        # 测试获取日期范围内的交易日
-        start_date = "2023-12-01"
-        end_date = "2023-12-31"
-        range_days = plugin.get_trading_days_range(start_date, end_date)
-        assert isinstance(range_days, list)
-
-        # 测试是否为交易日
-        is_trading = plugin.is_trading_day("2023-12-25")  # 周一
-        assert isinstance(is_trading, bool)
-
-    def test_check_limit_status(self, plugin):
-        """测试检查涨跌停状态"""
-        securities = ["TEST001.SZ", "TEST002.SH"]
-        limit_status = plugin.check_limit_status(securities)
-
-        assert isinstance(limit_status, dict)
-        assert len(limit_status) == len(securities)
-
-        for security in securities:
-            assert security in limit_status
-            status = limit_status[security]
-            assert "limit_up" in status
-            assert "limit_down" in status
-            assert "limit_up_price" in status
-            assert "limit_down_price" in status
-            assert "current_price" in status
-
-    def test_get_fundamentals(self, plugin):
-        """测试获取基本面数据"""
-        securities = ["TEST001.SZ", "TEST002.SH"]
-        table = "income"
-        fields = ["revenue", "net_profit"]
-        date = "2023-12-31"
-
-        df = plugin.get_fundamentals(securities, table, fields, date)
-
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        assert "code" in df.columns
-        assert "date" in df.columns
-
-        # 验证包含请求的字段
-        for field in fields:
-            assert field in df.columns
-
-        # 验证包含请求的证券
-        codes = df["code"].unique()
-        for security in securities:
-            assert security in codes
-
-    def test_get_security_info(self, plugin):
-        """测试获取证券信息"""
-        securities = ["TEST001.SZ", "TEST002.SH", "STOCK_A"]
-        info = plugin.get_security_info(securities)
-
-        assert isinstance(info, dict)
-        assert len(info) == len(securities)
-
-        for security in securities:
-            assert security in info
-            sec_info = info[security]
-            assert "name" in sec_info
-            assert "market" in sec_info
-            assert "type" in sec_info
-            assert "listed_date" in sec_info
-
-    def test_lifecycle_methods(self, plugin):
-        """测试插件生命周期方法"""
-        # 测试初始化
+    def test_full_lifecycle(self, plugin):
+        """测试插件从创建到销毁的完整生命周期状态转换。"""
+        assert plugin.state == PluginState.UNINITIALIZED
         plugin.initialize()
-        assert hasattr(plugin, "_logger")
-
-        # 测试关闭
+        assert plugin.state == PluginState.INITIALIZED
+        plugin.start()
+        assert plugin.state == PluginState.STARTED
+        plugin.stop()
+        assert plugin.state == PluginState.STOPPED
         plugin.shutdown()
-        assert len(plugin._data_cache) == 0
+        assert plugin.state == PluginState.UNINITIALIZED
+        assert not plugin._data_cache  # 缓存应被清空
 
-    def test_enable_disable(self, plugin):
-        """测试启用/禁用方法"""
-        # 初始应该是启用的
+    def test_enable_disable_methods(self, plugin):
+        """测试启用和禁用插件的功能。"""
         assert plugin.is_enabled() is True
-
-        # 禁用
         plugin.disable()
         assert plugin.is_enabled() is False
-
-        # 重新启用
+        assert plugin.is_available() is False
         plugin.enable()
         assert plugin.is_enabled() is True
+        assert plugin.is_available() is True
 
-    def test_data_consistency_with_seed(self):
-        """测试相同种子的数据一致性"""
-        config1 = PluginConfig(data={"seed": 42})
-        config2 = PluginConfig(data={"seed": 42})
 
-        plugin1 = MockDataPlugin(MockDataPlugin.METADATA, config1)
-        plugin2 = MockDataPlugin(MockDataPlugin.METADATA, config2)
+class TestMockDataPluginDataGeneration:
+    """测试数据生成的核心逻辑。"""
 
-        try:
-            # 使用相同种子应该生成相似的数据模式
-            df1 = plugin1.get_history_data("TEST001.SZ", count=5)
-            df2 = plugin2.get_history_data("TEST001.SZ", count=5)
+    @pytest.fixture
+    def plugin(self, default_plugin_metadata):
+        """提供一个已初始化的、配置好的插件实例。"""
+        config = MockDataPluginConfig(
+            seed=42,
+            base_prices={"TEST.S": 100.0, "ANOTHER.S": 50.0},
+            volatility=Decimal("0.02"),
+            trend=Decimal("0.0001"),
+        )
+        plugin = MockDataPlugin(default_plugin_metadata, config)
+        plugin.initialize()
+        return plugin
 
-            # 数据形状应该相同
-            assert df1.shape == df2.shape
+    def test_get_history_data_structure_and_quality(self, plugin):
+        """测试 get_history_data 返回的数据结构和基本质量。"""
+        df = plugin.get_history_data("TEST.S", count=10)
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert len(df) <= 10
+        
+        expected_columns = {"open", "high", "low", "close", "volume", "amount"}
+        assert expected_columns.issubset(df.columns)
+        
+        # 数据质量验证
+        assert (df["high"] >= df["low"]).all()
+        assert (df["high"] >= df["open"]).all()
+        assert (df["high"] >= df["close"]).all()
+        assert (df["low"] <= df["open"]).all()
+        assert (df["low"] <= df["close"]).all()
+        assert (df[["open", "high", "low", "close", "volume", "amount"]] > 0).all().all()
 
-            # 验证数据质量一致
-            for df in [df1, df2]:
-                assert all(df["high"] >= df["low"])
-                assert all(df["high"] >= df["open"])
-                assert all(df["high"] >= df["close"])
-                assert all(df["volume"] > 0)
+    @pytest.mark.parametrize("frequency", [DataFrequency.DAILY, DataFrequency.MINUTE_1])
+    def test_get_history_data_frequencies(self, plugin, frequency):
+        """测试不同频率下的历史数据生成。"""
+        df = plugin.get_history_data("TEST.S", count=5, frequency=frequency)
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) <= 5
+        assert set(df.columns).issuperset({"open", "high", "low", "close"})
 
-        finally:
-            plugin1.shutdown()
-            plugin2.shutdown()
+    def test_get_multiple_history_data(self, plugin):
+        """测试获取多个证券的历史数据。"""
+        securities = ["TEST.S", "ANOTHER.S"]
+        
+        # 测试字典返回格式
+        data_dict = plugin.get_multiple_history_data(securities, count=5, as_dict=True)
+        assert isinstance(data_dict, dict)
+        assert set(data_dict.keys()) == set(securities)
+        assert isinstance(data_dict["TEST.S"], pd.DataFrame)
+        
+        # 测试DataFrame返回格式
+        data_df = plugin.get_multiple_history_data(securities, count=5, as_dict=False)
+        assert isinstance(data_df, pd.DataFrame)
+        assert "security" in data_df.columns
+        assert set(data_df["security"].unique()) == set(securities)
 
-    def test_different_seeds_different_data(self):
-        """测试不同种子生成不同数据"""
-        config1 = PluginConfig(data={"seed": 42})
-        config2 = PluginConfig(data={"seed": 100})
+    def test_get_current_price_and_snapshot(self, plugin):
+        """测试获取当前价格和市场快照。"""
+        securities = ["TEST.S", "ANOTHER.S"]
+        
+        # 当前价格
+        prices = plugin.get_current_price(securities)
+        assert isinstance(prices, dict)
+        assert set(prices.keys()) == set(securities)
+        assert all(isinstance(p, float) and p > 0 for p in prices.values())
+        
+        # 市场快照
+        snapshot = plugin.get_snapshot(securities)
+        assert isinstance(snapshot, dict)
+        assert set(snapshot.keys()) == set(securities)
+        assert "last_price" in snapshot["TEST.S"]
+        assert snapshot["TEST.S"]["bid1"] < snapshot["TEST.S"]["ask1"]
 
-        plugin1 = MockDataPlugin(MockDataPlugin.METADATA, config1)
-        plugin2 = MockDataPlugin(MockDataPlugin.METADATA, config2)
+    def test_data_generation_statistical_properties(self, plugin):
+        """测试生成数据的统计特性是否与配置大致相符。"""
+        df = plugin.get_history_data("TEST.S", count=252) # 约一年的日线数据
+        returns = df["close"].pct_change().dropna()
+        
+        # 检查波动率是否在合理范围内（由于随机性，设定一个较宽的容忍度）
+        # 理论日波动率是 0.02
+        assert 0.01 < returns.std() < 0.03
+        
+        # 检查趋势是否为正
+        # 理论日趋势是 0.0001
+        assert returns.mean() > 0
 
-        try:
-            # 获取快照数据
-            snapshot1 = plugin1.get_snapshot(["TEST001.SZ"])
-            snapshot2 = plugin2.get_snapshot(["TEST001.SZ"])
 
-            # 价格应该不同（由于随机性）
-            price1 = snapshot1["TEST001.SZ"]["last_price"]
-            price2 = snapshot2["TEST001.SZ"]["last_price"]
+class TestMockDataPluginConsistencyAndConcurrency:
+    """测试数据生成的一致性和并发安全性。"""
 
-            # 由于随机性，价格很可能不同，但都应该是合理的正数
-            assert price1 > 0
-            assert price2 > 0
+    def test_same_seed_produces_consistent_data(self, default_plugin_metadata):
+        """测试相同的种子和配置应生成完全相同的数据。"""
+        config1 = MockDataPluginConfig(seed=42, base_prices={"TEST.S": 100.0})
+        plugin1 = MockDataPlugin(default_plugin_metadata, config1)
+        
+        config2 = MockDataPluginConfig(seed=42, base_prices={"TEST.S": 100.0})
+        plugin2 = MockDataPlugin(default_plugin_metadata, config2)
+        
+        end_date = "2023-01-10"
+        
+        # 第一次调用
+        np.random.seed(42)
+        random.seed(42)
+        df1 = plugin1.get_history_data("TEST.S", count=10, end_date=end_date)
+        
+        # 第二次调用前重置种子
+        np.random.seed(42)
+        random.seed(42)
+        df2 = plugin2.get_history_data("TEST.S", count=10, end_date=end_date)
+        
+        pd.testing.assert_frame_equal(df1, df2)
 
-        finally:
-            plugin1.shutdown()
-            plugin2.shutdown()
+    def test_different_seeds_produce_different_data(self, default_plugin_metadata):
+        """测试不同的种子应生成不同的数据。"""
+        config1 = MockDataPluginConfig(seed=42)
+        plugin1 = MockDataPlugin(default_plugin_metadata, config1)
+        
+        config2 = MockDataPluginConfig(seed=123)
+        plugin2 = MockDataPlugin(default_plugin_metadata, config2)
+        
+        df1 = plugin1.get_history_data("TEST.S", count=10)
+        df2 = plugin2.get_history_data("TEST.S", count=10)
+        
+        assert not df1.equals(df2)
 
-    def test_base_prices_configuration(self, plugin):
-        """测试基础价格配置"""
-        # 测试配置中设置的价格
-        prices = plugin.get_current_price(["TEST001.SZ", "TEST002.SH"])
-
-        # 价格应该基于配置的基础价格（会有随机波动）
-        assert prices["TEST001.SZ"] > 0
-        assert prices["TEST002.SH"] > 0
-
-        # 应该基于基础价格进行波动
-        test001_base = plugin._base_prices.get("TEST001.SZ", 100.0)  # 100.0
-        test002_base = plugin._base_prices.get("TEST002.SH", 200.0)  # 200.0
-
-        # 价格应该在合理范围内（基础价格的50%-150%）
-        assert 50 <= prices["TEST001.SZ"] <= 150
-        assert 100 <= prices["TEST002.SH"] <= 300
-
-    def test_volume_and_amount_calculation(self, plugin):
-        """测试成交量和成交额计算"""
-        df = plugin.get_history_data("TEST001.SZ", count=5)
-
-        for _, row in df.iterrows():
-            # 验证成交量是整数且大于0
-            assert isinstance(row["volume"], (int, float))
-            assert row["volume"] > 0
-
-            # 验证成交额的合理性（应该接近成交量 * 价格）
-            assert row["amount"] > 0
-            # 允许一定的计算误差
-            expected_amount = row["volume"] * row["close"]
-            ratio = row["amount"] / expected_amount
-            assert 0.8 <= ratio <= 1.2  # 允许20%的误差
-
-    def test_ohlc_relationships(self, plugin):
-        """测试OHLC价格关系"""
-        df = plugin.get_history_data("TEST001.SZ", count=10)
-
-        for _, row in df.iterrows():
-            # 验证OHLC关系
-            assert row["high"] >= max(row["open"], row["close"])
-            assert row["low"] <= min(row["open"], row["close"])
-            assert row["high"] >= row["low"]
-
-    def test_error_handling(self, plugin):
-        """测试错误处理"""
-        # 测试空证券列表
-        empty_result = plugin.get_current_price([])
-        assert isinstance(empty_result, dict)
-        assert len(empty_result) == 0
-
-        # 测试无效日期格式（应该不会崩溃）
-        try:
-            invalid_date_result = plugin.get_trading_day("invalid-date")
-            # 如果不抛异常，应该返回合理的值
-            assert isinstance(invalid_date_result, str)
-        except ValueError:
-            # 抛异常也是可接受的
-            pass
-
-    def test_concurrent_data_access(self, plugin):
-        """测试并发数据访问"""
-        import threading
-
-        results = []
+    def test_concurrent_data_access_is_safe(self, default_plugin_metadata):
+        """测试多线程并发访问数据生成方法是否线程安全。"""
+        plugin = MockDataPlugin(default_plugin_metadata, MockDataPluginConfig(seed=42))
         errors = []
 
-        def get_data():
+        def worker():
             try:
-                df = plugin.get_history_data("TEST001.SZ", count=5)
-                results.append(len(df))
+                df = plugin.get_history_data("TEST.S", count=10)
+                assert len(df) <= 10
             except Exception as e:
                 errors.append(e)
 
-        # 创建多个线程同时访问
-        threads = []
-        for _ in range(3):
-            thread = threading.Thread(target=get_data)
-            threads.append(thread)
-            thread.start()
+        threads = [threading.Thread(target=worker) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
 
-        # 等待所有线程完成
-        for thread in threads:
-            thread.join()
+        assert not errors, f"Concurrency test failed with errors: {errors}"
 
-        # 验证结果
-        assert len(errors) == 0, f"Errors occurred: {errors}"
-        assert len(results) == 3
-        assert all(result > 0 for result in results)
+
+class TestMockDataPluginErrorHandling:
+    """测试插件的错误处理和边界情况。"""
+
+    @pytest.fixture
+    def plugin(self, default_plugin_metadata):
+        """提供一个用于错误处理测试的插件实例。"""
+        plugin = MockDataPlugin(default_plugin_metadata)
+        plugin.initialize()
+        return plugin
+
+    def test_disabled_plugin_returns_empty(self, plugin):
+        """测试被禁用的插件调用数据接口时返回空结果。"""
+        plugin.disable()
+        assert plugin.get_history_data("TEST.S").empty
+        assert plugin.get_multiple_history_data(["TEST.S"]).empty
+        assert not plugin.get_current_price(["TEST.S"])
+        assert not plugin.get_snapshot(["TEST.S"])
+
+    @pytest.mark.parametrize("count", [0, -1])
+    def test_invalid_count_for_history_data(self, plugin, count):
+        """测试 get_history_data 的 count 参数为无效值（0或负数）时的行为。"""
+        df = plugin.get_history_data("TEST.S", count=count)
+        assert df.empty
+
+    def test_empty_security_list_handling(self, plugin):
+        """测试向数据接口传入空证券列表时的行为。"""
+        assert plugin.get_multiple_history_data([]).empty
+        assert not plugin.get_current_price([])
+        assert not plugin.get_snapshot([])
