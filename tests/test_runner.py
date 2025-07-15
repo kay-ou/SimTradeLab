@@ -14,11 +14,6 @@ import pytest
 from simtradelab.runner import BacktestRunner, run_backtest
 from simtradelab.core.plugin_manager import PluginManager
 from simtradelab.backtest.engine import BacktestEngine
-from simtradelab.backtest.plugins.base import (
-    BaseCommissionModel,
-    BaseMatchingEngine,
-    BaseSlippageModel,
-)
 
 @pytest.fixture
 def mock_config():
@@ -43,29 +38,25 @@ def strategy_file():
 @patch("simtradelab.runner.PluginManager")
 @patch("simtradelab.runner.BacktestEngine")
 def test_backtest_runner_initialization(mock_engine_class, mock_pm_class, strategy_file):
-    """测试 BacktestRunner 的初始化过程"""
+    """
+    测试 BacktestRunner 的初始化过程
+
+    E10修复：更新测试以匹配新的统一插件管理架构
+    """
     mock_pm_instance = MagicMock(spec=PluginManager)
     mock_pm_class.return_value = mock_pm_instance
-    
+
     mock_engine_instance = MagicMock(spec=BacktestEngine)
     mock_engine_class.return_value = mock_engine_instance
 
-    # 模拟插件加载，确保返回正确的类型
-    mock_matching_engine = MagicMock(spec=BaseMatchingEngine)
-    mock_slippage_model = MagicMock(spec=BaseSlippageModel)
-    mock_commission_model = MagicMock(spec=BaseCommissionModel)
-    
-    mock_pm_instance.load_plugin.side_effect = [
-        mock_matching_engine,
-        mock_slippage_model,
-        mock_commission_model,
-    ]
-    
+    # E10修复：模拟get_all_plugins返回空字典，触发插件注册
+    mock_pm_instance.get_all_plugins.return_value = {}
+
     config = {
         "backtest": {
-            "matching_engine": "simple",
-            "slippage_model": "fixed",
-            "commission_model": "fixed",
+            "matching_engine": "SimpleMatchingEngine",
+            "slippage_model": "FixedSlippageModel",
+            "commission_model": "FixedCommissionModel",
         }
     }
 
@@ -75,15 +66,14 @@ def test_backtest_runner_initialization(mock_engine_class, mock_pm_class, strate
     assert runner.strategy_file == strategy_file
     assert runner.config == config
     assert runner.plugin_manager == mock_pm_instance
-    
-    # 验证插件加载是否被调用
-    assert mock_pm_instance.load_plugin.call_count == 3
-    
-    # 验证 BacktestEngine 是否用加载的插件正确实例化
+
+    # E10修复：验证插件注册是否被调用（而不是加载）
+    assert mock_pm_instance.register_plugin.call_count >= 3  # 至少注册3个默认插件
+
+    # E10修复：验证 BacktestEngine 是否用PluginManager正确实例化
     mock_engine_class.assert_called_once_with(
-        matching_engine=mock_matching_engine,
-        slippage_model=mock_slippage_model,
-        commission_model=mock_commission_model,
+        plugin_manager=mock_pm_instance,
+        config=config["backtest"],
     )
 
 @patch("simtradelab.runner.BacktestRunner")

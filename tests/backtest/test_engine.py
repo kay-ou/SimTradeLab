@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 回测引擎测试 (重构后)
+
+E10修复：更新测试以使用统一插件管理的BacktestEngine
 """
 
 from datetime import datetime
 from decimal import Decimal
-from unittest.mock import Mock
+from unittest.mock import Mock, MagicMock
 
 import pytest
 
@@ -20,6 +22,7 @@ from simtradelab.backtest.plugins.config import (
     FixedSlippageModelConfig,
     FixedCommissionModelConfig,
 )
+from simtradelab.core.plugin_manager import PluginManager
 
 
 # 为了测试，我们需要一个可实例化的 SimpleMatchingEngine
@@ -32,10 +35,48 @@ class ConcreteSimpleMatchingEngine(SimpleMatchingEngine):
         pass
 
 @pytest.fixture
+def mock_plugin_manager():
+    """
+    E10修复：提供一个模拟的PluginManager，预配置了回测插件
+    """
+    plugin_manager = MagicMock(spec=PluginManager)
+
+    # 创建模拟插件实例
+    mock_matching_engine = ConcreteSimpleMatchingEngine(
+        metadata=PluginMetadata(name="TestMatchingEngine", version="1.0"),
+        config=SimpleMatchingEngineConfig()
+    )
+
+    mock_slippage_model = FixedSlippageModel(
+        metadata=PluginMetadata(name="TestSlippage", version="1.0"),
+        config=FixedSlippageModelConfig(base_slippage_rate=Decimal("0.001"))
+    )
+
+    mock_commission_model = FixedCommissionModel(
+        metadata=PluginMetadata(name="TestCommission", version="1.0"),
+        config=FixedCommissionModelConfig(commission_rate=Decimal("0.0003"))
+    )
+
+    # 配置load_plugin方法的返回值
+    def load_plugin_side_effect(plugin_name):
+        if plugin_name == "SimpleMatchingEngine":
+            return mock_matching_engine
+        elif plugin_name == "FixedSlippageModel":
+            return mock_slippage_model
+        elif plugin_name == "FixedCommissionModel":
+            return mock_commission_model
+        else:
+            raise ValueError(f"Unknown plugin: {plugin_name}")
+
+    plugin_manager.load_plugin.side_effect = load_plugin_side_effect
+
+    return plugin_manager
+
+@pytest.fixture
 def mock_matching_engine():
-    """提供一个模拟的撮合引擎实例"""
+    """提供一个模拟的撮合引擎实例（向后兼容）"""
     metadata = PluginMetadata(name="TestMatchingEngine", version="1.0")
-    
+
     return ConcreteSimpleMatchingEngine(
         metadata=metadata,
         config=SimpleMatchingEngineConfig()
@@ -43,63 +84,74 @@ def mock_matching_engine():
 
 @pytest.fixture
 def mock_slippage_model():
-    """提供一个模拟的滑点模型实例"""
+    """提供一个模拟的滑点模型实例（向后兼容）"""
     return FixedSlippageModel(
-        metadata=PluginMetadata(name="TestSlippage", version="1.0"), 
+        metadata=PluginMetadata(name="TestSlippage", version="1.0"),
         config=FixedSlippageModelConfig(base_slippage_rate=Decimal("0.001"))
     )
 
 @pytest.fixture
 def mock_commission_model():
-    """提供一个模拟的手续费模型实例"""
+    """提供一个模拟的手续费模型实例（向后兼容）"""
     return FixedCommissionModel(
-        metadata=PluginMetadata(name="TestCommission", version="1.0"), 
+        metadata=PluginMetadata(name="TestCommission", version="1.0"),
         config=FixedCommissionModelConfig(commission_rate=Decimal("0.0003"))
     )
 
 class TestBacktestEngine:
-    """测试重构后的回测引擎"""
+    """
+    测试重构后的回测引擎
 
-    def test_initialization(self, mock_matching_engine):
-        """测试引擎通过依赖注入初始化"""
-        engine = BacktestEngine(matching_engine=mock_matching_engine)
+    E10修复：更新测试以使用统一插件管理
+    """
+
+    def test_initialization(self, mock_plugin_manager):
+        """
+        E10修复：测试引擎通过PluginManager初始化
+        """
+        engine = BacktestEngine(plugin_manager=mock_plugin_manager)
         assert engine is not None
         assert not engine._is_running
         plugin_info = engine.get_plugin_info()
         assert plugin_info["matching_engine"] == "TestMatchingEngine"
+        assert plugin_info["plugin_manager"] == "Unified PluginManager"
 
-    def test_start_stop_lifecycle(self, mock_matching_engine):
-        """测试引擎启动停止生命周期"""
-        engine = BacktestEngine(matching_engine=mock_matching_engine)
-        
+    def test_start_stop_lifecycle(self, mock_plugin_manager):
+        """
+        E10修复：测试引擎启动停止生命周期
+        """
+        engine = BacktestEngine(plugin_manager=mock_plugin_manager)
+
         assert not engine._is_running
         engine.start()
         assert engine._is_running
         engine.stop()
         assert not engine._is_running
 
-    def test_context_manager(self, mock_matching_engine):
-        """测试上下文管理器"""
-        engine = BacktestEngine(matching_engine=mock_matching_engine)
+    def test_context_manager(self, mock_plugin_manager):
+        """
+        E10修复：测试上下文管理器
+        """
+        engine = BacktestEngine(plugin_manager=mock_plugin_manager)
         with engine as ctx_engine:
             assert ctx_engine is engine
             assert engine._is_running
         assert not engine._is_running
 
-    def test_submit_order_without_running(self, mock_matching_engine):
-        """测试在未启动引擎时提交订单"""
-        engine = BacktestEngine(matching_engine=mock_matching_engine)
+    def test_submit_order_without_running(self, mock_plugin_manager):
+        """
+        E10修复：测试在未启动引擎时提交订单
+        """
+        engine = BacktestEngine(plugin_manager=mock_plugin_manager)
         order = Order("test_order", "TEST.SH", "buy", Decimal("100"), Decimal("10.0"))
         with pytest.raises(RuntimeError, match="BacktestEngine is not running"):
             engine.submit_order(order)
 
-    def test_complete_order_flow(self, mock_matching_engine, mock_slippage_model, mock_commission_model):
-        """测试完整的订单流程"""
-        engine = BacktestEngine(
-            matching_engine=mock_matching_engine,
-            slippage_model=mock_slippage_model,
-            commission_model=mock_commission_model,
-        )
+    def test_complete_order_flow(self, mock_plugin_manager):
+        """
+        E10修复：测试完整的订单流程
+        """
+        engine = BacktestEngine(plugin_manager=mock_plugin_manager)
         engine.start()
 
         order = Order(
