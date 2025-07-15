@@ -17,6 +17,7 @@ import pytest
 
 from simtradelab.adapters.base import AdapterConfig
 from simtradelab.adapters.ptrade.adapter import PTradeAdapter
+from simtradelab.adapters.ptrade.context import PTradeMode
 from simtradelab.adapters.ptrade.utils import PTradeCompatibilityError
 from simtradelab.core.event_bus import EventBus
 from simtradelab.core.plugin_manager import PluginManager
@@ -592,3 +593,317 @@ class TestPTradeAdapterQuantitativeTradingCore:
 
         finally:
             Path(strategy_path).unlink()
+
+
+class TestPTradeAdapterDataSourceManagement:
+    """测试PTrade适配器的数据源管理功能"""
+
+    @pytest.fixture
+    def adapter(self):
+        """创建配置好的PTrade适配器"""
+        config = AdapterConfig(
+            config={
+                "initial_cash": 1000000,
+                "commission_rate": 0.0003,
+                "slippage_rate": 0.001,
+                "use_mock_data": True,
+                "mock_data_enabled": True,
+            }
+        )
+        adapter = PTradeAdapter(config)
+        
+        # 创建模拟的插件管理器
+        plugin_manager = PluginManager()
+        event_bus = EventBus()
+        adapter.set_event_bus(event_bus)
+        adapter.set_plugin_manager(plugin_manager)
+        
+        adapter._on_initialize()
+        yield adapter
+        adapter._on_shutdown()
+
+    def test_plugin_discovery_and_management(self, adapter):
+        """测试插件发现和管理功能"""
+        # 测试插件发现
+        adapter._discover_data_source_plugins()
+        
+        # 验证插件列表
+        available_plugins = adapter.list_available_data_plugins()
+        assert isinstance(available_plugins, list)
+        
+        # 测试获取数据源状态
+        status = adapter.get_data_source_status()
+        assert isinstance(status, dict)
+        # 修正键名以匹配实际API
+        assert "active_plugin_name" in status
+        assert "discovered_plugins" in status
+        assert "discovered_plugins_count" in status
+
+    def test_data_source_switching(self, adapter):
+        """测试数据源切换功能"""
+        # 获取可用插件
+        available_plugins = adapter.list_available_data_plugins()
+        
+        if len(available_plugins) > 0:
+            # 尝试切换到第一个可用插件
+            plugin_name = available_plugins[0]["name"]
+            result = adapter.switch_data_source(plugin_name)
+            
+            # 验证切换结果
+            assert isinstance(result, bool)
+            
+            # 验证状态更新
+            status = adapter.get_data_source_status()
+            if result:
+                assert status["active_plugin_name"] == plugin_name
+        
+        # 测试切换到不存在的插件
+        result = adapter.switch_data_source("nonexistent_plugin")
+        assert result is False
+
+    def test_plugin_priority_sorting(self, adapter):
+        """测试插件优先级排序"""
+        # 创建测试插件信息
+        test_plugins = [
+            {"name": "mock_data_plugin", "instance": None, "priority": 10},
+            {"name": "akshare_plugin", "instance": None, "priority": 25},
+            {"name": "csv_data_plugin", "instance": None, "priority": 30},
+        ]
+        
+        # 测试排序功能
+        sorted_plugins = adapter._sort_plugins_by_priority(test_plugins)
+        
+        # 验证排序结果
+        assert len(sorted_plugins) == 3
+        assert sorted_plugins[0]["name"] == "csv_data_plugin"  # 最高优先级
+        assert sorted_plugins[1]["name"] == "akshare_plugin"
+        assert sorted_plugins[2]["name"] == "mock_data_plugin"  # 最低优先级
+
+    def test_plugin_type_detection(self, adapter):
+        """测试插件类型检测"""
+        # 模拟数据源插件 - 需要实现所有必需方法
+        class MockDataSourcePlugin:
+            def get_supported_markets(self):
+                return set()
+            
+            def get_history_data(self, *args, **kwargs):
+                pass
+            
+            def get_current_price(self, *args, **kwargs):
+                pass
+            
+            def get_snapshot(self, *args, **kwargs):
+                pass
+            
+            def get_multiple_history_data(self, *args, **kwargs):
+                pass
+        
+        # 模拟非数据源插件
+        class MockOtherPlugin:
+            def some_method(self):
+                pass
+        
+        # 测试检测功能
+        assert adapter._is_data_source_plugin(MockDataSourcePlugin()) is True
+        assert adapter._is_data_source_plugin(MockOtherPlugin()) is False
+        assert adapter._is_data_source_plugin(None) is False
+
+    def test_plugin_cache_management(self, adapter):
+        """测试插件缓存管理"""
+        # 测试缓存预加载
+        adapter._preload_and_cache_plugins()
+        
+        # 验证缓存状态 - 根据实际实现检查缓存变量
+        assert hasattr(adapter, '_plugin_cache_valid')
+        assert hasattr(adapter, '_cached_active_data_plugin')
+        assert hasattr(adapter, '_sorted_data_plugins_cache')
+        
+        # 测试缓存失效
+        adapter._invalidate_plugin_cache()
+        
+        # 验证缓存被清理
+        assert adapter._plugin_cache_valid is False
+        assert adapter._cached_active_data_plugin is None
+        assert len(adapter._sorted_data_plugins_cache) == 0
+
+
+class TestPTradeAdapterAdvancedFeatures:
+    """测试PTrade适配器的高级功能"""
+
+    @pytest.fixture
+    def adapter(self):
+        """创建配置好的PTrade适配器"""
+        config = AdapterConfig(
+            config={
+                "initial_cash": 1000000,
+                "commission_rate": 0.0003,
+                "slippage_rate": 0.001,
+                "use_mock_data": True,
+                "mock_data_enabled": True,
+            }
+        )
+        adapter = PTradeAdapter(config)
+        
+        plugin_manager = PluginManager()
+        event_bus = EventBus()
+        adapter.set_event_bus(event_bus)
+        adapter.set_plugin_manager(plugin_manager)
+        
+        adapter._on_initialize()
+        yield adapter
+        adapter._on_shutdown()
+
+    def test_context_manager_support(self, adapter):
+        """测试上下文管理器支持"""
+        # 测试上下文管理器接口
+        with adapter as ctx_adapter:
+            assert ctx_adapter is adapter
+            assert adapter.is_initialized()
+        
+        # 验证退出上下文后的状态
+        assert adapter.is_initialized()  # 应该还是初始化状态
+
+    def test_mode_support_checking(self, adapter):
+        """测试模式支持检查"""
+        # 测试支持的模式
+        assert adapter.is_mode_supported(PTradeMode.BACKTEST) is True
+        assert adapter.is_mode_supported(PTradeMode.RESEARCH) is True
+        assert adapter.is_mode_supported(PTradeMode.TRADING) is True
+        
+        # 测试当前模式
+        current_mode = adapter.get_current_mode()
+        assert current_mode in [PTradeMode.BACKTEST, PTradeMode.RESEARCH, PTradeMode.TRADING]
+
+    def test_api_wrapper_functionality(self, adapter):
+        """测试API包装功能"""
+        # 创建测试API函数
+        def test_api_function(param1, param2=None):
+            return f"result_{param1}_{param2}"
+        
+        # 测试API包装器创建
+        wrapped_api = adapter._create_api_wrapper(test_api_function, "test_api")
+        
+        # 测试包装后的函数
+        result = wrapped_api("test_param", param2="test_value")
+        assert result == "result_test_param_test_value"
+
+    def test_strategy_performance_metrics(self, adapter):
+        """测试策略性能指标"""
+        # 获取性能指标
+        performance = adapter.get_strategy_performance()
+        
+        # 验证指标结构
+        assert isinstance(performance, dict)
+        expected_keys = [
+            "total_return",
+            "annualized_return", 
+            "sharpe_ratio",
+            "max_drawdown",
+            "win_rate",
+            "total_trades",
+            "current_positions",
+            "cash_position"
+        ]
+        
+        for key in expected_keys:
+            assert key in performance
+            assert performance[key] is not None
+
+    def test_market_data_generation(self, adapter):
+        """测试市场数据生成"""
+        # 测试数据生成功能
+        market_data = adapter._generate_market_data()
+        
+        # 验证数据格式
+        assert isinstance(market_data, dict)
+        
+        # 如果有数据，验证结构
+        if market_data:
+            for symbol, data in market_data.items():
+                assert isinstance(symbol, str)
+                assert isinstance(data, dict)
+                # 验证基本字段
+                expected_fields = ["close", "volume"]
+                for field in expected_fields:
+                    if field in data:
+                        assert isinstance(data[field], (int, float))
+
+    def test_current_price_retrieval(self, adapter):
+        """测试当前价格获取"""
+        # 测试价格获取功能
+        test_security = "000001.SZ"
+        price = adapter._get_current_price(test_security)
+        
+        # 验证价格格式
+        assert isinstance(price, (int, float))
+        assert price > 0
+
+    def test_strategy_hook_execution(self, adapter):
+        """测试策略钩子执行"""
+        # 创建测试策略模块
+        strategy_content = textwrap.dedent("""
+            def initialize(context):
+                context.g.initialized = True
+                
+            def before_trading_start(context, data):
+                context.g.before_trading_called = True
+                
+            def after_trading_end(context, data):
+                context.g.after_trading_called = True
+        """)
+        
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(strategy_content)
+            strategy_path = f.name
+        
+        try:
+            # 加载策略
+            adapter.load_strategy(strategy_path)
+            
+            # 测试钩子执行
+            result = adapter.execute_strategy_hook("initialize", adapter._ptrade_context)
+            # 钩子执行应该不会抛出异常
+            
+            # 测试不存在的钩子
+            result = adapter.execute_strategy_hook("nonexistent_hook")
+            assert result is None
+            
+        finally:
+            Path(strategy_path).unlink()
+
+    def test_strategy_cleanup(self, adapter):
+        """测试策略清理"""
+        # 创建简单策略
+        strategy_content = "def initialize(context): pass"
+        
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(strategy_content)
+            strategy_path = f.name
+        
+        try:
+            # 加载策略
+            adapter.load_strategy(strategy_path)
+            assert adapter._strategy_module is not None
+            
+            # 测试清理功能
+            adapter._cleanup_strategy()
+            
+            # 验证清理结果
+            assert adapter._strategy_module is None
+            
+        finally:
+            Path(strategy_path).unlink()
+
+    def test_event_listener_management(self, adapter):
+        """测试事件监听器管理"""
+        # 设置事件监听器
+        adapter._setup_event_listeners()
+        
+        # 验证监听器设置
+        assert isinstance(adapter._event_listeners, list)
+        
+        # 清理事件监听器
+        adapter._cleanup_event_listeners()
+        
+        # 验证清理结果
+        assert len(adapter._event_listeners) == 0

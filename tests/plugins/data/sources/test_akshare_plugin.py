@@ -465,8 +465,12 @@ class TestAkShareDataSource:
         assert info["000001"]["name"] == "股票000001"  # 默认名称
 
     # 测试生命周期方法
-    def test_lifecycle_methods(self, plugin: AkShareDataSource):
+    @patch("akshare.stock_zh_a_spot_em")
+    def test_lifecycle_methods(self, mock_ak_spot: MagicMock, plugin: AkShareDataSource, sample_akshare_spot_df: pd.DataFrame):
         """测试插件生命周期方法"""
+        # 设置mock以避免网络调用
+        mock_ak_spot.return_value = sample_akshare_spot_df
+        
         # 这些方法应该能正常调用而不抛出异常
         plugin._on_initialize()
         plugin._on_start()
