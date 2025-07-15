@@ -71,7 +71,7 @@ def test_load_plugin_with_valid_config_successfully(mock_config_manager):
     预期行为：PluginManager成功加载插件，并且插件接收到正确的配置对象。
     """
     # 1. 准备
-    manager = PluginManager()
+    manager = PluginManager(register_core_plugins=False)
     plugin_name = manager.register_plugin(PluginWithConfig)
 
     # 模拟ConfigManager成功返回一个已验证的配置对象
@@ -99,7 +99,7 @@ def test_load_plugin_wraps_validation_error_in_plugin_load_error(mock_config_man
     预期行为：PluginManager捕获该异常，并将其包装成一个PluginLoadError抛出。
     """
     # 1. 准备
-    manager = PluginManager()
+    manager = PluginManager(register_core_plugins=False)
     plugin_name = manager.register_plugin(PluginWithConfig)
 
     # 模拟ConfigManager在验证时抛出ValidationError
@@ -130,7 +130,7 @@ def test_load_plugin_without_config_model_successfully(mock_config_manager):
     预期行为：插件应能成功加载，ConfigManager会返回一个默认的空配置。
     """
     # 1. 准备
-    manager = PluginManager()
+    manager = PluginManager(register_core_plugins=False)
     plugin_name = manager.register_plugin(PluginWithoutConfig)
 
     # 模拟ConfigManager为无配置模型的插件返回一个默认的PluginConfig实例
@@ -156,7 +156,7 @@ def test_load_plugin_with_explicit_config_object(mock_config_manager):
     预期行为：该配置对象被传递给ConfigManager进行处理。
     """
     # 1. 准备
-    manager = PluginManager()
+    manager = PluginManager(register_core_plugins=False)
     plugin_name = manager.register_plugin(PluginWithConfig)
 
     # 准备一个在load_plugin时传入的配置对象

@@ -67,7 +67,10 @@ class PluginManager:
     """
 
     def __init__(
-        self, event_bus: Optional[EventBus] = None, auto_register_builtin: bool = False
+        self,
+        event_bus: Optional[EventBus] = None,
+        auto_register_builtin: bool = False,
+        register_core_plugins: bool = True
     ):
         """
         初始化插件管理器
@@ -75,6 +78,7 @@ class PluginManager:
         Args:
             event_bus: 事件总线实例，可选
             auto_register_builtin: 是否自动注册内置插件，默认False（显式注册原则）
+            register_core_plugins: 是否注册核心插件，默认True（测试时可设为False）
         """
         self._event_bus = event_bus  # 不强制创建EventBus
         self._plugins: Dict[str, PluginRegistry] = {}
@@ -82,6 +86,7 @@ class PluginManager:
         self._lock = threading.RLock()
         self._logger = logging.getLogger(__name__)
         self._auto_register_builtin = auto_register_builtin
+        self._should_register_core_plugins = register_core_plugins
 
         # E9修复：集成统一配置管理器
         self._config_manager = get_config_manager()
@@ -97,8 +102,8 @@ class PluginManager:
         # 只有明确启用时才进行自动发现（用于开发模式）
         if self._auto_register_builtin:
             self._auto_discover_builtin_plugins()
-        else:
-            # 显式注册核心插件
+        elif self._should_register_core_plugins:
+            # 显式注册核心插件（测试时可禁用）
             self._register_core_plugins()
 
     @property
