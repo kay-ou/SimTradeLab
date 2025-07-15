@@ -2,7 +2,7 @@
 """
 数据源插件配置模型测试
 
-测试E8修复：统一的Pydantic配置验证
+测试统一的Pydantic配置验证
 """
 
 from decimal import Decimal
