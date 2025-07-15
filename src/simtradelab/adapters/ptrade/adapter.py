@@ -791,9 +791,9 @@ class PTradeAdapter(BaseAdapter):
             )
 
         try:
-            price: Optional[float] = active_data_plugin.get_current_price(security)
-            if price is not None:
-                return float(price)
+            prices: Dict[str, float] = active_data_plugin.get_current_price([security])
+            if security in prices:
+                return float(prices[security])
             else:
                 raise ValueError(f"No price data available for {security}")
         except Exception as e:
@@ -854,9 +854,21 @@ class PTradeAdapter(BaseAdapter):
         try:
             # 使用API使用限制上下文执行钩子函数
             # 设置生命周期阶段
-            if hasattr(self, "_lifecycle_controller"):
-                self._lifecycle_controller.set_phase(hook_name)
-                return hook_func(*args, **kwargs)
+            if hasattr(self, "_lifecycle_controller") and self._lifecycle_controller:
+                from .lifecycle_controller import LifecyclePhase
+                # 将钩子名称映射到生命周期阶段
+                phase_mapping = {
+                    "initialize": LifecyclePhase.INITIALIZE,
+                    "before_trading_start": LifecyclePhase.BEFORE_TRADING_START,
+                    "handle_data": LifecyclePhase.HANDLE_DATA,
+                    "tick_data": LifecyclePhase.TICK_DATA,
+                    "after_trading_end": LifecyclePhase.AFTER_TRADING_END,
+                    "on_order_response": LifecyclePhase.ON_ORDER_RESPONSE,
+                    "on_trade_response": LifecyclePhase.ON_TRADE_RESPONSE,
+                }
+                if hook_name in phase_mapping:
+                    self._lifecycle_controller.set_phase(phase_mapping[hook_name])
+            return hook_func(*args, **kwargs)
         except Exception as e:
             self._logger.error(f"Error executing strategy hook {hook_name}: {e}")
             raise PTradeAPIError(f"Strategy hook {hook_name} failed: {e}")
@@ -1150,4 +1162,4 @@ class PTradeAdapter(BaseAdapter):
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore[no-untyped-def]
         """上下文管理器出口"""
-        self.shutdown()
+        self._on_shutdown()

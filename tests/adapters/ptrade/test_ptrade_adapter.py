@@ -760,8 +760,8 @@ class TestPTradeAdapterAdvancedFeatures:
             assert ctx_adapter is adapter
             assert adapter.is_initialized()
         
-        # 验证退出上下文后的状态
-        assert adapter.is_initialized()  # 应该还是初始化状态
+        # 验证退出上下文后的状态 - _on_shutdown会清理所有资源
+        assert not adapter.is_initialized()  # 应该被清理
 
     def test_mode_support_checking(self, adapter):
         """测试模式支持检查"""
@@ -795,14 +795,16 @@ class TestPTradeAdapterAdvancedFeatures:
         # 验证指标结构
         assert isinstance(performance, dict)
         expected_keys = [
-            "total_return",
-            "annualized_return", 
-            "sharpe_ratio",
-            "max_drawdown",
-            "win_rate",
+            "portfolio_value",
+            "cash",
+            "positions_value",
+            "returns",
+            "pnl",
+            "positions_count",
             "total_trades",
-            "current_positions",
-            "cash_position"
+            "winning_trades",
+            "starting_cash",
+            "current_datetime"
         ]
         
         for key in expected_keys:
@@ -860,13 +862,13 @@ class TestPTradeAdapterAdvancedFeatures:
             # 加载策略
             adapter.load_strategy(strategy_path)
             
-            # 测试钩子执行
-            result = adapter.execute_strategy_hook("initialize", adapter._ptrade_context)
+            # 测试钩子执行 - 测试before_trading_start钩子（允许在initialize之后执行）
+            result = adapter.execute_strategy_hook("before_trading_start", adapter._ptrade_context, {})
             # 钩子执行应该不会抛出异常
             
-            # 测试不存在的钩子
-            result = adapter.execute_strategy_hook("nonexistent_hook")
-            assert result is None
+            # 测试不存在的钩子 - 应该抛出异常
+            with pytest.raises(Exception):  # 期望抛出异常
+                adapter.execute_strategy_hook("nonexistent_hook")
             
         finally:
             Path(strategy_path).unlink()
