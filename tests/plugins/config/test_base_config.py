@@ -364,3 +364,188 @@ class TestBasePluginConfig:
 if __name__ == "__main__":
     # 运行测试
     pytest.main([__file__, "-v"])
+
+
+class TestBasePluginConfigAdditional:
+    """额外的BasePluginConfig测试用例，提升覆盖率"""
+    
+    def test_resolve_env_vars_with_non_dict_input(self):
+        """测试_resolve_env_vars处理非字典输入"""
+        # 直接调用_resolve_env_vars静态方法
+        result = BasePluginConfig._resolve_env_vars("simple_string")
+        assert result == "simple_string"
+        
+        result = BasePluginConfig._resolve_env_vars(123)
+        assert result == 123
+        
+        result = BasePluginConfig._resolve_env_vars(None)
+        assert result is None
+    
+    def test_resolve_env_vars_with_partial_match(self):
+        """测试_resolve_env_vars处理部分匹配"""
+        # 测试不匹配的字符串
+        result = BasePluginConfig._resolve_env_vars({"key": "not_env_var"})
+        assert result == {"key": "not_env_var"}
+        
+        result = BasePluginConfig._resolve_env_vars({"key": "$VAR"})  # 缺少大括号
+        assert result == {"key": "$VAR"}
+    
+    def test_resolve_env_vars_with_complex_nesting(self, monkeypatch):
+        """测试_resolve_env_vars处理复杂嵌套"""
+        monkeypatch.setenv("LEVEL1_VAR", "level1_value")
+        monkeypatch.setenv("LEVEL2_VAR", "level2_value")
+        
+        data = {
+            "level1": {
+                "level2": {
+                    "level3": ["${LEVEL1_VAR}", "${LEVEL2_VAR}", "static_value"]
+                }
+            }
+        }
+        
+        result = BasePluginConfig._resolve_env_vars(data)
+        assert result["level1"]["level2"]["level3"] == ["level1_value", "level2_value", "static_value"]
+    
+    def test_deep_merge_with_simple_override(self):
+        """测试深度合并简单覆盖"""
+        # 创建一个简单的config来测试deep_merge
+        config_data = {
+            "default": {"database_url": "default_db", "api_key": "default_key", "timeout": 100},
+            "test": {"database_url": "test_db"}
+        }
+        
+        result = ComplexConfig.load_from_dict(config_data, env="test")
+        assert result.database_url == "test_db"
+        assert result.api_key == "default_key"  # 应该从default继承
+        assert result.timeout == 100  # 应该从default继承
+    
+    def test_deep_merge_with_nested_override(self):
+        """测试深度合并嵌套覆盖"""
+        config_data = {
+            "default": {
+                "database_url": "default_db",
+                "api_key": "default_key",
+                "nested_config": {
+                    "setting1": "default_setting1",
+                    "setting2": "default_setting2"
+                }
+            },
+            "test": {
+                "nested_config": {
+                    "setting1": "test_setting1"
+                    # setting2 should inherit from default
+                }
+            }
+        }
+        
+        result = ComplexConfig.load_from_dict(config_data, env="test")
+        assert result.database_url == "default_db"
+        assert result.api_key == "default_key"
+        assert result.nested_config["setting1"] == "test_setting1"
+        assert result.nested_config["setting2"] == "default_setting2"
+    
+    def test_deep_merge_with_non_dict_override(self):
+        """测试深度合并非字典覆盖"""
+        config_data = {
+            "default": {
+                "database_url": "default_db",
+                "api_key": "default_key",
+                "timeout": 30,
+                "nested_config": {
+                    "setting1": "default_setting1",
+                    "setting2": "default_setting2"
+                }
+            },
+            "test": {
+                "nested_config": {"completely": "different"}  # 字典值，应该深度合并
+            }
+        }
+        
+        result = ComplexConfig.load_from_dict(config_data, env="test")
+        assert result.database_url == "default_db"
+        assert result.api_key == "default_key"
+        # 深度合并的结果应该包含原有字段和新字段
+        assert result.nested_config == {
+            "setting1": "default_setting1",
+            "setting2": "default_setting2", 
+            "completely": "different"
+        }
+    
+    def test_load_from_dict_with_missing_default(self):
+        """测试load_from_dict缺少default配置"""
+        config_data = {
+            "production": {
+                "database_url": "prod_db",
+                "api_key": "prod_key"
+            }
+        }
+        
+        result = ComplexConfig.load_from_dict(config_data, env="production")
+        assert result.database_url == "prod_db"
+        assert result.api_key == "prod_key"
+    
+    def test_config_model_extra_forbid(self):
+        """测试配置模型禁止额外字段"""
+        # 验证model_config中的extra="forbid"设置
+        config = BasePluginConfig()
+        assert config.model_config["extra"] == "forbid"
+        assert config.model_config["validate_assignment"] is True
+    
+    def test_config_inheritance(self):
+        """测试配置继承"""
+        # 测试SimpleConfig继承BasePluginConfig
+        config = SimpleConfig(name="test")
+        assert hasattr(config, "enabled")  # 继承自BasePluginConfig
+        assert config.enabled is True  # 默认值
+        
+        # 测试可以覆盖继承的字段
+        config2 = SimpleConfig(name="test", enabled=False)
+        assert config2.enabled is False
+    
+    def test_env_var_pattern_constant(self):
+        """测试环境变量模式常量"""
+        # 确保ENV_VAR_PATTERN是可用的
+        assert ENV_VAR_PATTERN is not None
+        
+        # 测试模式匹配
+        match = ENV_VAR_PATTERN.match("${TEST_VAR}")
+        assert match is not None
+        assert match.group(1) == "TEST_VAR"
+    
+    def test_config_field_access(self):
+        """测试配置字段访问"""
+        config = ComplexConfig(
+            database_url="test_db",
+            api_key="test_key",
+            timeout=45,
+            debug=True,
+            tags=["tag1", "tag2"],
+            nested_config={"key": "value"}
+        )
+        
+        # 验证所有字段都可访问
+        assert config.database_url == "test_db"
+        assert config.api_key == "test_key"
+        assert config.timeout == 45
+        assert config.debug is True
+        assert config.tags == ["tag1", "tag2"]
+        assert config.nested_config == {"key": "value"}
+        assert config.enabled is True  # 继承自BasePluginConfig
+    
+    def test_config_model_validation_on_assignment(self):
+        """测试配置模型赋值时验证"""
+        config = SimpleConfig(name="test", value=100)
+        
+        # 修改为有效值
+        config.name = "new_name"
+        assert config.name == "new_name"
+        
+        config.value = 200
+        assert config.value == 200
+        
+        # 修改为无效值应该失败
+        with pytest.raises(ValidationError):
+            config.name = 123  # 应该是字符串
+        
+        with pytest.raises(ValidationError):
+            config.value = "not_a_number"  # 应该是数字

@@ -140,3 +140,121 @@ def test_runner_integration_run(strategy_file):
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+class TestBacktestRunnerAdditional:
+    """额外的BacktestRunner测试用例，提升覆盖率"""
+    
+    def test_runner_with_custom_plugin_manager(self, strategy_file, mock_config):
+        """测试使用自定义PluginManager初始化"""
+        custom_pm = MagicMock(spec=PluginManager)
+        custom_pm.get_all_plugins.return_value = {}
+        
+        with patch("simtradelab.runner.BacktestEngine") as mock_engine:
+            runner = BacktestRunner(
+                strategy_file=strategy_file, 
+                config=mock_config,
+                plugin_manager=custom_pm
+            )
+            
+            assert runner.plugin_manager is custom_pm
+            # 应该仍然调用插件注册
+            assert custom_pm.register_plugin.called
+    
+    def test_runner_with_plugins_in_config(self, strategy_file):
+        """测试配置中包含插件配置"""
+        config = {
+            "backtest": {"matching_engine": "simple"},
+            "plugins": {
+                "test_plugin": {
+                    "class": "test.Plugin",
+                    "config": {"param": "value"}
+                }
+            }
+        }
+        
+        with patch("simtradelab.runner.BacktestEngine") as mock_engine:
+            with patch("simtradelab.runner.PluginManager") as mock_pm_class:
+                mock_pm = MagicMock()
+                mock_pm_class.return_value = mock_pm
+                mock_pm.get_all_plugins.return_value = {}
+                
+                runner = BacktestRunner(strategy_file=strategy_file, config=config)
+                
+                # 验证从配置注册插件被调用
+                mock_pm.register_plugins_from_config.assert_called_once_with(config["plugins"])
+    
+    def test_runner_plugin_registration_error(self, strategy_file, mock_config):
+        """测试插件注册错误处理"""
+        with patch("simtradelab.runner.BacktestEngine") as mock_engine:
+            with patch("simtradelab.runner.PluginManager") as mock_pm_class:
+                mock_pm = MagicMock()
+                mock_pm_class.return_value = mock_pm
+                mock_pm.get_all_plugins.return_value = {}
+                
+                # 模拟注册插件时发生错误
+                mock_pm.register_plugin.side_effect = Exception("Plugin registration failed")
+                
+                # 应该能正常初始化，只是记录警告
+                runner = BacktestRunner(strategy_file=strategy_file, config=mock_config)
+                assert runner is not None
+    
+    def test_runner_context_manager(self, strategy_file, mock_config):
+        """测试上下文管理器功能"""
+        with patch("simtradelab.runner.BacktestEngine") as mock_engine:
+            runner = BacktestRunner(strategy_file=strategy_file, config=mock_config)
+            
+            # 测试__enter__
+            assert runner.__enter__() is runner
+            
+            # 测试__exit__
+            runner.__exit__(None, None, None)  # 应该不抛出异常
+    
+    def test_runner_run_method_logging(self, strategy_file, mock_config):
+        """测试run方法的日志记录"""
+        with patch("simtradelab.runner.BacktestEngine") as mock_engine_class:
+            mock_engine_instance = MagicMock()
+            mock_engine_class.return_value = mock_engine_instance
+            mock_engine_instance.get_statistics.return_value = {"pnl": 1000}
+            
+            runner = BacktestRunner(strategy_file=strategy_file, config=mock_config)
+            
+            with patch.object(runner, 'logger') as mock_logger:
+                result = runner.run()
+                
+                # 验证日志调用
+                mock_logger.info.assert_any_call(f"Starting backtest for strategy: {strategy_file}")
+                mock_logger.info.assert_any_call(f"Backtest finished. Stats: {{'pnl': 1000}}")
+                
+                assert result == {"pnl": 1000}
+    
+    def test_ensure_backtest_plugins_already_registered(self, strategy_file, mock_config):
+        """测试当插件已经注册时的行为"""
+        with patch("simtradelab.runner.BacktestEngine") as mock_engine:
+            with patch("simtradelab.runner.PluginManager") as mock_pm_class:
+                mock_pm = MagicMock()
+                mock_pm_class.return_value = mock_pm
+                
+                # 模拟插件已经注册
+                mock_pm.get_all_plugins.return_value = {
+                    "SimpleMatchingEngine": MagicMock(),
+                    "FixedSlippageModel": MagicMock(),
+                    "FixedCommissionModel": MagicMock()
+                }
+                
+                runner = BacktestRunner(strategy_file=strategy_file, config=mock_config)
+                
+                # 验证没有调用register_plugin，因为插件已存在
+                mock_pm.register_plugin.assert_not_called()
+    
+    def test_run_backtest_with_exception_handling(self, strategy_file, mock_config):
+        """测试run_backtest函数的异常处理"""
+        with patch("simtradelab.runner.BacktestRunner") as mock_runner_class:
+            mock_runner = MagicMock()
+            mock_runner_class.return_value = mock_runner
+            mock_runner.__enter__.return_value = mock_runner
+            mock_runner.run.side_effect = Exception("Backtest failed")
+            
+            # 异常应该被传播
+            with pytest.raises(Exception, match="Backtest failed"):
+                run_backtest(strategy_file=strategy_file, config=mock_config)
