@@ -12,13 +12,11 @@ simtradelab 发布脚本
 """
 
 import argparse
-import json
 import os
 import re
 import shutil
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
 
 
@@ -281,17 +279,17 @@ def main():
         print(f"版本: v{version}")
         if not args.dry_run:
             print(f"发布说明: {notes_file}")
-            print(f"分发文件: dist/")
+            print("分发文件: dist/")
 
         print("\n下一步操作:")
         print("1. 推送标签到远程仓库:")
         print(f"   git push origin v{version}")
         print("\n2. 在GitHub上创建Release:")
-        print(f"   - 访问: https://github.com/kay-ou/SimTradeLab/releases/new")
+        print("   - 访问: https://github.com/kay-ou/SimTradeLab/releases/new")
         print(f"   - 选择标签: v{version}")
         print(f"   - 复制发布说明: {notes_file}")
         if not args.dry_run:
-            print(f"   - 上传分发文件: dist/*")
+            print("   - 上传分发文件: dist/*")
         print("\n3. 发布到PyPI (可选):")
         print("   poetry publish")
 

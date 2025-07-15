@@ -5,7 +5,7 @@ lifecycle_controller.py 测试文件
 测试PTrade API生命周期控制器
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -81,9 +81,7 @@ class TestLifecycleController:
         controller.set_phase(LifecyclePhase.HANDLE_DATA)
         assert controller.current_phase_name == "handle_data"
 
-    @patch(
-        "simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
-    )
+    @patch("simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase")
     def test_validate_api_call_allowed(self, mock_is_allowed):
         """测试API调用验证 - 允许的情况"""
         mock_is_allowed.return_value = True
@@ -98,9 +96,7 @@ class TestLifecycleController:
 
         mock_is_allowed.assert_called_once_with("order", "handle_data")
 
-    @patch(
-        "simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
-    )
+    @patch("simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase")
     def test_validate_api_call_forbidden(self, mock_is_allowed):
         """测试API调用验证 - 禁止的情况"""
         mock_is_allowed.return_value = False

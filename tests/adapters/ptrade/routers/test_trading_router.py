@@ -40,7 +40,6 @@ class TestTradingAPIRouter:
     @pytest.fixture
     def router(self, context, event_bus):
         """创建实盘交易路由器实例"""
-        from unittest.mock import MagicMock
 
         import numpy as np
         import pandas as pd
@@ -562,7 +561,6 @@ class TestTradingAPIRouter:
     def test_technical_indicators(self, router):
         """测试技术指标"""
         # 生成足够多的数据点以满足技术指标计算要求（至少35个数据点）
-        import numpy as np
 
         data_length = 40
         base_price = 10.0

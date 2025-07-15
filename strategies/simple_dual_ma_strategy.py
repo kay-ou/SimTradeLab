@@ -17,7 +17,6 @@
 风险等级：中等
 """
 
-import numpy as np
 
 # 导入必要的库
 import pandas as pd

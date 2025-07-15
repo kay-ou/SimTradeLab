@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 from simtradelab.adapters.ptrade.context import PTradeContext
-from simtradelab.adapters.ptrade.models import Blotter, Portfolio, Position
+from simtradelab.adapters.ptrade.models import Blotter, Portfolio
 from simtradelab.adapters.ptrade.routers.research import ResearchAPIRouter
 from simtradelab.core.event_bus import EventBus
 

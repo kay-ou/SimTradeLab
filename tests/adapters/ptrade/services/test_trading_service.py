@@ -4,9 +4,8 @@
 """
 
 from datetime import datetime
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
-import pytest
 
 from simtradelab.adapters.ptrade.context import PTradeContext
 from simtradelab.adapters.ptrade.models import Blotter, Portfolio

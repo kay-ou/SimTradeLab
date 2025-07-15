@@ -3,7 +3,6 @@
 ResourceMonitor 的单元测试
 """
 import time
-from unittest.mock import patch
 
 from simtradelab.plugins.security.resource_monitor import ResourceMonitor
 

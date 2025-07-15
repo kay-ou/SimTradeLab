@@ -5,8 +5,7 @@
 包含环境变量解析、多环境配置、深度合并等核心功能的详细测试
 """
 
-import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import pytest
 from pydantic import Field, ValidationError

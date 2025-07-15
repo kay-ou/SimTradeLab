@@ -5,7 +5,6 @@
 包含环境变量解析、多环境配置、数据验证等核心功能测试
 """
 
-import os
 from typing import Any, Dict, Optional
 
 import pytest

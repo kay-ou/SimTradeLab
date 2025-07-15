@@ -163,9 +163,7 @@ def event_bus():
 def plugin_manager(event_bus):
     """提供一个 PluginManager 实例，并在测试结束后自动关闭"""
     manager = PluginManager(
-        event_bus=event_bus,
-        auto_register_builtin=False,
-        register_core_plugins=False
+        event_bus=event_bus, auto_register_builtin=False, register_core_plugins=False
     )
     yield manager
     manager.shutdown()

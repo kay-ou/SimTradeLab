@@ -8,7 +8,6 @@ Run this script if you encounter problems installing SimTradeLab with pip.
 """
 
 import importlib.util
-import os
 import platform
 import subprocess
 import sys
@@ -155,7 +154,7 @@ def test_installation():
                 print(f"❌ Import failed: {e}")
                 return False
         else:
-            print(f"❌ Installation failed:")
+            print("❌ Installation failed:")
             print(result.stderr)
             return False
 

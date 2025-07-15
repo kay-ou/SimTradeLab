@@ -10,6 +10,7 @@ import yaml
 
 from .runner import BacktestRunner
 
+
 def main() -> None:
     """命令行主入口"""
     parser = argparse.ArgumentParser(
@@ -17,14 +18,10 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument(
-        "--strategy", "-s", required=True, help="策略文件路径"
-    )
-    parser.add_argument(
-        "--config", "-c", required=True, help="YAML 配置文件路径"
-    )
+    parser.add_argument("--strategy", "-s", required=True, help="策略文件路径")
+    parser.add_argument("--config", "-c", required=True, help="YAML 配置文件路径")
     parser.add_argument("--quiet", "-q", action="store_true", help="静默模式，只显示最终结果")
-    
+
     args = parser.parse_args()
 
     # 验证文件路径
@@ -65,7 +62,6 @@ def main() -> None:
             # import json
             # print(json.dumps(results, indent=2, ensure_ascii=False))
 
-
         sys.exit(0)
 
     except KeyboardInterrupt:
@@ -74,6 +70,7 @@ def main() -> None:
     except Exception as e:
         print(f"运行失败: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

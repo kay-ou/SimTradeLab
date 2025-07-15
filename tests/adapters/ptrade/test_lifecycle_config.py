@@ -83,8 +83,7 @@ class TestLifecycleConfig:
         # 3. 未知阶段，应只返回'all'的API
         unknown_phase_apis = get_phase_apis("unknown_phase")
         assert all(
-            API_LIFECYCLE_RESTRICTIONS.get(api) == ["all"]
-            for api in unknown_phase_apis
+            API_LIFECYCLE_RESTRICTIONS.get(api) == ["all"] for api in unknown_phase_apis
         )
 
     def test_phase_api_count(self):

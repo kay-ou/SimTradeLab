@@ -7,8 +7,6 @@ This script verifies that SimTradeLab is properly configured for
 cross-platform installation via pip.
 """
 
-import os
-import shutil
 import subprocess
 import sys
 import tempfile

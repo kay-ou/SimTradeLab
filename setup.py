@@ -7,7 +7,6 @@ This file serves as a fallback for environments where Poetry is not available.
 The primary build system is defined in pyproject.toml using Poetry.
 """
 
-import os
 import sys
 from pathlib import Path
 

@@ -32,7 +32,7 @@ def initialize(context):
         log.info(f"使用双均线模式 - 短期均线: {g.ma_short}, 长期均线: {g.ma_long}")
 
     log.info(f"设置股票池: {g.security}")
-    log.info(f"设置基准指数: BENCHMARK_INDEX")
+    log.info("设置基准指数: BENCHMARK_INDEX")
 
 
 def handle_data(context, data):

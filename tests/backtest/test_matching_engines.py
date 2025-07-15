@@ -5,7 +5,7 @@
 
 from datetime import datetime
 from decimal import Decimal
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -17,25 +17,34 @@ from simtradelab.backtest.plugins.slippage_models import BaseSlippageModel
 from simtradelab.backtest.plugins.commission_models import BaseCommissionModel
 from simtradelab.backtest.plugins.config import SimpleMatchingEngineConfig
 
+
 # 可实例化的具体插件类，用于测试
 class ConcreteSimpleMatchingEngine(SimpleMatchingEngine):
-    def _on_initialize(self) -> None: pass
-    def _on_start(self) -> None: pass
-    def _on_stop(self) -> None: pass
+    def _on_initialize(self) -> None:
+        pass
+
+    def _on_start(self) -> None:
+        pass
+
+    def _on_stop(self) -> None:
+        pass
+
 
 @pytest.fixture
 def mock_slippage_model():
     """提供一个模拟的滑点模型"""
     mock = MagicMock(spec=BaseSlippageModel)
-    mock.calculate_slippage.return_value = Decimal("0.01") # 模拟滑点为 0.01
+    mock.calculate_slippage.return_value = Decimal("0.01")  # 模拟滑点为 0.01
     return mock
+
 
 @pytest.fixture
 def mock_commission_model():
     """提供一个模拟的手续费模型"""
     mock = MagicMock(spec=BaseCommissionModel)
-    mock.calculate_commission.return_value = Decimal("5.00") # 模拟手续费为 5.00
+    mock.calculate_commission.return_value = Decimal("5.00")  # 模拟手续费为 5.00
     return mock
+
 
 @pytest.fixture
 def simple_matching_engine(mock_slippage_model, mock_commission_model):
@@ -56,6 +65,7 @@ def simple_matching_engine(mock_slippage_model, mock_commission_model):
     )
     return engine
 
+
 class TestSimpleMatchingEngine:
     """测试重构后的简单撮合引擎"""
 
@@ -65,7 +75,9 @@ class TestSimpleMatchingEngine:
         assert simple_matching_engine._slippage_model is not None
         assert simple_matching_engine._commission_model is not None
 
-    def test_match_order_with_costs(self, simple_matching_engine, mock_slippage_model, mock_commission_model):
+    def test_match_order_with_costs(
+        self, simple_matching_engine, mock_slippage_model, mock_commission_model
+    ):
         """测试订单撮合是否正确包含了滑点和手续费"""
         order = Order(
             order_id="test_order",
@@ -97,7 +109,7 @@ class TestSimpleMatchingEngine:
         # 验证Fill对象是否包含了成本
         assert fill.slippage == Decimal("0.01")
         assert fill.commission == Decimal("5.00")
-        
+
         # 验证成交价格是否考虑了滑点
         expected_price = market_data.close_price + (fill.slippage / fill.quantity)
         assert fill.price == expected_price
@@ -109,7 +121,7 @@ class TestSimpleMatchingEngine:
             symbol="TEST.SH",
             side="buy",
             quantity=Decimal("100"),
-            price=Decimal("10.0"), # 限价低于市价，但高于最低价
+            price=Decimal("10.0"),  # 限价低于市价，但高于最低价
             order_type="limit",
             timestamp=datetime.now(),
         )
@@ -122,12 +134,12 @@ class TestSimpleMatchingEngine:
             close_price=Decimal("10.1"),
             volume=Decimal("10000"),
         )
-        
+
         assert simple_matching_engine._can_execute(order, market_data)
         fills = simple_matching_engine.match_order(order, market_data)
         assert len(fills) == 1
         # 成交价应该是限价和开盘价中对买方有利的那个（更低的）
-        assert fills[0].price > Decimal("0") # 确保价格被计算
+        assert fills[0].price > Decimal("0")  # 确保价格被计算
 
     def test_limit_order_cannot_match(self, simple_matching_engine):
         """测试限价单无法匹配的场景"""
@@ -136,7 +148,7 @@ class TestSimpleMatchingEngine:
             symbol="TEST.SH",
             side="buy",
             quantity=Decimal("100"),
-            price=Decimal("9.7"), # 限价低于当日最低价
+            price=Decimal("9.7"),  # 限价低于当日最低价
             order_type="limit",
             timestamp=datetime.now(),
         )
@@ -149,7 +161,7 @@ class TestSimpleMatchingEngine:
             close_price=Decimal("10.1"),
             volume=Decimal("10000"),
         )
-        
+
         assert not simple_matching_engine._can_execute(order, market_data)
         fills = simple_matching_engine.match_order(order, market_data)
         assert len(fills) == 0

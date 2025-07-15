@@ -3,7 +3,6 @@
 PTrade模型对象测试
 """
 
-import pytest
 
 from simtradelab.adapters.ptrade.context import PTradeContext
 from simtradelab.adapters.ptrade.models import Blotter, Portfolio, Position

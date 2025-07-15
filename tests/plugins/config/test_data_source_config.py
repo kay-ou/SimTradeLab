@@ -7,7 +7,6 @@
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict
 
 import pytest
 from pydantic import ValidationError

@@ -65,11 +65,11 @@ def setup_directories():
 
 def start_server(host="0.0.0.0", port=8000, reload=False, workers=1):
     """启动Web服务器"""
-    print(f"\n🌐 启动Web服务器...")
+    print("\n🌐 启动Web服务器...")
     print(f"📍 内部地址: http://{host}:{port}")
     print(f"📍 外部访问: http://localhost:{port}")
     print(f"🔧 API文档: http://localhost:{port}/docs")
-    print(f"⏹️  按 Ctrl+C 停止服务器\n")
+    print("⏹️  按 Ctrl+C 停止服务器\n")
 
     # 只在非Docker环境且未禁用浏览器时才自动打开
     should_open_browser = (

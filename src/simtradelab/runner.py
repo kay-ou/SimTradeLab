@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional
 from .core.plugin_manager import PluginManager
 from .backtest.engine import BacktestEngine
 
+
 class BacktestRunner:
     """
     回测运行器
@@ -76,15 +77,17 @@ class BacktestRunner:
                     self.plugin_manager.register_plugin(plugin_class)
                     self.logger.debug(f"Registered backtest plugin: {plugin_name}")
             except Exception as e:
-                self.logger.warning(f"Failed to register plugin {plugin_class.__name__}: {e}")
+                self.logger.warning(
+                    f"Failed to register plugin {plugin_class.__name__}: {e}"
+                )
 
     def run(self):
         """运行回测"""
         self.logger.info(f"Starting backtest for strategy: {self.strategy_file}")
-        
+
         # 此处应有加载数据和策略的逻辑
         # ...
-        
+
         with self.engine as engine:
             # 模拟数据流和订单提交
             # for market_data_event in data_stream:

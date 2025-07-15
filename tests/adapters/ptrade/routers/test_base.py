@@ -6,7 +6,6 @@ PTrade基础路由器测试
 """
 
 from typing import Any, Dict, List, Optional, Union
-from unittest.mock import MagicMock
 
 import pytest
 

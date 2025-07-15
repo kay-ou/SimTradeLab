@@ -5,14 +5,11 @@
 
 from datetime import datetime
 from decimal import Decimal
-from unittest.mock import Mock
 
-import pytest
 
 from simtradelab.backtest.plugins.base import Fill, PluginMetadata
 from simtradelab.backtest.plugins.commission_models import (
     ChinaAStockCommissionModel,
-    ComprehensiveCommissionModel,
     FixedCommissionModel,
     PerShareCommissionModel,
     TieredCommissionModel,

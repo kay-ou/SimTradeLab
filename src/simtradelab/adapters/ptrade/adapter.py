@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from ...core.event_bus import EventBus
-from ...plugins.data import DataSourceManager
 from ..base import AdapterConfig, BaseAdapter
 from .context import PTradeContext, PTradeMode
 from .lifecycle_controller import PTradeLifecycleError

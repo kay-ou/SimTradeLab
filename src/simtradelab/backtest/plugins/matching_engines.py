@@ -114,10 +114,13 @@ class SimpleMatchingEngine(BaseMatchingEngine):
             fill.slippage = slippage_amount
             # 根据滑点调整成交价格
             if order.side == "buy":
-                fill.price += slippage_amount / fill.quantity if fill.quantity else Decimal("0")
-            else: # sell
-                fill.price -= slippage_amount / fill.quantity if fill.quantity else Decimal("0")
-
+                fill.price += (
+                    slippage_amount / fill.quantity if fill.quantity else Decimal("0")
+                )
+            else:  # sell
+                fill.price -= (
+                    slippage_amount / fill.quantity if fill.quantity else Decimal("0")
+                )
 
         # 应用手续费模型
         if self._commission_model:
@@ -127,7 +130,7 @@ class SimpleMatchingEngine(BaseMatchingEngine):
         order.status = "filled"
         order.filled_quantity = fill_quantity
         order.avg_fill_price = fill.price
-        
+
         fills.append(fill)
 
         self.logger.info(
@@ -166,6 +169,7 @@ class DepthMatchingEngine(BaseMatchingEngine):
     深度撮合引擎
     (此处省略后续代码，待SimpleMatchingEngine重构完成后再处理)
     """
+
     METADATA = PluginMetadata(
         name="DepthMatchingEngine",
         version="1.0.0",
@@ -175,7 +179,7 @@ class DepthMatchingEngine(BaseMatchingEngine):
         tags=["backtest", "matching", "depth", "market_impact"],
     )
     config_model = DepthMatchingEngineConfig
-    
+
     def match_order(self, order: Order, market_data: MarketData) -> List[Fill]:
         raise NotImplementedError("DepthMatchingEngine has not been refactored yet.")
 
@@ -185,6 +189,7 @@ class StrictLimitMatchingEngine(BaseMatchingEngine):
     严格限价撮合引擎
     (此处省略后续代码，待SimpleMatchingEngine重构完成后再处理)
     """
+
     METADATA = PluginMetadata(
         name="StrictLimitMatchingEngine",
         version="1.0.0",
@@ -196,4 +201,6 @@ class StrictLimitMatchingEngine(BaseMatchingEngine):
     config_model = LimitMatchingEngineConfig
 
     def match_order(self, order: Order, market_data: MarketData) -> List[Fill]:
-        raise NotImplementedError("StrictLimitMatchingEngine has not been refactored yet.")
+        raise NotImplementedError(
+            "StrictLimitMatchingEngine has not been refactored yet."
+        )

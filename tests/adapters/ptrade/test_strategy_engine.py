@@ -215,7 +215,7 @@ def test_strategy_engine_lifecycle_control():
 
         # 检查生命周期统计
         lifecycle_stats = result.get("lifecycle_stats", {})
-        print(f"4. 生命周期统计:")
+        print("4. 生命周期统计:")
         print(f"   ✓ 总API调用: {lifecycle_stats.get('total_api_calls', 0)}")
         print(f"   ✓ 当前阶段: {lifecycle_stats.get('current_phase', 'unknown')}")
         print(f"   ✓ 已执行阶段: {lifecycle_stats.get('phases_executed', [])}")
@@ -317,7 +317,7 @@ def test_strategy_engine_reset_and_cleanup():
 
         # 获取执行前状态
         status_before = engine.get_execution_status()
-        print(f"2. 重置前状态:")
+        print("2. 重置前状态:")
         print(f"   注册函数: {status_before['registered_functions']}")
         print(f"   组合价值: {status_before['portfolio_value']}")
 
@@ -327,7 +327,7 @@ def test_strategy_engine_reset_and_cleanup():
 
         # 获取重置后状态
         status_after = engine.get_execution_status()
-        print(f"4. 重置后状态:")
+        print("4. 重置后状态:")
         print(f"   策略名称: {status_after['strategy_name']}")
         print(f"   注册函数: {status_after['registered_functions']}")
         print(f"   是否初始化: {status_after['initialized']}")

@@ -10,7 +10,7 @@
 """
 
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 
 from .base import BaseCommissionModel, Fill, PluginMetadata
 from .config import (

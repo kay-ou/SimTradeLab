@@ -15,6 +15,7 @@ from simtradelab.runner import BacktestRunner, run_backtest
 from simtradelab.core.plugin_manager import PluginManager
 from simtradelab.backtest.engine import BacktestEngine
 
+
 @pytest.fixture
 def mock_config():
     """提供一个默认的配置文件"""
@@ -26,6 +27,7 @@ def mock_config():
         }
     }
 
+
 @pytest.fixture
 def strategy_file():
     """创建一个临时的策略文件"""
@@ -35,9 +37,12 @@ def strategy_file():
     yield file_path
     Path(file_path).unlink()
 
+
 @patch("simtradelab.runner.PluginManager")
 @patch("simtradelab.runner.BacktestEngine")
-def test_backtest_runner_initialization(mock_engine_class, mock_pm_class, strategy_file):
+def test_backtest_runner_initialization(
+    mock_engine_class, mock_pm_class, strategy_file
+):
     """
     测试 BacktestRunner 的初始化过程
 
@@ -76,6 +81,7 @@ def test_backtest_runner_initialization(mock_engine_class, mock_pm_class, strate
         config=config["backtest"],
     )
 
+
 @patch("simtradelab.runner.BacktestRunner")
 def test_run_backtest_function(mock_runner_class, strategy_file, mock_config):
     """测试 run_backtest 便捷函数"""
@@ -85,10 +91,13 @@ def test_run_backtest_function(mock_runner_class, strategy_file, mock_config):
     run_backtest(strategy_file=strategy_file, config=mock_config)
 
     # 验证 BacktestRunner 是否被正确调用
-    mock_runner_class.assert_called_with(strategy_file=strategy_file, config=mock_config)
-    
+    mock_runner_class.assert_called_with(
+        strategy_file=strategy_file, config=mock_config
+    )
+
     # 验证 run 方法是否被调用
     mock_runner_instance.run.assert_called_once()
+
 
 def test_runner_integration_run(strategy_file):
     """
@@ -105,26 +114,29 @@ def test_runner_integration_run(strategy_file):
         "plugins": {
             "simple_matching_engine": {
                 "class": "simtradelab.backtest.plugins.matching_engines.SimpleMatchingEngine",
-                "config": {}
+                "config": {},
             },
             "fixed_slippage_model": {
                 "class": "simtradelab.backtest.plugins.slippage_models.FixedSlippageModel",
-                "config": {}
+                "config": {},
             },
             "fixed_commission_model": {
                 "class": "simtradelab.backtest.plugins.commission_models.FixedCommissionModel",
-                "config": {}
-            }
-        }
+                "config": {},
+            },
+        },
     }
 
     # 模拟 get_statistics 方法以避免完整的策略运行
-    with patch.object(BacktestEngine, 'get_statistics', return_value={"status": "ok"}) as mock_get_stats:
+    with patch.object(
+        BacktestEngine, "get_statistics", return_value={"status": "ok"}
+    ) as mock_get_stats:
         runner = BacktestRunner(strategy_file=strategy_file, config=config)
         results = runner.run()
-        
+
         mock_get_stats.assert_called_once()
         assert results["status"] == "ok"
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

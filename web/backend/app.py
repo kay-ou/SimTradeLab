@@ -3,7 +3,6 @@
 SimTradeLab Web 后端API服务
 使用 FastAPI 提供RESTful API接口
 """
-import asyncio
 import json
 import os
 import sys
@@ -15,7 +14,6 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
-from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -27,7 +25,6 @@ sys.path.insert(0, str(project_root))
 
 from simtradelab import BacktestEngine
 from simtradelab.config_manager import get_config
-from simtradelab.data_sources import AkshareDataSource, CSVDataSource
 from simtradelab.logger import log
 
 

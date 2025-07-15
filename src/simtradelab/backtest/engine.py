@@ -55,21 +55,22 @@ class BacktestEngine:
 
         # E10修复：通过PluginManager加载插件
         self._matching_engine = self._load_plugin(
-            self._config.get('matching_engine', 'SimpleMatchingEngine'),
-            BaseMatchingEngine
+            self._config.get("matching_engine", "SimpleMatchingEngine"),
+            BaseMatchingEngine,
         )
         self._slippage_model = self._load_plugin(
-            self._config.get('slippage_model', 'FixedSlippageModel'),
-            BaseSlippageModel
+            self._config.get("slippage_model", "FixedSlippageModel"), BaseSlippageModel
         )
         self._commission_model = self._load_plugin(
-            self._config.get('commission_model', 'FixedCommissionModel'),
-            BaseCommissionModel
+            self._config.get("commission_model", "FixedCommissionModel"),
+            BaseCommissionModel,
         )
 
         # 将滑点和手续费模型注入到撮合引擎中
         if self._matching_engine:
-            self._matching_engine.set_models(self._slippage_model, self._commission_model)
+            self._matching_engine.set_models(
+                self._slippage_model, self._commission_model
+            )
 
         # 回测状态
         self._is_running = False
@@ -197,7 +198,9 @@ class BacktestEngine:
         E10修复：处理插件可能为None的情况
         """
         if not self._matching_engine:
-            self.logger.warning("No matching engine available, skipping order processing")
+            self.logger.warning(
+                "No matching engine available, skipping order processing"
+            )
             return
 
         pending_orders = [order for order in self._orders if order.status == "pending"]
@@ -256,9 +259,13 @@ class BacktestEngine:
                 self._slippage_model.metadata.name if self._slippage_model else "N/A"
             ),
             "commission_model": (
-                self._commission_model.metadata.name if self._commission_model else "N/A"
+                self._commission_model.metadata.name
+                if self._commission_model
+                else "N/A"
             ),
-            "plugin_manager": "Unified PluginManager" if self._plugin_manager else "N/A",
+            "plugin_manager": "Unified PluginManager"
+            if self._plugin_manager
+            else "N/A",
         }
 
     def __enter__(self):

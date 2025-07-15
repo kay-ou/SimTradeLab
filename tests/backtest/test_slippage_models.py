@@ -14,7 +14,6 @@
 from datetime import datetime
 from decimal import Decimal
 
-import numpy as np
 import pytest
 
 from simtradelab.backtest.plugins.base import MarketData, Order, PluginMetadata

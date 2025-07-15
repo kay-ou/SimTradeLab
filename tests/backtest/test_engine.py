@@ -7,12 +7,12 @@ E10修复：更新测试以使用统一插件管理的BacktestEngine
 
 from datetime import datetime
 from decimal import Decimal
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
 from simtradelab.backtest.engine import BacktestEngine
-from simtradelab.backtest.plugins.base import Fill, MarketData, Order
+from simtradelab.backtest.plugins.base import MarketData, Order
 from simtradelab.backtest.plugins.matching_engines import SimpleMatchingEngine
 from simtradelab.backtest.plugins.slippage_models import FixedSlippageModel
 from simtradelab.backtest.plugins.commission_models import FixedCommissionModel
@@ -29,10 +29,13 @@ from simtradelab.core.plugin_manager import PluginManager
 class ConcreteSimpleMatchingEngine(SimpleMatchingEngine):
     def _on_initialize(self) -> None:
         pass
+
     def _on_start(self) -> None:
         pass
+
     def _on_stop(self) -> None:
         pass
+
 
 @pytest.fixture
 def mock_plugin_manager():
@@ -44,17 +47,17 @@ def mock_plugin_manager():
     # 创建模拟插件实例
     mock_matching_engine = ConcreteSimpleMatchingEngine(
         metadata=PluginMetadata(name="TestMatchingEngine", version="1.0"),
-        config=SimpleMatchingEngineConfig()
+        config=SimpleMatchingEngineConfig(),
     )
 
     mock_slippage_model = FixedSlippageModel(
         metadata=PluginMetadata(name="TestSlippage", version="1.0"),
-        config=FixedSlippageModelConfig(base_slippage_rate=Decimal("0.001"))
+        config=FixedSlippageModelConfig(base_slippage_rate=Decimal("0.001")),
     )
 
     mock_commission_model = FixedCommissionModel(
         metadata=PluginMetadata(name="TestCommission", version="1.0"),
-        config=FixedCommissionModelConfig(commission_rate=Decimal("0.0003"))
+        config=FixedCommissionModelConfig(commission_rate=Decimal("0.0003")),
     )
 
     # 配置load_plugin方法的返回值
@@ -72,31 +75,34 @@ def mock_plugin_manager():
 
     return plugin_manager
 
+
 @pytest.fixture
 def mock_matching_engine():
     """提供一个模拟的撮合引擎实例（向后兼容）"""
     metadata = PluginMetadata(name="TestMatchingEngine", version="1.0")
 
     return ConcreteSimpleMatchingEngine(
-        metadata=metadata,
-        config=SimpleMatchingEngineConfig()
+        metadata=metadata, config=SimpleMatchingEngineConfig()
     )
+
 
 @pytest.fixture
 def mock_slippage_model():
     """提供一个模拟的滑点模型实例（向后兼容）"""
     return FixedSlippageModel(
         metadata=PluginMetadata(name="TestSlippage", version="1.0"),
-        config=FixedSlippageModelConfig(base_slippage_rate=Decimal("0.001"))
+        config=FixedSlippageModelConfig(base_slippage_rate=Decimal("0.001")),
     )
+
 
 @pytest.fixture
 def mock_commission_model():
     """提供一个模拟的手续费模型实例（向后兼容）"""
     return FixedCommissionModel(
         metadata=PluginMetadata(name="TestCommission", version="1.0"),
-        config=FixedCommissionModelConfig(commission_rate=Decimal("0.0003"))
+        config=FixedCommissionModelConfig(commission_rate=Decimal("0.0003")),
     )
+
 
 class TestBacktestEngine:
     """

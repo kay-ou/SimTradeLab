@@ -166,7 +166,7 @@ def after_trading_end(context, data):
     final_trades = get_trades()
     final_open_orders = get_open_orders()
 
-    log.info(f"当日交易统计:")
+    log.info("当日交易统计:")
     log.info(f"  总订单数: {len(final_orders)}")
     log.info(f"  总成交数: {len(final_trades)}")
     log.info(f"  未完成订单: {len(final_open_orders)}")
