@@ -6,7 +6,6 @@
 from datetime import datetime
 from unittest.mock import Mock, patch
 
-
 from simtradelab.adapters.ptrade.context import PTradeContext
 from simtradelab.adapters.ptrade.models import Blotter, Portfolio
 from simtradelab.adapters.ptrade.services import TradingService

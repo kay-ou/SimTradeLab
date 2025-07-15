@@ -4,7 +4,7 @@ SimTradeLab 命令行接口测试 (重构后)
 """
 
 import sys
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
 
 import pytest
 

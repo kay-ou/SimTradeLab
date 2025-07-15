@@ -203,9 +203,7 @@ class TestAPIValidatorIntegration:
 
     def test_with_real_lifecycle_controller(self):
         """测试与真实生命周期控制器的集成"""
-        from simtradelab.adapters.ptrade.lifecycle_controller import (
-            LifecycleController,
-        )
+        from simtradelab.adapters.ptrade.lifecycle_controller import LifecycleController
 
         controller = LifecycleController()
         validator = APIValidator(controller)

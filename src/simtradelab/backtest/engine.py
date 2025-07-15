@@ -5,16 +5,17 @@
 重构的回测引擎，支持可插拔的撮合引擎、滑点模型和手续费模型。
 这个引擎作为各个插件的协调者，确保回测的准确性和性能。
 
-E10修复：集成全局PluginManager，实现统一插件管理
+集成全局PluginManager，实现统一插件管理
 """
 
 import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from .plugins.base import (
     BaseCommissionModel,
+    BaseLatencyModel,
     BaseMatchingEngine,
     BaseSlippageModel,
     Fill,
@@ -30,7 +31,7 @@ class BacktestEngine:
     """
     可插拔回测引擎
 
-    E10修复：通过PluginManager加载回测组件，实现统一插件管理。
+    通过PluginManager加载回测组件，实现统一插件管理。
     支持可插拔的撮合引擎、滑点模型和手续费模型。
     """
 
@@ -50,10 +51,10 @@ class BacktestEngine:
         self._plugin_manager = plugin_manager
         self._config = config or {}
 
-        # E10修复：验证组件间兼容性
+        # 验证组件间兼容性
         self._validate_component_compatibility()
 
-        # E10修复：通过PluginManager加载插件
+        # 通过PluginManager加载插件
         self._matching_engine = self._load_plugin(
             self._config.get("matching_engine", "SimpleMatchingEngine"),
             BaseMatchingEngine,
@@ -64,6 +65,10 @@ class BacktestEngine:
         self._commission_model = self._load_plugin(
             self._config.get("commission_model", "FixedCommissionModel"),
             BaseCommissionModel,
+        )
+        self._latency_model = self._load_plugin(
+            self._config.get("latency_model", "DefaultLatencyModel"),
+            BaseLatencyModel,
         )
 
         # 将滑点和手续费模型注入到撮合引擎中
@@ -85,13 +90,15 @@ class BacktestEngine:
             "total_fills": 0,
             "total_commission": Decimal("0"),
             "total_slippage": Decimal("0"),
+            "total_latency": 0.0,
+            "avg_latency": 0.0,
         }
 
         self.logger.info("BacktestEngine initialized with unified plugin management")
 
     def _validate_component_compatibility(self) -> None:
         """
-        E10修复：验证回测组件间的兼容性
+        验证回测组件间的兼容性
 
         检查组件版本兼容性、依赖关系和配置参数一致性
         """
@@ -103,7 +110,7 @@ class BacktestEngine:
 
     def _load_plugin(self, plugin_name: str, expected_type: type) -> Optional[Any]:
         """
-        E10修复：从插件管理器加载对应回测组件插件
+        从插件管理器加载对应回测组件插件
 
         Args:
             plugin_name: 插件名称
@@ -135,13 +142,13 @@ class BacktestEngine:
         """
         启动回测引擎
 
-        E10修复：插件生命周期由统一的PluginManager管理
+        插件生命周期由统一的PluginManager管理
         """
         if self._is_running:
             self.logger.warning("BacktestEngine is already running")
             return
 
-        # E10修复：插件的生命周期由统一的PluginManager管理
+        # 插件的生命周期由统一的PluginManager管理
         # 这里只需要启动引擎本身的逻辑
         self._is_running = True
         self.logger.info("BacktestEngine started with unified plugin management")
@@ -150,13 +157,13 @@ class BacktestEngine:
         """
         停止回测引擎
 
-        E10修复：插件生命周期由统一的PluginManager管理
+        插件生命周期由统一的PluginManager管理
         """
         if not self._is_running:
             self.logger.warning("BacktestEngine is not running")
             return
 
-        # E10修复：插件的生命周期由统一的PluginManager管理
+        # 插件的生命周期由统一的PluginManager管理
         # 这里只需要停止引擎本身的逻辑
         self._is_running = False
         self.logger.info("BacktestEngine stopped")
@@ -195,7 +202,8 @@ class BacktestEngine:
         处理待成交订单
 
         将订单和市场数据交给撮合引擎处理，撮合引擎将完成完整的成交过程。
-        E10修复：处理插件可能为None的情况
+        处理插件可能为None的情况
+        集成延迟模型处理订单延迟
         """
         if not self._matching_engine:
             self.logger.warning(
@@ -208,6 +216,32 @@ class BacktestEngine:
         for order in pending_orders:
             if order.symbol in self._market_data:
                 market_data = self._market_data[order.symbol]
+
+                # 使用延迟模型计算订单执行时间
+                if self._latency_model:
+                    execution_time = self._latency_model.get_execution_time(
+                        order, market_data
+                    )
+
+                    # 检查是否到达执行时间
+                    if self._current_time and execution_time > self._current_time:
+                        # 订单还未到达执行时间，跳过处理
+                        continue
+
+                    # 记录延迟信息
+                    latency_seconds = self._latency_model.calculate_latency(
+                        order, market_data
+                    )
+                    self._stats["total_latency"] += latency_seconds
+                    processed_orders_count = self._stats["total_orders"]
+                    if processed_orders_count > 0:
+                        self._stats["avg_latency"] = (
+                            self._stats["total_latency"] / processed_orders_count
+                        )
+
+                    self.logger.debug(
+                        f"Order {order.order_id} processed with latency: {latency_seconds:.3f}s"
+                    )
 
                 # 调用撮合引擎进行完整撮合
                 fills = self._matching_engine.match_order(order, market_data)
@@ -238,6 +272,8 @@ class BacktestEngine:
             "total_fills": self._stats["total_fills"],
             "total_commission": float(self._stats["total_commission"]),
             "total_slippage": float(self._stats["total_slippage"]),
+            "total_latency": self._stats["total_latency"],
+            "avg_latency": self._stats["avg_latency"],
             "fill_rate": (
                 self._stats["total_fills"] / self._stats["total_orders"]
                 if self._stats["total_orders"] > 0
@@ -249,7 +285,7 @@ class BacktestEngine:
         """
         获取当前插件信息
 
-        E10修复：处理插件可能为None的情况
+        处理插件可能为None的情况
         """
         return {
             "matching_engine": (
@@ -262,6 +298,9 @@ class BacktestEngine:
                 self._commission_model.metadata.name
                 if self._commission_model
                 else "N/A"
+            ),
+            "latency_model": (
+                self._latency_model.metadata.name if self._latency_model else "N/A"
             ),
             "plugin_manager": "Unified PluginManager"
             if self._plugin_manager

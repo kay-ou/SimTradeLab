@@ -6,7 +6,6 @@
 from datetime import datetime
 from decimal import Decimal
 
-
 from simtradelab.backtest.plugins.base import Fill, PluginMetadata
 from simtradelab.backtest.plugins.commission_models import (
     ChinaAStockCommissionModel,

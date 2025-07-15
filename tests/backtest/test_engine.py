@@ -13,16 +13,16 @@ import pytest
 
 from simtradelab.backtest.engine import BacktestEngine
 from simtradelab.backtest.plugins.base import MarketData, Order
+from simtradelab.backtest.plugins.commission_models import FixedCommissionModel
+from simtradelab.backtest.plugins.config import (
+    FixedCommissionModelConfig,
+    FixedSlippageModelConfig,
+    SimpleMatchingEngineConfig,
+)
 from simtradelab.backtest.plugins.matching_engines import SimpleMatchingEngine
 from simtradelab.backtest.plugins.slippage_models import FixedSlippageModel
-from simtradelab.backtest.plugins.commission_models import FixedCommissionModel
-from simtradelab.plugins.base import PluginMetadata
-from simtradelab.backtest.plugins.config import (
-    SimpleMatchingEngineConfig,
-    FixedSlippageModelConfig,
-    FixedCommissionModelConfig,
-)
 from simtradelab.core.plugin_manager import PluginManager
+from simtradelab.plugins.base import PluginMetadata
 
 
 # 为了测试，我们需要一个可实例化的 SimpleMatchingEngine

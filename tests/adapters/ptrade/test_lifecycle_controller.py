@@ -11,8 +11,8 @@ import pytest
 
 from simtradelab.adapters.ptrade.lifecycle_controller import (
     LifecycleController,
-    PTradeLifecycleError,
     LifecyclePhase,
+    PTradeLifecycleError,
 )
 
 

@@ -10,12 +10,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from simtradelab.backtest.plugins.base import MarketData, Order, PluginMetadata
-from simtradelab.backtest.plugins.matching_engines import (
-    SimpleMatchingEngine,
-)
-from simtradelab.backtest.plugins.slippage_models import BaseSlippageModel
 from simtradelab.backtest.plugins.commission_models import BaseCommissionModel
 from simtradelab.backtest.plugins.config import SimpleMatchingEngineConfig
+from simtradelab.backtest.plugins.matching_engines import SimpleMatchingEngine
+from simtradelab.backtest.plugins.slippage_models import BaseSlippageModel
 
 
 # 可实例化的具体插件类，用于测试

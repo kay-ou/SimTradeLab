@@ -11,9 +11,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from simtradelab.runner import BacktestRunner, run_backtest
-from simtradelab.core.plugin_manager import PluginManager
 from simtradelab.backtest.engine import BacktestEngine
+from simtradelab.core.plugin_manager import PluginManager
+from simtradelab.runner import BacktestRunner, run_backtest
 
 
 @pytest.fixture

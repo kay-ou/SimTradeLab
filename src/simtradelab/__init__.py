@@ -6,32 +6,29 @@ SimTradeLab: A Pluggable Quantitative Trading Framework
 __author__ = "SimTradeLab"
 __version__ = "5.0.0"
 
+# 回测系统
+from .backtest.engine import BacktestEngine
+from .backtest.plugins.base import (
+    BaseCommissionModel,
+    BaseMatchingEngine,
+    BaseSlippageModel,
+)
+from .core.config.config_manager import PluginConfigManager
+
 # 核心组件
 from .core.event_bus import EventBus
 from .core.plugin_manager import PluginManager
-from .core.config.config_manager import PluginConfigManager
+
+# 异常
+from .exceptions import ConfigurationError, SimTradeLabError
 
 # 插件系统
 from .plugins.base import BasePlugin, PluginMetadata
 from .plugins.config.base_config import BasePluginConfig
 from .plugins.data.base_data_source import BaseDataSourcePlugin
 
-# 回测系统
-from .backtest.engine import BacktestEngine
-from .backtest.plugins.base import (
-    BaseMatchingEngine,
-    BaseSlippageModel,
-    BaseCommissionModel,
-)
-
 # 运行器
 from .runner import BacktestRunner
-
-# 异常
-from .exceptions import (
-    SimTradeLabError,
-    ConfigurationError,
-)
 
 __all__ = [
     "BacktestRunner",

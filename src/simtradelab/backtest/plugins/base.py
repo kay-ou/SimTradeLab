@@ -20,6 +20,7 @@ __all__ = [
     "BaseMatchingEngine",
     "BaseSlippageModel",
     "BaseCommissionModel",
+    "BaseLatencyModel",
     "Order",
     "Fill",
     "MarketData",
@@ -30,6 +31,7 @@ __all__ = [
     "PLUGIN_TYPE_MATCHING_ENGINE",
     "PLUGIN_TYPE_SLIPPAGE_MODEL",
     "PLUGIN_TYPE_COMMISSION_MODEL",
+    "PLUGIN_TYPE_LATENCY_MODEL",
 ]
 
 
@@ -170,6 +172,45 @@ class BaseSlippageModel(BaseBacktestPlugin):
         pass
 
 
+class BaseLatencyModel(BaseBacktestPlugin):
+    """
+    延迟模型基类
+
+    负责计算订单处理过程中的延迟，影响订单执行的时间。
+    """
+
+    def get_plugin_type(self) -> str:
+        return "latency_model"
+
+    @abstractmethod
+    def calculate_latency(self, order: Order, market_data: MarketData) -> float:
+        """
+        计算订单处理延迟
+
+        Args:
+            order: 订单信息
+            market_data: 市场数据
+
+        Returns:
+            延迟时间（秒）
+        """
+        pass
+
+    @abstractmethod
+    def get_execution_time(self, order: Order, market_data: MarketData) -> datetime:
+        """
+        获取订单实际执行时间
+
+        Args:
+            order: 订单信息
+            market_data: 市场数据
+
+        Returns:
+            订单实际执行时间
+        """
+        pass
+
+
 class BaseCommissionModel(BaseBacktestPlugin):
     """
     手续费模型基类
@@ -243,3 +284,4 @@ class BaseMatchingEngine(BaseBacktestPlugin):
 PLUGIN_TYPE_MATCHING_ENGINE = "matching_engine"
 PLUGIN_TYPE_SLIPPAGE_MODEL = "slippage_model"
 PLUGIN_TYPE_COMMISSION_MODEL = "commission_model"
+PLUGIN_TYPE_LATENCY_MODEL = "latency_model"

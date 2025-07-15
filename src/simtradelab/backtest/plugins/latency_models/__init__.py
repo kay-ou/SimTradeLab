@@ -11,6 +11,6 @@ from .network_latency_model import NetworkLatencyModel
 
 __all__ = [
     "DefaultLatencyModel",
-    "FixedLatencyModel", 
+    "FixedLatencyModel",
     "NetworkLatencyModel",
 ]

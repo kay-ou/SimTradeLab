@@ -10,8 +10,8 @@
 import logging
 from typing import Any, Dict, Optional
 
-from .core.plugin_manager import PluginManager
 from .backtest.engine import BacktestEngine
+from .core.plugin_manager import PluginManager
 
 
 class BacktestRunner:
@@ -59,9 +59,9 @@ class BacktestRunner:
 
         注册默认的回测插件，如果尚未注册的话
         """
+        from .backtest.plugins.commission_models import FixedCommissionModel
         from .backtest.plugins.matching_engines import SimpleMatchingEngine
         from .backtest.plugins.slippage_models import FixedSlippageModel
-        from .backtest.plugins.commission_models import FixedCommissionModel
 
         # 注册默认回测插件（如果尚未注册）
         plugins_to_register = [
