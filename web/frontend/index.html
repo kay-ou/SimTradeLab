@@ -108,7 +108,7 @@
             height: 400px;
             margin: 20px 0;
         }
-        
+
         /* 响应式设计增强 */
         @media (max-width: 768px) {
             .sidebar {
@@ -153,7 +153,7 @@
                 font-size: 1.1rem;
             }
         }
-        
+
         @media (max-width: 576px) {
             .metric-value {
                 font-size: 1rem !important;
@@ -168,7 +168,7 @@
                 font-size: 0.875rem;
             }
         }
-        
+
         /* 移动端侧边栏开关按钮 */
         .sidebar-toggle {
             position: fixed;
@@ -182,13 +182,13 @@
             border-radius: 5px;
             display: none;
         }
-        
+
         @media (max-width: 768px) {
             .sidebar-toggle {
                 display: block;
             }
         }
-        
+
         /* 文件名截断样式 */
         .text-truncate-custom {
             overflow: hidden;
@@ -203,7 +203,7 @@
     <button class="sidebar-toggle" onclick="toggleSidebar()">
         <i class="fas fa-bars"></i>
     </button>
-    
+
     <div class="container-fluid">
         <div class="row">
             <!-- 侧边栏 -->
@@ -251,7 +251,7 @@
             <!-- 主内容区 -->
             <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
                 <div class="pt-3 pb-2 mb-3">
-                    
+
                     <!-- 仪表盘页面 -->
                     <div id="dashboard-tab" class="tab-content">
                         <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
@@ -471,7 +471,7 @@
                                                     </select>
                                                 </div>
                                             </div>
-                                            
+
                                             <div id="csv-options" class="mb-3">
                                                 <label for="backtest-data-file" class="form-label">数据文件</label>
                                                 <select class="form-select" id="backtest-data-file" onchange="onDataFileChange()">
@@ -479,12 +479,12 @@
                                                 </select>
                                                 <div id="csv-file-info" class="mt-2" style="display: none;">
                                                     <small class="text-muted">
-                                                        <i class="fas fa-info-circle"></i> 
+                                                        <i class="fas fa-info-circle"></i>
                                                         <span id="csv-info-text"></span>
                                                     </small>
                                                 </div>
                                             </div>
-                                            
+
                                             <div id="online-options" class="mb-3" style="display: none;">
                                                 <label for="backtest-securities" class="form-label">股票代码（用逗号分隔）</label>
                                                 <input type="text" class="form-control" id="backtest-securities" placeholder="例如: 000001.SZ,000002.SZ">
@@ -637,7 +637,7 @@
                                     </div>
                                     <div class="card-body">
                                         <div class="mb-3">
-                                            <input type="text" class="form-control form-control-sm" 
+                                            <input type="text" class="form-control form-control-sm"
                                                    id="job-search" placeholder="搜索策略名称..."
                                                    onkeyup="filterJobResults()">
                                         </div>
@@ -708,7 +708,7 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- 自定义JavaScript -->
     <script src="static/js/app.js"></script>
 </body>

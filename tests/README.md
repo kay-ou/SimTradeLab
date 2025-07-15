@@ -6,7 +6,7 @@ SimTradeLab 采用**按功能模块组织**的测试结构，与项目的插件�
 
 ### test_core/ - 核心功能测试
 - 事件总线 (EventBus)
-- 插件管理器 (PluginManager)  
+- 插件管理器 (PluginManager)
 - CloudEvent 标准事件
 - 配置验证系统
 
@@ -92,7 +92,7 @@ def test_plugin_lifecycle(mock_plugin):
     mock_plugin.start()
     mock_plugin.stop()
     mock_plugin.cleanup()
-    
+
     # 验证调用历史
     expected_calls = ["initialize", "start", "stop", "cleanup"]
     assert mock_plugin.call_history == expected_calls

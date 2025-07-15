@@ -25,7 +25,7 @@ g.flag = 0               # 标志位
 
 **主要属性**:
 - `capital_base` - 起始资金
-- `previous_date` - 前一个交易日  
+- `previous_date` - 前一个交易日
 - `sim_params` - SimulationParameters对象
   - `capital_base` - 起始资金
   - `data_frequency` - 数据频率
@@ -51,7 +51,7 @@ g.flag = 0               # 标志位
 **基本属性**:
 - `dt` - 时间
 - `open` - 时间段开始时价格
-- `close` - 时间段结束时价格  
+- `close` - 时间段结束时价格
 - `price` - 结束时价格
 - `low` - 最低价
 - `high` - 最高价
@@ -186,11 +186,11 @@ g.flag = 0               # 标志位
 1. **Context对象**: 不只是5个属性，而是有22+个属性（包括嵌套的子对象属性）
 2. **Portfolio对象**: 根据业务类型不同，属性数量也不同：
    - 股票账户：8个属性
-   - 期货账户：8个属性  
+   - 期货账户：8个属性
    - 期权账户：9个属性（多了margin和risk_degree）
 3. **Position对象**: 根据业务类型不同，属性数量差异很大：
    - 股票账户：7个属性
-   - 期货账户：18个属性  
+   - 期货账户：18个属性
    - 期权账户：17个属性
 4. **SecurityUnitData对象**: 7个基本行情属性
 5. **Order对象**: 5个订单基础属性

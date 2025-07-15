@@ -291,35 +291,35 @@
         transform: translateX(-100%);
         transition: transform 0.3s ease;
     }
-    
+
     .sidebar.show {
         transform: translateX(0);
     }
-    
+
     .main-content {
         margin-left: 0 !important;
     }
-    
+
     .card {
         margin-bottom: 1rem;
     }
-    
+
     .chart-container {
         height: 300px;
     }
-    
+
     /* 移动端编辑器优化 */
     .editor-container {
         min-height: 300px;
         resize: vertical; /* 移动端只允许垂直调整 */
     }
-    
+
     .resize-handle {
         width: 30px;
         height: 30px; /* 移动端更大的拖拽区域 */
         background: linear-gradient(-45deg, transparent 20%, #667eea 20%, #667eea 30%, transparent 30%, transparent 50%, #667eea 50%, #667eea 60%, transparent 60%);
     }
-    
+
     .resizable-editor {
         min-height: 300px;
     }
@@ -332,11 +332,11 @@
     .nav-tabs {
         display: none !important;
     }
-    
+
     .main-content {
         margin-left: 0 !important;
     }
-    
+
     .card {
         page-break-inside: avoid;
         box-shadow: none;
@@ -505,22 +505,22 @@
         --text-color: #e9ecef;
         --border-color: #404040;
     }
-    
+
     body {
         background-color: var(--light-bg);
         color: var(--text-color);
     }
-    
+
     .card {
         background-color: var(--card-bg);
         border-color: var(--border-color);
     }
-    
+
     .table {
         background-color: var(--card-bg);
         color: var(--text-color);
     }
-    
+
     .form-control {
         background-color: var(--card-bg);
         border-color: var(--border-color);

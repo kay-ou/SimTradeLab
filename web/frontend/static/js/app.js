@@ -15,7 +15,7 @@ const API_BASE = '/api';
 function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
     sidebar.classList.toggle('show');
-    
+
     // 点击外部区域关闭侧边栏
     if (sidebar.classList.contains('show')) {
         document.addEventListener('click', closeSidebarOnOutsideClick);
@@ -27,7 +27,7 @@ function toggleSidebar() {
 function closeSidebarOnOutsideClick(event) {
     const sidebar = document.querySelector('.sidebar');
     const toggleButton = document.querySelector('.sidebar-toggle');
-    
+
     if (!sidebar.contains(event.target) && !toggleButton.contains(event.target)) {
         sidebar.classList.remove('show');
         document.removeEventListener('click', closeSidebarOnOutsideClick);
@@ -39,7 +39,7 @@ function initCodeEditor() {
     if (strategyEditor) {
         strategyEditor.destroy();
     }
-    
+
     const editorElement = document.getElementById('strategy-code-editor');
     if (editorElement) {
         strategyEditor = ace.edit('strategy-code-editor');
@@ -56,7 +56,7 @@ function initCodeEditor() {
             autoScrollEditorIntoView: true,
             fontFamily: 'JetBrains Mono, Fira Code, Consolas, Monaco, Courier New, monospace'
         });
-        
+
         // 设置默认模板
         strategyEditor.setValue(`# -*- coding: utf-8 -*-
 """
@@ -70,11 +70,11 @@ def initialize(context):
     # 设置基准和股票池
     context.benchmark = '000300.SH'  # 沪深300指数
     context.stocks = ['000001.SZ', '000002.SZ']  # 股票池
-    
+
     # 策略参数
     context.short_window = 5   # 短期均线
     context.long_window = 20   # 长期均线
-    
+
     # 其他初始化逻辑
     pass
 
@@ -85,23 +85,23 @@ def handle_data(context, data):
     for stock in context.stocks:
         # 获取历史价格数据
         hist = get_history(context, stock, count=context.long_window, fields=['close'])
-        
+
         if len(hist) < context.long_window:
             continue
-            
+
         # 计算移动平均线
         short_ma = hist['close'].tail(context.short_window).mean()
         long_ma = hist['close'].tail(context.long_window).mean()
         current_price = hist['close'].iloc[-1]
-        
+
         # 获取当前持仓
         current_position = get_position(context, stock)
-        
+
         # 交易逻辑：金叉买入，死叉卖出
         if short_ma > long_ma and current_position == 0:
             # 买入信号
             order_target_percent(context, stock, 0.5)  # 使用50%资金买入
-            
+
         elif short_ma < long_ma and current_position > 0:
             # 卖出信号
             order_target_percent(context, stock, 0)  # 全部卖出
@@ -118,21 +118,21 @@ def after_trading_end(context, data):
     """
     pass
 `, 1);
-        
+
         // 同步到hidden textarea
         strategyEditor.on('change', function() {
             document.getElementById('strategy-code').value = strategyEditor.getValue();
         });
-        
+
         // 初始化可调整大小功能
         initResizableEditor();
-        
+
         // 自动调整编辑器大小到窗口
         autoResizeEditor();
-        
+
         // 监听窗口大小变化
         window.addEventListener('resize', autoResizeEditor);
-        
+
         // 确保编辑器正确渲染
         setTimeout(() => {
             if (strategyEditor) {
@@ -149,16 +149,16 @@ function autoResizeEditor() {
     if (container && !container.classList.contains('editor-fullscreen')) {
         const windowHeight = window.innerHeight;
         const containerTop = container.getBoundingClientRect().top;
-        
+
         // 计算可用高度：窗口高度 - 容器顶部位置 - 底部留白
         const availableHeight = windowHeight - containerTop - 50;
-        
+
         // 设置最小高度为500px，充分利用可用空间
         const targetHeight = Math.max(500, Math.min(availableHeight, windowHeight * 0.7));
-        
+
         container.style.height = targetHeight + 'px';
         container.style.width = '100%'; // 确保宽度充分利用
-        
+
         if (strategyEditor) {
             // 强制编辑器重新计算和渲染
             setTimeout(() => {
@@ -174,48 +174,48 @@ function autoResizeEditor() {
 function initResizableEditor() {
     const container = document.querySelector('.editor-container');
     const resizeHandle = document.getElementById('resize-handle');
-    
+
     if (!container || !resizeHandle) return;
-    
+
     let isResizing = false;
     let startX, startY, startWidth, startHeight;
-    
+
     resizeHandle.addEventListener('mousedown', (e) => {
         isResizing = true;
         startX = e.clientX;
         startY = e.clientY;
         startWidth = parseInt(document.defaultView.getComputedStyle(container).width, 10);
         startHeight = parseInt(document.defaultView.getComputedStyle(container).height, 10);
-        
+
         // 添加拖拽时的样式
         document.body.style.userSelect = 'none';
         document.body.style.cursor = 'se-resize';
         container.style.transition = 'none'; // 拖拽时禁用过渡动画
-        
+
         document.addEventListener('mousemove', handleResize);
         document.addEventListener('mouseup', stopResize);
         e.preventDefault();
     });
-    
+
     function handleResize(e) {
         if (!isResizing) return;
-        
+
         const newWidth = startWidth + e.clientX - startX;
         const newHeight = startHeight + e.clientY - startY;
-        
+
         // 设置最小和最大尺寸
         const minWidth = 300;
         const minHeight = 200;
         const maxWidth = window.innerWidth - 100;
         const maxHeight = window.innerHeight - 100;
-        
+
         const finalWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
         const finalHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
-        
+
         // 同时更新容器和编辑器尺寸
         container.style.width = finalWidth + 'px';
         container.style.height = finalHeight + 'px';
-        
+
         // 立即更新编辑器尺寸，无延迟
         if (strategyEditor) {
             try {
@@ -229,18 +229,18 @@ function initResizableEditor() {
             }
         }
     }
-    
+
     function stopResize() {
         if (!isResizing) return;
-        
+
         isResizing = false;
         document.body.style.userSelect = '';
         document.body.style.cursor = '';
         container.style.transition = ''; // 恢复过渡动画
-        
+
         document.removeEventListener('mousemove', handleResize);
         document.removeEventListener('mouseup', stopResize);
-        
+
         // 拖拽结束后再次确保编辑器正确渲染
         if (strategyEditor) {
             setTimeout(() => {
@@ -260,7 +260,7 @@ function initResizableEditor() {
 function toggleEditorFullscreen() {
     const container = document.querySelector('.editor-container');
     const icon = document.getElementById('fullscreen-icon');
-    
+
     if (container.classList.contains('editor-fullscreen')) {
         exitFullscreen();
     } else {
@@ -272,12 +272,12 @@ function toggleEditorFullscreen() {
 function enterFullscreen() {
     const container = document.querySelector('.editor-container');
     const icon = document.getElementById('fullscreen-icon');
-    
+
     // 平滑过渡到全屏
     container.style.transition = 'all 0.3s ease';
     container.classList.add('editor-fullscreen');
     icon.className = 'fas fa-compress';
-    
+
     // 创建全屏控制栏
     const overlay = document.createElement('div');
     overlay.className = 'fullscreen-overlay';
@@ -297,15 +297,15 @@ function enterFullscreen() {
             </button>
         </div>
     `;
-    
+
     document.body.appendChild(overlay);
-    
+
     // 设置全屏样式
     setTimeout(() => {
         container.style.top = '60px';
         container.style.height = 'calc(100vh - 60px)';
         container.style.transition = ''; // 移除过渡效果
-        
+
         if (strategyEditor) {
             setTimeout(() => {
                 strategyEditor.resize(true);
@@ -314,7 +314,7 @@ function enterFullscreen() {
             }, 50);
         }
     }, 10);
-    
+
     // ESC键退出全屏
     document.addEventListener('keydown', handleEscapeKey);
 }
@@ -324,22 +324,22 @@ function exitFullscreen() {
     const container = document.querySelector('.editor-container');
     const icon = document.getElementById('fullscreen-icon');
     const overlay = document.querySelector('.fullscreen-overlay');
-    
+
     // 平滑过渡退出全屏
     container.style.transition = 'all 0.3s ease';
     container.classList.remove('editor-fullscreen');
     icon.className = 'fas fa-expand';
-    
+
     if (overlay) {
         overlay.remove();
     }
-    
+
     // 重置样式
     setTimeout(() => {
         container.style.top = '';
         container.style.height = '';
         container.style.transition = ''; // 移除过渡效果
-        
+
         if (strategyEditor) {
             setTimeout(() => {
                 strategyEditor.resize(true);
@@ -348,7 +348,7 @@ function exitFullscreen() {
             }, 50);
         }
     }, 10);
-    
+
     document.removeEventListener('keydown', handleEscapeKey);
 }
 
@@ -362,14 +362,14 @@ function handleEscapeKey(e) {
 // 重置编辑器大小
 function resetEditorSize() {
     const container = document.querySelector('.editor-container');
-    
+
     if (container.classList.contains('editor-fullscreen')) {
         exitFullscreen();
     }
-    
+
     container.style.width = '';
     container.style.height = '400px';
-    
+
     if (strategyEditor) {
         strategyEditor.resize();
     }
@@ -377,21 +377,21 @@ function resetEditorSize() {
 
 // 工具函数
 function showMessage(message, type = 'success') {
-    const alertClass = type === 'success' ? 'alert-success' : 
+    const alertClass = type === 'success' ? 'alert-success' :
                       type === 'error' ? 'alert-danger' : 'alert-info';
-    
+
     const alertHtml = `
         <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     `;
-    
+
     // 临时显示消息
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = alertHtml;
     document.body.prepend(tempDiv.firstElementChild);
-    
+
     // 3秒后自动消失
     setTimeout(() => {
         const alert = document.querySelector('.alert');
@@ -421,27 +421,27 @@ function showTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(tab => {
         tab.style.display = 'none';
     });
-    
+
     // 移除所有导航链接的active类
     document.querySelectorAll('.sidebar .nav-link').forEach(link => {
         link.classList.remove('active');
     });
-    
+
     // 显示目标标签页
     document.getElementById(tabName + '-tab').style.display = 'block';
-    
+
     // 添加active类到对应导航链接
     event.target.classList.add('active');
-    
+
     currentTab = tabName;
-    
+
     // 在移动端切换页面时自动隐藏侧边栏
     if (window.innerWidth <= 768) {
         const sidebar = document.querySelector('.sidebar');
         sidebar.classList.remove('show');
         document.removeEventListener('click', closeSidebarOnOutsideClick);
     }
-    
+
     // 根据不同页面加载对应数据
     switch(tabName) {
         case 'dashboard':
@@ -479,12 +479,12 @@ async function loadDashboard() {
             fetch(`${API_BASE}/jobs`).then(r => r.json()),
             fetch(`${API_BASE}/reports`).then(r => r.json())
         ]);
-        
+
         document.getElementById('strategy-count').textContent = strategies.strategies.length;
         document.getElementById('data-count').textContent = dataFiles.data_files.length;
         document.getElementById('job-count').textContent = jobs.jobs.filter(j => j.status === 'running').length;
         document.getElementById('report-count').textContent = reports.reports.length;
-        
+
         // 显示最近任务
         const recentJobs = jobs.jobs.slice(-5).reverse();
         const jobsHtml = recentJobs.map(job => `
@@ -497,7 +497,7 @@ async function loadDashboard() {
             </div>
         `).join('');
         document.getElementById('recent-jobs').innerHTML = jobsHtml || '<p class="text-muted">暂无任务</p>';
-        
+
         // 显示数据源状态
         const config = await fetch(`${API_BASE}/config`).then(r => r.json());
         const dataSourceHtml = Object.entries(config.data_sources).map(([name, info]) => `
@@ -507,7 +507,7 @@ async function loadDashboard() {
             </div>
         `).join('');
         document.getElementById('data-source-status').innerHTML = dataSourceHtml;
-        
+
     } catch (error) {
         console.error('Error loading dashboard:', error);
         showMessage('加载仪表盘数据失败', 'error');
@@ -525,7 +525,7 @@ async function loadStrategies() {
         showLoading('strategy-list');
         const response = await fetch(`${API_BASE}/strategies`);
         const data = await response.json();
-        
+
         const strategiesHtml = data.strategies.map(strategy => `
             <div class="list-group-item list-group-item-action" onclick="loadStrategy('${strategy.name}')">
                 <div class="d-flex w-100 justify-content-between">
@@ -536,9 +536,9 @@ async function loadStrategies() {
                 <small class="text-muted">修改时间: ${formatDateTime(strategy.modified_at)}</small>
             </div>
         `).join('');
-        
+
         document.getElementById('strategy-list').innerHTML = strategiesHtml || '<p class="text-muted">暂无策略</p>';
-        
+
         // 初始化代码编辑器
         if (!strategyEditor) {
             strategyEditor = CodeMirror.fromTextArea(document.getElementById('strategy-code'), {
@@ -552,7 +552,7 @@ async function loadStrategies() {
                 indentWithTabs: false
             });
         }
-        
+
     } catch (error) {
         console.error('Error loading strategies:', error);
         showMessage('加载策略失败', 'error');
@@ -563,17 +563,17 @@ async function loadStrategy(strategyName) {
     try {
         const response = await fetch(`${API_BASE}/strategies/${strategyName}`);
         const strategy = await response.json();
-        
+
         document.getElementById('strategy-name').value = strategy.name;
         document.getElementById('strategy-description').value = strategy.description || '';
         strategyEditor.setValue(strategy.code);
-        
+
         // 高亮选中的策略
         document.querySelectorAll('#strategy-list .list-group-item').forEach(item => {
             item.classList.remove('active');
         });
         event.target.classList.add('active');
-        
+
     } catch (error) {
         console.error('Error loading strategy:', error);
         showMessage('加载策略失败', 'error');
@@ -583,7 +583,7 @@ async function loadStrategy(strategyName) {
 function createNewStrategy() {
     document.getElementById('strategy-name').value = '';
     document.getElementById('strategy-description').value = '';
-    
+
     const defaultCode = `def initialize(context):
     """策略初始化"""
     # 设置股票池
@@ -593,12 +593,12 @@ function createNewStrategy() {
 def handle_data(context, data):
     """主策略逻辑"""
     security = g.security
-    
+
     # 获取当前价格
     if security in data:
         current_price = data[security]['close']
         log.info(f"当前价格: {current_price}")
-        
+
         # 这里添加你的策略逻辑
         # 例如：order(security, 100)  # 买入100股
 
@@ -607,7 +607,7 @@ def after_trading_end(context, data):
     total_value = context.portfolio.total_value
     log.info(f"总资产: {total_value}")
 `;
-    
+
     strategyEditor.setValue(defaultCode);
     showMessage('已创建新策略模板');
 }
@@ -616,17 +616,17 @@ async function saveCurrentStrategy() {
     const name = document.getElementById('strategy-name').value.trim();
     const description = document.getElementById('strategy-description').value.trim();
     const code = strategyEditor.getValue();
-    
+
     if (!name) {
         showMessage('请输入策略名称', 'error');
         return;
     }
-    
+
     if (!code.trim()) {
         showMessage('策略代码不能为空', 'error');
         return;
     }
-    
+
     try {
         const response = await fetch(`${API_BASE}/strategies`, {
             method: 'POST',
@@ -639,7 +639,7 @@ async function saveCurrentStrategy() {
                 code: code
             })
         });
-        
+
         if (response.ok) {
             showMessage('策略保存成功');
             loadStrategies(); // 刷新策略列表
@@ -655,21 +655,21 @@ async function saveCurrentStrategy() {
 
 async function deleteCurrentStrategy() {
     const name = document.getElementById('strategy-name').value.trim();
-    
+
     if (!name) {
         showMessage('请先选择要删除的策略', 'error');
         return;
     }
-    
+
     if (!confirm(`确定要删除策略 "${name}" 吗？此操作不可恢复。`)) {
         return;
     }
-    
+
     try {
         const response = await fetch(`${API_BASE}/strategies/${name}`, {
             method: 'DELETE'
         });
-        
+
         if (response.ok) {
             showMessage('策略删除成功');
             document.getElementById('strategy-name').value = '';
@@ -695,10 +695,10 @@ async function loadDataSources() {
             fetch(`${API_BASE}/data/sources`).then(r => r.json()),
             fetch(`${API_BASE}/data/files`).then(r => r.json())
         ]);
-        
+
         // 保存当前数据源配置
         currentDataSources = sources.data_sources;
-        
+
         // 显示可编辑的数据源配置
         const sourcesHtml = sources.data_sources.map(source => `
             <div class="mb-3 p-3 border rounded data-source-config" data-source="${source.name}">
@@ -708,8 +708,8 @@ async function loadDataSources() {
                         <small class="text-muted">${source.description}</small>
                     </div>
                     <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="enable-${source.name}" 
-                               ${source.enabled ? 'checked' : ''} 
+                        <input class="form-check-input" type="checkbox" id="enable-${source.name}"
+                               ${source.enabled ? 'checked' : ''}
                                onchange="toggleDataSource('${source.name}', this.checked)">
                         <label class="form-check-label" for="enable-${source.name}">
                             ${source.enabled ? '已启用' : '已禁用'}
@@ -720,7 +720,7 @@ async function loadDataSources() {
             </div>
         `).join('');
         document.getElementById('data-sources-list').innerHTML = sourcesHtml;
-        
+
         // 显示数据文件
         const filesHtml = files.data_files.map(file => `
             <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded ${file.source === 'uploaded' ? 'border-success' : ''}">
@@ -750,7 +750,7 @@ async function loadDataSources() {
             </div>
         `).join('');
         document.getElementById('data-files-list').innerHTML = filesHtml || '<p class="text-muted">暂无数据文件</p>';
-        
+
     } catch (error) {
         console.error('Error loading data sources:', error);
         showMessage('加载数据源失败', 'error');
@@ -766,8 +766,8 @@ function getDataSourceConfigFields(source) {
                     <div class="col-md-12">
                         <label class="form-label">Tushare Token</label>
                         <div class="input-group">
-                            <input type="password" class="form-control" id="tushare-token" 
-                                   placeholder="请输入Tushare API Token" 
+                            <input type="password" class="form-control" id="tushare-token"
+                                   placeholder="请输入Tushare API Token"
                                    value="${source.token || ''}">
                             <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('tushare-token')">
                                 <i class="fas fa-eye"></i>
@@ -784,8 +784,8 @@ function getDataSourceConfigFields(source) {
                 <div class="row">
                     <div class="col-md-6">
                         <label class="form-label">数据目录</label>
-                        <input type="text" class="form-control" id="csv-data-path" 
-                               value="${source.data_path || 'data/'}" 
+                        <input type="text" class="form-control" id="csv-data-path"
+                               value="${source.data_path || 'data/'}"
                                placeholder="CSV文件存储目录">
                     </div>
                     <div class="col-md-6">
@@ -818,7 +818,7 @@ function getDataSourceConfigFields(source) {
 function toggleDataSource(sourceName, enabled) {
     const label = document.querySelector(`label[for="enable-${sourceName}"]`);
     label.textContent = enabled ? '已启用' : '已禁用';
-    
+
     // 更新本地配置
     const source = currentDataSources.find(s => s.name === sourceName);
     if (source) {
@@ -830,7 +830,7 @@ function toggleDataSource(sourceName, enabled) {
 function togglePasswordVisibility(inputId) {
     const input = document.getElementById(inputId);
     const icon = input.nextElementSibling.querySelector('i');
-    
+
     if (input.type === 'password') {
         input.type = 'text';
         icon.className = 'fas fa-eye-slash';
@@ -844,11 +844,11 @@ function togglePasswordVisibility(inputId) {
 async function saveDataSourceConfig() {
     try {
         const config = {};
-        
+
         // 收集所有数据源配置
         currentDataSources.forEach(source => {
             const sourceConfig = { ...source };
-            
+
             // 根据数据源类型收集特定配置
             switch(source.name) {
                 case 'tushare':
@@ -864,12 +864,12 @@ async function saveDataSourceConfig() {
                     if (dateFormat) sourceConfig.date_format = dateFormat;
                     break;
             }
-            
+
             config[source.name] = sourceConfig;
         });
-        
+
         console.log('Saving config:', config); // Debug log
-        
+
         // 发送配置到后端
         const response = await fetch(`${API_BASE}/config/data-sources`, {
             method: 'POST',
@@ -878,7 +878,7 @@ async function saveDataSourceConfig() {
             },
             body: JSON.stringify(config)
         });
-        
+
         if (response.ok) {
             const result = await response.json();
             console.log('Save result:', result); // Debug log
@@ -888,7 +888,7 @@ async function saveDataSourceConfig() {
             console.error('Save error:', error);
             showMessage(`保存失败: ${error.detail}`, 'error');
         }
-        
+
     } catch (error) {
         console.error('Error saving data source config:', error);
         showMessage('保存数据源配置失败', 'error');
@@ -962,13 +962,13 @@ function showDataPreviewModal(filename, data) {
             </div>
         </div>
     `;
-    
+
     // 移除已存在的模态框
     const existingModal = document.getElementById('dataPreviewModal');
     if (existingModal) {
         existingModal.remove();
     }
-    
+
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     const modal = new bootstrap.Modal(document.getElementById('dataPreviewModal'));
     modal.show();
@@ -991,12 +991,12 @@ async function deleteDataFile(filename) {
     if (!confirm(`确定要删除文件 "${filename}" 吗？此操作不可恢复。`)) {
         return;
     }
-    
+
     try {
         const response = await fetch(`${API_BASE}/data/files/${filename}`, {
             method: 'DELETE'
         });
-        
+
         if (response.ok) {
             const result = await response.json();
             showMessage(`文件删除成功: ${filename}`);
@@ -1015,16 +1015,16 @@ async function deleteDataFile(filename) {
 async function uploadDataFile(input) {
     const file = input.files[0];
     if (!file) return;
-    
+
     const formData = new FormData();
     formData.append('file', file);
-    
+
     try {
         const response = await fetch(`${API_BASE}/data/upload`, {
             method: 'POST',
             body: formData
         });
-        
+
         if (response.ok) {
             const result = await response.json();
             showMessage(`文件上传成功：${result.filename} (${formatFileSize(result.file_size)})`);
@@ -1038,7 +1038,7 @@ async function uploadDataFile(input) {
         console.error('Error uploading file:', error);
         showMessage('文件上传失败', 'error');
     }
-    
+
     // 清空文件选择
     input.value = '';
 }
@@ -1050,30 +1050,30 @@ async function loadBacktestOptions() {
             fetch(`${API_BASE}/strategies`).then(r => r.json()),
             fetch(`${API_BASE}/data/files`).then(r => r.json())
         ]);
-        
+
         // 存储数据文件信息
         dataFilesInfo = {};
         dataFiles.data_files.forEach(file => {
             dataFilesInfo[file.name] = file;
         });
-        
+
         // 填充策略选择器
         const strategySelect = document.getElementById('backtest-strategy');
         strategySelect.innerHTML = '<option value="">请选择策略</option>' +
             strategies.strategies.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
-        
+
         // 填充数据文件选择器
         const dataFileSelect = document.getElementById('backtest-data-file');
         dataFileSelect.innerHTML = '<option value="">请选择数据文件</option>' +
             dataFiles.data_files.map(f => `<option value="${f.name}">${f.name} (${f.columns.includes('date') || f.columns.includes('datetime') ? '包含日期' : '无日期列'})</option>`).join('');
-        
+
         // 设置默认日期
         const today = new Date();
         const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-        
+
         document.getElementById('backtest-start-date').value = oneYearAgo.toISOString().split('T')[0];
         document.getElementById('backtest-end-date').value = today.toISOString().split('T')[0];
-        
+
     } catch (error) {
         console.error('Error loading backtest options:', error);
         showMessage('加载回测选项失败', 'error');
@@ -1085,18 +1085,18 @@ async function onDataFileChange() {
     const selectedFile = document.getElementById('backtest-data-file').value;
     const infoDiv = document.getElementById('csv-file-info');
     const infoText = document.getElementById('csv-info-text');
-    
+
     if (!selectedFile) {
         infoDiv.style.display = 'none';
         return;
     }
-    
+
     try {
         // 首先尝试获取文件的详细信息（包括日期范围）
         const response = await fetch(`${API_BASE}/data/files/${selectedFile}/info`);
         if (response.ok) {
             const fileInfo = await response.json();
-            
+
             // 显示文件信息
             infoText.innerHTML = `
                 文件包含 ${fileInfo.total_rows} 行数据，
@@ -1104,12 +1104,12 @@ async function onDataFileChange() {
                 ${fileInfo.date_range ? `，日期范围: ${fileInfo.date_range.start} 至 ${fileInfo.date_range.end}` : ''}
             `;
             infoDiv.style.display = 'block';
-            
+
             // 自动填充日期范围
             if (fileInfo.date_range) {
                 document.getElementById('backtest-start-date').value = fileInfo.date_range.start;
                 document.getElementById('backtest-end-date').value = fileInfo.date_range.end;
-                
+
                 showMessage(`已自动设置日期范围: ${fileInfo.date_range.start} 至 ${fileInfo.date_range.end}`, 'info');
             }
             return;
@@ -1117,7 +1117,7 @@ async function onDataFileChange() {
     } catch (error) {
         console.error('API not available, trying fallback method:', error);
     }
-    
+
     // 如果API不可用，尝试基于本地文件信息进行简单的日期推测
     const fileInfo = dataFilesInfo[selectedFile];
     if (fileInfo) {
@@ -1126,7 +1126,7 @@ async function onDataFileChange() {
             列: ${fileInfo.columns.join(', ')}
         `;
         infoDiv.style.display = 'block';
-        
+
         // 尝试基于文件名猜测日期范围
         const dateGuess = guessDateRangeFromFilename(selectedFile);
         if (dateGuess) {
@@ -1154,18 +1154,18 @@ function guessDateRangeFromFilename(filename) {
         // 匹配 YYYY_MM_DD 格式
         /(\d{4}_\d{2}_\d{2})/g
     ];
-    
+
     for (const pattern of datePatterns) {
         const matches = filename.match(pattern);
         if (matches && matches.length >= 2) {
             // 假设第一个是开始日期，最后一个是结束日期
             let startDate = matches[0];
             let endDate = matches[matches.length - 1];
-            
+
             // 标准化日期格式为 YYYY-MM-DD
             startDate = startDate.replace(/_/g, '-').replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
             endDate = endDate.replace(/_/g, '-').replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
-            
+
             // 验证日期格式
             if (isValidDate(startDate) && isValidDate(endDate)) {
                 return { start: startDate, end: endDate };
@@ -1174,18 +1174,18 @@ function guessDateRangeFromFilename(filename) {
             // 只有一个日期，作为结束日期，开始日期设为一年前
             let endDate = matches[0];
             endDate = endDate.replace(/_/g, '-').replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
-            
+
             if (isValidDate(endDate)) {
                 const end = new Date(endDate);
                 const start = new Date(end.getFullYear() - 1, end.getMonth(), end.getDate());
-                return { 
-                    start: start.toISOString().split('T')[0], 
-                    end: endDate 
+                return {
+                    start: start.toISOString().split('T')[0],
+                    end: endDate
                 };
             }
         }
     }
-    
+
     return null;
 }
 
@@ -1199,7 +1199,7 @@ function toggleDataSourceOptions() {
     const dataSource = document.getElementById('backtest-data-source').value;
     const csvOptions = document.getElementById('csv-options');
     const onlineOptions = document.getElementById('online-options');
-    
+
     if (dataSource === 'csv') {
         csvOptions.style.display = 'block';
         onlineOptions.style.display = 'none';
@@ -1219,7 +1219,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (backtestForm) {
         backtestForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             const formData = {
                 strategy_name: document.getElementById('backtest-strategy').value,
                 data_source: document.getElementById('backtest-data-source').value,
@@ -1228,14 +1228,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 initial_cash: parseFloat(document.getElementById('backtest-initial-cash').value),
                 commission_rate: parseFloat(document.getElementById('backtest-commission').value)
             };
-            
+
             if (formData.data_source === 'csv') {
                 formData.data_file = document.getElementById('backtest-data-file').value;
             } else {
                 const securities = document.getElementById('backtest-securities').value;
                 formData.securities = securities ? securities.split(',').map(s => s.trim()) : ['000001.SZ'];
             }
-            
+
             try {
                 const response = await fetch(`${API_BASE}/backtest`, {
                     method: 'POST',
@@ -1244,7 +1244,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     body: JSON.stringify(formData)
                 });
-                
+
                 if (response.ok) {
                     const result = await response.json();
                     currentJobId = result.job_id;
@@ -1264,12 +1264,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function monitorJob(jobId) {
     const statusDiv = document.getElementById('backtest-status');
-    
+
     const updateStatus = async () => {
         try {
             const response = await fetch(`${API_BASE}/jobs/${jobId}`);
             const job = await response.json();
-            
+
             const statusHtml = `
                 <div class="mb-3">
                     <div class="d-flex justify-content-between align-items-center">
@@ -1288,9 +1288,9 @@ async function monitorJob(jobId) {
                     ${job.completed_at ? `<br><small class="text-muted">完成时间：${formatDateTime(job.completed_at)}</small>` : ''}
                 </div>
             `;
-            
+
             statusDiv.innerHTML = statusHtml;
-            
+
             if (job.status === 'completed') {
                 showMessage('回测完成！请到结果分析页面查看详细结果');
                 return; // 停止监控
@@ -1298,17 +1298,17 @@ async function monitorJob(jobId) {
                 showMessage(`回测失败: ${job.message}`, 'error');
                 return; // 停止监控
             }
-            
+
             // 如果任务仍在运行，继续监控
             if (job.status === 'running' || job.status === 'pending') {
                 setTimeout(updateStatus, 2000); // 2秒后再次检查
             }
-            
+
         } catch (error) {
             console.error('Error monitoring job:', error);
         }
     };
-    
+
     updateStatus();
 }
 
@@ -1316,19 +1316,19 @@ async function monitorJob(jobId) {
 async function loadBatchTestOptions() {
     try {
         const strategies = await fetch(`${API_BASE}/strategies`).then(r => r.json());
-        
+
         // 填充策略选择器
         const strategySelect = document.getElementById('batch-strategy');
         strategySelect.innerHTML = '<option value="">请选择策略</option>' +
             strategies.strategies.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
-        
+
         // 设置默认日期
         const today = new Date();
         const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-        
+
         document.getElementById('batch-start-date').value = oneYearAgo.toISOString().split('T')[0];
         document.getElementById('batch-end-date').value = today.toISOString().split('T')[0];
-        
+
     } catch (error) {
         console.error('Error loading batch test options:', error);
         showMessage('加载批量测试选项失败', 'error');
@@ -1366,7 +1366,7 @@ let allJobs = [];
 // 工具函数：优雅地截断文本
 function truncateText(text, maxLength = 30, breakWords = true) {
     if (!text || text.length <= maxLength) return text;
-    
+
     if (breakWords) {
         // 在单词边界处截断
         const truncated = text.substring(0, maxLength);
@@ -1374,12 +1374,12 @@ function truncateText(text, maxLength = 30, breakWords = true) {
         const lastUnderscore = truncated.lastIndexOf('_');
         const lastDot = truncated.lastIndexOf('.');
         const breakPoint = Math.max(lastSpace, lastUnderscore, lastDot);
-        
+
         if (breakPoint > maxLength * 0.6) { // 如果截断点不会太短
             return text.substring(0, breakPoint) + '...';
         }
     }
-    
+
     return text.substring(0, maxLength - 3) + '...';
 }
 
@@ -1387,7 +1387,7 @@ function truncateText(text, maxLength = 30, breakWords = true) {
 function createTruncatedElement(text, maxLength = 25, className = '') {
     const truncated = truncateText(text, maxLength);
     const needsTruncation = text.length > maxLength;
-    
+
     if (needsTruncation) {
         return `<span class="${className}" title="${text}" data-bs-toggle="tooltip">${truncated}</span>`;
     }
@@ -1397,15 +1397,15 @@ function createTruncatedElement(text, maxLength = 25, className = '') {
 // 工具函数：智能截断策略名称（保留关键信息）
 function truncateStrategyName(strategyName, maxLength = 20) {
     if (!strategyName || strategyName.length <= maxLength) return strategyName;
-    
+
     // 移除常见后缀
     const cleanName = strategyName.replace(/_strategy$/i, '').replace(/strategy$/i, '');
-    
+
     // 如果清理后的名称足够短，就使用它
     if (cleanName.length <= maxLength) {
         return cleanName;
     }
-    
+
     // 否则智能截断
     return truncateText(cleanName, maxLength, true);
 }
@@ -1420,13 +1420,13 @@ async function loadJobResults() {
             fetch(`${API_BASE}/jobs`),
             fetch(`${API_BASE}/reports`)
         ]);
-        
+
         const jobsData = await jobsResponse.json();
         const reportsData = await reportsResponse.json();
-        
+
         // 合并回测任务和已有报告
         allJobs = jobsData.jobs.filter(job => job.status === 'completed');
-        
+
         // 将已有报告转换为伪任务对象，与回测任务统一显示
         const reportJobs = (reportsData.reports || []).map(report => {
             // 使用从后端加载的真实数据
@@ -1439,7 +1439,7 @@ async function loadJobResults() {
                 win_rate: 0,
                 total_trades: 0
             };
-            
+
             return {
                 job_id: 'report_' + report.strategy_name + '_' + report.session_id,
                 type: 'backtest',
@@ -1460,14 +1460,14 @@ async function loadJobResults() {
                 _sessionId: report.session_id
             };
         });
-        
+
         // 合并所有任务（回测任务 + 报告）
         allJobs = [...allJobs, ...reportJobs];
         filteredJobs = [...allJobs];
-        
+
         displayJobResults();
         updateJobsCount();
-        
+
     } catch (error) {
         console.error('Error loading job results:', error);
         showMessage('加载任务结果失败', 'error');
@@ -1480,13 +1480,13 @@ function displayJobResults() {
         const strategyName = job.request?.strategy_name || 'Unknown Strategy';
         const truncatedStrategyName = truncateStrategyName(strategyName, 18);
         const needsTooltip = strategyName !== truncatedStrategyName;
-        
+
         const timeRange = job.request ? `${job.request.start_date} ~ ${job.request.end_date}` : '';
         const isSelected = selectedJob && selectedJob.job_id === job.job_id;
         const isHistorical = job._isHistoricalReport;
-        
+
         return `
-            <div class="job-result-card mb-3 p-3 border rounded ${isSelected ? 'border-primary' : ''} ${isHistorical ? 'bg-light border-info' : ''}" 
+            <div class="job-result-card mb-3 p-3 border rounded ${isSelected ? 'border-primary' : ''} ${isHistorical ? 'bg-light border-info' : ''}"
                  onclick="selectJobResult('${job.job_id}')" style="cursor: pointer;">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1 min-w-0"> <!-- min-w-0 for text overflow -->
@@ -1528,10 +1528,10 @@ function displayJobResults() {
             </div>
         `;
     }).join('');
-    
-    document.getElementById('job-results-list').innerHTML = jobsHtml || 
+
+    document.getElementById('job-results-list').innerHTML = jobsHtml ||
         '<div class="text-center py-4"><i class="fas fa-inbox fa-2x text-muted mb-2"></i><p class="text-muted">暂无已完成的任务</p></div>';
-    
+
     // 初始化 Bootstrap tooltips
     const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipTriggerList.map(function (tooltipTriggerEl) {
@@ -1571,14 +1571,14 @@ async function selectJobResult(jobId) {
                         selectedJob.result.backtest_config = historicalData.data.backtest_config || {};
                         selectedJob.result.trade_summary = historicalData.data.trade_summary || {};
                         selectedJob.result.final_positions = historicalData.data.final_positions || {};
-                        
+
                         console.log('Loaded historical data:', historicalData.data);
                     }
                 } catch (error) {
                     console.error('Error loading detailed historical data:', error);
                     // Continue with existing data if detailed load fails
                 }
-                
+
                 displayJobResults(); // 刷新列表以显示选中状态
                 showJobAnalysis(selectedJob);
                 document.getElementById('analysis-controls').style.display = 'block';
@@ -1588,19 +1588,19 @@ async function selectJobResult(jobId) {
                 return;
             }
         }
-        
+
         // Regular backtest job - fetch from API
         const response = await fetch(`${API_BASE}/jobs/${jobId}`);
         if (response.ok) {
             selectedJob = await response.json();
-            
+
             displayJobResults(); // 刷新列表以显示选中状态
             showJobAnalysis(selectedJob);
             document.getElementById('analysis-controls').style.display = 'block';
         } else {
             showMessage('加载任务详情失败', 'error');
         }
-        
+
     } catch (error) {
         console.error('Error selecting job result:', error);
         showMessage('加载任务详情失败', 'error');
@@ -1609,17 +1609,17 @@ async function selectJobResult(jobId) {
 
 function showJobAnalysis(job) {
     const visualizationDiv = document.getElementById('result-visualization');
-    
+
     console.log('Showing job analysis for:', job); // Debug log
-    
+
     if (job.type === 'backtest' && job.result) {
         const result = job.result;
         const summary = result.summary || {};
         const performance = result.performance || {};
-        
+
         console.log('Job result:', result); // Debug log
         console.log('Summary data:', summary); // Debug log
-        
+
         const resultHtml = `
             <div class="analysis-header mb-4">
                 <h5 class="fw-bold d-flex align-items-center flex-wrap">
@@ -1633,7 +1633,7 @@ function showJobAnalysis(job) {
                 </h5>
                 <p class="text-muted mb-0 small">${job._isHistoricalReport ? '历史报告数据' : `回测期间：${job.request.start_date} 至 ${job.request.end_date}`}</p>
             </div>
-            
+
             <!-- 关键指标卡片 -->
             <div class="row mb-4">
                 <div class="col-lg-3 col-md-6 col-6 mb-3">
@@ -1661,7 +1661,7 @@ function showJobAnalysis(job) {
                     </div>
                 </div>
             </div>
-            
+
             <!-- 详细分析表格 -->
             <div class="row mb-4">
                 <div class="col-md-6">
@@ -1696,7 +1696,7 @@ function showJobAnalysis(job) {
                     </div>
                 </div>
             </div>
-            
+
             <!-- 收益曲线图表 -->
             <div class="card mb-4">
                 <div class="card-header bg-light">
@@ -1708,7 +1708,7 @@ function showJobAnalysis(job) {
                     </div>
                 </div>
             </div>
-            
+
             <!-- 报告文件下载 -->
             <div class="card">
                 <div class="card-header bg-light">
@@ -1726,15 +1726,15 @@ function showJobAnalysis(job) {
                                     if (!fileGroups[fileType]) fileGroups[fileType] = [];
                                     fileGroups[fileType].push({file, fileName, fileType});
                                 });
-                                
+
                                 const typeOrder = ['json', 'txt', 'csv']; // 优先显示顺序
                                 const sortedTypes = typeOrder.filter(type => fileGroups[type]);
-                                
+
                                 return sortedTypes.map(fileType => {
                                     const files = fileGroups[fileType];
                                     const typeIcons = {
                                         'json': 'file-code',
-                                        'csv': 'file-csv', 
+                                        'csv': 'file-csv',
                                         'txt': 'file-alt'
                                     };
                                     const typeColors = {
@@ -1747,13 +1747,13 @@ function showJobAnalysis(job) {
                                         'csv': 'CSV数据报告',
                                         'txt': '文本报告'
                                     };
-                                    
+
                                     return `
                                         <div class="col-md-12 mb-3">
                                             <div class="card">
                                                 <div class="card-header bg-${typeColors[fileType]} text-white">
                                                     <h6 class="mb-0">
-                                                        <i class="fas fa-${typeIcons[fileType]}"></i> 
+                                                        <i class="fas fa-${typeIcons[fileType]}"></i>
                                                         ${typeNames[fileType]} (${files.length} 个文件)
                                                     </h6>
                                                 </div>
@@ -1764,22 +1764,22 @@ function showJobAnalysis(job) {
                                                             const maxFileNameLength = window.innerWidth < 768 ? 20 : 35; // 移动端更短
                                                             const truncatedFileName = truncateText(fileName, maxFileNameLength, true);
                                                             const needsFileTooltip = fileName !== truncatedFileName;
-                                                            
+
                                                             return `
                                                             <div class="col-lg-6 col-12 mb-2">
                                                                 <div class="d-flex justify-content-between align-items-center p-2 border rounded">
-                                                                    <span class="small text-truncate flex-grow-1 me-2" 
+                                                                    <span class="small text-truncate flex-grow-1 me-2"
                                                                           ${needsFileTooltip ? `title="${fileName}" data-bs-toggle="tooltip"` : ''}>
                                                                         ${truncatedFileName}
                                                                     </span>
                                                                     <div class="btn-group btn-group-sm flex-shrink-0">
-                                                                        <button class="btn btn-outline-${typeColors[fileType]} btn-sm" 
+                                                                        <button class="btn btn-outline-${typeColors[fileType]} btn-sm"
                                                                                 onclick="previewReportFile('${job.request.strategy_name}', '${fileName}')"
                                                                                 title="预览文件" data-bs-toggle="tooltip">
                                                                             <i class="fas fa-eye"></i>
                                                                         </button>
-                                                                        <a href="/api/reports/${job.request.strategy_name}/${fileName}" 
-                                                                           class="btn btn-${typeColors[fileType]} btn-sm" 
+                                                                        <a href="/api/reports/${job.request.strategy_name}/${fileName}"
+                                                                           class="btn btn-${typeColors[fileType]} btn-sm"
                                                                            download="${fileName}"
                                                                            title="下载文件" data-bs-toggle="tooltip">
                                                                             <i class="fas fa-download"></i>
@@ -1800,12 +1800,12 @@ function showJobAnalysis(job) {
                 </div>
             </div>
         `;
-        
+
         visualizationDiv.innerHTML = resultHtml;
-        
+
         // 绘制收益曲线图
         setTimeout(() => drawReturnsChart(job), 100);
-        
+
         // 重新初始化tooltips
         setTimeout(() => {
             const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -1813,7 +1813,7 @@ function showJobAnalysis(job) {
                 return new bootstrap.Tooltip(tooltipTriggerEl);
             });
         }, 150);
-        
+
     } else if (job.type === 'batch_test' && job.result) {
         // 批量测试结果
         showBatchTestResults(job);
@@ -1823,34 +1823,34 @@ function showJobAnalysis(job) {
 function drawReturnsChart(job) {
     const canvas = document.getElementById(`returns-chart-${job.job_id}`);
     if (!canvas) return;
-    
+
     const ctx = canvas.getContext('2d');
-    
+
     // 使用真实的投资组合历史数据绘制收益曲线
     const summary = job.result.summary || {};
     const portfolioHistory = job.result.portfolio_history || [];
     const totalReturn = summary.total_return || 0;
-    
+
     let labels = [];
     let returns = [];
     let chartTitle = '回测收益曲线';
-    
+
     if (portfolioHistory.length > 0) {
         // 使用真实的投资组合历史数据
         const initialValue = summary.initial_value || portfolioHistory[0]?.total_value || 1000000;
-        
+
         labels = portfolioHistory.map(item => {
             const date = new Date(item.date || item.datetime);
             return date.toLocaleDateString();
         });
-        
+
         returns = portfolioHistory.map(item => {
             const currentValue = item.total_value || 0;
             return ((currentValue - initialValue) / initialValue) * 100;
         });
-        
+
         chartTitle = job._isHistoricalReport ? '历史报告收益曲线 (真实数据)' : '回测收益曲线 (真实数据)';
-        
+
         console.log('Drawing chart with real portfolio data:', {
             portfolioHistory: portfolioHistory.length,
             labels: labels.length,
@@ -1860,27 +1860,27 @@ function drawReturnsChart(job) {
         // 回退到模拟数据
         const days = getDaysBetweenDates(job.request.start_date, job.request.end_date);
         const maxDataPoints = Math.min(50, Math.max(10, days)); // 10-50个数据点
-        
+
         for (let i = 0; i <= maxDataPoints; i++) {
             const progress = i / maxDataPoints;
             const dayOffset = Math.floor(days * progress);
-            
+
             const date = new Date(job.request.start_date);
             date.setDate(date.getDate() + dayOffset);
             labels.push(date.toLocaleDateString());
-            
+
             // 基于实际收益率生成累计收益曲线
             const baseReturn = totalReturn * progress;
             const volatility = summary.volatility || 0.15;
             const randomFactor = (Math.random() - 0.5) * volatility * 0.3; // 添加波动
             returns.push((baseReturn + randomFactor) * 100);
         }
-        
+
         // 确保最后一个点是准确的总收益率
         returns[returns.length - 1] = totalReturn * 100;
         chartTitle = job._isHistoricalReport ? '历史报告收益曲线 (模拟)' : '回测收益曲线 (模拟)';
     }
-    
+
     new Chart(ctx, {
         type: 'line',
         data: {
@@ -1938,7 +1938,7 @@ function getDaysBetweenDates(startDate, endDate) {
     if (startDate === '历史数据' || endDate === '历史数据') {
         return 252; // 一年的交易日
     }
-    
+
     const start = new Date(startDate);
     const end = new Date(endDate);
     const diffTime = Math.abs(end - start);
@@ -2003,7 +2003,7 @@ function downloadJobReports(jobId) {
 
 function exportAnalysisData() {
     if (!selectedJob) return;
-    
+
     const data = {
         job_id: selectedJob.job_id,
         strategy_name: selectedJob.request.strategy_name,
@@ -2011,7 +2011,7 @@ function exportAnalysisData() {
         summary: selectedJob.result.summary,
         performance: selectedJob.result.performance
     };
-    
+
     const dataStr = JSON.stringify(data, null, 2);
     const dataBlob = new Blob([dataStr], {type: 'application/json'});
     const url = URL.createObjectURL(dataBlob);
@@ -2028,7 +2028,7 @@ function compareStrategies() {
     // 显示对比分析模态框
     const modal = new bootstrap.Modal(document.getElementById('compareModal'));
     modal.show();
-    
+
     // 这里可以实现多策略对比功能
     showMessage('对比分析功能正在开发中', 'info');
 }
@@ -2056,7 +2056,7 @@ async function previewReportFile(strategyName, fileName) {
 // 显示报告预览模态框
 function showReportPreviewModal(data) {
     let contentHtml = '';
-    
+
     if (data.preview) {
         if (data.type === 'csv') {
             // CSV表格预览
@@ -2100,14 +2100,14 @@ function showReportPreviewModal(data) {
             </div>
         `;
     }
-    
+
     const modalHtml = `
         <div class="modal fade" id="reportPreviewModal" tabindex="-1">
             <div class="modal-dialog modal-xl">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
-                            <i class="fas fa-file-alt"></i> 
+                            <i class="fas fa-file-alt"></i>
                             报告预览: ${data.filename}
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -2117,7 +2117,7 @@ function showReportPreviewModal(data) {
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                        <a href="/api/reports/${data.filename.split('_')[0] || 'unknown'}/${data.filename}" 
+                        <a href="/api/reports/${data.filename.split('_')[0] || 'unknown'}/${data.filename}"
                            class="btn btn-primary" download="${data.filename}">
                             <i class="fas fa-download"></i> 下载完整文件
                         </a>
@@ -2126,13 +2126,13 @@ function showReportPreviewModal(data) {
             </div>
         </div>
     `;
-    
+
     // 移除已存在的模态框
     const existingModal = document.getElementById('reportPreviewModal');
     if (existingModal) {
         existingModal.remove();
     }
-    
+
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     const modal = new bootstrap.Modal(document.getElementById('reportPreviewModal'));
     modal.show();
@@ -2142,7 +2142,7 @@ function showReportPreviewModal(data) {
 function showBatchTestResults(job) {
     const visualizationDiv = document.getElementById('result-visualization');
     const result = job.result;
-    
+
     // 创建参数优化图表
     if (result.results && result.results.length > 0) {
         visualizationDiv.innerHTML = `
@@ -2160,7 +2160,7 @@ function showBatchTestResults(job) {
                 </div>
             </div>
         `;
-        
+
         // 创建散点图
         const ctx = document.getElementById('batch-results-chart').getContext('2d');
         new Chart(ctx, {
@@ -2214,15 +2214,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (batchForm) {
         batchForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             // 收集参数范围
             const parameterRanges = {};
             const rows = document.querySelectorAll('#parameter-ranges .row');
-            
+
             rows.forEach((row, index) => {
                 const nameInput = row.querySelector(`input[id^="param-name-"]`);
                 const valuesInput = row.querySelector(`input[id^="param-values-"]`);
-                
+
                 if (nameInput && valuesInput && nameInput.value.trim() && valuesInput.value.trim()) {
                     const paramName = nameInput.value.trim();
                     const paramValues = valuesInput.value.split(',').map(v => {
@@ -2234,12 +2234,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     parameterRanges[paramName] = paramValues;
                 }
             });
-            
+
             if (Object.keys(parameterRanges).length === 0) {
                 showMessage('请至少添加一个参数范围', 'error');
                 return;
             }
-            
+
             const formData = {
                 strategy_name: document.getElementById('batch-strategy').value,
                 parameter_ranges: parameterRanges,
@@ -2248,7 +2248,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 end_date: document.getElementById('batch-end-date').value,
                 initial_cash: 1000000.0
             };
-            
+
             try {
                 const response = await fetch(`${API_BASE}/batch-test`, {
                     method: 'POST',
@@ -2257,7 +2257,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     body: JSON.stringify(formData)
                 });
-                
+
                 if (response.ok) {
                     const result = await response.json();
                     currentJobId = result.job_id;
@@ -2277,12 +2277,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function monitorBatchTest(jobId) {
     const statusDiv = document.getElementById('batch-test-status');
-    
+
     const updateStatus = async () => {
         try {
             const response = await fetch(`${API_BASE}/jobs/${jobId}`);
             const job = await response.json();
-            
+
             const statusHtml = `
                 <div class="mb-3">
                     <div class="d-flex justify-content-between align-items-center">
@@ -2302,9 +2302,9 @@ async function monitorBatchTest(jobId) {
                     </div>
                 ` : ''}
             `;
-            
+
             statusDiv.innerHTML = statusHtml;
-            
+
             if (job.status === 'completed') {
                 showMessage('批量测试完成！请到结果分析页面查看详细结果');
                 return;
@@ -2312,16 +2312,16 @@ async function monitorBatchTest(jobId) {
                 showMessage(`批量测试失败: ${job.message}`, 'error');
                 return;
             }
-            
+
             if (job.status === 'running' || job.status === 'pending') {
                 setTimeout(updateStatus, 3000); // 3秒后再次检查
             }
-            
+
         } catch (error) {
             console.error('Error monitoring batch test:', error);
         }
     };
-    
+
     updateStatus();
 }
 
@@ -2329,7 +2329,7 @@ async function monitorBatchTest(jobId) {
 document.addEventListener('DOMContentLoaded', function() {
     // 加载仪表盘
     loadDashboard();
-    
+
     // 设置默认选中第一个导航项
     document.querySelector('.sidebar .nav-link').classList.add('active');
 });

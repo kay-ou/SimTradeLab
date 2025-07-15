@@ -350,23 +350,23 @@ def handle_data(context, data):
 def initialize(context):
     g.security = '600570.SS'
     set_universe(g.security)
-    
+
 def handle_data(context, data):
     security = g.security
     sid = g.security
-    
+
     # 取得过去五天的历史价格
     df = get_history(5, '1d', 'close', security, fq=None, include=False)
-    
+
     # 取得过去五天的平均价格
     average_price = round(df['close'][-5:].mean(), 3)
 
     # 取得上一时间点价格
     current_price = data[sid]['close']
-    
+
     # 取得当前的现金
     cash = context.portfolio.cash
-    
+
     # 如果上一时间点价格高出五天平均价1%, 则全仓买入
     if current_price > 1.01*average_price:
         # 用所有 cash 买入股票
@@ -449,7 +449,7 @@ def initialize(context):
 def before_trading_start(context, data):
     if g.hold_days:
         g.hold_days[g.security] += 1
-        
+
 # 每天将存储仓龄的字典对象进行pickle保存
 def handle_data(context, data):
     if g.security not in list(context.portfolio.positions.keys()) and g.security not in g.hold_days:
@@ -1591,7 +1591,7 @@ None
 #### 示例
 
 ```python
-# 定义一个财务数据获取函数，每天执行一次 
+# 定义一个财务数据获取函数，每天执行一次
 def initialize(context):
     run_daily(context, get_finance, time='9:31')
     g.security = '600570.SS'
@@ -1642,7 +1642,7 @@ None
 #### 示例
 
 ```python
-# 定义一个周期处理函数，每10秒执行一次 
+# 定义一个周期处理函数，每10秒执行一次
 def initialize(context):
     run_interval(context, interval_handle, seconds = 10)
     g.security = '600570.SS'
@@ -1817,13 +1817,13 @@ def handle_data(context, data):
                   <h4>示例</h4>
                       <pre class="prettyprint"><code class="language-python"># 获取一支股票600570.SS(恒生电子)最新的市场数据
       get_market_value('600570.SS')
-      
-      # 获取一支股票600570.SS(恒生电子)最新的市场数据中prod_name和market_value两个字段的数据 
+
+      # 获取一支股票600570.SS(恒生电子)最新的市场数据中prod_name和market_value两个字段的数据
       get_market_value('600570.SS', ['prod_name','market_value'])
-      
+
       # 获取多只股票，如获取600570.SS(恒生电子)，600571.SS(信雅达)的最新市场数据
       get_market_value(['600570.SS','600571.SS'])
-      
+
       # 获取多只股票某些字段的市场数据，如获取600570.SS(恒生电子)，600571.SS(信雅达)
       #'prod_name','market_value'两个字段的市场数据
       get_market_value(['600570.SS','600571.SS'],['prod_name','market_value'])</code></pre>
@@ -2168,7 +2168,7 @@ def handle_data(context, data):
     df = open_df['600570.SS']
     log.info('仅获取恒生电子的开盘价数据')
     log.info(df)
-    
+
     # panel索引中的对象进行转换
     panel_info2 = panel_info.swapaxes("minor_axis", "items")
     df = panel_info2['600570.SS']
@@ -3262,7 +3262,7 @@ def handle_data(context, data):
                       <pre class="prettyprint"><code class="language-python">def initialize(context):
           g.security = '600570.SS'
           set_universe(g.security)
-      
+
       def handle_data(context, data):
           real_price = get_change_to_forward('600570.SS',data['600570.SS']['close'])
           log.info(real_price)</code></pre>
@@ -3289,7 +3289,7 @@ def handle_data(context, data):
                       <pre class="prettyprint"><code class="language-python">def initialize(context):
           g.security = '600570.SS'
           set_universe(g.security)
-      
+
       def handle_data(context, data):
           real_price = get_change_to_backward ('600570.SS',data['600570.SS']['close'])
           log.info(real_price)</code></pre>
@@ -3327,7 +3327,7 @@ stock\_code: 股票代码(str)；
 {
 'HGT': [['HGTHGT.XBHK', '沪股通']],
 'HY': [['710200.XBHS', '计算机应用']],
-'DY': [['DY1172.XBHS', '浙江板块']], 
+'DY': [['DY1172.XBHS', '浙江板块']],
 'ZJHHY': [['I65000.XBHS', '软件和信息技术服务业']],
 'GN': [['003596.XBHS', '融资融券'], ['003631.XBHS', '转融券标的'], ['003637.XBHS', '互联网金融'], ['003665.XBHS', '电商概念'], ['003707.XBHS', '沪股通'], ['003718.XBHS', '证金持股'], ['003800.XBHS', '人工智能'], ['003830.XBHS', '区块链'], ['031027.XBHS', 'MSCI概念'], ['B10003.XBHS', '蚂蚁金服概念']]
 }
@@ -3379,7 +3379,7 @@ date：日期，输入形式必须为'YYYYMMDD'，如'20170620'，不输入默�
 
 ```python
 ['000001.SZ', '000002.SZ', '000063.SZ', '000069.SZ', '000100.SZ', '000157.SZ', '000425.SZ', '000538.SZ', '000568.SZ', '000625.SZ', '000651.SZ', '000725.SZ', '000728.SZ', '000768.SZ', '000776.SZ',
- '000783.SZ', '000786.SZ', ..., '603338.SS', '603939.SS', '603233.SS', '600426.SS', '688126.SS', '600079.SS', '600521.SS', '600143.SS', '000800.SZ'] 
+ '000783.SZ', '000786.SZ', ..., '603338.SS', '603939.SS', '603233.SS', '600426.SS', '688126.SS', '600079.SS', '600521.SS', '600143.SS', '000800.SZ']
 ```
 
 #### 示例
@@ -3429,7 +3429,7 @@ etf\_code : 单支ETF代码，必传参数(str)
 正常返回一个list类型字段，包含每只etf代码所对应的成分股。异常返回空list，如\[]\(list\[str,...])
 
 ```python
-['600000.SS', '600010.SS', '600016.SS'] 
+['600000.SS', '600010.SS', '600016.SS']
 ```
 
 #### 示例
@@ -3476,7 +3476,7 @@ industry\_code: 行业编码，尾缀必须是.XBHS 如农业股：A01000.XBHS(s
 
 ```python
 ['300970.SZ', '300087.SZ', '300972.SZ', '002772.SZ', '000998.SZ', '002041.SZ', '600598.SS', '600371.SS', '600506.SS', '300511.SZ', '600359.SS', '600354.SS', '601118.SS', '600540.SS', '300189.SZ',
- '600313.SS', '600108.SS'] 
+ '600313.SS', '600108.SS']
 ```
 
 #### 示例
@@ -3668,7 +3668,7 @@ date：格式为YYYYmmdd
 
 ```python
 ['000001.SZ', '000002.SZ', '000004.SZ', '000005.SZ', '000006.SZ', '000007.SZ', '000008.SZ', '000009.SZ', '000010.SZ', '000011.SZ', '000012.SZ', '000014.SZ', '000016.SZ', '000017.SZ', '000018.SZ', '000019.SZ',
- '000020.SZ', '000021.SZ', '000023.SZ', '000024.SZ', '000025.SZ', '000026.SZ', '000027.SZ',..., '603128.SS', '603167.SS', '603333.SS', '603366.SS', '603399.SS', '603766.SS', '603993.SS'] 
+ '000020.SZ', '000021.SZ', '000023.SZ', '000024.SZ', '000025.SZ', '000026.SZ', '000027.SZ',..., '603128.SS', '603167.SS', '603333.SS', '603366.SS', '603399.SS', '603766.SS', '603993.SS']
 ```
 
 #### 示例
@@ -3987,7 +3987,7 @@ end\_date: 结束日期，输入形式仅支持"YYYYmmdd"，如'20170620'；
 返回一个list类型对象(list\[dict,...])，包含一个或N个dict，每个dict为一条交割单信息，其中包含柜台返回的字段信息，失败则返回\[]。
 
 ```python
-[{'entrust_way': '7', 'exchange_fare': 0.04, 'post_balance': 3539128.83, 'stock_account': '0010110920', 'exchange_farex': 0.0, 'fare0': 0.5, 'report_milltime': 110400187, 'business_balance': 2987.0, 'exchange_fare5': 0.0, 'fare_remark': '内部:.5( | ,费用类别:9999)', 'client_id': '10110920', 'uncome_flag': '0', 'exchange_fare0': 0.03, 'exchange_fare2': 0.0, 'fare1': 0.0, 'init_date': 20210811, 'stock_code': '162605', 'occur_amount': 1000.0, 'report_time': 110400, 'entrust_bs': '1', 'seat_no': '123456', 'business_id': '0110351000000242', 'business_amount': 1000.0, 'business_time': 110351, 'fund_account': '10110920', 'begin_issueno': ' ', 'post_amount': 1000.0, 'correct_amount': 0.0, 'money_type': '0', 'client_name': '客户10110920', 'business_type': '0', 'business_flag': 4002, 'clear_balance': -2987.5, 'exchange_fare1': 0.0, 'date_back': 20210811, 'branch_no': 1011, 'serial_no': 153, 'occur_balance': -2987.5, 'stock_name': '景顺鼎益', 'curr_time': 173028, 'exchange_fare4': 0.0, 'brokerage': 0.0, 'business_name': '证券买入', 'order_id': 'F04Z', 'business_times': 1, 'entrust_date': 20210811, 'remark': '证券买入;uft节点:31;', 'exchange_fare6': 0.0, 'standard_fare0': 0.5, 'exchange_fare3': 0.01, 'farex': 0.0, 'clear_fare0': 0.46, 'entrust_no': 38, 'profit': 0.0, 'exchange_type': '2', 'fare2': 0.0, 'business_no': 181, 'stock_type': 'L', 'fare3': 0.0, 'business_status': '0', 'business_price': 2.987, 'position_str': '020210811010110000000153', 'stock_name_long': '景顺鼎益LOF', 'report_no': 38, 'correct_balance': 0.0, 'exchange_rate': 0.0}] 
+[{'entrust_way': '7', 'exchange_fare': 0.04, 'post_balance': 3539128.83, 'stock_account': '0010110920', 'exchange_farex': 0.0, 'fare0': 0.5, 'report_milltime': 110400187, 'business_balance': 2987.0, 'exchange_fare5': 0.0, 'fare_remark': '内部:.5( | ,费用类别:9999)', 'client_id': '10110920', 'uncome_flag': '0', 'exchange_fare0': 0.03, 'exchange_fare2': 0.0, 'fare1': 0.0, 'init_date': 20210811, 'stock_code': '162605', 'occur_amount': 1000.0, 'report_time': 110400, 'entrust_bs': '1', 'seat_no': '123456', 'business_id': '0110351000000242', 'business_amount': 1000.0, 'business_time': 110351, 'fund_account': '10110920', 'begin_issueno': ' ', 'post_amount': 1000.0, 'correct_amount': 0.0, 'money_type': '0', 'client_name': '客户10110920', 'business_type': '0', 'business_flag': 4002, 'clear_balance': -2987.5, 'exchange_fare1': 0.0, 'date_back': 20210811, 'branch_no': 1011, 'serial_no': 153, 'occur_balance': -2987.5, 'stock_name': '景顺鼎益', 'curr_time': 173028, 'exchange_fare4': 0.0, 'brokerage': 0.0, 'business_name': '证券买入', 'order_id': 'F04Z', 'business_times': 1, 'entrust_date': 20210811, 'remark': '证券买入;uft节点:31;', 'exchange_fare6': 0.0, 'standard_fare0': 0.5, 'exchange_fare3': 0.01, 'farex': 0.0, 'clear_fare0': 0.46, 'entrust_no': 38, 'profit': 0.0, 'exchange_type': '2', 'fare2': 0.0, 'business_no': 181, 'stock_type': 'L', 'fare3': 0.0, 'business_status': '0', 'business_price': 2.987, 'position_str': '020210811010110000000153', 'stock_name_long': '景顺鼎益LOF', 'report_no': 38, 'correct_balance': 0.0, 'exchange_rate': 0.0}]
 ```
 
 #### 示例
@@ -4040,7 +4040,7 @@ end\_date: 结束日期，输入形式仅支持"YYYYmmdd"，如'20170620'；
 返回一个list类型对象(list\[dict,...])，包含一个或N个dict，每个dict为一条资金流水，其中包含柜台返回的字段信息，失败则返回\[]。
 
 ```python
-[{'post_balance': 3260341.36, 'init_date': 20210104, 'asset_prop': '0', 'serial_no': 1, 'business_flag': 4002, 'occur_balance': -10598.21, 'exchange_type': '0', 'stock_name': ' ', 'business_date': 20210104, 'business_price': 0.0, 'bank_no': '0', 'occur_amount': 0.0, 'remark': '证券买入,恒生电子,100股,价格105.93', 'stock_account': ' ', 'money_type': '0', 'fund_account': '10110920', 'position_str': '20210104010110000000001', 'bank_name': '内部银行', 'business_name': '证券买入', 'stock_code': ' ', 'curr_date': 20210104, 'entrust_bs': ' ', 'business_time': 171730}] 
+[{'post_balance': 3260341.36, 'init_date': 20210104, 'asset_prop': '0', 'serial_no': 1, 'business_flag': 4002, 'occur_balance': -10598.21, 'exchange_type': '0', 'stock_name': ' ', 'business_date': 20210104, 'business_price': 0.0, 'bank_no': '0', 'occur_amount': 0.0, 'remark': '证券买入,恒生电子,100股,价格105.93', 'stock_account': ' ', 'money_type': '0', 'fund_account': '10110920', 'position_str': '20210104010110000000001', 'bank_name': '内部银行', 'business_name': '证券买入', 'stock_code': ' ', 'curr_date': 20210104, 'entrust_bs': ' ', 'business_time': 171730}]
 ```
 
 #### 示例
@@ -7422,7 +7422,7 @@ None
 ```python
 # 打印出一个格式化后的字符串
 g.security='600570.SS'
-log.info("Selling %s, amount=%s" % (g.security, 10000)) 
+log.info("Selling %s, amount=%s" % (g.security, 10000))
 ```
 
 ### is\_trade-业务代码场景判断
@@ -7460,7 +7460,7 @@ def initialize(context):
 
 def handle_data(context, data):
     _id = order(g.security, 100)
-    
+
     if is_trade():
         log.info("当前运行场景：交易")
     else:
@@ -8054,7 +8054,7 @@ def initialize(context):
     g.security = '600570.SS'
     set_universe(g.security)
     #每天9:23分运行集合竞价处理函数
-    run_daily(context, aggregate_auction_func, time='9:23')  
+    run_daily(context, aggregate_auction_func, time='9:23')
 
 def aggregate_auction_func(context):
     stock = g.security
@@ -8066,7 +8066,7 @@ def aggregate_auction_func(context):
     #如果最新价不小于涨停价，买入
     if float(price) >= float(up_limit):
         order(g.security, 100, limit_price=up_limit)
-    
+
 def handle_data(context, data):
     pass
 ```
@@ -8081,44 +8081,44 @@ def initialize(context):
     set_universe(g.security)
     #每3秒运行一次主函数
     run_interval(context, func, seconds=3)
-      
+
 #盘前准备历史数据
 def before_trading_start(context, data):
     history = get_history(10, '1d', 'close', g.security, fq='pre', include=False)
     g.close_array = history['close'].values
-    
+
 #当五日均线高于十日均线时买入，当五日均线低于十日均线时卖出
 def func(context):
-    
+
     stock = g.security
-    
+
     #获取最新价
     snapshot = get_snapshot(stock)
     price = snapshot[stock]['last_px']
-    
+
     # 得到五日均线价格
     days = 5
-    ma5 = get_MA_day(stock, days, g.close_array[-4:], price)   
+    ma5 = get_MA_day(stock, days, g.close_array[-4:], price)
     # 得到十日均线价格
     days = 10
     ma10 = get_MA_day(stock, days, g.close_array[-9:], price)
 
     # 得到当前资金余额
     cash = context.portfolio.cash
-    
+
     # 如果当前有余额，并且五日均线大于十日均线
     if ma5 > ma10:
         # 用所有 cash 买入股票
         order_value(stock, cash)
         # 记录这次买入
         log.info("Buying %s" % (stock))
-        
+
     # 如果五日均线小于十日均线，并且目前有头寸
     elif ma5 < ma10 and get_position(stock).amount > 0:
         # 全部卖出
         order_target(stock, 0)
         # 记录这次卖出
-        log.info("Selling %s" % (stock))    
+        log.info("Selling %s" % (stock))
 
 #计算实时均线函数
 def get_MA_day(stock,days,close_array,current_price):
@@ -8138,17 +8138,17 @@ def initialize(context):
     # 设置我们要操作的股票池, 这里我们只操作一支股票
     g.security = '600570.SS'
     set_universe(g.security)
-    
+
 #当五日均线高于十日均线时买入，当五日均线低于十日均线时卖出
 def handle_data(context, data):
     security = g.security
 
     #得到十日历史价格
     df = get_history(10, '1d', 'close', security, fq=None, include=False)
-    
+
     # 得到五日均线价格
     ma5 = round(df['close'][-5:].mean(), 3)
-    
+
     # 得到十日均线价格
     ma10 = round(df['close'][-10:].mean(), 3)
 
@@ -8157,14 +8157,14 @@ def handle_data(context, data):
 
     # 得到当前资金余额
     cash = context.portfolio.cash
-    
+
     # 如果当前有余额，并且五日均线大于十日均线
     if ma5 > ma10:
         # 用所有 cash 买入股票
         order_value(security, cash)
         # 记录这次买入
         log.info("Buying %s" % (security))
-        
+
     # 如果五日均线小于十日均线，并且目前有头寸
     elif ma5 < ma10 and get_position(security).amount > 0:
         # 全部卖出

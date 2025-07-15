@@ -119,12 +119,12 @@
 # src/simtradelab/adapters/ptrade/adapter.py
 class PTradeAdapter:
     """PTrade模式感知适配器"""
-    
+
     def __init__(self, core_engine, mode='backtest', backtest_config=None):
         self.core = core_engine
         self.mode = mode  # 'backtest' | 'live'
         self.api_router = self._init_api_router(backtest_config)
-    
+
     def _init_api_router(self, backtest_config=None):
         """初始化API路由器"""
         if self.mode == 'backtest':
@@ -132,7 +132,7 @@ class PTradeAdapter:
             return BacktestAPIRouter(self.core, backtest_config)
         else:
             return TradingAPIRouter(self.core)
-    
+
     # ... (其他方法保持不变)
 ```
 
@@ -167,19 +167,19 @@ class BacktestEngine:
         for bar in data_feed:
             # 1. 获取策略订单
             orders = self.strategy.handle_bar(bar)
-            
+
             # 2. 应用延迟模型
             delayed_orders = self.latency_model.apply(orders)
-            
+
             # 3. 撮合成交
             fills = self.matcher.match(delayed_orders, bar)
-            
+
             # 4. 计算滑点
             slipped_fills = self.slippage_model.apply(fills, bar)
-            
+
             # 5. 计算手续费
             final_fills = self.commission_model.apply(slipped_fills)
-            
+
             # 6. 更新投资组合
             self.portfolio.update(final_fills)
 
@@ -254,15 +254,15 @@ class ComplexPlugin(BasePlugin):
 # src/simtradelab/core/config/config_manager.py
 class PluginConfigManager:
     """统一配置管理器，消除插件管理器的配置职责混乱"""
-    
+
     def create_validated_config(
-        self, 
+        self,
         plugin_class: Type,
         config_data: Optional[Any] = None
     ) -> BaseModel:
         """
         创建经过验证的配置对象
-        
+
         这是E9修复的核心方法，替换插件管理器中的复杂配置代码
         实现：
         - 编译时确定配置模型（避免运行时类型检查）
@@ -270,13 +270,13 @@ class PluginConfigManager:
         - 类型安全的配置创建
         """
         config_model_class = self._get_config_model(plugin_class)
-        
+
         if config_data is None:
             return config_model_class()
-            
+
         if isinstance(config_data, config_model_class):
             return config_data
-            
+
         # 使用Pydantic的model_validate，自动处理额外字段
         return self._create_config_from_data(config_model_class, config_data, plugin_name)
 
@@ -285,10 +285,10 @@ class PluginManager:
     def load_plugin(self, plugin_name: str, config: Optional[Any] = None) -> BasePlugin:
         # 替换35行复杂配置代码为3行清晰调用
         plugin_config = self._config_manager.create_validated_config(
-            registry.plugin_class, 
+            registry.plugin_class,
             config or registry.config
         )
-        
+
         # 创建插件实例
         instance = registry.plugin_class(registry.metadata, plugin_config)
         # ... 其他逻辑
@@ -300,16 +300,16 @@ class PluginManager:
 # src/simtradelab/plugins/config/base_config.py
 class BasePluginConfig(BaseModel):
     """统一配置基类，支持环境变量和多环境配置"""
-    
+
     model_config = ConfigDict(
         extra='forbid',  # 不允许未定义字段
         validate_assignment=True,  # 运行时验证
         str_strip_whitespace=True,  # 自动去除空白
     )
-    
+
     enabled: bool = Field(default=True, description="是否启用插件")
     environment: Literal['development', 'testing', 'production'] = 'development'
-    
+
     @field_validator('*', mode='before')
     @classmethod
     def resolve_environment_variables(cls, v):
@@ -327,7 +327,7 @@ class AkShareDataPluginConfig(BasePluginConfig):
     end_date: str = Field(..., description="结束日期")
     api_timeout: int = Field(default=30, ge=1, le=300, description="API超时时间")
     cache_enabled: bool = Field(default=True, description="是否启用缓存")
-    
+
     @field_validator('end_date')
     @classmethod
     def validate_date_range(cls, v, info):
@@ -395,7 +395,7 @@ class CloudEvent(BaseModel):
     time: datetime = Field(default_factory=datetime.utcnow)
     datacontenttype: str = "application/json"
     data: Dict[str, Any] = Field(..., description="事件的具体负载")
-    
+
     # v5.0 新增字段
     priority: int = Field(default=5, ge=1, le=10, description="事件优先级，1最高，10最低")
     version: str = Field(default="1.0", description="事件结构版本")
@@ -438,7 +438,7 @@ class OrderAuditorPlugin(BasePlugin):
     def __init__(self, config):
         super().__init__(config)
         self.event_bus.subscribe(
-            "com.simtradelab.trade.order.created", 
+            "com.simtradelab.trade.order.created",
             self.on_order_created
         )
 
@@ -473,7 +473,7 @@ class BasePluginTest:
         self.mock_event_bus = MagicMock(spec=EventBus)
         self.mock_config_center = MagicMock(spec=DynamicConfigCenter)
         self.mock_plugin_manager = MagicMock(spec=PluginLifecycleManager)
-        
+
         # 将模拟对象注入，方便测试用例使用
         self.mocks = {
             'event_bus': self.mock_event_bus,
@@ -489,19 +489,19 @@ class TestMyAwesomePlugin(BasePluginTest):
     def test_initialization(self):
         # 使用模拟的配置中心
         self.mock_config_center.get_config.return_value = {'param': 'value'}
-        
+
         plugin = MyAwesomePlugin(self.mocks)
-        
+
         # 断言插件正确地订阅了事件
         self.mock_event_bus.subscribe.assert_called_with("some_event", plugin.on_some_event)
 
     def test_event_handling(self):
         plugin = MyAwesomePlugin(self.mocks)
-        
+
         # 模拟事件发生
         test_event = CloudEvent(...)
         plugin.on_some_event(test_event)
-        
+
         # 断言插件发布了正确的响应事件
         self.mock_event_bus.emit.assert_called_once()
         emitted_event = self.mock_event_bus.emit.call_args[0][0]
@@ -518,17 +518,17 @@ def test_strategy_stops_on_risk_alert():
     # 1. 初始化真实的事件总线和配置中心
     event_bus = EventBus()
     config_center = DynamicConfigCenter()
-    
+
     # 2. 加载策略插件和风控插件
     strategy_config = {'threshold': 0.5}
     risk_config = {'max_orders': 10}
     strategy = StrategyPlugin(config_center.get_config('strategy', strategy_config), event_bus)
     risk_plugin = RiskPlugin(config_center.get_config('risk', risk_config), event_bus)
-    
+
     # 3. 模拟市场数据并驱动策略
     for i in range(15):
         strategy.handle_data(...) # 假设这会发出订单事件
-        
+
     # 4. 断言：风控插件应该发出了警报，并且策略应该停止了交易
     # (可以通过检查日志、数据库或策略内部状态来验证)
 ```
@@ -583,7 +583,7 @@ my_new_plugin/
         def __init__(self, config: MyDataSourceConfig, event_bus):
             super().__init__(config, event_bus)
             self.api_key = config.api_key
-        
+
         def get_data(self, symbol):
             print(f"Hello, World! Getting data for {symbol} with key {self.api_key}")
             # ... 实际的数据获取逻辑
@@ -628,34 +628,34 @@ class PluginManifest(BaseModel):
     description: str = Field(..., description="插件描述")
     author: str = Field(..., description="插件作者")
     license: str = Field(default="MIT", description="许可证")
-    
+
     # 依赖管理
     dependencies: Dict[str, str] = Field(
-        default_factory=dict, 
+        default_factory=dict,
         description="依赖的其他插件，格式: {'plugin_name': '>=1.0.0,<2.0.0'}"
     )
     conflicts: List[str] = Field(
-        default_factory=list, 
+        default_factory=list,
         description="与此插件冲突的插件列表"
     )
-    
+
     # 能力声明
     provides: List[str] = Field(
-        default_factory=list, 
+        default_factory=list,
         description="插件提供的能力列表，如 ['data_source', 'market_data']"
     )
     requires: List[str] = Field(
-        default_factory=list, 
+        default_factory=list,
         description="插件需要的能力列表，如 ['event_bus', 'config_center']"
     )
-    
+
     # 运行时要求
     python_version: str = Field(default=">=3.8", description="支持的Python版本")
     platform: List[str] = Field(
-        default_factory=lambda: ["linux", "windows", "darwin"], 
+        default_factory=lambda: ["linux", "windows", "darwin"],
         description="支持的操作系统平台"
     )
-    
+
     # 安全和资源
     security_level: int = Field(default=3, ge=1, le=5, description="安全级别，1-5")
     max_memory_mb: Optional[int] = Field(None, description="最大内存使用（MB）")
@@ -672,7 +672,7 @@ license: MIT
 
 dependencies:
   redis_cache_plugin: ">=1.0.0,<2.0.0"
-  
+
 conflicts:
   - tushare_data_source
 
@@ -704,21 +704,21 @@ import networkx as nx
 
 class DependencyResolver:
     """插件依赖解析引擎"""
-    
+
     def __init__(self, plugin_registry):
         self.registry = plugin_registry
         self.dependency_graph = nx.DiGraph()
-    
+
     def resolve_dependencies(self, target_plugins: List[str]) -> List[str]:
         """
         解析插件依赖，返回正确的加载顺序
-        
+
         Args:
             target_plugins: 目标插件列表
-            
+
         Returns:
             按依赖顺序排列的插件列表
-            
+
         Raises:
             DependencyConflictError: 存在依赖冲突
             CircularDependencyError: 存在循环依赖
@@ -726,56 +726,56 @@ class DependencyResolver:
         """
         # 1. 收集所有需要的插件及其依赖
         all_plugins = self._collect_all_dependencies(target_plugins)
-        
+
         # 2. 检查版本兼容性
         self._validate_version_compatibility(all_plugins)
-        
+
         # 3. 检查冲突
         self._check_conflicts(all_plugins)
-        
+
         # 4. 构建依赖图
         self._build_dependency_graph(all_plugins)
-        
+
         # 5. 检查循环依赖
         if not nx.is_directed_acyclic_graph(self.dependency_graph):
             cycles = list(nx.simple_cycles(self.dependency_graph))
             raise CircularDependencyError(f"Circular dependencies detected: {cycles}")
-        
+
         # 6. 拓扑排序得到加载顺序
         return list(nx.topological_sort(self.dependency_graph))
-    
+
     def _collect_all_dependencies(self, plugins: List[str], collected: Set[str] = None) -> Set[str]:
         """递归收集所有依赖的插件"""
         if collected is None:
             collected = set()
-        
+
         for plugin_name in plugins:
             if plugin_name in collected:
                 continue
-                
+
             collected.add(plugin_name)
             manifest = self.registry.get_manifest(plugin_name)
             if manifest and manifest.dependencies:
                 deps = list(manifest.dependencies.keys())
                 self._collect_all_dependencies(deps, collected)
-        
+
         return collected
-    
+
     def _validate_version_compatibility(self, plugins: Set[str]):
         """验证版本兼容性"""
         for plugin_name in plugins:
             manifest = self.registry.get_manifest(plugin_name)
             if not manifest:
                 raise MissingDependencyError(f"Plugin manifest not found: {plugin_name}")
-            
+
             for dep_name, version_spec in manifest.dependencies.items():
                 if dep_name not in plugins:
                     raise MissingDependencyError(f"Missing dependency: {dep_name}")
-                
+
                 dep_manifest = self.registry.get_manifest(dep_name)
                 dep_version = version.parse(dep_manifest.version)
                 spec = specifiers.SpecifierSet(version_spec)
-                
+
                 if dep_version not in spec:
                     raise DependencyConflictError(
                         f"Version conflict: {plugin_name} requires {dep_name} {version_spec}, "
@@ -806,13 +806,13 @@ class TenantConfig(BaseModel):
     """租户配置"""
     tenant_id: str = Field(..., description="租户唯一标识")
     tenant_name: str = Field(..., description="租户名称")
-    
+
     # 资源配额
     max_plugins: int = Field(default=50, description="最大插件数量")
     max_memory_mb: int = Field(default=4096, description="最大内存使用（MB）")
     max_cpu_cores: float = Field(default=2.0, description="最大CPU核心数")
     max_storage_gb: int = Field(default=100, description="最大存储空间（GB）")
-    
+
     # 插件权限
     allowed_plugin_types: List[str] = Field(
         default_factory=lambda: ["data_source", "strategy", "risk", "visualization"],
@@ -822,7 +822,7 @@ class TenantConfig(BaseModel):
         default_factory=list,
         description="禁止使用的特定插件"
     )
-    
+
     # 网络和安全
     network_isolation: bool = Field(default=True, description="是否启用网络隔离")
     data_encryption: bool = Field(default=True, description="是否启用数据加密")
@@ -830,47 +830,47 @@ class TenantConfig(BaseModel):
 
 class TenantManager:
     """租户管理器"""
-    
+
     def __init__(self):
         self.tenants: Dict[str, TenantConfig] = {}
         self.tenant_plugins: Dict[str, List[str]] = {}
         self.plugin_instances: Dict[str, Dict[str, Any]] = {}
-    
+
     def create_tenant(self, config: TenantConfig) -> str:
         """创建新租户"""
         tenant_id = config.tenant_id or str(uuid.uuid4())
         self.tenants[tenant_id] = config
         self.tenant_plugins[tenant_id] = []
         self.plugin_instances[tenant_id] = {}
-        
+
         # 创建租户专用的资源容器
         self._create_tenant_sandbox(tenant_id, config)
-        
+
         return tenant_id
-    
+
     def load_plugin_for_tenant(self, tenant_id: str, plugin_name: str, plugin_config: Dict) -> bool:
         """为特定租户加载插件"""
         tenant_config = self.tenants.get(tenant_id)
         if not tenant_config:
             raise ValueError(f"Tenant not found: {tenant_id}")
-        
+
         # 检查插件配额
         if len(self.tenant_plugins[tenant_id]) >= tenant_config.max_plugins:
             raise QuotaExceededError(f"Plugin quota exceeded for tenant {tenant_id}")
-        
+
         # 检查插件权限
         plugin_manifest = self._get_plugin_manifest(plugin_name)
         if plugin_manifest.type not in tenant_config.allowed_plugin_types:
             raise PermissionDeniedError(f"Plugin type not allowed: {plugin_manifest.type}")
-        
+
         if plugin_name in tenant_config.forbidden_plugins:
             raise PermissionDeniedError(f"Plugin explicitly forbidden: {plugin_name}")
-        
+
         # 在租户沙箱中实例化插件
         plugin_instance = self._create_plugin_instance(tenant_id, plugin_name, plugin_config)
         self.plugin_instances[tenant_id][plugin_name] = plugin_instance
         self.tenant_plugins[tenant_id].append(plugin_name)
-        
+
         return True
 ```
 
@@ -884,30 +884,30 @@ from datetime import datetime, timedelta
 
 class ResourceMonitor:
     """资源监控器"""
-    
+
     def __init__(self):
         self.tenant_usage: Dict[str, Dict[str, float]] = {}
         self.monitoring_thread = None
         self.running = False
-    
+
     def start_monitoring(self):
         """开始监控资源使用"""
         self.running = True
         self.monitoring_thread = threading.Thread(target=self._monitor_loop)
         self.monitoring_thread.start()
-    
+
     def _monitor_loop(self):
         """监控循环"""
         while self.running:
             for tenant_id in self.tenant_usage:
                 usage = self._calculate_tenant_usage(tenant_id)
                 self.tenant_usage[tenant_id] = usage
-                
+
                 # 检查是否超出配额
                 self._check_quota_violations(tenant_id, usage)
-            
+
             time.sleep(5)  # 每5秒检查一次
-    
+
     def _calculate_tenant_usage(self, tenant_id: str) -> Dict[str, float]:
         """计算租户资源使用情况"""
         # 这里需要根据实际的插件实例计算资源使用
@@ -918,26 +918,26 @@ class ResourceMonitor:
             "storage_gb": 0.0,
             "network_io_mb": 0.0
         }
-    
+
     def _check_quota_violations(self, tenant_id: str, usage: Dict[str, float]):
         """检查配额违规"""
         tenant_config = self.tenant_manager.tenants[tenant_id]
-        
+
         violations = []
         if usage["memory_mb"] > tenant_config.max_memory_mb:
             violations.append(f"Memory usage exceeded: {usage['memory_mb']}MB > {tenant_config.max_memory_mb}MB")
-        
+
         if usage["cpu_percent"] > tenant_config.max_cpu_cores * 100:
             violations.append(f"CPU usage exceeded: {usage['cpu_percent']}% > {tenant_config.max_cpu_cores * 100}%")
-        
+
         if violations:
             self._handle_quota_violation(tenant_id, violations)
-    
+
     def _handle_quota_violation(self, tenant_id: str, violations: List[str]):
         """处理配额违规"""
         # 记录审计日志
         audit_logger.warning(f"Quota violation for tenant {tenant_id}: {violations}")
-        
+
         # 可以选择暂停或限制租户的插件
         # self._throttle_tenant_plugins(tenant_id)
 ```
@@ -957,33 +957,33 @@ class AuditEvent(BaseModel):
     tenant_id: str = Field(..., description="租户ID")
     user_id: Optional[str] = Field(None, description="用户ID")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-    
+
     event_type: str = Field(..., description="事件类型")
     action: str = Field(..., description="操作名称")
     resource_type: str = Field(..., description="资源类型")
     resource_id: str = Field(..., description="资源ID")
-    
+
     details: Dict[str, Any] = Field(default_factory=dict, description="事件详情")
     result: str = Field(..., description="操作结果: success/failure/warning")
     error_message: Optional[str] = Field(None, description="错误信息")
-    
+
     source_ip: Optional[str] = Field(None, description="来源IP地址")
     user_agent: Optional[str] = Field(None, description="用户代理")
 
 class AuditLogger:
     """审计日志记录器"""
-    
+
     def __init__(self, storage_backend="database"):
         self.storage_backend = storage_backend
         self.enabled = True
-    
-    def log_plugin_operation(self, tenant_id: str, action: str, plugin_name: str, 
-                           result: str = "success", details: Dict = None, 
+
+    def log_plugin_operation(self, tenant_id: str, action: str, plugin_name: str,
+                           result: str = "success", details: Dict = None,
                            user_id: str = None, error_message: str = None):
         """记录插件操作"""
         if not self.enabled:
             return
-        
+
         event = AuditEvent(
             event_id=str(uuid.uuid4()),
             tenant_id=tenant_id,
@@ -996,10 +996,10 @@ class AuditLogger:
             result=result,
             error_message=error_message
         )
-        
+
         self._store_event(event)
-    
-    def log_config_change(self, tenant_id: str, config_path: str, old_value: Any, 
+
+    def log_config_change(self, tenant_id: str, config_path: str, old_value: Any,
                          new_value: Any, user_id: str = None):
         """记录配置变更"""
         event = AuditEvent(
@@ -1017,9 +1017,9 @@ class AuditLogger:
             },
             result="success"
         )
-        
+
         self._store_event(event)
-    
+
     def _store_event(self, event: AuditEvent):
         """存储审计事件"""
         if self.storage_backend == "database":

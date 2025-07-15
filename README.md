@@ -232,7 +232,7 @@ def initialize(context):
 def handle_data(context, data):
     """每日数据处理"""
     current_price = data.current(g.stock, 'close')
-    
+
     # 买入逻辑
     if context.portfolio.positions[g.stock].amount == 0:
         order_target_percent(g.stock, 0.8)
@@ -248,7 +248,7 @@ def after_trading_end(context, data):
 📖 **完整文档**
 
 - 🎯 [SimTradeLab API 完整参考文档](docs/SIMTRADELAB_API_COMPLETE_REFERENCE.md) - **推荐主文档**
-- 📋 [策略开发指南](docs/STRATEGY_GUIDE.md) 
+- 📋 [策略开发指南](docs/STRATEGY_GUIDE.md)
 - 📊 [数据格式说明](docs/DATA_FORMAT.md)
 - 🔧 [技术指标说明](docs/TECHNICAL_INDICATORS.md)
 

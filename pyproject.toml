@@ -22,11 +22,11 @@ dependencies = [
     "pandas>=2.3.0,<3.0.0",
     "numpy>=2.0.0,<3.0.0",
     "matplotlib>=3.10.3,<4.0.0",
-    "PyYAML>=6.0",
+    "PyYAML>=6.0.0",
     "colorama>=0.4.0; sys_platform == 'win32'",
     "pydantic>=2.0.0",
-    "networkx (>=2.6,<3.0)",
-    "watchdog (>=6.0.0,<7.0.0)",
+    "networkx>=2.6.0,<3.0.0",
+    "watchdog>=6.0.0,<7.0.0",
 ]
 
 [project.urls]
@@ -37,12 +37,36 @@ Documentation = "https://github.com/kay-ou/SimTradeLab/blob/main/README.md"
 [project.scripts]
 simtradelab = "simtradelab.cli:main"
 
+# Development scripts
+[tool.poetry.scripts]
+test = "pytest"
+test-cov = "pytest --cov=simtradelab --cov-report=html --cov-report=term-missing"
+lint = "ruff check src tests"
+lint-fix = "ruff check --fix src tests"
+format = "black src tests"
+format-check = "black --check src tests"
+type-check = "mypy src"
+security-check = "bandit -r src"
+pre-commit-install = "pre-commit install"
+pre-commit-run = "pre-commit run --all-files"
+
 [project.optional-dependencies]
 data = ["akshare>=1.17.16", "tushare>=1.2.89"]
+web = [
+    "fastapi>=0.68.0",
+    "uvicorn[standard]>=0.15.0",
+    "python-multipart>=0.0.5",
+    "jinja2>=3.0.0",
+    "aiofiles>=0.7.0",
+]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 packages = [
-  { include = "simtradelab", from = "src" }
+    { include = "simtradelab", from = "src" }
 ]
 include = [
     "README.md",
@@ -70,18 +94,11 @@ mypy = "^1.5.0"
 pre-commit = "^3.0.0"
 bandit = "^1.7.0"
 build = "^1.2.2.post1"
-# Windows-specific development tools
-pywin32 = { version = "^306", markers = "sys_platform == 'win32'" }
-pandas-stubs = "^2.3.0.250703"
 ruff = "^0.12.3"
+pandas-stubs = "^2.3.0.250703"
+pywin32 = { version = "^306", markers = "sys_platform == 'win32'" }
 
-[tool.poetry.group.web.dependencies]
-fastapi = ">=0.68.0"
-uvicorn = { version = ">=0.15.0", extras = ["standard"] }
-python-multipart = ">=0.0.5"
-jinja2 = ">=3.0.0"
-aiofiles = ">=0.7.0"
-
+# Testing Configuration
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = [
@@ -126,10 +143,7 @@ exclude_lines = [
     "@(abc\\.)?abstractmethod",
 ]
 
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
-
+# Code Quality Tools
 [tool.ruff]
 line-length = 88
 fix = true
@@ -147,20 +161,18 @@ python_version = "3.10"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
-# 方案二：通过配置启用内部包的类型检查
 namespace_packages = true
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
 module = "simtradelab.*"
-# 明确声明内部包支持类型检查
 follow_imports = "normal"
 no_implicit_optional = true
 
 [[tool.mypy.overrides]]
 module = [
     "akshare.*",
-    "tushare.*", 
+    "tushare.*",
     "matplotlib.*",
 ]
 ignore_missing_imports = true

@@ -72,3 +72,4 @@ cache/
 .augment/
 CLAUDE.md
 GEMINI.md
+.pre-commit-config.yaml

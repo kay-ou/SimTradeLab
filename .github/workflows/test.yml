@@ -89,7 +89,7 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -125,7 +125,7 @@ jobs:
 
   build-test:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
 

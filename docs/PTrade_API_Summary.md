@@ -229,7 +229,7 @@ g.flag = 0               # 标志位
 **使用场景**: 回测/交易
 **主要属性**:
 - `capital_base` - 起始资金
-- `previous_date` - 前一个交易日  
+- `previous_date` - 前一个交易日
 - `sim_params` - SimulationParameters对象
 - `portfolio` - 账户信息（Portfolio对象）
 - `initialized` - 是否执行初始化
@@ -244,7 +244,7 @@ g.flag = 0               # 标志位
 **基本属性**:
 - `dt` - 时间
 - `open` - 时间段开始时价格
-- `close` - 时间段结束时价格  
+- `close` - 时间段结束时价格
 - `price` - 结束时价格
 - `low` - 最低价
 - `high` - 最高价

@@ -22,7 +22,7 @@ SimTradeLab现在支持自动生成Release Notes，基于Git提交历史、CHANG
 #### 提交信息分类
 根据Conventional Commits规范自动分类：
 - `feat:` → 新增功能
-- `fix:` → 问题修复  
+- `fix:` → 问题修复
 - `docs:` → 文档更新
 - `perf:`, `refactor:` → 改进优化
 - `BREAKING CHANGE` → 破坏性变更
@@ -90,7 +90,7 @@ git push origin v1.0.0
 ## ✨ 新增功能
 {{new_features}}
 
-## 🔧 改进优化  
+## 🔧 改进优化
 {{improvements}}
 
 ## 🐛 问题修复
@@ -249,7 +249,7 @@ git describe --tags --abbrev=0
 自动生成Release Notes功能提供了：
 
 - ✅ **自动化**: 减少手动工作
-- ✅ **一致性**: 统一的格式和风格  
+- ✅ **一致性**: 统一的格式和风格
 - ✅ **智能化**: 基于提交历史智能分类
 - ✅ **集成性**: 与现有工作流无缝集成
 - ✅ **可定制**: 灵活的模板和配置
