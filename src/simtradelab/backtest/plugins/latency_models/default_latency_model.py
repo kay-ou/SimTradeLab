@@ -6,7 +6,6 @@
 """
 
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Optional
 
 from simtradelab.plugins.base import PluginMetadata

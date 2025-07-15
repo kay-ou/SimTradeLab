@@ -420,7 +420,7 @@ class TestCloudEventEdgeCases:
 
 class TestCloudEventAdditional:
     """额外的CloudEvent测试用例，提升覆盖率"""
-    
+
     def test_cloud_event_field_serialization(self):
         """测试CloudEvent字段序列化"""
         event = CloudEvent(
@@ -428,163 +428,147 @@ class TestCloudEventAdditional:
             source="TestSource",
             time=datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
             priority=3,
-            tags={"env": "test", "version": "1.0"}
+            tags={"env": "test", "version": "1.0"},
         )
-        
+
         # 测试模型转换为字典
         event_dict = event.model_dump()
         assert event_dict["type"] == "com.simtradelab.test.serialization"
         assert event_dict["source"] == "TestSource"
         assert event_dict["priority"] == 3
         assert event_dict["tags"] == {"env": "test", "version": "1.0"}
-        
+
         # 测试JSON序列化
         json_str = event.model_dump_json()
         assert "com.simtradelab.test.serialization" in json_str
         assert "TestSource" in json_str
-    
+
     def test_cloud_event_validation_priority_bounds(self):
         """测试priority字段边界值验证"""
         # 测试最小值
         event_min = CloudEvent(
-            type="test.priority.min",
-            source="TestSource",
-            priority=1
+            type="test.priority.min", source="TestSource", priority=1
         )
         assert event_min.priority == 1
-        
+
         # 测试最大值
         event_max = CloudEvent(
-            type="test.priority.max",
-            source="TestSource",
-            priority=10
+            type="test.priority.max", source="TestSource", priority=10
         )
         assert event_max.priority == 10
-        
+
         # 测试超出范围的值
         with pytest.raises(ValidationError):
             CloudEvent(
-                type="test.priority.invalid",
-                source="TestSource",
-                priority=0  # 小于最小值
+                type="test.priority.invalid", source="TestSource", priority=0  # 小于最小值
             )
-        
+
         with pytest.raises(ValidationError):
             CloudEvent(
-                type="test.priority.invalid",
-                source="TestSource",
-                priority=11  # 大于最大值
+                type="test.priority.invalid", source="TestSource", priority=11  # 大于最大值
             )
-    
+
     def test_cloud_event_optional_fields(self):
         """测试可选字段的行为"""
-        event = CloudEvent(
-            type="com.simtradelab.test.optional",
-            source="TestSource"
-        )
-        
+        event = CloudEvent(type="com.simtradelab.test.optional", source="TestSource")
+
         # 验证可选字段的默认值
         assert event.dataschema is None
         assert event.subject is None
         assert event.data is None
         assert event.correlation_id is None
         assert event.tags == {}
-        
+
         # 设置可选字段
         event.dataschema = "https://schema.example.com/event"
         event.subject = "test-subject"
         event.data = {"key": "value"}
         event.correlation_id = "test-correlation"
         event.tags = {"category": "test"}
-        
+
         assert event.dataschema == "https://schema.example.com/event"
         assert event.subject == "test-subject"
         assert event.data == {"key": "value"}
         assert event.correlation_id == "test-correlation"
         assert event.tags == {"category": "test"}
-    
+
     def test_cloud_event_required_fields_validation(self):
         """测试必需字段验证"""
         # 缺少type字段
         with pytest.raises(ValidationError):
             CloudEvent(source="TestSource")
-        
+
         # 缺少source字段
         with pytest.raises(ValidationError):
             CloudEvent(type="com.simtradelab.test.missing")
-    
+
     def test_cloud_event_time_field_behavior(self):
         """测试时间字段行为"""
         # 测试默认时间生成
         event1 = CloudEvent(type="test.time.default", source="TestSource")
         event2 = CloudEvent(type="test.time.default", source="TestSource")
-        
+
         # 两个事件的时间应该不同（虽然可能很接近）
         assert event1.time.tzinfo is not None
         assert event2.time.tzinfo is not None
-        
+
         # 测试指定时间
         specific_time = datetime(2023, 6, 15, 10, 30, 45, tzinfo=timezone.utc)
         event3 = CloudEvent(
-            type="test.time.specific",
-            source="TestSource",
-            time=specific_time
+            type="test.time.specific", source="TestSource", time=specific_time
         )
         assert event3.time == specific_time
-    
+
     def test_cloud_event_id_uniqueness(self):
         """测试ID字段唯一性"""
         event1 = CloudEvent(type="test.id.unique", source="TestSource")
         event2 = CloudEvent(type="test.id.unique", source="TestSource")
-        
+
         # 两个事件的ID应该不同
         assert event1.id != event2.id
         assert isinstance(event1.id, str)
         assert isinstance(event2.id, str)
-        
+
         # 测试自定义ID
         custom_id = "custom-event-id-123"
-        event3 = CloudEvent(
-            type="test.id.custom",
-            source="TestSource",
-            id=custom_id
-        )
+        event3 = CloudEvent(type="test.id.custom", source="TestSource", id=custom_id)
         assert event3.id == custom_id
-    
+
     def test_cloud_event_model_config(self):
         """测试模型配置"""
         event = CloudEvent(type="test.config", source="TestSource")
-        
+
         # 验证模型配置存在
-        assert hasattr(event, 'model_config')
-        
+        assert hasattr(event, "model_config")
+
         # 测试模型验证
-        assert event.model_validate({
-            "type": "test.validate",
-            "source": "ValidateSource"
-        })
-    
+        assert event.model_validate(
+            {"type": "test.validate", "source": "ValidateSource"}
+        )
+
     def test_cloud_event_copy_and_modify(self):
         """测试事件复制和修改"""
         original_event = CloudEvent(
             type="test.original",
             source="OriginalSource",
             priority=5,
-            tags={"original": "true"}
+            tags={"original": "true"},
         )
-        
+
         # 复制事件并修改
-        modified_event = original_event.model_copy(update={
-            "type": "test.modified",
-            "priority": 8,
-            "tags": {"modified": "true"}
-        })
-        
+        modified_event = original_event.model_copy(
+            update={
+                "type": "test.modified",
+                "priority": 8,
+                "tags": {"modified": "true"},
+            }
+        )
+
         # 验证原事件未被修改
         assert original_event.type == "test.original"
         assert original_event.priority == 5
         assert original_event.tags == {"original": "true"}
-        
+
         # 验证修改后的事件
         assert modified_event.type == "test.modified"
         assert modified_event.priority == 8

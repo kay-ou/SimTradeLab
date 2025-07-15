@@ -66,9 +66,7 @@ def sample_akshare_spot_df() -> pd.DataFrame:
 @pytest.fixture
 def sample_trading_days_df() -> pd.DataFrame:
     """创建一个模拟的交易日历DataFrame。"""
-    data = {
-        "trade_date": ["2023-01-03", "2023-01-04", "2023-01-05", "2023-01-06"]
-    }
+    data = {"trade_date": ["2023-01-03", "2023-01-04", "2023-01-05", "2023-01-06"]}
     return pd.DataFrame(data)
 
 
@@ -103,11 +101,11 @@ class TestAkShareDataPluginConfig:
         # 测试最小值
         config = AkShareDataPluginConfig(start_date="2023-01-01", api_timeout=5)
         assert config.api_timeout == 5
-        
+
         # 测试最大值
         config = AkShareDataPluginConfig(start_date="2023-01-01", api_timeout=120)
         assert config.api_timeout == 120
-        
+
         # 测试超出范围的值
         with pytest.raises(ValueError):
             AkShareDataPluginConfig(start_date="2023-01-01", api_timeout=3)
@@ -133,7 +131,12 @@ class TestAkShareDataSource:
         return AkShareDataSource(metadata, config)
 
     @patch("akshare.stock_zh_a_spot_em")
-    def test_plugin_initialization(self, mock_ak_spot: MagicMock, plugin: AkShareDataSource, sample_akshare_spot_df: pd.DataFrame):
+    def test_plugin_initialization(
+        self,
+        mock_ak_spot: MagicMock,
+        plugin: AkShareDataSource,
+        sample_akshare_spot_df: pd.DataFrame,
+    ):
         """测试插件初始化和元数据方法"""
         mock_ak_spot.return_value = sample_akshare_spot_df
         plugin._on_initialize()
@@ -147,13 +150,20 @@ class TestAkShareDataSource:
 
     # 测试数据源状态检查
     @patch("akshare.stock_zh_a_spot_em")
-    def test_is_available_success(self, mock_ak_spot: MagicMock, plugin: AkShareDataSource, sample_akshare_spot_df: pd.DataFrame):
+    def test_is_available_success(
+        self,
+        mock_ak_spot: MagicMock,
+        plugin: AkShareDataSource,
+        sample_akshare_spot_df: pd.DataFrame,
+    ):
         """测试服务可用性检查 - 成功"""
         mock_ak_spot.return_value = sample_akshare_spot_df
         assert plugin.is_available() is True
 
     @patch("akshare.stock_zh_a_spot_em")
-    def test_is_available_failure(self, mock_ak_spot: MagicMock, plugin: AkShareDataSource):
+    def test_is_available_failure(
+        self, mock_ak_spot: MagicMock, plugin: AkShareDataSource
+    ):
         """测试服务可用性检查 - 失败"""
         mock_ak_spot.side_effect = Exception("Network Error")
         assert plugin.is_available() is False
@@ -207,13 +217,16 @@ class TestAkShareDataSource:
         mock_ak_hist.return_value = pd.DataFrame()
 
         df = plugin.get_history_data(security="000001")
-        
+
         assert isinstance(df, pd.DataFrame)
         assert df.empty
 
     @patch("akshare.stock_zh_a_hist")
     def test_get_multiple_history_data(
-        self, mock_ak_hist: MagicMock, plugin: AkShareDataSource, sample_akshare_hist_df: pd.DataFrame
+        self,
+        mock_ak_hist: MagicMock,
+        plugin: AkShareDataSource,
+        sample_akshare_hist_df: pd.DataFrame,
     ):
         """测试获取多个证券的历史数据"""
         mock_ak_hist.return_value = sample_akshare_hist_df
@@ -290,7 +303,10 @@ class TestAkShareDataSource:
     # 测试交易日历功能
     @patch("akshare.tool_trade_date_hist_sina")
     def test_get_all_trading_days_success(
-        self, mock_ak_trading_days: MagicMock, plugin: AkShareDataSource, sample_trading_days_df: pd.DataFrame
+        self,
+        mock_ak_trading_days: MagicMock,
+        plugin: AkShareDataSource,
+        sample_trading_days_df: pd.DataFrame,
     ):
         """测试成功获取所有交易日"""
         mock_ak_trading_days.return_value = sample_trading_days_df
@@ -316,44 +332,49 @@ class TestAkShareDataSource:
 
     def test_get_trading_day_with_valid_days(self, plugin: AkShareDataSource):
         """测试获取交易日偏移"""
-        with patch.object(plugin, 'get_all_trading_days') as mock_get_all:
+        with patch.object(plugin, "get_all_trading_days") as mock_get_all:
             mock_get_all.return_value = ["2023-01-03", "2023-01-04", "2023-01-05"]
-            
+
             result = plugin.get_trading_day("2023-01-04", offset=1)
             assert result == "2023-01-05"
-            
+
             result = plugin.get_trading_day("2023-01-04", offset=-1)
             assert result == "2023-01-03"
 
     def test_get_trading_day_no_trading_days(self, plugin: AkShareDataSource):
         """测试当无法获取交易日时的降级处理"""
-        with patch.object(plugin, 'get_all_trading_days') as mock_get_all:
+        with patch.object(plugin, "get_all_trading_days") as mock_get_all:
             mock_get_all.return_value = []
-            
+
             result = plugin.get_trading_day("2023-01-04", offset=1)
             assert result == "2023-01-04"  # 返回原始日期
 
     def test_get_trading_days_range(self, plugin: AkShareDataSource):
         """测试获取交易日范围"""
-        with patch.object(plugin, 'get_all_trading_days') as mock_get_all:
-            mock_get_all.return_value = ["2023-01-03", "2023-01-04", "2023-01-05", "2023-01-06"]
-            
+        with patch.object(plugin, "get_all_trading_days") as mock_get_all:
+            mock_get_all.return_value = [
+                "2023-01-03",
+                "2023-01-04",
+                "2023-01-05",
+                "2023-01-06",
+            ]
+
             result = plugin.get_trading_days_range("2023-01-04", "2023-01-05")
             assert result == ["2023-01-04", "2023-01-05"]
 
     def test_is_trading_day(self, plugin: AkShareDataSource):
         """测试判断是否为交易日"""
-        with patch.object(plugin, 'get_all_trading_days') as mock_get_all:
+        with patch.object(plugin, "get_all_trading_days") as mock_get_all:
             mock_get_all.return_value = ["2023-01-03", "2023-01-04", "2023-01-05"]
-            
+
             assert plugin.is_trading_day("2023-01-04") is True
             assert plugin.is_trading_day("2023-01-07") is False  # 假设这不是交易日
 
     def test_is_trading_day_fallback(self, plugin: AkShareDataSource):
         """测试交易日判断的降级处理"""
-        with patch.object(plugin, 'get_all_trading_days') as mock_get_all:
+        with patch.object(plugin, "get_all_trading_days") as mock_get_all:
             mock_get_all.return_value = []
-            
+
             # 应该降级到工作日判断
             result = plugin.is_trading_day("2023-01-04")  # 周三
             assert isinstance(result, bool)
@@ -396,18 +417,20 @@ class TestAkShareDataSource:
         self, mock_ak_financial: MagicMock, plugin: AkShareDataSource
     ):
         """测试成功获取基本面数据 - 利润表"""
-        mock_data = pd.DataFrame({
-            "营业收入": [1000000],
-            "净利润": [100000],
-            "营业利润": [150000],
-        })
+        mock_data = pd.DataFrame(
+            {
+                "营业收入": [1000000],
+                "净利润": [100000],
+                "营业利润": [150000],
+            }
+        )
         mock_ak_financial.return_value = mock_data
 
         result = plugin.get_fundamentals(
             security_list=["000001"],
             table="income",
             fields=["revenue", "net_profit"],
-            date="2023-12-31"
+            date="2023-12-31",
         )
 
         assert isinstance(result, pd.DataFrame)
@@ -427,7 +450,7 @@ class TestAkShareDataSource:
             security_list=["000001"],
             table="income",
             fields=["revenue"],
-            date="2023-12-31"
+            date="2023-12-31",
         )
 
         assert isinstance(result, pd.DataFrame)
@@ -437,7 +460,10 @@ class TestAkShareDataSource:
     # 测试股票信息获取
     @patch("akshare.stock_info_a_code_name")
     def test_get_security_info_success(
-        self, mock_ak_info: MagicMock, plugin: AkShareDataSource, sample_stock_info_df: pd.DataFrame
+        self,
+        mock_ak_info: MagicMock,
+        plugin: AkShareDataSource,
+        sample_stock_info_df: pd.DataFrame,
     ):
         """测试成功获取股票信息"""
         mock_ak_info.return_value = sample_stock_info_df
@@ -466,11 +492,16 @@ class TestAkShareDataSource:
 
     # 测试生命周期方法
     @patch("akshare.stock_zh_a_spot_em")
-    def test_lifecycle_methods(self, mock_ak_spot: MagicMock, plugin: AkShareDataSource, sample_akshare_spot_df: pd.DataFrame):
+    def test_lifecycle_methods(
+        self,
+        mock_ak_spot: MagicMock,
+        plugin: AkShareDataSource,
+        sample_akshare_spot_df: pd.DataFrame,
+    ):
         """测试插件生命周期方法"""
         # 设置mock以避免网络调用
         mock_ak_spot.return_value = sample_akshare_spot_df
-        
+
         # 这些方法应该能正常调用而不抛出异常
         plugin._on_initialize()
         plugin._on_start()
@@ -479,7 +510,10 @@ class TestAkShareDataSource:
     # 测试字段过滤
     @patch("akshare.stock_zh_a_hist")
     def test_get_history_data_with_fields(
-        self, mock_ak_hist: MagicMock, plugin: AkShareDataSource, sample_akshare_hist_df: pd.DataFrame
+        self,
+        mock_ak_hist: MagicMock,
+        plugin: AkShareDataSource,
+        sample_akshare_hist_df: pd.DataFrame,
     ):
         """测试带字段过滤的历史数据获取"""
         mock_ak_hist.return_value = sample_akshare_hist_df
@@ -496,7 +530,10 @@ class TestAkShareDataSource:
     # 测试不同频率的数据获取
     @patch("akshare.stock_zh_a_hist")
     def test_get_history_data_different_frequencies(
-        self, mock_ak_hist: MagicMock, plugin: AkShareDataSource, sample_akshare_hist_df: pd.DataFrame
+        self,
+        mock_ak_hist: MagicMock,
+        plugin: AkShareDataSource,
+        sample_akshare_hist_df: pd.DataFrame,
     ):
         """测试不同频率的历史数据获取"""
         mock_ak_hist.return_value = sample_akshare_hist_df

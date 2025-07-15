@@ -856,6 +856,7 @@ class PTradeAdapter(BaseAdapter):
             # 设置生命周期阶段
             if hasattr(self, "_lifecycle_controller") and self._lifecycle_controller:
                 from .lifecycle_controller import LifecyclePhase
+
                 # 将钩子名称映射到生命周期阶段
                 phase_mapping = {
                     "initialize": LifecyclePhase.INITIALIZE,

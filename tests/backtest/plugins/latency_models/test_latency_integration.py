@@ -5,9 +5,8 @@
 
 from datetime import datetime, timedelta
 from decimal import Decimal
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-import pytest
 
 from simtradelab.backtest.engine import BacktestEngine
 from simtradelab.backtest.plugins.base import MarketData, Order

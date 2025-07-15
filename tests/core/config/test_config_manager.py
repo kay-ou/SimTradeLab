@@ -270,7 +270,7 @@ class TestPluginConfigManagerAdditional:
         config = self.manager._create_config_from_data(
             SamplePluginConfig, config_data, "test_plugin"
         )
-        
+
         assert isinstance(config, SamplePluginConfig)
         assert config.name == "test"
         assert config.value == 50
@@ -278,7 +278,7 @@ class TestPluginConfigManagerAdditional:
     def test_create_config_from_data_with_invalid_data(self):
         """测试从无效数据创建配置"""
         config_data = {"value": 200}  # 超出范围
-        
+
         with pytest.raises(ConfigValidationError):
             self.manager._create_config_from_data(
                 SamplePluginConfig, config_data, "test_plugin"
@@ -387,12 +387,13 @@ class TestPluginConfigManagerAdditional:
 
     def test_logger_initialization(self):
         """测试日志记录器初始化"""
-        assert hasattr(self.manager, '_logger')
+        assert hasattr(self.manager, "_logger")
         assert self.manager._logger is not None
-        assert self.manager._logger.name == 'simtradelab.core.config.config_manager'
+        assert self.manager._logger.name == "simtradelab.core.config.config_manager"
 
     def test_plugin_name_extraction_from_metadata(self):
         """测试从METADATA中提取插件名称"""
+
         class PluginWithMetadata:
             class METADATA:
                 name = "metadata_plugin"
@@ -402,6 +403,7 @@ class TestPluginConfigManagerAdditional:
 
     def test_plugin_name_extraction_from_class_name(self):
         """测试从类名提取插件名称"""
+
         class PluginWithoutMetadata:
             pass
 

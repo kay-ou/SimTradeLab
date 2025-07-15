@@ -305,7 +305,6 @@ class DataSourceManager:
                 if cache_key:
                     self._put_to_cache(cache_key, result)
 
-
                 return result
 
             except Exception as e:
