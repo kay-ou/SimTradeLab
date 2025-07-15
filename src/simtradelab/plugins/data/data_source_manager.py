@@ -2,13 +2,12 @@
 """
 数据源管理器
 
-管理多个数据源插件，提供统一的数据访问接口
-支持数据源优先级、故障切换、健康检查等功能
+管理多个数据源插件，提供统一的数据访问接口。
+按注册顺序选择数据源，简单高效。
 """
 
 import logging
 import threading
-import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, Union
 
@@ -30,41 +29,29 @@ class DataSourceConfig:
 
 class DataSourceManager:
     """
-    数据源管理器（简化版）
+    数据源管理器
 
     负责管理多个数据源插件，提供统一的数据访问接口。
-    简化设计：移除复杂的优先级、健康检查、故障切换等机制，
-    按注册顺序选择数据源，为实际使用场景提供简单高效的解决方案。
+    按注册顺序选择数据源，简单高效。
     """
 
     def __init__(self, plugin_manager: Optional[Any] = None):
         self._plugin_manager = plugin_manager
         self._data_sources: Dict[str, BaseDataSourcePlugin] = {}
         self._data_source_configs: Dict[str, DataSourceConfig] = {}
-        # 简化的状态管理（只用于统计信息）
-        self._stats_status: Dict[str, Any] = {}
         self._source_order: List[str] = []  # 数据源顺序列表（按注册顺序）
 
         self._lock = threading.RLock()
         self._logger = logging.getLogger(__name__)
 
-        # 简化的数据缓存（移除复杂的TTL机制）
+        # 简化的数据缓存
         self._cache_enabled = True
         self._cache: Dict[str, Any] = {}
-
-        # 去除复杂的健康检查机制
-        # 只在实际使用时检查数据源可用性
 
     def initialize(self) -> None:
         """初始化数据源管理器"""
         self._logger.info("Initializing DataSourceManager")
-
-        # 自动发现数据源插件
         self._discover_data_sources()
-
-        # 执行初始健康检查
-        # 已移除复杂的健康检查机制
-
         self._logger.info(
             f"DataSourceManager initialized with {len(self._data_sources)} data sources"
         )
@@ -72,15 +59,10 @@ class DataSourceManager:
     def shutdown(self) -> None:
         """关闭数据源管理器"""
         self._logger.info("Shutting down DataSourceManager")
-
         with self._lock:
-            # 清理缓存
             self._cache.clear()
-
-            # 清理数据源引用
             self._data_sources.clear()
             self._data_source_configs.clear()
-            self._stats_status.clear()
             self._source_order.clear()
 
     # ================================
@@ -124,8 +106,6 @@ class DataSourceManager:
 
             self._data_sources[name] = data_source
             self._data_source_configs[name] = config or DataSourceConfig()
-            # 简化：不再维护复杂的状态对象
-            self._stats_status[name] = {"enabled": True, "last_used": None}
 
             # 添加到顺序列表
             if name not in self._source_order:
@@ -139,7 +119,6 @@ class DataSourceManager:
             if name in self._data_sources:
                 del self._data_sources[name]
                 del self._data_source_configs[name]
-                del self._stats_status[name]
 
                 if name in self._source_order:
                     self._source_order.remove(name)
@@ -154,8 +133,9 @@ class DataSourceManager:
                 self._logger.info(f"Unregistered data source: {name}")
 
     def _update_source_order(self) -> None:
-        """更新数据源顺序列表（保持注册顺序）"""
+        """更新数据源顺序列表（简化：保持注册顺序）"""
         # 简化：直接使用注册顺序，不需要复杂的排序逻辑
+        # 这个方法保留为空，以便可能的未来扩展
         pass
 
     def get_available_data_sources(self) -> List[str]:
@@ -178,12 +158,18 @@ class DataSourceManager:
     def get_data_source_status(
         self, name: Optional[str] = None
     ) -> Union[Dict[str, Any], Dict[str, Dict[str, Any]]]:
-        """获取数据源统计状态"""
+        """获取数据源基本状态"""
         with self._lock:
             if name:
-                return self._stats_status.get(name, {})
+                if name in self._data_source_configs:
+                    config = self._data_source_configs[name]
+                    return {"enabled": config.enabled}
+                return {}
             else:
-                return self._stats_status.copy()
+                return {
+                    name: {"enabled": config.enabled}
+                    for name, config in self._data_source_configs.items()
+                }
 
     # ================================
     # 简化的数据源选择
@@ -225,7 +211,7 @@ class DataSourceManager:
                     if data_source.is_available():
                         return name
                 except Exception as e:
-                    self.logger.warning(
+                    self._logger.warning(
                         f"Data source {name} availability check failed: {e}"
                     )
                     continue
@@ -319,10 +305,6 @@ class DataSourceManager:
                 if cache_key:
                     self._put_to_cache(cache_key, result)
 
-                # 更新统计信息
-                with self._lock:
-                    if data_source_name in self._stats_status:
-                        self._stats_status[data_source_name]["last_used"] = time.time()
 
                 return result
 
@@ -527,19 +509,21 @@ class DataSourceManager:
                 # 简化：不需要重新排序优先级列表
                 self._logger.info(f"Updated config for data source: {name}")
 
-    def enable_data_source(self, name: str) -> None:
-        """启用数据源"""
+    def set_data_source_enabled(self, name: str, enabled: bool) -> None:
+        """设置数据源启用状态"""
         with self._lock:
             if name in self._data_source_configs:
-                self._data_source_configs[name].enabled = True
-                self._logger.info(f"Enabled data source: {name}")
+                self._data_source_configs[name].enabled = enabled
+                status = "enabled" if enabled else "disabled"
+                self._logger.info(f"{status.title()} data source: {name}")
+
+    def enable_data_source(self, name: str) -> None:
+        """启用数据源（兼容方法）"""
+        self.set_data_source_enabled(name, True)
 
     def disable_data_source(self, name: str) -> None:
-        """禁用数据源"""
-        with self._lock:
-            if name in self._data_source_configs:
-                self._data_source_configs[name].enabled = False
-                self._logger.info(f"Disabled data source: {name}")
+        """禁用数据源（兼容方法）"""
+        self.set_data_source_enabled(name, False)
 
     def clear_cache(self, data_source_name: Optional[str] = None) -> None:
         """清理缓存（简化）"""
