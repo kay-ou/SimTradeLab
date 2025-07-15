@@ -3,10 +3,9 @@
 ResourceMonitor 测试用例
 """
 
-import time
 import threading
+import time
 from unittest.mock import patch
-
 
 from simtradelab.plugins.security.resource_monitor import ResourceMonitor
 

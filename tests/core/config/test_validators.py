@@ -3,9 +3,10 @@
 配置验证器测试
 """
 
+from typing import Optional
+
 import pytest
 from pydantic import BaseModel, Field
-from typing import Optional
 
 from simtradelab.core.config.config_manager import ConfigValidationError
 from simtradelab.core.config.validators import ConfigValidator

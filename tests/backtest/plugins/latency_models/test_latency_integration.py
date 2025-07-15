@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock
 
-
 from simtradelab.backtest.engine import BacktestEngine
 from simtradelab.backtest.plugins.base import MarketData, Order
 from simtradelab.backtest.plugins.latency_models.default_latency_model import (
