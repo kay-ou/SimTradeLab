@@ -200,9 +200,11 @@ class TestBacktestEngine:
 
         engine.stop()
 
-    def test_get_statistics_empty(self, mock_matching_engine):
-        """测试获取空统计数据"""
-        engine = BacktestEngine(matching_engine=mock_matching_engine)
+    def test_get_statistics_empty(self, mock_plugin_manager):
+        """
+        E10修复：测试获取空统计数据
+        """
+        engine = BacktestEngine(plugin_manager=mock_plugin_manager)
         stats = engine.get_statistics()
         assert stats["total_orders"] == 0
         assert stats["total_fills"] == 0
@@ -210,9 +212,11 @@ class TestBacktestEngine:
         assert stats["total_slippage"] == 0
         assert stats["fill_rate"] == 0
 
-    def test_multiple_orders_and_fills(self, mock_matching_engine):
-        """测试多个订单和成交"""
-        engine = BacktestEngine(matching_engine=mock_matching_engine)
+    def test_multiple_orders_and_fills(self, mock_plugin_manager):
+        """
+        E10修复：测试多个订单和成交
+        """
+        engine = BacktestEngine(plugin_manager=mock_plugin_manager)
         engine.start()
 
         orders = [
