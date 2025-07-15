@@ -17,6 +17,7 @@ from simtradelab.plugins.data import (
     MarketType,
 )
 from simtradelab.plugins.data.config import CSVDataPluginConfig
+from tests.support.base_plugin_test import BasePluginTest
 
 
 class TestBaseDataSourcePlugin:
@@ -36,7 +37,7 @@ class TestBaseDataSourcePlugin:
         assert MarketType.STOCK_HK.value == "stock_hk"
 
 
-class TestDataSourceManager:
+class TestDataSourceManager(BasePluginTest):
     """测试DataSourceManager"""
 
     @pytest.fixture
@@ -121,8 +122,21 @@ class TestDataSourceManager:
 
         manager.shutdown()
 
+    def test_data_source_manager_with_mocked_dependencies(self):
+        """测试DataSourceManager与模拟依赖项的交互"""
+        # 使用BasePluginTest提供的模拟对象
+        manager = DataSourceManager()
 
-class TestDataLayerIntegration:
+        # 验证模拟对象可用
+        assert self.mock_event_bus is not None
+        assert self.mock_config_manager is not None
+        assert self.mock_plugin_manager is not None
+
+        # 可以在这里添加更多使用模拟对象的测试
+        manager.shutdown()
+
+
+class TestDataLayerIntegration(BasePluginTest):
     """测试数据层集成"""
 
     def test_data_format_consistency(self):
@@ -186,3 +200,24 @@ class TestDataLayerIntegration:
         assert "csv2" in available_sources
 
         manager.shutdown()
+
+    def test_integration_with_mock_dependencies(self):
+        """测试与模拟依赖项的集成"""
+        # 使用BasePluginTest提供的模拟对象
+        assert self.mock_event_bus is not None
+        assert self.mock_config_manager is not None
+        assert self.mock_plugin_manager is not None
+
+        # 验证模拟对象的类型
+        assert str(type(self.mock_event_bus)) == "<class 'unittest.mock.MagicMock'>"
+        assert (
+            str(type(self.mock_config_manager)) == "<class 'unittest.mock.MagicMock'>"
+        )
+        assert (
+            str(type(self.mock_plugin_manager)) == "<class 'unittest.mock.MagicMock'>"
+        )
+
+        # 验证spec属性存在
+        assert hasattr(self.mock_event_bus, "_spec_class")
+        assert hasattr(self.mock_config_manager, "_spec_class")
+        assert hasattr(self.mock_plugin_manager, "_spec_class")
