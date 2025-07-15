@@ -52,7 +52,7 @@ class TestDataSourceManager:
         csv_plugin = CSVDataPlugin(metadata, config)
 
         # 注册数据源
-        data_source_config = DataSourceConfig(priority=1, enabled=True)
+        data_source_config = DataSourceConfig(enabled=True)
         manager.register_data_source("csv", csv_plugin, data_source_config)
         manager.initialize()
 
@@ -68,7 +68,7 @@ class TestDataSourceManager:
 
         status = manager_with_csv.get_data_source_status()
         assert "csv" in status
-        assert status["csv"].is_available == True
+        assert status["csv"]["enabled"] == True
 
     def test_unified_data_access(self, manager_with_csv):
         """测试统一数据访问接口"""
@@ -138,7 +138,7 @@ class TestDataLayerIntegration:
 
         # 通过管理器获取
         manager = DataSourceManager()
-        data_source_config = DataSourceConfig(priority=1, enabled=True)
+        data_source_config = DataSourceConfig(enabled=True)
         manager.register_data_source("csv", csv_plugin, data_source_config)
         manager.initialize()
 
@@ -159,7 +159,7 @@ class TestDataLayerIntegration:
             name="csv1", version="1.0.0", description="CSV Plugin 1"
         )
         plugin1 = CSVDataPlugin(metadata1, CSVDataPluginConfig())
-        config1 = DataSourceConfig(priority=1, enabled=True)
+        config1 = DataSourceConfig(enabled=True)
         manager.register_data_source("csv1", plugin1, config1)
         manager.initialize()
 
@@ -171,7 +171,7 @@ class TestDataLayerIntegration:
             name="csv2", version="1.0.0", description="CSV Plugin 2"
         )
         plugin2 = CSVDataPlugin(metadata2, CSVDataPluginConfig())
-        config2 = DataSourceConfig(priority=0, enabled=True)  # 更高优先级
+        config2 = DataSourceConfig(enabled=True)  # 简化：不再使用优先级
         manager.register_data_source("csv2", plugin2, config2)
 
         # 验证两个插件都可用

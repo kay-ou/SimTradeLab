@@ -6,7 +6,7 @@ SimTradeLab 数据插件模块
 """
 
 from .base_data_source import BaseDataSourcePlugin, DataFrequency, MarketType
-from .data_source_manager import DataSourceConfig, DataSourceManager, DataSourceStatus
+from .data_source_manager import DataSourceConfig, DataSourceManager
 from .sources.akshare_plugin import AkShareDataPluginConfig, AkShareDataSource
 from .sources.csv_data_plugin import CSVDataPlugin
 from .sources.mock_data_plugin import MockDataPlugin
@@ -17,7 +17,6 @@ __all__ = [
     "MarketType",
     "DataSourceManager",
     "DataSourceConfig",
-    "DataSourceStatus",
     "CSVDataPlugin",
     "MockDataPlugin",
     "AkShareDataSource",

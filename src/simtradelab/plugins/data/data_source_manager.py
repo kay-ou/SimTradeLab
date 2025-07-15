@@ -9,7 +9,7 @@
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, Union
 
 import pandas as pd
@@ -20,55 +20,40 @@ from .base_data_source import BaseDataSourcePlugin, DataFrequency, MarketType
 
 @dataclass
 class DataSourceConfig:
-    """数据源配置"""
+    """数据源配置（简化）"""
 
-    priority: int = 100  # 优先级，数值越小优先级越高
     enabled: bool = True
     timeout: float = 30.0  # 请求超时时间
-    retry_count: int = 3  # 重试次数
-    health_check_interval: int = 300  # 健康检查间隔（秒）
     cache_enabled: bool = True
-    cache_ttl: int = 60  # 缓存生存时间（秒）
-
-
-@dataclass
-class DataSourceStatus:
-    """数据源状态"""
-
-    name: str
-    is_available: bool = True
-    last_check_time: float = field(default_factory=time.time)
-    error_count: int = 0
-    last_error: Optional[str] = None
-    response_time: float = 0.0  # 平均响应时间（毫秒）
+    # 移除不必要的复杂配置项（优先级、重试、健康检查等）
 
 
 class DataSourceManager:
     """
-    数据源管理器
+    数据源管理器（简化版）
 
-    负责管理多个数据源插件，提供统一的数据访问接口
-    支持优先级选择、故障切换、健康检查、数据缓存等功能
+    负责管理多个数据源插件，提供统一的数据访问接口。
+    简化设计：移除复杂的优先级、健康检查、故障切换等机制，
+    按注册顺序选择数据源，为实际使用场景提供简单高效的解决方案。
     """
 
     def __init__(self, plugin_manager: Optional[Any] = None):
         self._plugin_manager = plugin_manager
         self._data_sources: Dict[str, BaseDataSourcePlugin] = {}
         self._data_source_configs: Dict[str, DataSourceConfig] = {}
-        self._data_source_status: Dict[str, DataSourceStatus] = {}
-        self._priority_list: List[str] = []  # 按优先级排序的数据源名称列表
+        # 简化的状态管理（只用于统计信息）
+        self._stats_status: Dict[str, Any] = {}
+        self._source_order: List[str] = []  # 数据源顺序列表（按注册顺序）
 
         self._lock = threading.RLock()
         self._logger = logging.getLogger(__name__)
 
-        # 数据缓存
+        # 简化的数据缓存（移除复杂的TTL机制）
         self._cache_enabled = True
         self._cache: Dict[str, Any] = {}
-        self._cache_timestamps: Dict[str, float] = {}
 
-        # 健康检查
-        self._health_check_enabled = True
-        self._last_health_check = 0.0
+        # 去除复杂的健康检查机制
+        # 只在实际使用时检查数据源可用性
 
     def initialize(self) -> None:
         """初始化数据源管理器"""
@@ -78,7 +63,7 @@ class DataSourceManager:
         self._discover_data_sources()
 
         # 执行初始健康检查
-        self._perform_health_check()
+        # 已移除复杂的健康检查机制
 
         self._logger.info(
             f"DataSourceManager initialized with {len(self._data_sources)} data sources"
@@ -91,13 +76,12 @@ class DataSourceManager:
         with self._lock:
             # 清理缓存
             self._cache.clear()
-            self._cache_timestamps.clear()
 
             # 清理数据源引用
             self._data_sources.clear()
             self._data_source_configs.clear()
-            self._data_source_status.clear()
-            self._priority_list.clear()
+            self._stats_status.clear()
+            self._source_order.clear()
 
     # ================================
     # 数据源插件管理
@@ -140,10 +124,12 @@ class DataSourceManager:
 
             self._data_sources[name] = data_source
             self._data_source_configs[name] = config or DataSourceConfig()
-            self._data_source_status[name] = DataSourceStatus(name=name)
+            # 简化：不再维护复杂的状态对象
+            self._stats_status[name] = {"enabled": True, "last_used": None}
 
-            # 重新排序优先级列表
-            self._update_priority_list()
+            # 添加到顺序列表
+            if name not in self._source_order:
+                self._source_order.append(name)
 
             self._logger.info(f"Registered data source: {name}")
 
@@ -153,10 +139,10 @@ class DataSourceManager:
             if name in self._data_sources:
                 del self._data_sources[name]
                 del self._data_source_configs[name]
-                del self._data_source_status[name]
+                del self._stats_status[name]
 
-                if name in self._priority_list:
-                    self._priority_list.remove(name)
+                if name in self._source_order:
+                    self._source_order.remove(name)
 
                 # 清理相关缓存
                 cache_keys_to_remove = [
@@ -164,45 +150,50 @@ class DataSourceManager:
                 ]
                 for key in cache_keys_to_remove:
                     del self._cache[key]
-                    del self._cache_timestamps[key]
 
                 self._logger.info(f"Unregistered data source: {name}")
 
-    def _update_priority_list(self) -> None:
-        """更新优先级列表"""
-        self._priority_list = sorted(
-            self._data_source_configs.keys(),
-            key=lambda name: self._data_source_configs[name].priority,
-        )
+    def _update_source_order(self) -> None:
+        """更新数据源顺序列表（保持注册顺序）"""
+        # 简化：直接使用注册顺序，不需要复杂的排序逻辑
+        pass
 
     def get_available_data_sources(self) -> List[str]:
-        """获取可用的数据源列表"""
+        """获取可用的数据源列表（按注册顺序）"""
         with self._lock:
-            return [
-                name
-                for name, status in self._data_source_status.items()
-                if status.is_available and self._data_source_configs[name].enabled
-            ]
+            available_sources = []
+            for name in self._source_order:
+                if name in self._data_source_configs:
+                    config = self._data_source_configs[name]
+                    if config.enabled:
+                        try:
+                            data_source = self._data_sources[name]
+                            if data_source.is_available():
+                                available_sources.append(name)
+                        except Exception:
+                            # 忽略不可用的数据源
+                            pass
+            return available_sources
 
     def get_data_source_status(
         self, name: Optional[str] = None
-    ) -> Union[DataSourceStatus, Dict[str, DataSourceStatus]]:
-        """获取数据源状态"""
+    ) -> Union[Dict[str, Any], Dict[str, Dict[str, Any]]]:
+        """获取数据源统计状态"""
         with self._lock:
             if name:
-                return self._data_source_status.get(name)
+                return self._stats_status.get(name, {})
             else:
-                return self._data_source_status.copy()
+                return self._stats_status.copy()
 
     # ================================
-    # 数据源选择和健康检查
+    # 简化的数据源选择
     # ================================
 
     def _select_data_source(
         self, required_markets: Optional[Set[MarketType]] = None
     ) -> Optional[str]:
         """
-        选择最优的数据源
+        选择可用的数据源（按注册顺序）
 
         Args:
             required_markets: 需要的市场类型
@@ -210,18 +201,17 @@ class DataSourceManager:
         Returns:
             选中的数据源名称，如果没有可用数据源则返回None
         """
-        # 执行健康检查（如果需要）
-        if self._should_perform_health_check():
-            self._perform_health_check()
-
         with self._lock:
-            for name in self._priority_list:
+            # 简化：按注册顺序遍历，选择第一个可用的数据源
+            for name in self._source_order:
+                if name not in self._data_source_configs:
+                    continue
+
                 config = self._data_source_configs[name]
-                status = self._data_source_status[name]
                 data_source = self._data_sources[name]
 
                 # 检查是否启用且可用
-                if not config.enabled or not status.is_available:
+                if not config.enabled:
                     continue
 
                 # 检查市场支持
@@ -230,96 +220,40 @@ class DataSourceManager:
                     if not required_markets.issubset(supported_markets):
                         continue
 
-                return name
+                # 简化可用性检查：直接调用接口检查
+                try:
+                    if data_source.is_available():
+                        return name
+                except Exception as e:
+                    self.logger.warning(
+                        f"Data source {name} availability check failed: {e}"
+                    )
+                    continue
 
         return None
 
-    def _should_perform_health_check(self) -> bool:
-        """判断是否需要执行健康检查"""
-        if not self._health_check_enabled:
-            return False
-
-        current_time = time.time()
-        min_interval = (
-            min(
-                config.health_check_interval
-                for config in self._data_source_configs.values()
-            )
-            if self._data_source_configs
-            else 300
-        )
-
-        return current_time - self._last_health_check > min_interval
-
-    def _perform_health_check(self) -> None:
-        """执行健康检查"""
-        self._logger.debug("Performing health check on data sources")
-
-        with self._lock:
-            for name, data_source in self._data_sources.items():
-                try:
-                    start_time = time.time()
-                    is_available = data_source.is_available()
-                    response_time = (time.time() - start_time) * 1000  # 转换为毫秒
-
-                    status = self._data_source_status[name]
-                    status.is_available = is_available
-                    status.last_check_time = time.time()
-                    status.response_time = response_time
-
-                    if is_available:
-                        status.error_count = 0
-                        status.last_error = None
-
-                except Exception as e:
-                    status = self._data_source_status[name]
-                    status.is_available = False
-                    status.error_count += 1
-                    status.last_error = str(e)
-                    status.last_check_time = time.time()
-
-                    self._logger.warning(
-                        f"Health check failed for data source {name}: {e}"
-                    )
-
-        self._last_health_check = time.time()
-
     # ================================
-    # 缓存管理
+    # 简化的缓存管理
     # ================================
 
     def _get_cache_key(
         self, data_source_name: str, method: str, *args, **kwargs
     ) -> str:
         """生成缓存键"""
-        # 简单的缓存键生成，实际实现可能需要更复杂的逻辑
         args_str = str(args) + str(sorted(kwargs.items()))
         return f"{data_source_name}:{method}:{hash(args_str)}"
 
-    def _get_from_cache(self, cache_key: str, ttl: int) -> Optional[Any]:
-        """从缓存获取数据"""
+    def _get_from_cache(self, cache_key: str) -> Optional[Any]:
+        """从缓存获取数据（移除TTL检查）"""
         if not self._cache_enabled:
             return None
-
-        if cache_key not in self._cache:
-            return None
-
-        timestamp = self._cache_timestamps.get(cache_key, 0)
-        if time.time() - timestamp > ttl:
-            # 缓存过期
-            del self._cache[cache_key]
-            del self._cache_timestamps[cache_key]
-            return None
-
-        return self._cache[cache_key]
+        return self._cache.get(cache_key)
 
     def _put_to_cache(self, cache_key: str, data: Any) -> None:
-        """将数据放入缓存"""
+        """将数据放入缓存（移除TTL管理）"""
         if not self._cache_enabled:
             return
-
         self._cache[cache_key] = data
-        self._cache_timestamps[cache_key] = time.time()
 
     # ================================
     # 统一数据访问接口
@@ -334,7 +268,7 @@ class DataSourceManager:
         **kwargs,
     ) -> Any:
         """
-        使用故障切换执行数据源方法
+        简化的数据源调用方法（按顺序尝试）
 
         Args:
             method_name: 要调用的方法名
@@ -345,31 +279,35 @@ class DataSourceManager:
         Returns:
             方法执行结果
         """
-        attempted_sources = []
+        # 按顺序尝试数据源
+        for data_source_name in self._source_order:
+            if data_source_name not in self._data_sources:
+                continue
 
-        while True:
-            # 选择数据源
-            data_source_name = self._select_data_source(required_markets)
-            if not data_source_name:
-                break
+            # 检查数据源是否符合要求
+            config = self._data_source_configs[data_source_name]
+            data_source = self._data_sources[data_source_name]
 
-            if data_source_name in attempted_sources:
-                # 避免无限循环
-                break
+            if not config.enabled:
+                continue
 
-            attempted_sources.append(data_source_name)
+            # 检查市场支持
+            if required_markets:
+                try:
+                    supported_markets = data_source.get_supported_markets()
+                    if not required_markets.issubset(supported_markets):
+                        continue
+                except Exception:
+                    continue
 
             try:
-                data_source = self._data_sources[data_source_name]
-                config = self._data_source_configs[data_source_name]
-
                 # 检查缓存
                 cache_key = None
                 if use_cache and config.cache_enabled:
                     cache_key = self._get_cache_key(
                         data_source_name, method_name, *args, **kwargs
                     )
-                    cached_result = self._get_from_cache(cache_key, config.cache_ttl)
+                    cached_result = self._get_from_cache(cache_key)
                     if cached_result is not None:
                         return cached_result
 
@@ -381,25 +319,18 @@ class DataSourceManager:
                 if cache_key:
                     self._put_to_cache(cache_key, result)
 
+                # 更新统计信息
+                with self._lock:
+                    if data_source_name in self._stats_status:
+                        self._stats_status[data_source_name]["last_used"] = time.time()
+
                 return result
 
             except Exception as e:
                 self._logger.warning(
                     f"Data source {data_source_name} failed for {method_name}: {e}"
                 )
-
-                # 更新状态
-                with self._lock:
-                    status = self._data_source_status[data_source_name]
-                    status.error_count += 1
-                    status.last_error = str(e)
-
-                    # 如果错误次数过多，标记为不可用
-                    config = self._data_source_configs[data_source_name]
-                    if status.error_count >= config.retry_count:
-                        status.is_available = False
-
-                # 继续尝试下一个数据源
+                # 简化：直接尝试下一个数据源，不做复杂的错误计数
                 continue
 
         # 所有数据源都失败了
@@ -593,7 +524,7 @@ class DataSourceManager:
         with self._lock:
             if name in self._data_source_configs:
                 self._data_source_configs[name] = config
-                self._update_priority_list()
+                # 简化：不需要重新排序优先级列表
                 self._logger.info(f"Updated config for data source: {name}")
 
     def enable_data_source(self, name: str) -> None:
@@ -611,7 +542,7 @@ class DataSourceManager:
                 self._logger.info(f"Disabled data source: {name}")
 
     def clear_cache(self, data_source_name: Optional[str] = None) -> None:
-        """清理缓存"""
+        """清理缓存（简化）"""
         with self._lock:
             if data_source_name:
                 # 清理特定数据源的缓存
@@ -622,8 +553,6 @@ class DataSourceManager:
                 ]
                 for key in cache_keys_to_remove:
                     del self._cache[key]
-                    del self._cache_timestamps[key]
             else:
                 # 清理所有缓存
                 self._cache.clear()
-                self._cache_timestamps.clear()
