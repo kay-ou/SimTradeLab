@@ -6,7 +6,7 @@
 - 线性滑点模型：基础的线性滑点计算
 - 基于成交量的滑点模型：考虑成交量影响的滑点
 
-E8修复：使用统一的Pydantic配置模型进行配置验证
+使用统一的Pydantic配置模型进行配置验证
 """
 
 from decimal import Decimal
@@ -30,7 +30,7 @@ class LinearSlippageModel(BaseSlippageModel):
     滑点率根据订单大小线性增加。
     滑点率 = 基础费率 + 斜率 * (订单数量 / 参考规模)
 
-    E8修复：使用LinearSlippageModelConfig进行类型安全的配置验证
+    使用LinearSlippageModelConfig进行类型安全的配置验证
     """
 
     METADATA = PluginMetadata(
@@ -116,7 +116,7 @@ class VolumeBasedSlippageModel(BaseSlippageModel):
     - 大订单更高的滑点
     - 支持多种冲击曲线
 
-    E8修复：使用VolumeBasedSlippageModelConfig进行类型安全的配置验证
+    使用VolumeBasedSlippageModelConfig进行类型安全的配置验证
     """
 
     METADATA = PluginMetadata(

@@ -283,7 +283,7 @@ class PluginConfigManager:
 # 插件管理器中的简化调用
 class PluginManager:
     def load_plugin(self, plugin_name: str, config: Optional[Any] = None) -> BasePlugin:
-        # E9修复：替换35行复杂配置代码为3行清晰调用
+        # 替换35行复杂配置代码为3行清晰调用
         plugin_config = self._config_manager.create_validated_config(
             registry.plugin_class, 
             config or registry.config

@@ -2,7 +2,7 @@
 """
 插件配置装饰器系统
 
-E9修复：提供优雅的配置绑定机制，在编译时确立配置模型关系。
+提供优雅的配置绑定机制，在编译时确立配置模型关系。
 """
 
 import functools
@@ -19,7 +19,7 @@ def plugin_config(config_model: Type[BaseModel]):
     """
     插件配置装饰器
 
-    E9修复：在插件类定义时绑定配置模型，避免运行时类型检查。
+    在插件类定义时绑定配置模型，避免运行时类型检查。
 
     使用示例:
         @plugin_config(MyPluginConfig)

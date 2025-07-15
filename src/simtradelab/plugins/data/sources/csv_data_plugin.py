@@ -31,7 +31,7 @@ class CSVDataPlugin(BaseDataSourcePlugin):
         priority=20,  # 较高优先级，确保在适配器之前加载
     )
 
-    # E8修复：定义配置模型类
+    # 定义配置模型类
     config_model = CSVDataPluginConfig
 
     def __init__(
@@ -39,7 +39,7 @@ class CSVDataPlugin(BaseDataSourcePlugin):
     ):
         super().__init__(metadata, config)
 
-        # E8修复：通过类型安全的配置对象访问参数
+        # 通过类型安全的配置对象访问参数
         if config:
             self._cache_timeout = config.cache_timeout
             self._data_dir = config.data_dir or Path(__file__).parent / "data"

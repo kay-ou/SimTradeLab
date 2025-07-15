@@ -54,7 +54,7 @@ class ChinaAStockCommissionModel(BaseCommissionModel):
     def __init__(self, metadata: PluginMetadata, config: CommissionModelConfig):
         super().__init__(metadata, config)
 
-        # E9修复：直接使用Pydantic配置对象，不再支持向后兼容
+        # 直接使用Pydantic配置对象，不再支持向后兼容
         self._stamp_tax_rate = config.stamp_duty_rate
         self._commission_rate = config.commission_rate
         self._min_commission = config.min_commission
@@ -181,7 +181,7 @@ class FixedCommissionModel(BaseCommissionModel):
     def __init__(self, metadata: PluginMetadata, config: FixedCommissionModelConfig):
         super().__init__(metadata, config)
 
-        # E9修复：直接使用Pydantic配置对象，统一的费率配置
+        # 直接使用Pydantic配置对象，统一的费率配置
         self._buy_commission_rate = config.commission_rate  # 使用统一的commission_rate
         self._sell_commission_rate = config.commission_rate  # 使用统一的commission_rate
         self._commission_rate = config.commission_rate
@@ -262,7 +262,7 @@ class TieredCommissionModel(BaseCommissionModel):
     def __init__(self, metadata: PluginMetadata, config: TieredCommissionModelConfig):
         super().__init__(metadata, config)
 
-        # E9修复：直接使用Pydantic配置对象，不再支持向后兼容
+        # 直接使用Pydantic配置对象，不再支持向后兼容
         # 累积交易量跟踪
         self._cumulative_volume: Dict[str, Decimal] = {}
         self._cumulative_mode = False  # 简化处理
@@ -412,7 +412,7 @@ class ComprehensiveCommissionModel(BaseCommissionModel):
     def __init__(self, metadata: PluginMetadata, config: CommissionModelConfig):
         super().__init__(metadata, config)
 
-        # E9修复：直接使用Pydantic配置对象，不再支持向后兼容
+        # 直接使用Pydantic配置对象，不再支持向后兼容
         self._base_commission_rate = config.commission_rate
         self._stamp_tax_rate = config.stamp_duty_rate
         self._transfer_fee_rate = config.transfer_fee_rate
@@ -537,7 +537,7 @@ class PerShareCommissionModel(BaseCommissionModel):
     def __init__(self, metadata: PluginMetadata, config: CommissionModelConfig):
         super().__init__(metadata, config)
 
-        # E9修复：直接使用Pydantic配置对象，不再支持向后兼容
+        # 直接使用Pydantic配置对象，不再支持向后兼容
         self._per_share_fee = self._DEFAULT_PER_SHARE_FEE  # 使用默认值，配置类中暂无此字段
         self._min_commission = config.min_commission
         self._max_commission = self._DEFAULT_MAX_COMMISSION

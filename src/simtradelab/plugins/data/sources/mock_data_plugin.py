@@ -51,7 +51,7 @@ class MockDataPlugin(BaseDataSourcePlugin):
         priority=15,  # 中等优先级，低于CSV插件但高于默认插件
     )
 
-    # E8修复：定义配置模型类
+    # 定义配置模型类
     config_model = MockDataPluginConfig
 
     def __init__(
@@ -59,7 +59,7 @@ class MockDataPlugin(BaseDataSourcePlugin):
     ):
         super().__init__(metadata, config)
 
-        # E8修复：通过类型安全的配置对象访问参数
+        # 通过类型安全的配置对象访问参数
         if config:
             self._enabled = config.enabled
             self._seed = config.seed

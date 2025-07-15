@@ -46,7 +46,7 @@ def test_backtest_runner_initialization(
     """
     测试 BacktestRunner 的初始化过程
 
-    E10修复：更新测试以匹配新的统一插件管理架构
+    更新测试以匹配新的统一插件管理架构
     """
     mock_pm_instance = MagicMock(spec=PluginManager)
     mock_pm_class.return_value = mock_pm_instance
@@ -54,7 +54,7 @@ def test_backtest_runner_initialization(
     mock_engine_instance = MagicMock(spec=BacktestEngine)
     mock_engine_class.return_value = mock_engine_instance
 
-    # E10修复：模拟get_all_plugins返回空字典，触发插件注册
+    # 模拟get_all_plugins返回空字典，触发插件注册
     mock_pm_instance.get_all_plugins.return_value = {}
 
     config = {
@@ -72,10 +72,10 @@ def test_backtest_runner_initialization(
     assert runner.config == config
     assert runner.plugin_manager == mock_pm_instance
 
-    # E10修复：验证插件注册是否被调用（而不是加载）
+    # 验证插件注册是否被调用（而不是加载）
     assert mock_pm_instance.register_plugin.call_count >= 3  # 至少注册3个默认插件
 
-    # E10修复：验证 BacktestEngine 是否用PluginManager正确实例化
+    # 验证 BacktestEngine 是否用PluginManager正确实例化
     mock_engine_class.assert_called_once_with(
         plugin_manager=mock_pm_instance,
         config=config["backtest"],

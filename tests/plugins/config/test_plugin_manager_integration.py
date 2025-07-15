@@ -39,7 +39,7 @@ class MockTestPluginWithConfigModel(BasePlugin):
         name="TestPluginWithConfigModel", version="1.0.0", description="带配置模型的测试插件"
     )
 
-    # E8修复：定义配置模型
+    # 定义配置模型
     config_model = SimpleMatchingEngineConfig
 
     def _on_initialize(self):

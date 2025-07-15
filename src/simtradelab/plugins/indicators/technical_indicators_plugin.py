@@ -29,7 +29,7 @@ class TechnicalIndicatorsPlugin(BasePlugin):
         priority=30,  # 中等优先级
     )
 
-    # E8修复：定义配置模型类
+    # 定义配置模型类
     config_model = TechnicalIndicatorsConfig
 
     def __init__(
@@ -39,7 +39,7 @@ class TechnicalIndicatorsPlugin(BasePlugin):
     ):
         super().__init__(metadata, config)
 
-        # E8修复：通过类型安全的配置对象访问参数
+        # 通过类型安全的配置对象访问参数
         if config:
             self._cache_timeout = config.cache_timeout
             self.macd_params = {

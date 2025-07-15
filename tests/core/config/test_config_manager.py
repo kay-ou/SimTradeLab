@@ -2,7 +2,7 @@
 """
 配置管理器测试
 
-E9修复：测试统一配置管理器的核心功能
+测试统一配置管理器的核心功能
 """
 
 from typing import Optional
@@ -118,7 +118,7 @@ class SamplePluginConfigManager:
             "another_extra": 123,
         }
 
-        # E9修复：应该正常工作，额外字段被Pydantic自动忽略
+        # 应该正常工作，额外字段被Pydantic自动忽略
         config = self.manager.create_validated_config(TestPlugin, config_data)
 
         assert isinstance(config, SamplePluginConfig)

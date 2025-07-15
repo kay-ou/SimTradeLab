@@ -4,7 +4,7 @@
 
 负责加载策略、数据和回测引擎，并执行整个回测流程。
 
-E10修复：更新为使用统一插件管理的BacktestEngine
+更新为使用统一插件管理的BacktestEngine
 """
 
 import logging
@@ -18,7 +18,7 @@ class BacktestRunner:
     """
     回测运行器
 
-    E10修复：使用统一插件管理的BacktestEngine
+    使用统一插件管理的BacktestEngine
     负责协调整个回测过程，包括：
     1. 初始化PluginManager并注册回测插件
     2. 实例化使用统一插件管理的BacktestEngine
@@ -37,14 +37,14 @@ class BacktestRunner:
         self.config = config
         self.plugin_manager = plugin_manager or PluginManager()
 
-        # E10修复：确保回测插件已注册
+        # 确保回测插件已注册
         self._ensure_backtest_plugins_registered()
 
         # 从配置中注册额外插件
         if "plugins" in self.config:
             self.plugin_manager.register_plugins_from_config(self.config["plugins"])
 
-        # E10修复：实例化使用统一插件管理的回测引擎
+        # 实例化使用统一插件管理的回测引擎
         backtest_config = self.config.get("backtest", {})
         self.engine = BacktestEngine(
             plugin_manager=self.plugin_manager,
@@ -55,7 +55,7 @@ class BacktestRunner:
 
     def _ensure_backtest_plugins_registered(self) -> None:
         """
-        E10修复：确保回测插件已注册到PluginManager
+        确保回测插件已注册到PluginManager
 
         注册默认的回测插件，如果尚未注册的话
         """

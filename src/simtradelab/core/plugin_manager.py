@@ -88,7 +88,7 @@ class PluginManager:
         self._auto_register_builtin = auto_register_builtin
         self._should_register_core_plugins = register_core_plugins
 
-        # E9修复：集成统一配置管理器
+        # 集成统一配置管理器
         self._config_manager = get_config_manager()
 
         # 插件状态统计
@@ -332,7 +332,7 @@ class PluginManager:
                 raise PluginLoadError(f"Plugin {plugin_name} is already loaded")
 
             try:
-                # E9修复：使用统一配置管理器替换丑陋的配置验证代码
+                # 使用统一配置管理器替换丑陋的配置验证代码
                 plugin_config = self._config_manager.create_validated_config(
                     registry.plugin_class, config or registry.config
                 )

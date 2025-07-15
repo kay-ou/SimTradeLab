@@ -2,7 +2,7 @@
 """
 回测引擎测试 (重构后)
 
-E10修复：更新测试以使用统一插件管理的BacktestEngine
+更新测试以使用统一插件管理的BacktestEngine
 """
 
 from datetime import datetime
@@ -40,7 +40,7 @@ class ConcreteSimpleMatchingEngine(SimpleMatchingEngine):
 @pytest.fixture
 def mock_plugin_manager():
     """
-    E10修复：提供一个模拟的PluginManager，预配置了回测插件
+    提供一个模拟的PluginManager，预配置了回测插件
     """
     plugin_manager = MagicMock(spec=PluginManager)
 
@@ -108,12 +108,12 @@ class TestBacktestEngine:
     """
     测试重构后的回测引擎
 
-    E10修复：更新测试以使用统一插件管理
+    更新测试以使用统一插件管理
     """
 
     def test_initialization(self, mock_plugin_manager):
         """
-        E10修复：测试引擎通过PluginManager初始化
+        测试引擎通过PluginManager初始化
         """
         engine = BacktestEngine(plugin_manager=mock_plugin_manager)
         assert engine is not None
@@ -124,7 +124,7 @@ class TestBacktestEngine:
 
     def test_start_stop_lifecycle(self, mock_plugin_manager):
         """
-        E10修复：测试引擎启动停止生命周期
+        测试引擎启动停止生命周期
         """
         engine = BacktestEngine(plugin_manager=mock_plugin_manager)
 
@@ -136,7 +136,7 @@ class TestBacktestEngine:
 
     def test_context_manager(self, mock_plugin_manager):
         """
-        E10修复：测试上下文管理器
+        测试上下文管理器
         """
         engine = BacktestEngine(plugin_manager=mock_plugin_manager)
         with engine as ctx_engine:
@@ -146,7 +146,7 @@ class TestBacktestEngine:
 
     def test_submit_order_without_running(self, mock_plugin_manager):
         """
-        E10修复：测试在未启动引擎时提交订单
+        测试在未启动引擎时提交订单
         """
         engine = BacktestEngine(plugin_manager=mock_plugin_manager)
         order = Order("test_order", "TEST.SH", "buy", Decimal("100"), Decimal("10.0"))
@@ -155,7 +155,7 @@ class TestBacktestEngine:
 
     def test_complete_order_flow(self, mock_plugin_manager):
         """
-        E10修复：测试完整的订单流程
+        测试完整的订单流程
         """
         engine = BacktestEngine(plugin_manager=mock_plugin_manager)
         engine.start()
@@ -208,7 +208,7 @@ class TestBacktestEngine:
 
     def test_get_statistics_empty(self, mock_plugin_manager):
         """
-        E10修复：测试获取空统计数据
+        测试获取空统计数据
         """
         engine = BacktestEngine(plugin_manager=mock_plugin_manager)
         stats = engine.get_statistics()
@@ -220,7 +220,7 @@ class TestBacktestEngine:
 
     def test_multiple_orders_and_fills(self, mock_plugin_manager):
         """
-        E10修复：测试多个订单和成交
+        测试多个订单和成交
         """
         engine = BacktestEngine(plugin_manager=mock_plugin_manager)
         engine.start()
