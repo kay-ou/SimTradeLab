@@ -121,6 +121,7 @@ class PluginManager:
         plugin_class: Type[BasePlugin],
         config: Optional[BasePluginConfig] = None,
         load_order: int = 100,
+        name_override: Optional[str] = None,
     ) -> str:
         """
         注册插件类
@@ -175,9 +176,17 @@ class PluginManager:
                 )
 
             with self._lock:
-                plugin_name = metadata.name
+                plugin_name = name_override or metadata.name
 
                 if plugin_name in self._plugins:
+                    # 如果是因别名冲突，只记录警告而不是抛出异常
+                    if name_override and metadata.name in self._plugins:
+                        self._logger.warning(
+                            f"Plugin '{plugin_name}' (alias for '{metadata.name}') "
+                            f"conflicts with an existing plugin. Skipping registration."
+                        )
+                        return metadata.name # 返回原始名称
+                    
                     raise PluginRegistrationError(
                         f"Plugin {plugin_name} is already registered"
                     )
@@ -213,6 +222,44 @@ class PluginManager:
             raise PluginRegistrationError(
                 f"Failed to register plugin {plugin_class}: {e}"
             )
+
+    def register_plugins_from_config(self, plugins_config: Dict[str, Any]) -> None:
+        """
+        从配置字典中注册插件
+
+        Args:
+            plugins_config: 插件配置字典，格式为
+                            { "plugin_name": { "class": "path.to.Class", "config": {} } }
+        """
+        for plugin_name, plugin_info in plugins_config.items():
+            class_path = plugin_info.get("class")
+            if not class_path:
+                self._logger.warning(f"Plugin '{plugin_name}' in config is missing 'class' path.")
+                continue
+
+            plugin_class = self._import_plugin_class(class_path)
+            if not plugin_class:
+                self._logger.warning(f"Failed to import plugin class for '{plugin_name}' from '{class_path}'.")
+                continue
+            
+            # 使用插件自己的元数据名称，而不是配置中的键
+            metadata_name = plugin_class.METADATA.name
+            if metadata_name in self._plugins:
+                self._logger.debug(f"Plugin '{metadata_name}' is already registered. Skipping.")
+                continue
+
+            plugin_specific_config = plugin_info.get("config", {})
+            
+            try:
+                self.register_plugin(
+                    plugin_class, 
+                    plugin_specific_config,
+                    name_override=plugin_name  # 使用配置中的键作为名称
+                )
+                self._logger.info(f"Registered plugin '{plugin_name}' from config.")
+            except PluginRegistrationError as e:
+                self._logger.error(f"Failed to register plugin '{plugin_name}' from config: {e}")
+
 
     def unregister_plugin(self, plugin_name: str) -> bool:
         """

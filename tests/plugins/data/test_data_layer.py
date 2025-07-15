@@ -8,15 +8,15 @@
 import pandas as pd
 import pytest
 
-from src.simtradelab.plugins.base import PluginMetadata
-from src.simtradelab.plugins.data import (
+from simtradelab.plugins.base import PluginMetadata
+from simtradelab.plugins.data import (
     CSVDataPlugin,
     DataFrequency,
     DataSourceConfig,
     DataSourceManager,
     MarketType,
 )
-from src.simtradelab.plugins.data.config import CSVDataPluginConfig
+from simtradelab.plugins.data.config import CSVDataPluginConfig
 
 
 class TestBaseDataSourcePlugin:

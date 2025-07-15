@@ -6,7 +6,7 @@
 从API路由器中分离出来。使用统一的数据源管理器进行数据访问。
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, overload
 
 import numpy as np
 import pandas as pd
@@ -53,6 +53,23 @@ class ResearchService(BaseService):
     # 历史数据查询服务
     # ================================
 
+    @overload
+    def get_history_data(
+        self,
+        count: Optional[int] = None,
+        frequency: str = "1d",
+        field: Optional[Union[str, List[str]]] = None,
+        security_list: Optional[List[str]] = None,
+        fq: str = "pre",
+        include: bool = True,
+        fill: bool = True,
+        is_dict: bool = True,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        ...
+
+    @overload
     def get_history_data(
         self,
         count: Optional[int] = None,
@@ -65,7 +82,22 @@ class ResearchService(BaseService):
         is_dict: bool = False,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-    ) -> Union[pd.DataFrame, Dict[str, Any], List[Dict[Any, Any]]]:
+    ) -> pd.DataFrame:
+        ...
+
+    def get_history_data(
+        self,
+        count: Optional[int] = None,
+        frequency: str = "1d",
+        field: Optional[Union[str, List[str]]] = None,
+        security_list: Optional[List[str]] = None,
+        fq: str = "pre",
+        include: bool = True,
+        fill: bool = True,
+        is_dict: bool = False,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Union[pd.DataFrame, Dict[str, Any]]:
         """获取历史行情数据"""
         try:
             # 使用数据源管理器获取历史数据
@@ -85,7 +117,7 @@ class ResearchService(BaseService):
                     end_date=end_date,
                 )
             elif security_list and len(security_list) == 1:
-                return self._data_source_manager.get_history_data(
+                data = self._data_source_manager.get_history_data(
                     security=security_list[0],
                     count=count or 30,
                     frequency=frequency,
@@ -98,6 +130,9 @@ class ResearchService(BaseService):
                     start_date=start_date,
                     end_date=end_date,
                 )
+                if is_dict:
+                    return {security_list[0]: data}
+                return data
             else:
                 # 如果没有指定证券列表，返回空数据
                 if is_dict:
@@ -112,6 +147,30 @@ class ResearchService(BaseService):
             else:
                 return pd.DataFrame()
 
+    @overload
+    def get_price_data(
+        self,
+        security: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        frequency: str = "1d",
+        fields: Optional[Union[str, List[str]]] = None,
+        count: Optional[int] = None,
+    ) -> float:
+        ...
+
+    @overload
+    def get_price_data(
+        self,
+        security: List[str],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        frequency: str = "1d",
+        fields: Optional[Union[str, List[str]]] = None,
+        count: Optional[int] = None,
+    ) -> Dict[str, float]:
+        ...
+
     def get_price_data(
         self,
         security: Optional[Union[str, List[str]]] = None,
@@ -120,7 +179,7 @@ class ResearchService(BaseService):
         frequency: str = "1d",
         fields: Optional[Union[str, List[str]]] = None,
         count: Optional[int] = None,
-    ) -> Union[pd.DataFrame, pd.Series, float, Dict[str, float]]:
+    ) -> Union[float, Dict[str, float]]:
         """获取价格数据"""
         try:
             if security:

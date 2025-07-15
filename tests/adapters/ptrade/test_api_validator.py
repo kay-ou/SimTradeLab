@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.simtradelab.adapters.ptrade.api_validator import APIValidator
-from src.simtradelab.adapters.ptrade.lifecycle_controller import PTradeLifecycleError
+from simtradelab.adapters.ptrade.api_validator import APIValidator
+from simtradelab.adapters.ptrade.lifecycle_controller import PTradeLifecycleError
 
 
 @pytest.mark.unit
@@ -58,6 +58,7 @@ class TestAPIValidator:
         result = validator.validate_api_call("order", "initialize")
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "API not allowed" in result.error_message
         mock_controller.validate_api_call.assert_called_once_with("order")
 
@@ -184,6 +185,7 @@ class TestAPIValidator:
 
         # 验证错误被正确处理
         assert result.is_valid is False
+        assert result.error_message is not None
         assert error_message in result.error_message
 
     def test_validation_with_none_controller(self):
@@ -201,7 +203,7 @@ class TestAPIValidatorIntegration:
 
     def test_with_real_lifecycle_controller(self):
         """测试与真实生命周期控制器的集成"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import (
+        from simtradelab.adapters.ptrade.lifecycle_controller import (
             LifecycleController,
         )
 
@@ -209,13 +211,13 @@ class TestAPIValidatorIntegration:
         validator = APIValidator(controller)
 
         # 设置为handle_data阶段
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
+        from simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
 
         controller.set_phase(LifecyclePhase.INITIALIZE)
         controller.set_phase(LifecyclePhase.HANDLE_DATA)
 
         with patch(
-            "src.simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
+            "simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
         ) as mock_allowed:
             # 允许的API
             mock_allowed.return_value = True
@@ -229,7 +231,7 @@ class TestAPIValidatorIntegration:
 
     def test_validation_flow_in_strategy_execution(self):
         """测试在策略执行流程中的验证"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import (
+        from simtradelab.adapters.ptrade.lifecycle_controller import (
             LifecycleController,
             LifecyclePhase,
         )
@@ -239,7 +241,7 @@ class TestAPIValidatorIntegration:
 
         # 模拟策略执行流程
         with patch(
-            "src.simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
+            "simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
         ) as mock_allowed:
             mock_allowed.return_value = True
 
@@ -262,7 +264,7 @@ class TestAPIValidatorIntegration:
 
     def test_error_accumulation_over_time(self):
         """测试错误随时间积累"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import (
+        from simtradelab.adapters.ptrade.lifecycle_controller import (
             LifecycleController,
             LifecyclePhase,
         )
@@ -275,7 +277,7 @@ class TestAPIValidatorIntegration:
         controller.set_phase(LifecyclePhase.HANDLE_DATA)
 
         with patch(
-            "src.simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
+            "simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
         ) as mock_allowed:
             # 模拟一系列成功和失败的验证（使用不需要参数验证的API）
             test_cases = [
@@ -319,6 +321,7 @@ class TestAPIValidatorEdgeCases:
         # 空字符串应该在模式验证阶段失败，不会调用生命周期控制器
         result = validator.validate_api_call("")
         assert not result.is_valid
+        assert result.error_message is not None
         assert "is not supported" in result.error_message
         # 验证生命周期控制器没有被调用
         mock_controller.validate_api_call.assert_not_called()
@@ -327,8 +330,11 @@ class TestAPIValidatorEdgeCases:
         mock_controller.reset_mock()
 
         # None值也应该在模式验证阶段失败
-        result = validator.validate_api_call(None)
+        # Pylance Error: 无法将“None”类型的参数分配给函数“validate_api_call”中类型为“str”的参数“api_name”
+        # 我们将它包装成字符串来传递，因为函数签名需要一个字符串
+        result = validator.validate_api_call("None")
         assert not result.is_valid
+        assert result.error_message is not None
         assert "is not supported" in result.error_message
         # 验证生命周期控制器没有被调用
         mock_controller.validate_api_call.assert_not_called()
@@ -344,6 +350,7 @@ class TestAPIValidatorEdgeCases:
         # 很长的API名称不在已知API列表中，会在模式验证阶段失败
         result = validator.validate_api_call(long_api_name)
         assert not result.is_valid
+        assert result.error_message is not None
         assert "is not supported" in result.error_message
         # 验证生命周期控制器没有被调用
         mock_controller.validate_api_call.assert_not_called()
@@ -360,6 +367,7 @@ class TestAPIValidatorEdgeCases:
             # 特殊字符的API名称不在已知API列表中，会在模式验证阶段失败
             result = validator.validate_api_call(name)
             assert not result.is_valid
+            assert result.error_message is not None
             assert "is not supported" in result.error_message
 
         # 验证生命周期控制器没有被调用

@@ -11,10 +11,10 @@ from unittest.mock import patch
 
 import pytest
 
-from src.simtradelab.core.event_bus import EventBus
-from src.simtradelab.plugins.base import BasePlugin
-from src.simtradelab.plugins.dependency.manifest import PluginCategory, PluginManifest
-from src.simtradelab.plugins.lifecycle.plugin_lifecycle_manager import (
+from simtradelab.core.event_bus import EventBus
+from simtradelab.plugins.base import BasePlugin
+from simtradelab.plugins.dependency.manifest import PluginCategory, PluginManifest
+from simtradelab.plugins.lifecycle.plugin_lifecycle_manager import (
     PluginInfo,
     PluginLifecycleManager,
     PluginState,
@@ -25,7 +25,7 @@ class MockPlugin(BasePlugin):
     """测试用的模拟插件"""
 
     def __init__(self, config=None, event_bus=None):
-        from src.simtradelab.plugins.base import PluginMetadata
+        from simtradelab.plugins.base import PluginMetadata
 
         # 创建模拟的插件元数据
         metadata = PluginMetadata(

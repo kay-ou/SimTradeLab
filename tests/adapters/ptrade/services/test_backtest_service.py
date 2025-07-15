@@ -8,10 +8,10 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from src.simtradelab.adapters.ptrade.context import PTradeContext
-from src.simtradelab.adapters.ptrade.models import Blotter, Portfolio
-from src.simtradelab.adapters.ptrade.services import BacktestService
-from src.simtradelab.core.event_bus import EventBus
+from simtradelab.adapters.ptrade.context import PTradeContext
+from simtradelab.adapters.ptrade.models import Blotter, Portfolio
+from simtradelab.adapters.ptrade.services import BacktestService
+from simtradelab.core.event_bus import EventBus
 
 
 class TestBacktestService:
@@ -341,7 +341,7 @@ class TestBacktestService:
             "000002.XSHE": {"amount": 200, "cost_basis": 15.0},
         }
 
-        with patch("src.simtradelab.adapters.ptrade.models.Position") as MockPosition:
+        with patch("simtradelab.adapters.ptrade.models.Position") as MockPosition:
             self.service.set_yesterday_position(positions)
 
         # 验证Position被正确创建

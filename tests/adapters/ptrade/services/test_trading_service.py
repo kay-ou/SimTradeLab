@@ -8,10 +8,10 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from src.simtradelab.adapters.ptrade.context import PTradeContext
-from src.simtradelab.adapters.ptrade.models import Blotter, Portfolio
-from src.simtradelab.adapters.ptrade.services import TradingService
-from src.simtradelab.core.event_bus import EventBus
+from simtradelab.adapters.ptrade.context import PTradeContext
+from simtradelab.adapters.ptrade.models import Blotter, Portfolio
+from simtradelab.adapters.ptrade.services import TradingService
+from simtradelab.core.event_bus import EventBus
 
 
 class TestTradingService:

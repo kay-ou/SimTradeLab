@@ -9,9 +9,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.simtradelab.adapters.ptrade.lifecycle_controller import (
+from simtradelab.adapters.ptrade.lifecycle_controller import (
     LifecycleController,
     PTradeLifecycleError,
+    LifecyclePhase,
 )
 
 
@@ -29,8 +30,6 @@ class TestLifecycleController:
 
     def test_set_phase(self):
         """测试设置生命周期阶段"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
-
         controller = LifecycleController()
 
         # 首先设置初始化阶段（从None开始只能设置INITIALIZE）
@@ -43,8 +42,6 @@ class TestLifecycleController:
 
     def test_get_current_phase(self):
         """测试获取当前阶段"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
-
         controller = LifecycleController()
         assert controller.current_phase is None
 
@@ -58,8 +55,6 @@ class TestLifecycleController:
 
     def test_phase_executed_tracking(self):
         """测试阶段执行追踪"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
-
         controller = LifecycleController()
 
         # 初始状态没有执行过任何阶段
@@ -75,7 +70,7 @@ class TestLifecycleController:
 
     def test_current_phase_name(self):
         """测试当前阶段名称属性"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
+        from simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
 
         controller = LifecycleController()
         assert controller.current_phase_name is None
@@ -87,12 +82,10 @@ class TestLifecycleController:
         assert controller.current_phase_name == "handle_data"
 
     @patch(
-        "src.simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
+        "simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
     )
     def test_validate_api_call_allowed(self, mock_is_allowed):
         """测试API调用验证 - 允许的情况"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
-
         mock_is_allowed.return_value = True
 
         controller = LifecycleController()
@@ -106,12 +99,10 @@ class TestLifecycleController:
         mock_is_allowed.assert_called_once_with("order", "handle_data")
 
     @patch(
-        "src.simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
+        "simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
     )
     def test_validate_api_call_forbidden(self, mock_is_allowed):
         """测试API调用验证 - 禁止的情况"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
-
         mock_is_allowed.return_value = False
 
         controller = LifecycleController()
@@ -143,8 +134,6 @@ class TestLifecycleController:
 
     def test_get_call_statistics(self):
         """测试获取调用统计"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
-
         controller = LifecycleController()
 
         # 初始统计
@@ -166,8 +155,6 @@ class TestLifecycleController:
 
     def test_reset(self):
         """测试重置控制器"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
-
         controller = LifecycleController()
 
         # 添加一些调用和状态
@@ -197,8 +184,6 @@ class TestLifecycleControllerIntegration:
         """测试完整的生命周期流程"""
         controller = LifecycleController()
 
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
-
         # 1. 初始化阶段
         assert controller.current_phase is None
 
@@ -207,7 +192,7 @@ class TestLifecycleControllerIntegration:
 
         # 在初始化阶段，只能调用特定API
         with patch(
-            "src.simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
+            "simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
         ) as mock_allowed:
             mock_allowed.return_value = True
             controller.validate_api_call("set_universe")
@@ -219,7 +204,7 @@ class TestLifecycleControllerIntegration:
 
         # 在handle_data阶段可以调用交易API
         with patch(
-            "src.simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
+            "simtradelab.adapters.ptrade.lifecycle_controller.is_api_allowed_in_phase"
         ) as mock_allowed:
             mock_allowed.return_value = True
             controller.validate_api_call("order")
@@ -234,8 +219,6 @@ class TestLifecycleControllerIntegration:
 
     def test_register_phase_callback(self):
         """测试阶段回调注册"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
-
         controller = LifecycleController()
 
         # 注册回调
@@ -277,14 +260,12 @@ class TestLifecycleControllerErrorHandling:
 
     def test_get_phase_apis(self):
         """测试获取阶段可用API"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
-
         controller = LifecycleController()
         controller.set_phase(LifecyclePhase.INITIALIZE)
         controller.set_phase(LifecyclePhase.HANDLE_DATA)
 
         with patch(
-            "src.simtradelab.adapters.ptrade.lifecycle_config.get_phase_apis"
+            "simtradelab.adapters.ptrade.lifecycle_config.get_phase_apis"
         ) as mock_get_apis:
             mock_get_apis.return_value = ["get_price", "order", "get_history"]
 
@@ -302,8 +283,6 @@ class TestLifecycleControllerErrorHandling:
 
     def test_phase_transition_validation(self):
         """测试阶段转换验证"""
-        from src.simtradelab.adapters.ptrade.lifecycle_controller import LifecyclePhase
-
         controller = LifecycleController()
 
         # 有效的转换序列

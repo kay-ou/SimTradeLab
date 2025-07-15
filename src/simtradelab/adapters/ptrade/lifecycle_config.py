@@ -189,7 +189,18 @@ def get_api_allowed_phases(api_name: str) -> List[str]:
 
 def is_api_allowed_in_phase(api_name: str, current_phase: str) -> bool:
     """检查API是否可在指定生命周期阶段调用"""
+    # 空API名称或空阶段名称返回False
+    if not api_name or not current_phase:
+        return False
+    
+    # 获取API允许的阶段列表
     allowed_phases = get_api_allowed_phases(api_name)
+    
+    # 如果API没有配置限制（返回所有阶段），则允许任何阶段
+    if len(allowed_phases) == len(LIFECYCLE_PHASES):
+        return True
+    
+    # 检查当前阶段是否在允许的阶段列表中
     return current_phase in allowed_phases
 
 

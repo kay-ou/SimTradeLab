@@ -3,17 +3,16 @@
 研究服务测试
 """
 
-from datetime import datetime
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
-import pytest
+from pandas.testing import assert_frame_equal
 
-from src.simtradelab.adapters.ptrade.context import PTradeContext
-from src.simtradelab.adapters.ptrade.services import ResearchService
-from src.simtradelab.core.event_bus import EventBus
-from src.simtradelab.plugins.data import DataSourceManager
+from simtradelab.adapters.ptrade.context import PTradeContext
+from simtradelab.adapters.ptrade.services import ResearchService
+from simtradelab.core.event_bus import EventBus
+from simtradelab.plugins.data import DataSourceManager
 
 
 class TestResearchService:
@@ -98,7 +97,7 @@ class TestResearchService:
             security_list=["000001.XSHE"],  # 单个证券，会调用get_history_data
         )
 
-        assert result.equals(expected_data)
+        assert_frame_equal(result, expected_data)
         mock_data_source_manager.get_history_data.assert_called_once()
 
     def test_get_history_data_no_plugin(self):
@@ -429,7 +428,7 @@ class TestResearchService:
         ):
             result = self.service.calculate_macd(np.array([10, 11, 12]))
 
-        assert result.equals(expected_macd)
+        assert_frame_equal(result, expected_macd)
         mock_indicators_plugin.calculate_macd.assert_called_once()
 
     def test_calculate_macd_no_plugin(self):
@@ -459,7 +458,7 @@ class TestResearchService:
                 np.array([12, 13, 14]), np.array([9, 10, 11]), np.array([10, 11, 12])
             )
 
-        assert result.equals(expected_kdj)
+        assert_frame_equal(result, expected_kdj)
         mock_indicators_plugin.calculate_kdj.assert_called_once()
 
     def test_calculate_kdj_no_plugin(self):

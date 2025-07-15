@@ -105,13 +105,11 @@ class BaseBacktestPlugin(BasePlugin, ABC):
     回测插件基类
 
     所有回测相关插件都应继承此类，提供统一的插件接口。
-    支持统一的Pydantic配置验证，修复E8配置系统问题。
     """
 
     def __init__(
         self, metadata: PluginMetadata, config: Optional[BasePluginConfig] = None
     ):
-        # E8修复：统一使用BasePluginConfig，不再接受Dict配置
         super().__init__(metadata, config)
         self._backtest_context: Optional[BacktestContext] = None
 
@@ -144,58 +142,6 @@ class BaseBacktestPlugin(BasePlugin, ABC):
         return self._backtest_context
 
 
-class BaseMatchingEngine(BaseBacktestPlugin):
-    """
-    撮合引擎基类
-
-    负责模拟交易订单的撮合过程，决定订单如何成交。
-    """
-
-    def get_plugin_type(self) -> str:
-        return "matching_engine"
-
-    @abstractmethod
-    def match_order(self, order: Order, market_data: MarketData) -> List[Fill]:
-        """
-        撮合订单
-
-        Args:
-            order: 待撮合的订单
-            market_data: 当前市场数据
-
-        Returns:
-            成交记录列表（可能部分成交或完全成交）
-        """
-        pass
-
-    @abstractmethod
-    def can_execute_immediately(self, order: Order, market_data: MarketData) -> bool:
-        """
-        判断订单是否可以立即执行
-
-        Args:
-            order: 待判断的订单
-            market_data: 当前市场数据
-
-        Returns:
-            是否可以立即执行
-        """
-        pass
-
-    def get_market_impact(self, order: Order, market_data: MarketData) -> Decimal:
-        """
-        计算市场冲击（默认实现）
-
-        Args:
-            order: 订单信息
-            market_data: 市场数据
-
-        Returns:
-            市场冲击系数
-        """
-        return Decimal("0")
-
-
 class BaseSlippageModel(BaseBacktestPlugin):
     """
     滑点模型基类
@@ -223,19 +169,6 @@ class BaseSlippageModel(BaseBacktestPlugin):
         """
         pass
 
-    def get_slippage_rate(self, order: Order, market_data: MarketData) -> Decimal:
-        """
-        获取滑点率（默认实现）
-
-        Args:
-            order: 订单信息
-            market_data: 市场数据
-
-        Returns:
-            滑点率
-        """
-        return Decimal("0.001")  # 默认0.1%
-
 
 class BaseCommissionModel(BaseBacktestPlugin):
     """
@@ -260,18 +193,50 @@ class BaseCommissionModel(BaseBacktestPlugin):
         """
         pass
 
-    def calculate_commission_breakdown(self, fill: Fill) -> Dict[str, Decimal]:
+
+class BaseMatchingEngine(BaseBacktestPlugin):
+    """
+    撮合引擎基类
+
+    负责模拟交易订单的撮合过程，决定订单如何成交。
+    """
+
+    def __init__(
+        self,
+        metadata: PluginMetadata,
+        config: Optional[BasePluginConfig] = None,
+        slippage_model: Optional[BaseSlippageModel] = None,
+        commission_model: Optional[BaseCommissionModel] = None,
+    ):
+        super().__init__(metadata, config)
+        self._slippage_model = slippage_model
+        self._commission_model = commission_model
+
+    def set_models(
+        self,
+        slippage_model: Optional[BaseSlippageModel],
+        commission_model: Optional[BaseCommissionModel],
+    ):
+        """注入滑点和手续费模型"""
+        self._slippage_model = slippage_model
+        self._commission_model = commission_model
+
+    def get_plugin_type(self) -> str:
+        return "matching_engine"
+
+    @abstractmethod
+    def match_order(self, order: Order, market_data: MarketData) -> List[Fill]:
         """
-        计算手续费明细（默认实现）
+        撮合订单
 
         Args:
-            fill: 成交信息
+            order: 待撮合的订单
+            market_data: 当前市场数据
 
         Returns:
-            手续费明细字典
+            成交记录列表（可能部分成交或完全成交）
         """
-        total_commission = self.calculate_commission(fill)
-        return {"total": total_commission}
+        pass
 
 
 # 插件类型常量

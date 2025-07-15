@@ -9,9 +9,8 @@
 import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional
 
-from ..core.config.config_manager import PluginConfigManager
 from .plugins.base import (
     BaseCommissionModel,
     BaseMatchingEngine,
@@ -20,34 +19,19 @@ from .plugins.base import (
     MarketData,
     Order,
 )
-from .plugins.commission_models import (
-    ChinaAStockCommissionModel,
-    FixedCommissionModel,
-    TieredCommissionModel,
-)
-from .plugins.matching_engines import (
-    DepthMatchingEngine,
-    SimpleMatchingEngine,
-    StrictLimitMatchingEngine,
-)
-from .plugins.slippage_models import (
-    DynamicSlippageModel,
-    FixedSlippageModel,
-    VolatilityBasedSlippageModel,
-)
 
 
 class BacktestEngine:
     """
     可插拔回测引擎
 
-    支持动态配置不同的撮合引擎、滑点模型和手续费模型，
+    通过依赖注入接收已经实例化好的撮合引擎、滑点模型和手续费模型插件，
     实现灵活的回测策略组合。
     """
 
     def __init__(
         self,
-        matching_engine: Optional[BaseMatchingEngine] = None,
+        matching_engine: BaseMatchingEngine,
         slippage_model: Optional[BaseSlippageModel] = None,
         commission_model: Optional[BaseCommissionModel] = None,
     ):
@@ -55,38 +39,21 @@ class BacktestEngine:
         初始化回测引擎
 
         Args:
-            matching_engine: 撮合引擎插件
-            slippage_model: 滑点模型插件
-            commission_model: 手续费模型插件
+            matching_engine: 撮合引擎插件实例
+            slippage_model: 滑点模型插件实例
+            commission_model: 手续费模型插件实例
         """
         self.logger = logging.getLogger(__name__)
 
-        # E9修复：添加统一配置管理器
-        self._config_manager = PluginConfigManager()
-
-        # 插件实例
+        # 插件实例通过依赖注入传入
+        if not isinstance(matching_engine, BaseMatchingEngine):
+            raise TypeError("matching_engine must be an instance of BaseMatchingEngine")
         self._matching_engine = matching_engine
         self._slippage_model = slippage_model
         self._commission_model = commission_model
-
-        # 注册可用的插件类
-        self._available_plugins = {
-            "matching_engines": {
-                "simple": SimpleMatchingEngine,
-                "depth": DepthMatchingEngine,
-                "strict_limit": StrictLimitMatchingEngine,
-            },
-            "slippage_models": {
-                "fixed": FixedSlippageModel,
-                "dynamic": DynamicSlippageModel,
-                "volatility": VolatilityBasedSlippageModel,
-            },
-            "commission_models": {
-                "china_astock": ChinaAStockCommissionModel,
-                "fixed": FixedCommissionModel,
-                "tiered": TieredCommissionModel,
-            },
-        }
+        
+        # 将滑点和手续费模型注入到撮合引擎中
+        self._matching_engine.set_models(self._slippage_model, self._commission_model)
 
         # 回测状态
         self._is_running = False
@@ -103,72 +70,7 @@ class BacktestEngine:
             "total_slippage": Decimal("0"),
         }
 
-        self.logger.info("BacktestEngine initialized with pluggable components")
-
-    def configure_plugins(self, config: Dict[str, Any]) -> None:
-        """
-        根据配置创建和设置插件
-
-        Args:
-            config: 插件配置字典
-        """
-        # 配置撮合引擎
-        if "matching_engine" in config:
-            engine_config = config["matching_engine"]
-            engine_type = engine_config.get("type", "simple")
-            engine_params = engine_config.get("params", {})
-
-            if engine_type in self._available_plugins["matching_engines"]:
-                engine_class = self._available_plugins["matching_engines"][engine_type]
-                metadata = engine_class.METADATA
-                # E9修复：使用配置管理器创建配置对象
-                plugin_config = self._config_manager.create_validated_config(
-                    engine_class, engine_params
-                )
-                self._matching_engine = engine_class(metadata, plugin_config)
-                self.logger.info(f"Configured matching engine: {engine_type}")
-            else:
-                raise ValueError(f"Unknown matching engine type: {engine_type}")
-
-        # 配置滑点模型
-        if "slippage_model" in config:
-            slippage_config = config["slippage_model"]
-            slippage_type = slippage_config.get("type", "fixed")
-            slippage_params = slippage_config.get("params", {})
-
-            if slippage_type in self._available_plugins["slippage_models"]:
-                slippage_class = self._available_plugins["slippage_models"][
-                    slippage_type
-                ]
-                metadata = slippage_class.METADATA
-                # E9修复：使用配置管理器创建配置对象
-                plugin_config = self._config_manager.create_validated_config(
-                    slippage_class, slippage_params
-                )
-                self._slippage_model = slippage_class(metadata, plugin_config)
-                self.logger.info(f"Configured slippage model: {slippage_type}")
-            else:
-                raise ValueError(f"Unknown slippage model type: {slippage_type}")
-
-        # 配置手续费模型
-        if "commission_model" in config:
-            commission_config = config["commission_model"]
-            commission_type = commission_config.get("type", "fixed")
-            commission_params = commission_config.get("params", {})
-
-            if commission_type in self._available_plugins["commission_models"]:
-                commission_class = self._available_plugins["commission_models"][
-                    commission_type
-                ]
-                metadata = commission_class.METADATA
-                # E9修复：使用配置管理器创建配置对象
-                plugin_config = self._config_manager.create_validated_config(
-                    commission_class, commission_params
-                )
-                self._commission_model = commission_class(metadata, plugin_config)
-                self.logger.info(f"Configured commission model: {commission_type}")
-            else:
-                raise ValueError(f"Unknown commission model type: {commission_type}")
+        self.logger.info("BacktestEngine initialized with injected pluggable components")
 
     def start(self) -> None:
         """启动回测引擎"""
@@ -176,17 +78,7 @@ class BacktestEngine:
             self.logger.warning("BacktestEngine is already running")
             return
 
-        # 初始化并启动所有插件
-        if self._matching_engine:
-            self._matching_engine.initialize()
-            self._matching_engine.start()
-        if self._slippage_model:
-            self._slippage_model.initialize()
-            self._slippage_model.start()
-        if self._commission_model:
-            self._commission_model.initialize()
-            self._commission_model.start()
-
+        # 插件的生命周期由外部的PluginManager管理，这里不再调用
         self._is_running = True
         self.logger.info("BacktestEngine started")
 
@@ -195,15 +87,8 @@ class BacktestEngine:
         if not self._is_running:
             self.logger.warning("BacktestEngine is not running")
             return
-
-        # 停止所有插件
-        if self._matching_engine:
-            self._matching_engine.stop()
-        if self._slippage_model:
-            self._slippage_model.stop()
-        if self._commission_model:
-            self._commission_model.stop()
-
+        
+        # 插件的生命周期由外部的PluginManager管理
         self._is_running = False
         self.logger.info("BacktestEngine stopped")
 
@@ -217,9 +102,6 @@ class BacktestEngine:
         if not self._is_running:
             raise RuntimeError("BacktestEngine is not running")
 
-        if not self._matching_engine:
-            raise RuntimeError("No matching engine configured")
-
         self._orders.append(order)
         self._stats["total_orders"] += 1
 
@@ -227,7 +109,7 @@ class BacktestEngine:
 
     def update_market_data(self, symbol: str, market_data: MarketData) -> None:
         """
-        更新市场数据
+        更新市场数据并触发订单处理
 
         Args:
             symbol: 证券代码
@@ -240,61 +122,30 @@ class BacktestEngine:
         self._process_orders()
 
     def _process_orders(self) -> None:
-        """处理待成交订单"""
-        if not self._matching_engine:
-            return
-
+        """
+        处理待成交订单
+        
+        将订单和市场数据交给撮合引擎处理，撮合引擎将完成完整的成交过程。
+        """
         pending_orders = [order for order in self._orders if order.status == "pending"]
 
         for order in pending_orders:
             if order.symbol in self._market_data:
                 market_data = self._market_data[order.symbol]
 
-                # 尝试匹配订单
-                if self._matching_engine.can_match(order, market_data):
-                    fill_price = self._matching_engine.get_fill_price(
-                        order, market_data
-                    )
-                    fill_quantity = self._matching_engine.get_fill_quantity(
-                        order, market_data
-                    )
+                # 调用撮合引擎进行完整撮合
+                fills = self._matching_engine.match_order(order, market_data)
 
-                    # 创建成交记录
-                    fill = Fill(
-                        order_id=order.order_id,
-                        symbol=order.symbol,
-                        side=order.side,
-                        quantity=fill_quantity,
-                        price=fill_price,
-                        timestamp=self._current_time or datetime.now(),
-                        commission=Decimal("0"),  # 将在后面计算
-                        slippage=Decimal("0"),  # 将在后面计算
-                    )
+                if fills:
+                    for fill in fills:
+                        self._fills.append(fill)
+                        self._stats["total_fills"] += 1
+                        self._stats["total_commission"] += fill.commission
+                        self._stats["total_slippage"] += fill.slippage
 
-                    # 计算滑点
-                    if self._slippage_model:
-                        slippage = self._slippage_model.calculate_slippage(
-                            order, market_data, fill_price
-                        )
-                        fill.slippage = slippage
-                        self._stats["total_slippage"] += slippage
-
-                    # 计算手续费
-                    if self._commission_model:
-                        commission = self._commission_model.calculate_commission(fill)
-                        fill.commission = commission
-                        self._stats["total_commission"] += commission
-
-                    # 记录成交
-                    self._fills.append(fill)
-                    self._stats["total_fills"] += 1
-
-                    # 更新订单状态
-                    order.status = "filled"
-                    order.filled_quantity = fill_quantity
-                    order.avg_fill_price = fill_price
-
-                    self.logger.debug(f"Order filled: {order.order_id}")
+                        # 更新订单状态
+                        # 注意：撮合引擎现在负责更新订单状态
+                        self.logger.debug(f"Order filled: {order.order_id}")
 
     def get_orders(self) -> List[Order]:
         """获取所有订单"""
@@ -322,49 +173,15 @@ class BacktestEngine:
         """获取当前插件信息"""
         return {
             "matching_engine": (
-                self._matching_engine.metadata.name if self._matching_engine else None
+                self._matching_engine.metadata.name if self._matching_engine else "N/A"
             ),
             "slippage_model": (
-                self._slippage_model.metadata.name if self._slippage_model else None
+                self._slippage_model.metadata.name if self._slippage_model else "N/A"
             ),
             "commission_model": (
-                self._commission_model.metadata.name if self._commission_model else None
+                self._commission_model.metadata.name if self._commission_model else "N/A"
             ),
         }
-
-    def get_available_plugins(self) -> Dict[str, List[str]]:
-        """获取可用的插件列表"""
-        return {
-            "matching_engines": list(
-                self._available_plugins["matching_engines"].keys()
-            ),
-            "slippage_models": list(self._available_plugins["slippage_models"].keys()),
-            "commission_models": list(
-                self._available_plugins["commission_models"].keys()
-            ),
-        }
-
-    def register_plugin(
-        self,
-        category: str,
-        name: str,
-        plugin_class: Type[
-            BaseMatchingEngine | BaseSlippageModel | BaseCommissionModel
-        ],
-    ) -> None:
-        """
-        注册新的插件类
-
-        Args:
-            category: 插件类别 (matching_engines, slippage_models, commission_models)
-            name: 插件名称
-            plugin_class: 插件类
-        """
-        if category not in self._available_plugins:
-            raise ValueError(f"Unknown plugin category: {category}")
-
-        self._available_plugins[category][name] = plugin_class
-        self.logger.info(f"Registered plugin: {category}.{name}")
 
     def __enter__(self):
         """上下文管理器入口"""

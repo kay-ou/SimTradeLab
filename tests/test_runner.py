@@ -1,411 +1,140 @@
 # -*- coding: utf-8 -*-
 """
-runner.py 测试文件
+runner.py 测试文件 (重构后)
 
 测试SimTradeLab的用户友好启动器接口
 """
 
 import tempfile
 from pathlib import Path
-from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.simtradelab.runner import BacktestEngine, run_strategy
+from simtradelab.runner import BacktestRunner, run_backtest
+from simtradelab.core.plugin_manager import PluginManager
+from simtradelab.backtest.engine import BacktestEngine
+from simtradelab.backtest.plugins.base import (
+    BaseCommissionModel,
+    BaseMatchingEngine,
+    BaseSlippageModel,
+)
 
+@pytest.fixture
+def mock_config():
+    """提供一个默认的配置文件"""
+    return {
+        "backtest": {
+            "matching_engine": "simple",
+            "slippage_model": "fixed",
+            "commission_model": "fixed",
+        }
+    }
 
-@pytest.mark.unit
-class TestBacktestEngine:
-    """BacktestEngine单元测试"""
+@pytest.fixture
+def strategy_file():
+    """创建一个临时的策略文件"""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+        f.write("def initialize(context):\n    pass\n")
+        file_path = f.name
+    yield file_path
+    Path(file_path).unlink()
 
-    def test_init_default_parameters(self):
-        """测试默认参数初始化"""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            strategy_file = f.name
+@patch("simtradelab.runner.PluginManager")
+@patch("simtradelab.runner.BacktestEngine")
+def test_backtest_runner_initialization(mock_engine_class, mock_pm_class, strategy_file):
+    """测试 BacktestRunner 的初始化过程"""
+    mock_pm_instance = MagicMock(spec=PluginManager)
+    mock_pm_class.return_value = mock_pm_instance
+    
+    mock_engine_instance = MagicMock(spec=BacktestEngine)
+    mock_engine_class.return_value = mock_engine_instance
 
-        try:
-            engine = BacktestEngine(strategy_file)
+    # 模拟插件加载，确保返回正确的类型
+    mock_matching_engine = MagicMock(spec=BaseMatchingEngine)
+    mock_slippage_model = MagicMock(spec=BaseSlippageModel)
+    mock_commission_model = MagicMock(spec=BaseCommissionModel)
+    
+    mock_pm_instance.load_plugin.side_effect = [
+        mock_matching_engine,
+        mock_slippage_model,
+        mock_commission_model,
+    ]
+    
+    config = {
+        "backtest": {
+            "matching_engine": "simple",
+            "slippage_model": "fixed",
+            "commission_model": "fixed",
+        }
+    }
 
-            assert engine.strategy_file == Path(strategy_file)
-            assert engine.initial_cash == 1000000.0
-            assert engine.commission_rate == 0.0003
-            assert engine.slippage_rate == 0.001
-            assert engine.days == 10
-            assert not engine.show_system_logs
-            assert not engine._initialized
+    runner = BacktestRunner(strategy_file=strategy_file, config=config)
 
-        finally:
-            Path(strategy_file).unlink()
-
-    def test_init_custom_parameters(self):
-        """测试自定义参数初始化"""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            strategy_file = f.name
-
-        try:
-            engine = BacktestEngine(
-                strategy_file,
-                initial_cash=500000.0,
-                commission_rate=0.0005,
-                slippage_rate=0.002,
-                days=20,
-                show_system_logs=True,
-            )
-
-            assert engine.initial_cash == 500000.0
-            assert engine.commission_rate == 0.0005
-            assert engine.slippage_rate == 0.002
-            assert engine.days == 20
-            assert engine.show_system_logs
-
-        finally:
-            Path(strategy_file).unlink()
-
-    @patch("src.simtradelab.runner.PluginManager")
-    @patch("src.simtradelab.runner.PTradeAdapter")
-    def test_ensure_initialized(
-        self, mock_ptrade_adapter_class, mock_plugin_manager_class
-    ):
-        """测试延迟初始化"""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            strategy_file = f.name
-
-        try:
-            mock_plugin_manager = MagicMock()
-            mock_plugin_manager_class.return_value = mock_plugin_manager
-
-            mock_ptrade_adapter = MagicMock()
-            mock_ptrade_adapter_class.return_value = mock_ptrade_adapter
-
-            engine = BacktestEngine(strategy_file, initial_cash=100000)
-
-            # 初始状态未初始化
-            assert not engine._initialized
-
-            # 调用_ensure_initialized
-            engine._ensure_initialized()
-
-            # 验证初始化
-            assert engine._initialized
-            mock_plugin_manager_class.assert_called_once()
-            mock_ptrade_adapter_class.assert_called_once()
-            assert engine._plugin_manager == mock_plugin_manager
-            assert engine._ptrade_adapter == mock_ptrade_adapter
-
-            # 再次调用不应该重复初始化
-            mock_plugin_manager_class.reset_mock()
-            mock_ptrade_adapter_class.reset_mock()
-            engine._ensure_initialized()
-            mock_plugin_manager_class.assert_not_called()
-            mock_ptrade_adapter_class.assert_not_called()
-
-        finally:
-            Path(strategy_file).unlink()
-
-    def test_context_manager(self):
-        """测试上下文管理器"""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            strategy_file = f.name
-
-        try:
-            with BacktestEngine(strategy_file) as engine:
-                assert isinstance(engine, BacktestEngine)
-                engine._ptrade_adapter = MagicMock()
-
-            # 验证stop被调用
-            engine._ptrade_adapter._on_shutdown.assert_called_once()
-
-        finally:
-            Path(strategy_file).unlink()
-
-    def test_portfolio_property_no_engine(self):
-        """测试在没有策略引擎时的portfolio属性"""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            strategy_file = f.name
-
-        try:
-            engine = BacktestEngine(strategy_file)
-            assert engine.portfolio is None
-
-        finally:
-            Path(strategy_file).unlink()
-
-    def test_portfolio_property_with_engine(self):
-        """测试有策略引擎时的portfolio属性"""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            strategy_file = f.name
-
-        try:
-            engine = BacktestEngine(strategy_file)
-            mock_ptrade_adapter = MagicMock()
-            mock_portfolio = MagicMock()
-            mock_ptrade_adapter.get_portfolio.return_value = mock_portfolio
-            engine._ptrade_adapter = mock_ptrade_adapter
-
-            assert engine.portfolio == mock_portfolio
-
-        finally:
-            Path(strategy_file).unlink()
-
-    def test_stop_with_engine(self):
-        """测试stop方法"""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            strategy_file = f.name
-
-        try:
-            engine = BacktestEngine(strategy_file)
-            mock_ptrade_adapter = MagicMock()
-            engine._ptrade_adapter = mock_ptrade_adapter
-
-            engine.stop()
-            mock_ptrade_adapter._on_shutdown.assert_called_once()
-
-        finally:
-            Path(strategy_file).unlink()
-
-    def test_stop_without_engine(self):
-        """测试没有引擎时的stop方法"""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            strategy_file = f.name
-
-        try:
-            engine = BacktestEngine(strategy_file)
-            # 不应该报错
-            engine.stop()
-
-        finally:
-            Path(strategy_file).unlink()
-
-
-@pytest.mark.integration
-class TestBacktestEngineIntegration:
-    """BacktestEngine集成测试"""
-
-    @patch(
-        "src.simtradelab.adapters.ptrade.adapter.PTradeAdapter._get_active_data_plugin"
+    # 验证初始化
+    assert runner.strategy_file == strategy_file
+    assert runner.config == config
+    assert runner.plugin_manager == mock_pm_instance
+    
+    # 验证插件加载是否被调用
+    assert mock_pm_instance.load_plugin.call_count == 3
+    
+    # 验证 BacktestEngine 是否用加载的插件正确实例化
+    mock_engine_class.assert_called_once_with(
+        matching_engine=mock_matching_engine,
+        slippage_model=mock_slippage_model,
+        commission_model=mock_commission_model,
     )
-    def test_run_simple_strategy(self, mock_get_active_data_plugin):
-        """测试运行简单策略"""
-        # 创建Mock数据插件
-        mock_data_plugin = MagicMock()
-        mock_data_plugin.get_snapshot.return_value = {
-            "000001.XSHE": {
-                "last_price": 15.0,
-                "pre_close": 14.8,
-                "open": 14.9,
-                "high": 15.2,
-                "low": 14.7,
-                "close": 15.0,
-                "volume": 100000,
-                "money": 1500000.0,
-                "datetime": "2023-01-01",
-                "price": 15.0,
+
+@patch("simtradelab.runner.BacktestRunner")
+def test_run_backtest_function(mock_runner_class, strategy_file, mock_config):
+    """测试 run_backtest 便捷函数"""
+    mock_runner_instance = MagicMock()
+    mock_runner_class.return_value.__enter__.return_value = mock_runner_instance
+
+    run_backtest(strategy_file=strategy_file, config=mock_config)
+
+    # 验证 BacktestRunner 是否被正确调用
+    mock_runner_class.assert_called_with(strategy_file=strategy_file, config=mock_config)
+    
+    # 验证 run 方法是否被调用
+    mock_runner_instance.run.assert_called_once()
+
+def test_runner_integration_run(strategy_file):
+    """
+    一个更完整的集成测试，验证运行流程
+    注意：这个测试依赖于真实的插件和引擎，需要保证它们是可用的
+    """
+    # 使用一个简单的配置
+    config = {
+        "backtest": {
+            "matching_engine": "simple_matching_engine",
+            "slippage_model": "fixed_slippage_model",
+            "commission_model": "fixed_commission_model",
+        },
+        "plugins": {
+            "simple_matching_engine": {
+                "class": "simtradelab.backtest.plugins.matching_engines.SimpleMatchingEngine",
+                "config": {}
+            },
+            "fixed_slippage_model": {
+                "class": "simtradelab.backtest.plugins.slippage_models.FixedSlippageModel",
+                "config": {}
+            },
+            "fixed_commission_model": {
+                "class": "simtradelab.backtest.plugins.commission_models.FixedCommissionModel",
+                "config": {}
             }
         }
-        mock_data_plugin.get_current_price.return_value = 15.0
-        mock_get_active_data_plugin.return_value = mock_data_plugin
+    }
 
-        # 创建简单策略文件
-        strategy_content = """
-def initialize(context):
-    context.set_universe(['000001.XSHE'])
-
-def handle_data(context, data):
-    if context.portfolio.cash > 1000:
-        context.order('000001.XSHE', 100)
-"""
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(strategy_content)
-            strategy_file = f.name
-
-        try:
-            with BacktestEngine(strategy_file, initial_cash=10000, days=3) as engine:
-                results = engine.run(quiet=True)
-
-                # 验证结果结构
-                assert isinstance(results, dict)
-                assert "initial_cash" in results
-                assert "final_value" in results
-                assert "total_return_pct" in results
-                assert "strategy_file" in results
-                assert "days_simulated" in results
-
-                # 验证基本值
-                assert results["initial_cash"] == 10000
-                assert results["days_simulated"] == 3
-                assert results["strategy_file"] == strategy_file
-
-        finally:
-            Path(strategy_file).unlink()
-
-    def test_run_strategy_file_not_found(self):
-        """测试策略文件不存在的情况"""
-        non_existent_file = "/tmp/non_existent_strategy.py"
-
-        with BacktestEngine(non_existent_file) as engine:
-            with pytest.raises(FileNotFoundError, match="策略文件不存在"):
-                engine.run()
-
-
-@pytest.mark.unit
-class TestRunStrategyFunction:
-    """run_strategy函数测试"""
-
-    @patch(
-        "src.simtradelab.adapters.ptrade.adapter.PTradeAdapter._get_active_data_plugin"
-    )
-    def test_run_strategy_function(self, mock_get_active_data_plugin):
-        """测试run_strategy便捷函数"""
-        # 创建Mock数据插件
-        mock_data_plugin = MagicMock()
-        mock_data_plugin.get_snapshot.return_value = {
-            "000001.XSHE": {
-                "last_price": 15.0,
-                "pre_close": 14.8,
-                "open": 14.9,
-                "high": 15.2,
-                "low": 14.7,
-                "close": 15.0,
-                "volume": 100000,
-                "money": 1500000.0,
-                "datetime": "2023-01-01",
-                "price": 15.0,
-            }
-        }
-        mock_data_plugin.get_current_price.return_value = 15.0
-        mock_get_active_data_plugin.return_value = mock_data_plugin
-
-        strategy_content = """
-def initialize(context):
-    context.set_universe(['000001.XSHE'])
-
-def handle_data(context, data):
-    pass
-"""
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(strategy_content)
-            strategy_file = f.name
-
-        try:
-            results = run_strategy(
-                strategy_file=strategy_file, initial_cash=5000, days=2, quiet=True
-            )
-
-            assert isinstance(results, dict)
-            assert results["initial_cash"] == 5000
-            assert results["days_simulated"] == 2
-
-        finally:
-            Path(strategy_file).unlink()
-
-    @patch(
-        "src.simtradelab.adapters.ptrade.adapter.PTradeAdapter._get_active_data_plugin"
-    )
-    def test_run_strategy_with_custom_params(self, mock_get_active_data_plugin):
-        """测试带自定义参数的run_strategy"""
-        # 创建Mock数据插件
-        mock_data_plugin = MagicMock()
-        mock_data_plugin.get_snapshot.return_value = {
-            "000001.XSHE": {
-                "last_price": 15.0,
-                "pre_close": 14.8,
-                "open": 14.9,
-                "high": 15.2,
-                "low": 14.7,
-                "close": 15.0,
-                "volume": 100000,
-                "money": 1500000.0,
-                "datetime": "2023-01-01",
-                "price": 15.0,
-            }
-        }
-        mock_data_plugin.get_current_price.return_value = 15.0
-        mock_get_active_data_plugin.return_value = mock_data_plugin
-
-        strategy_content = """
-def initialize(context):
-    context.set_universe(['000001.XSHE'])
-"""
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(strategy_content)
-            strategy_file = f.name
-
-        try:
-            results = run_strategy(
-                strategy_file=strategy_file,
-                initial_cash=20000,
-                days=5,
-                commission_rate=0.001,
-                slippage_rate=0.002,
-                show_system_logs=False,
-                quiet=True,
-            )
-
-            assert results["initial_cash"] == 20000
-            assert results["days_simulated"] == 5
-
-        finally:
-            Path(strategy_file).unlink()
-
-
-@pytest.mark.unit
-class TestRunnerEdgeCases:
-    """测试边界情况和错误处理"""
-
-    def test_get_results_before_run(self):
-        """测试在运行前获取结果"""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            strategy_file = f.name
-
-        try:
-            engine = BacktestEngine(strategy_file)
-            results = engine.get_results()
-            assert results == {}
-
-        finally:
-            Path(strategy_file).unlink()
-
-    def test_path_object_as_strategy_file(self):
-        """测试使用Path对象作为策略文件"""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            strategy_file = Path(f.name)
-
-        try:
-            engine = BacktestEngine(strategy_file)
-            assert engine.strategy_file == strategy_file
-
-        finally:
-            strategy_file.unlink()
-
-    def test_zero_days(self):
-        """测试days=0的情况"""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            strategy_file = f.name
-
-        try:
-            engine = BacktestEngine(strategy_file, days=0)
-            # days=0应该被转换为默认值10
-            assert engine.days == 10
-
-        finally:
-            Path(strategy_file).unlink()
-
-    def test_none_days(self):
-        """测试days=None的情况"""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            strategy_file = f.name
-
-        try:
-            engine = BacktestEngine(strategy_file, days=None)
-            assert engine.days == 10  # 默认值
-
-        finally:
-            Path(strategy_file).unlink()
-
+    # 模拟 get_statistics 方法以避免完整的策略运行
+    with patch.object(BacktestEngine, 'get_statistics', return_value={"status": "ok"}) as mock_get_stats:
+        runner = BacktestRunner(strategy_file=strategy_file, config=config)
+        results = runner.run()
+        
+        mock_get_stats.assert_called_once()
+        assert results["status"] == "ok"
 
 if __name__ == "__main__":
     pytest.main([__file__])
