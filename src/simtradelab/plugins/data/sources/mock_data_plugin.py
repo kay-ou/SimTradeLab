@@ -21,6 +21,9 @@ from ..config import MockDataPluginConfig
 class MockDataPlugin(BaseDataSourcePlugin):
     """Mock数据源插件"""
 
+    # 插件配置类
+    CONFIG_CLASS = MockDataPluginConfig
+
     # 默认配置
     DEFAULT_CONFIG = {
         "enabled": True,

@@ -918,7 +918,7 @@ class PluginManager:
             # 定义核心插件映射：插件名 -> 模块路径
             core_plugins = {
                 "mock_data_plugin": (
-                    "simtradelab.plugins.data.mock_data_plugin.MockDataPlugin"
+                    "simtradelab.plugins.data.sources.mock_data_plugin.MockDataPlugin"
                 ),
                 # 可以根据需要添加更多核心插件
             }
@@ -928,9 +928,12 @@ class PluginManager:
                 try:
                     plugin_class = self._import_plugin_class(module_path)
                     if plugin_class:
-                        # 获取默认配置
+                        # 获取插件的配置类和默认配置
+                        config_class = getattr(plugin_class, "CONFIG_CLASS", BasePluginConfig)
                         default_config = getattr(plugin_class, "DEFAULT_CONFIG", {})
-                        config = BasePluginConfig(**default_config)
+
+                        # 使用插件特定的配置类创建配置实例
+                        config = config_class(**default_config)
 
                         # 显式注册插件
                         registered_name = self.register_plugin(plugin_class, config)
