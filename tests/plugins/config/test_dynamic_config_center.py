@@ -24,7 +24,7 @@ from src.simtradelab.plugins.config.dynamic_config_center import (
 )
 
 
-class TestConfigModel(BasePluginConfig):
+class _ConfigModel(BasePluginConfig):
     """测试配置模型"""
 
     api_key: str = "default_key"
@@ -61,7 +61,7 @@ class TestDynamicConfigCenter:
         initial_config = {"api_key": "test_key", "timeout": 60, "debug": True}
 
         self.config_center.register_plugin_config(
-            "test_plugin", TestConfigModel, initial_config
+            "test_plugin", _ConfigModel, initial_config
         )
 
         # 检查配置是否正确注册
@@ -76,7 +76,7 @@ class TestDynamicConfigCenter:
 
     def test_register_plugin_config_with_default_config(self):
         """测试注册插件配置使用默认配置"""
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
 
         # 检查使用默认配置
         config = self.config_center.get_config("test_plugin")
@@ -87,7 +87,7 @@ class TestDynamicConfigCenter:
     def test_get_config_full_and_partial(self):
         """测试获取完整配置和部分配置"""
         self.config_center.register_plugin_config(
-            "test_plugin", TestConfigModel, {"api_key": "test_key", "timeout": 60}
+            "test_plugin", _ConfigModel, {"api_key": "test_key", "timeout": 60}
         )
 
         # 获取完整配置
@@ -138,7 +138,7 @@ class TestDynamicConfigCenter:
 
     def test_get_config_nonexistent_key(self):
         """测试获取不存在的配置键"""
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
 
         with pytest.raises(
             DynamicConfigError, match="配置键 nonexistent 在插件 test_plugin 中未找到"
@@ -147,7 +147,7 @@ class TestDynamicConfigCenter:
 
     def test_set_config_valid_change(self):
         """测试设置有效的配置变更"""
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
 
         # 设置配置
         self.config_center.set_config(
@@ -207,7 +207,7 @@ class TestDynamicConfigCenter:
 
     def test_config_listeners(self):
         """测试配置变更监听器"""
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
 
         # 创建监听器
         listener_calls = []
@@ -227,7 +227,7 @@ class TestDynamicConfigCenter:
 
     def test_config_listeners_with_pattern(self):
         """测试带模式的配置监听器"""
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
 
         # 创建监听器
         api_listener_calls = []
@@ -259,7 +259,7 @@ class TestDynamicConfigCenter:
 
     def test_remove_config_listener(self):
         """测试移除配置监听器"""
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
 
         listener_calls = []
 
@@ -282,7 +282,7 @@ class TestDynamicConfigCenter:
 
     def test_config_history_tracking(self):
         """测试配置历史追踪"""
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
 
         # 进行多次配置变更
         self.config_center.set_config("test_plugin", "api_key", "key1", user="user1")
@@ -307,7 +307,7 @@ class TestDynamicConfigCenter:
 
     def test_config_rollback(self):
         """测试配置回滚"""
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
 
         # 进行配置变更
         self.config_center.set_config("test_plugin", "api_key", "new_key")
@@ -330,8 +330,8 @@ class TestDynamicConfigCenter:
 
     def test_export_config(self):
         """测试配置导出"""
-        self.config_center.register_plugin_config("plugin1", TestConfigModel)
-        self.config_center.register_plugin_config("plugin2", TestConfigModel)
+        self.config_center.register_plugin_config("plugin1", _ConfigModel)
+        self.config_center.register_plugin_config("plugin2", _ConfigModel)
 
         # 导出所有配置
         all_config = self.config_center.export_config()
@@ -350,8 +350,8 @@ class TestDynamicConfigCenter:
 
     def test_import_config(self):
         """测试配置导入"""
-        self.config_center.register_plugin_config("plugin1", TestConfigModel)
-        self.config_center.register_plugin_config("plugin2", TestConfigModel)
+        self.config_center.register_plugin_config("plugin1", _ConfigModel)
+        self.config_center.register_plugin_config("plugin2", _ConfigModel)
 
         # 准备导入数据
         import_data = {
@@ -371,7 +371,7 @@ class TestDynamicConfigCenter:
     def test_event_bus_integration(self):
         """测试事件总线集成"""
         config_center = DynamicConfigCenter(event_bus=self.mock_event_bus)
-        config_center.register_plugin_config("test_plugin", TestConfigModel)
+        config_center.register_plugin_config("test_plugin", _ConfigModel)
 
         # 更改配置
         config_center.set_config("test_plugin", "api_key", "new_key")
@@ -393,7 +393,7 @@ class TestDynamicConfigCenter:
 
             # 创建配置中心并添加文件监听
             config_center = DynamicConfigCenter()
-            config_center.register_plugin_config("test_plugin", TestConfigModel)
+            config_center.register_plugin_config("test_plugin", _ConfigModel)
             config_center._start_file_watcher(str(config_file))
 
             # 等待一下让文件监听器启动
@@ -417,8 +417,8 @@ class TestDynamicConfigCenter:
 
     def test_get_status(self):
         """测试获取配置中心状态"""
-        self.config_center.register_plugin_config("plugin1", TestConfigModel)
-        self.config_center.register_plugin_config("plugin2", TestConfigModel)
+        self.config_center.register_plugin_config("plugin1", _ConfigModel)
+        self.config_center.register_plugin_config("plugin2", _ConfigModel)
 
         status = self.config_center.get_status()
 
@@ -433,7 +433,7 @@ class TestDynamicConfigCenter:
 
     def test_shutdown(self):
         """测试关闭配置中心"""
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
 
         # 关闭配置中心
         self.config_center.shutdown()
@@ -444,7 +444,7 @@ class TestDynamicConfigCenter:
 
     def test_thread_safety(self):
         """测试线程安全性"""
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
 
         results = []
         errors = []

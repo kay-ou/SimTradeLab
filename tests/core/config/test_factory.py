@@ -16,7 +16,7 @@ from simtradelab.core.config.config_manager import ConfigValidationError
 from simtradelab.core.config.factory import ConfigFactory
 
 
-class TestConfigModel(BaseModel):
+class _ConfigModel(BaseModel):
     """测试配置模型"""
 
     name: str
@@ -39,9 +39,9 @@ class TestConfigFactory:
 
     def test_create_from_dict_success(self, factory, sample_config_dict):
         """测试从字典创建配置成功"""
-        config = factory.create_from_dict(TestConfigModel, sample_config_dict)
+        config = factory.create_from_dict(_ConfigModel, sample_config_dict)
 
-        assert isinstance(config, TestConfigModel)
+        assert isinstance(config, _ConfigModel)
         assert config.name == "test_app"
         assert config.port == 9000
         assert config.debug is True
@@ -53,7 +53,7 @@ class TestConfigFactory:
 
         # 非严格模式应该成功
         config = factory.create_from_dict(
-            TestConfigModel, sample_config_dict, strict=False
+            _ConfigModel, sample_config_dict, strict=False
         )
         assert config.name == "test_app"
 
@@ -66,16 +66,14 @@ class TestConfigFactory:
         }
 
         with pytest.raises(ConfigValidationError):
-            factory.create_from_dict(
-                TestConfigModel, invalid_strict_config, strict=True
-            )
+            factory.create_from_dict(_ConfigModel, invalid_strict_config, strict=True)
 
     def test_create_from_dict_validation_error(self, factory):
         """测试字典配置验证错误"""
         invalid_config = {"name": "test_app", "port": "invalid_port"}  # 应该是int
 
         with pytest.raises(ConfigValidationError) as exc_info:
-            factory.create_from_dict(TestConfigModel, invalid_config)
+            factory.create_from_dict(_ConfigModel, invalid_config)
 
         assert "字典配置验证失败" in str(exc_info.value)
 
@@ -86,9 +84,9 @@ class TestConfigFactory:
             json_file_path = f.name
 
         try:
-            config = factory.create_from_json_file(TestConfigModel, json_file_path)
+            config = factory.create_from_json_file(_ConfigModel, json_file_path)
 
-            assert isinstance(config, TestConfigModel)
+            assert isinstance(config, _ConfigModel)
             assert config.name == "test_app"
             assert config.port == 9000
             assert config.debug is True
@@ -98,7 +96,7 @@ class TestConfigFactory:
     def test_create_from_json_file_not_found(self, factory):
         """测试JSON文件不存在"""
         with pytest.raises(FileNotFoundError) as exc_info:
-            factory.create_from_json_file(TestConfigModel, "/nonexistent/file.json")
+            factory.create_from_json_file(_ConfigModel, "/nonexistent/file.json")
 
         assert "配置文件不存在" in str(exc_info.value)
 
@@ -110,7 +108,7 @@ class TestConfigFactory:
 
         try:
             with pytest.raises(ConfigValidationError) as exc_info:
-                factory.create_from_json_file(TestConfigModel, json_file_path)
+                factory.create_from_json_file(_ConfigModel, json_file_path)
 
             assert "JSON文件格式错误" in str(exc_info.value)
         finally:
@@ -123,9 +121,9 @@ class TestConfigFactory:
             yaml_file_path = f.name
 
         try:
-            config = factory.create_from_yaml_file(TestConfigModel, yaml_file_path)
+            config = factory.create_from_yaml_file(_ConfigModel, yaml_file_path)
 
-            assert isinstance(config, TestConfigModel)
+            assert isinstance(config, _ConfigModel)
             assert config.name == "test_app"
             assert config.port == 9000
             assert config.debug is True
@@ -140,14 +138,14 @@ class TestConfigFactory:
 
         try:
             with pytest.raises(ConfigValidationError):
-                factory.create_from_yaml_file(TestConfigModel, yaml_file_path)
+                factory.create_from_yaml_file(_ConfigModel, yaml_file_path)
         finally:
             Path(yaml_file_path).unlink()
 
     def test_create_from_yaml_file_not_found(self, factory):
         """测试YAML文件不存在"""
         with pytest.raises(FileNotFoundError) as exc_info:
-            factory.create_from_yaml_file(TestConfigModel, "/nonexistent/file.yaml")
+            factory.create_from_yaml_file(_ConfigModel, "/nonexistent/file.yaml")
 
         assert "配置文件不存在" in str(exc_info.value)
 
@@ -159,7 +157,7 @@ class TestConfigFactory:
 
         try:
             with pytest.raises(ConfigValidationError) as exc_info:
-                factory.create_from_yaml_file(TestConfigModel, yaml_file_path)
+                factory.create_from_yaml_file(_ConfigModel, yaml_file_path)
 
             assert "YAML文件格式错误" in str(exc_info.value)
         finally:
@@ -169,14 +167,14 @@ class TestConfigFactory:
     def test_create_from_env_success(self, factory):
         """测试从环境变量创建配置成功"""
         # 注意：这个测试依赖于Pydantic的环境变量功能
-        # 在实际实现中需要确保TestConfigModel支持环境变量
+        # 在实际实现中需要确保_ConfigModel支持环境变量
         try:
-            config = factory.create_from_env(TestConfigModel, env_prefix="TEST_")
+            config = factory.create_from_env(_ConfigModel, env_prefix="TEST_")
             # 如果环境变量解析成功，应该能创建配置
-            assert isinstance(config, TestConfigModel)
+            assert isinstance(config, _ConfigModel)
         except ConfigValidationError:
             # 如果模型不支持环境变量，应该抛出验证错误
-            pytest.skip("TestConfigModel不支持环境变量解析")
+            pytest.skip("_ConfigModel不支持环境变量解析")
 
     def test_create_merged_config_success(self, factory):
         """测试合并多个配置源成功"""
@@ -185,7 +183,7 @@ class TestConfigFactory:
         override_config = {"port": 9000, "debug": True}
 
         config = factory.create_merged_config(
-            TestConfigModel, base_config, override_config
+            _ConfigModel, base_config, override_config
         )
 
         assert config.name == "base_app"  # 来自base_config
@@ -196,14 +194,14 @@ class TestConfigFactory:
         """测试合并配置包含None值"""
         base_config = {"name": "base_app", "port": 8000}
 
-        config = factory.create_merged_config(TestConfigModel, base_config, None, {})
+        config = factory.create_merged_config(_ConfigModel, base_config, None, {})
 
         assert config.name == "base_app"
         assert config.port == 8000
 
     def test_save_config_to_json_file(self, factory, sample_config_dict):
         """测试保存配置到JSON文件"""
-        config = factory.create_from_dict(TestConfigModel, sample_config_dict)
+        config = factory.create_from_dict(_ConfigModel, sample_config_dict)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json_file_path = f.name
@@ -223,7 +221,7 @@ class TestConfigFactory:
 
     def test_save_config_to_yaml_file(self, factory, sample_config_dict):
         """测试保存配置到YAML文件"""
-        config = factory.create_from_dict(TestConfigModel, sample_config_dict)
+        config = factory.create_from_dict(_ConfigModel, sample_config_dict)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml_file_path = f.name
@@ -243,7 +241,7 @@ class TestConfigFactory:
 
     def test_save_config_unsupported_format(self, factory, sample_config_dict):
         """测试保存配置到不支持的格式"""
-        config = factory.create_from_dict(TestConfigModel, sample_config_dict)
+        config = factory.create_from_dict(_ConfigModel, sample_config_dict)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as f:
             xml_file_path = f.name
@@ -258,7 +256,7 @@ class TestConfigFactory:
 
     def test_save_config_directory_creation(self, factory, sample_config_dict):
         """测试保存配置时创建目录"""
-        config = factory.create_from_dict(TestConfigModel, sample_config_dict)
+        config = factory.create_from_dict(_ConfigModel, sample_config_dict)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             nested_path = Path(temp_dir) / "nested" / "dir" / "config.json"

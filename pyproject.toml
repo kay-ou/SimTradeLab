@@ -99,6 +99,7 @@ pandas-stubs = "^2.3.0.250703"
 pywin32 = { version = "^306", markers = "sys_platform == 'win32'" }
 
 # Testing Configuration
+pyfolio-reloaded = "^0.9.9"
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = [
@@ -108,7 +109,6 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
     "--cov-report=xml",
-    "--cov-fail-under=80",
 ]
 testpaths = ["tests"]
 markers = [

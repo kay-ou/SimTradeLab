@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from simtradelab.plugins.base import BasePlugin, PluginConfig, PluginMetadata
 from simtradelab.plugins.config.base_config import BasePluginConfig
@@ -44,11 +44,22 @@ class Order:
     side: str  # "buy" or "sell"
     quantity: Decimal
     price: Optional[Decimal] = None  # None表示市价单
-    order_type: str = "market"  # "market" or "limit"
+    order_type: str = (
+        "market"  # "market", "limit", "stop", "stop_limit", "trailing_stop"
+    )
     timestamp: datetime = field(default_factory=datetime.now)
-    status: str = "pending"  # "pending", "filled", "cancelled"
+    status: str = "pending"  # "pending", "active", "filled", "cancelled"
     filled_quantity: Decimal = Decimal("0")
     avg_fill_price: Optional[Decimal] = None
+
+    # 高级订单类型参数
+    trigger_price: Optional[Decimal] = None  # 止损单的触发价格
+    trail_percent: Optional[Decimal] = None  # 跟踪止损单的百分比
+    trail_amount: Optional[Decimal] = None  # 跟踪止损单的金额
+    time_in_force: str = "gtc"  # "gtc", "ioc", "fok"
+
+    # 跟踪止损单的内部状态
+    trailing_reference_price: Optional[Decimal] = None  # 用于跟踪止损的参考价格（高/低水位）
 
 
 @dataclass
@@ -266,16 +277,28 @@ class BaseMatchingEngine(BaseBacktestPlugin):
         return "matching_engine"
 
     @abstractmethod
-    def match_order(self, order: Order, market_data: MarketData) -> List[Fill]:
+    def add_order(self, order: Order) -> None:
         """
-        撮合订单
+        将订单添加到内部订单簿
 
         Args:
-            order: 待撮合的订单
+            order: 待添加的订单
+        """
+        pass
+
+    @abstractmethod
+    def trigger_matching(
+        self, symbol: str, market_data: MarketData
+    ) -> Tuple[List[Fill], List[Order]]:
+        """
+        对指定标的触发撮合
+
+        Args:
+            symbol: 待撮合的标的
             market_data: 当前市场数据
 
         Returns:
-            成交记录列表（可能部分成交或完全成交）
+            成交记录列表和已完成（成交或取消）的订单列表
         """
         pass
 

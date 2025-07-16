@@ -455,3 +455,28 @@ def validate_event_data(event_type: str, data: Dict[str, Any]) -> bool:
 
     # 默认通过验证
     return True
+
+
+from pydantic import BaseModel, Field
+
+
+class OrderEvent(BaseModel):
+    """订单事件模型"""
+
+    order_id: str = Field(..., description="订单ID")
+    symbol: str = Field(..., description="标的代码")
+    quantity: float = Field(..., description="数量")
+    price: Optional[float] = Field(None, description="价格")
+    order_type: str = Field(default="market", description="订单类型")
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class FillEvent(BaseModel):
+    """成交事件模型"""
+
+    order_id: str = Field(..., description="订单ID")
+    symbol: str = Field(..., description="标的代码")
+    quantity: float = Field(..., description="成交数量")
+    price: float = Field(..., description="成交价格")
+    commission: float = Field(default=0.0, description="手续费")
+    timestamp: datetime = Field(default_factory=datetime.now)

@@ -5,17 +5,81 @@
 
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import List, Tuple
 from unittest.mock import Mock
 
 from simtradelab.backtest.engine import BacktestEngine
-from simtradelab.backtest.plugins.base import MarketData, Order
+from simtradelab.backtest.plugins.base import Fill, MarketData, Order
 from simtradelab.backtest.plugins.latency_models.default_latency_model import (
     DefaultLatencyModel,
 )
 from simtradelab.backtest.plugins.latency_models.fixed_latency_model import (
     FixedLatencyModel,
 )
+from simtradelab.backtest.plugins.matching_engines import DepthMatchingEngine
 from simtradelab.plugins.base import PluginMetadata
+
+
+# 为测试创建一个可实例化的具体类
+class ConcreteDepthMatchingEngine(DepthMatchingEngine):
+    def add_order(self, order: Order) -> None:
+        # 在这个测试中，我们不关心实际的订单添加逻辑
+        # 只需满足抽象方法的要求
+        if not hasattr(self, "orders"):
+            self.orders = []
+        self.orders.append(order)
+
+    def trigger_matching(
+        self, symbol: str, market_data: MarketData
+    ) -> Tuple[List[Fill], List[Order]]:
+        # 模拟撮合过程，在这个测试中，我们假设订单总是能成交
+        fills = []
+        filled_orders = []
+
+        # 这是一个简化的逻辑，仅用于测试延迟集成
+        # 假设总是买卖双方匹配
+        if hasattr(self, "orders") and len(self.orders) >= 2:
+            buy_order = self.orders[0]
+            sell_order = self.orders[1]
+            fill_qty = min(buy_order.quantity, sell_order.quantity)
+            fill_price = market_data.close_price
+
+            fills.append(
+                Fill(
+                    order_id=buy_order.order_id,
+                    symbol=symbol,
+                    side="buy",
+                    quantity=fill_qty,
+                    price=fill_price,
+                    timestamp=datetime.now(),
+                )
+            )
+            fills.append(
+                Fill(
+                    order_id=sell_order.order_id,
+                    symbol=symbol,
+                    side="sell",
+                    quantity=fill_qty,
+                    price=fill_price,
+                    timestamp=datetime.now(),
+                )
+            )
+
+            buy_order.status = "filled"
+            sell_order.status = "filled"
+            filled_orders.extend([buy_order, sell_order])
+            self.orders = []  # 清空订单
+
+        return fills, filled_orders
+
+    def _on_initialize(self) -> None:
+        pass
+
+    def _on_start(self) -> None:
+        pass
+
+    def _on_stop(self) -> None:
+        pass
 
 
 class TestLatencyModelIntegration:
@@ -124,10 +188,9 @@ class TestLatencyModelIntegration:
             FixedCommissionModelConfig,
             FixedSlippageModelConfig,
         )
-        from simtradelab.backtest.plugins.matching_engines import SimpleMatchingEngine
         from simtradelab.backtest.plugins.slippage_models import FixedSlippageModel
 
-        mock_matching_engine = SimpleMatchingEngine(metadata)
+        mock_matching_engine = ConcreteDepthMatchingEngine(metadata)
         mock_slippage_model = FixedSlippageModel(metadata, FixedSlippageModelConfig())
         mock_commission_model = FixedCommissionModel(
             metadata, FixedCommissionModelConfig()
@@ -151,12 +214,22 @@ class TestLatencyModelIntegration:
 
         # 创建测试订单和市场数据
         order_time = datetime.now()
-        order = Order(
+        buy_order = Order(
             order_id="test_order_001",
             symbol="000001",
             side="buy",
             quantity=Decimal("100"),
-            order_type="market",
+            order_type="limit",
+            price=Decimal("10.2"),
+            timestamp=order_time,
+        )
+        sell_order = Order(
+            order_id="test_order_002",
+            symbol="000001",
+            side="sell",
+            quantity=Decimal("100"),
+            order_type="limit",
+            price=Decimal("10.2"),
             timestamp=order_time,
         )
 
@@ -174,14 +247,16 @@ class TestLatencyModelIntegration:
         )
 
         # 提交订单和更新市场数据
-        engine.submit_order(order)
+        engine.submit_order(sell_order)
+        engine.submit_order(buy_order)
         engine.update_market_data("000001", market_data)
 
         # 检查统计信息是否更新
         stats = engine.get_statistics()
-        assert stats["total_orders"] == 1
+        assert stats["total_orders"] == 2
         assert stats["total_latency"] > 0  # 应该有延迟记录
         assert stats["avg_latency"] > 0
+        assert len(engine.get_fills()) == 2
 
     def test_order_execution_timing(self):
         """测试订单执行时间控制"""
@@ -211,10 +286,9 @@ class TestLatencyModelIntegration:
             FixedCommissionModelConfig,
             FixedSlippageModelConfig,
         )
-        from simtradelab.backtest.plugins.matching_engines import SimpleMatchingEngine
         from simtradelab.backtest.plugins.slippage_models import FixedSlippageModel
 
-        mock_matching_engine = SimpleMatchingEngine(metadata)
+        mock_matching_engine = ConcreteDepthMatchingEngine(metadata)
         mock_slippage_model = FixedSlippageModel(metadata, FixedSlippageModelConfig())
         mock_commission_model = FixedCommissionModel(
             metadata, FixedCommissionModelConfig()

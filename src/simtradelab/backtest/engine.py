@@ -13,6 +13,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from ..core.events.contracts import FillEvent
+from .performance import PerformanceManager as PerfManager
 from .plugins.base import (
     BaseCommissionModel,
     BaseLatencyModel,
@@ -22,6 +24,7 @@ from .plugins.base import (
     MarketData,
     Order,
 )
+from .portfolio import PortfolioManager
 
 if TYPE_CHECKING:
     from ..core.plugin_manager import PluginManager
@@ -45,18 +48,22 @@ class BacktestEngine:
 
         Args:
             plugin_manager: 全局插件管理器
-            config: 回测配置，包含插件名称配置
+            config: 回测配置，包含插件名称和初始资金
         """
         self.logger = logging.getLogger(__name__)
         self._plugin_manager = plugin_manager
         self._config = config or {}
+
+        initial_capital = Decimal(self._config.get("initial_capital", "100000.0"))
+        self._portfolio_manager = PortfolioManager(initial_cash=float(initial_capital))
+        self._performance_manager = PerfManager(initial_capital=initial_capital)
 
         # 验证组件间兼容性
         self._validate_component_compatibility()
 
         # 通过PluginManager加载插件
         self._matching_engine = self._load_plugin(
-            self._config.get("matching_engine", "SimpleMatchingEngine"),
+            self._config.get("matching_engine", "DepthMatchingEngine"),
             BaseMatchingEngine,
         )
         self._slippage_model = self._load_plugin(
@@ -103,21 +110,11 @@ class BacktestEngine:
         检查组件版本兼容性、依赖关系和配置参数一致性
         """
         # TODO: 实现组件兼容性验证逻辑
-        # - 检查组件版本兼容性
-        # - 验证组件间的依赖关系
-        # - 确保配置参数的一致性
         self.logger.debug("Component compatibility validation completed")
 
     def _load_plugin(self, plugin_name: str, expected_type: type) -> Optional[Any]:
         """
         从插件管理器加载对应回测组件插件
-
-        Args:
-            plugin_name: 插件名称
-            expected_type: 期望的插件类型
-
-        Returns:
-            插件实例，如果加载失败返回None
         """
         try:
             plugin_instance = self._plugin_manager.load_plugin(plugin_name)
@@ -141,39 +138,29 @@ class BacktestEngine:
     def start(self) -> None:
         """
         启动回测引擎
-
-        插件生命周期由统一的PluginManager管理
         """
         if self._is_running:
             self.logger.warning("BacktestEngine is already running")
             return
 
-        # 插件的生命周期由统一的PluginManager管理
-        # 这里只需要启动引擎本身的逻辑
         self._is_running = True
         self.logger.info("BacktestEngine started with unified plugin management")
 
     def stop(self) -> None:
         """
         停止回测引擎
-
-        插件生命周期由统一的PluginManager管理
         """
         if not self._is_running:
             self.logger.warning("BacktestEngine is not running")
             return
 
-        # 插件的生命周期由统一的PluginManager管理
-        # 这里只需要停止引擎本身的逻辑
         self._is_running = False
-        self.logger.info("BacktestEngine stopped")
+        self._performance_manager.analyze()
+        self.logger.info("BacktestEngine stopped and performance report generated.")
 
     def submit_order(self, order: Order) -> None:
         """
         提交订单
-
-        Args:
-            order: 订单对象
         """
         if not self._is_running:
             raise RuntimeError("BacktestEngine is not running")
@@ -181,29 +168,40 @@ class BacktestEngine:
         self._orders.append(order)
         self._stats["total_orders"] += 1
 
+        # 提交订单后立即尝试撮合
+        if order.symbol in self._market_data:
+            self._process_orders_for_symbol(order.symbol)
+
         self.logger.debug(f"Order submitted: {order.order_id}")
 
     def update_market_data(self, symbol: str, market_data: MarketData) -> None:
         """
         更新市场数据并触发订单处理
-
-        Args:
-            symbol: 证券代码
-            market_data: 市场数据
         """
         self._market_data[symbol] = market_data
         self._current_time = market_data.timestamp
 
         # 触发订单匹配
-        self._process_orders()
+        self._process_orders_for_symbol(symbol)
 
-    def _process_orders(self) -> None:
+        # 更新投资组合和性能指标
+        prices = {s: md.close_price for s, md in self._market_data.items()}
+        self._portfolio_manager.update_market_value(
+            {s: float(p) for s, p in prices.items()}
+        )
+
+        portfolio_value = self._portfolio_manager.portfolio.portfolio_value
+        self._performance_manager.record_daily_portfolio_value(
+            self._current_time, Decimal(str(portfolio_value))
+        )
+
+    def _process_orders_for_symbol(self, symbol: str) -> None:
         """
-        处理待成交订单
+        处理指定标的的待成交订单。
 
-        将订单和市场数据交给撮合引擎处理，撮合引擎将完成完整的成交过程。
-        处理插件可能为None的情况
-        集成延迟模型处理订单延迟
+        此方法会遍历所有与指定符号相关的待处理订单，
+        并使用撮合引擎尝试执行它们。
+        它会处理返回的成交和已完成的订单，并更新引擎的内部状态。
         """
         if not self._matching_engine:
             self.logger.warning(
@@ -211,51 +209,78 @@ class BacktestEngine:
             )
             return
 
-        pending_orders = [order for order in self._orders if order.status == "pending"]
+        market_data = self._market_data.get(symbol)
+        if not market_data:
+            return
 
-        for order in pending_orders:
-            if order.symbol in self._market_data:
-                market_data = self._market_data[order.symbol]
+        orders_to_process = [
+            o for o in self._orders if o.symbol == symbol and o.status == "pending"
+        ]
 
-                # 使用延迟模型计算订单执行时间
-                if self._latency_model:
-                    execution_time = self._latency_model.get_execution_time(
-                        order, market_data
+        if not orders_to_process:
+            return
+
+        # 1. 将所有待处理订单加入订单簿
+        for order in orders_to_process:
+            if order.status != "pending":
+                continue
+
+            # 检查延迟
+            if self._latency_model:
+                execution_time = self._latency_model.get_execution_time(
+                    order, market_data
+                )
+                if self._current_time and self._current_time < execution_time:
+                    continue  # 未到执行时间
+
+                if self._current_time and order.timestamp:
+                    latency = (self._current_time - order.timestamp).total_seconds()
+                else:
+                    latency = 0.0
+                self._stats["total_latency"] += latency
+                if self._stats["total_orders"] > 0:
+                    self._stats["avg_latency"] = (
+                        self._stats["total_latency"] / self._stats["total_orders"]
                     )
 
-                    # 检查是否到达执行时间
-                    if self._current_time and execution_time > self._current_time:
-                        # 订单还未到达执行时间，跳过处理
-                        continue
+            self._matching_engine.add_order(order)
 
-                    # 记录延迟信息
-                    latency_seconds = self._latency_model.calculate_latency(
-                        order, market_data
-                    )
-                    self._stats["total_latency"] += latency_seconds
-                    processed_orders_count = self._stats["total_orders"]
-                    if processed_orders_count > 0:
-                        self._stats["avg_latency"] = (
-                            self._stats["total_latency"] / processed_orders_count
-                        )
+        # 2. 触发整个订单簿的撮合
+        fills, filled_orders = self._matching_engine.trigger_matching(
+            symbol, market_data
+        )
 
-                    self.logger.debug(
-                        f"Order {order.order_id} processed with latency: {latency_seconds:.3f}s"
-                    )
+        # 3. 处理成交和完成的订单
+        if fills:
+            for fill in fills:
+                self._fills.append(fill)
+                self._stats["total_fills"] += 1
+                commission = getattr(fill, "commission", Decimal("0"))
+                slippage = getattr(fill, "slippage", Decimal("0"))
+                self._stats["total_commission"] += commission
+                self._stats["total_slippage"] += slippage
 
-                # 调用撮合引擎进行完整撮合
-                fills = self._matching_engine.match_order(order, market_data)
+                # 创建 FillEvent 并通知 PortfolioManager
+                fill_event = FillEvent(
+                    order_id=fill.order_id,
+                    symbol=fill.symbol,
+                    quantity=float(fill.quantity),
+                    price=float(fill.price),
+                    commission=float(commission),
+                    timestamp=fill.timestamp,
+                )
+                self._portfolio_manager.on_fill(fill_event)
 
-                if fills:
-                    for fill in fills:
-                        self._fills.append(fill)
-                        self._stats["total_fills"] += 1
-                        self._stats["total_commission"] += fill.commission
-                        self._stats["total_slippage"] += fill.slippage
-
-                        # 更新订单状态
-                        # 注意：撮合引擎现在负责更新订单状态
-                        self.logger.debug(f"Order filled: {order.order_id}")
+        if filled_orders:
+            # 更新原始订单列表中的状态
+            original_orders_map = {o.order_id: o for o in self._orders}
+            for fo in filled_orders:
+                if fo.order_id in original_orders_map:
+                    original_orders_map[fo.order_id].status = fo.status
+                    original_orders_map[
+                        fo.order_id
+                    ].filled_quantity = fo.filled_quantity
+                    original_orders_map[fo.order_id].avg_fill_price = fo.avg_fill_price
 
     def get_orders(self) -> List[Order]:
         """获取所有订单"""
@@ -284,8 +309,6 @@ class BacktestEngine:
     def get_plugin_info(self) -> Dict[str, Any]:
         """
         获取当前插件信息
-
-        处理插件可能为None的情况
         """
         return {
             "matching_engine": (

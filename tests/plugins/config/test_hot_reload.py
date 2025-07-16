@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
+from watchdog.events import DirModifiedEvent, FileModifiedEvent
+
 from src.simtradelab.plugins.config.base_config import BasePluginConfig
 from src.simtradelab.plugins.config.dynamic_config_center import (
     DynamicConfigCenter,
@@ -24,7 +26,7 @@ from src.simtradelab.plugins.config.hot_reload import (
 )
 
 
-class TestConfigModel(BasePluginConfig):
+class _ConfigModel(BasePluginConfig):
     """测试配置模型"""
 
     api_key: str = "default_key"
@@ -38,7 +40,7 @@ class TestConfigFileHandler:
     def setup_method(self):
         """测试前置设置"""
         self.config_center = DynamicConfigCenter()
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
 
     def teardown_method(self):
         """测试后置清理"""
@@ -114,15 +116,9 @@ class TestConfigFileHandler:
             handler = ConfigFileHandler(self.config_center, file_path)
 
             # 模拟快速连续调用
-            handler.on_modified(
-                type("MockEvent", (), {"is_directory": False, "src_path": file_path})()
-            )
-            handler.on_modified(
-                type("MockEvent", (), {"is_directory": False, "src_path": file_path})()
-            )
-            handler.on_modified(
-                type("MockEvent", (), {"is_directory": False, "src_path": file_path})()
-            )
+            handler.on_modified(FileModifiedEvent(file_path))
+            handler.on_modified(FileModifiedEvent(file_path))
+            handler.on_modified(FileModifiedEvent(file_path))
 
             # 验证防抖机制生效（只有一次重载）
             # 这里我们主要验证不会崩溃
@@ -135,9 +131,7 @@ class TestConfigFileHandler:
         handler = ConfigFileHandler(self.config_center, "/some/path.json")
 
         # 模拟目录事件
-        event = type(
-            "MockEvent", (), {"is_directory": True, "src_path": "/some/directory"}
-        )()
+        event = DirModifiedEvent("/some/directory")
 
         # 应该被忽略
         handler.on_modified(event)
@@ -147,9 +141,7 @@ class TestConfigFileHandler:
         handler = ConfigFileHandler(self.config_center, "/target/path.json")
 
         # 模拟其他文件事件
-        event = type(
-            "MockEvent", (), {"is_directory": False, "src_path": "/other/path.json"}
-        )()
+        event = FileModifiedEvent("/other/path.json")
 
         # 应该被忽略
         handler.on_modified(event)
@@ -161,7 +153,7 @@ class TestEnvironmentWatcher:
     def setup_method(self):
         """测试前置设置"""
         self.config_center = DynamicConfigCenter()
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
         self.env_watcher = EnvironmentWatcher(self.config_center)
 
     def teardown_method(self):
@@ -296,7 +288,7 @@ class TestEnvironmentWatcher:
     def test_env_change_handling(self):
         """测试环境变量变更处理"""
         # 注册一个测试插件
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
 
         # 创建变更信息
         changes = {
@@ -321,7 +313,7 @@ class TestConfigHotReloader:
     def setup_method(self):
         """测试前置设置"""
         self.config_center = DynamicConfigCenter()
-        self.config_center.register_plugin_config("test_plugin", TestConfigModel)
+        self.config_center.register_plugin_config("test_plugin", _ConfigModel)
         self.hot_reloader = ConfigHotReloader(self.config_center)
 
     def teardown_method(self):

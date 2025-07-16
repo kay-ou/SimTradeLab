@@ -12,7 +12,7 @@ from simtradelab.core.config.config_manager import ConfigValidationError
 from simtradelab.core.config.validators import ConfigValidator
 
 
-class TestConfigModel(BaseModel):
+class _ConfigModel(BaseModel):
     """测试配置模型"""
 
     name: str
@@ -21,7 +21,7 @@ class TestConfigModel(BaseModel):
     max_connections: Optional[int] = None
 
 
-class AnotherTestConfigModel(BaseModel):
+class _AnotherConfigModel(BaseModel):
     """另一个测试配置模型"""
 
     database_url: str = Field(..., description="数据库连接URL")
@@ -59,7 +59,7 @@ class TestConfigValidator:
     def test_validate_single_config_success(self, validator, valid_config_data):
         """测试单个配置验证成功"""
         result = validator.validate_single_config(
-            TestConfigModel, valid_config_data, "test_plugin"
+            _ConfigModel, valid_config_data, "test_plugin"
         )
 
         assert isinstance(result, dict)
@@ -73,7 +73,7 @@ class TestConfigValidator:
         minimal_config = {"name": "minimal_service"}
 
         result = validator.validate_single_config(
-            TestConfigModel, minimal_config, "test_plugin"
+            _ConfigModel, minimal_config, "test_plugin"
         )
 
         assert result["name"] == "minimal_service"
@@ -85,7 +85,7 @@ class TestConfigValidator:
         """测试单个配置验证失败"""
         with pytest.raises(ConfigValidationError) as exc_info:
             validator.validate_single_config(
-                TestConfigModel, invalid_config_data, "test_plugin"
+                _ConfigModel, invalid_config_data, "test_plugin"
             )
 
         assert "test_plugin" in str(exc_info.value)
@@ -95,7 +95,7 @@ class TestConfigValidator:
         self, validator, valid_config_data
     ):
         """测试单个配置验证不提供插件名称"""
-        result = validator.validate_single_config(TestConfigModel, valid_config_data)
+        result = validator.validate_single_config(_ConfigModel, valid_config_data)
 
         assert isinstance(result, dict)
         assert result["name"] == "test_service"
@@ -104,12 +104,12 @@ class TestConfigValidator:
         """测试多个配置验证成功"""
         configs = [
             {
-                "model": TestConfigModel,
+                "model": _ConfigModel,
                 "data": {"name": "service1", "port": 8080},
                 "name": "service1_config",
             },
             {
-                "model": AnotherTestConfigModel,
+                "model": _AnotherConfigModel,
                 "data": {
                     "database_url": "postgresql://localhost/test",
                     "pool_size": 20,
@@ -128,12 +128,12 @@ class TestConfigValidator:
         """测试多个配置验证使用默认名称"""
         configs = [
             {
-                "model": TestConfigModel,
+                "model": _ConfigModel,
                 "data": {"name": "service1"}
                 # 没有提供name字段
             },
             {
-                "model": TestConfigModel,
+                "model": _ConfigModel,
                 "data": {"name": "service2"}
                 # 没有提供name字段
             },
@@ -164,12 +164,12 @@ class TestConfigValidator:
         """测试多个配置验证失败"""
         configs = [
             {
-                "model": TestConfigModel,
+                "model": _ConfigModel,
                 "data": {"name": "service1"},
                 "name": "service1_config",
             },
             {
-                "model": TestConfigModel,
+                "model": _ConfigModel,
                 "data": {"port": "invalid_port"},  # 缺少必需字段name且类型错误
                 "name": "service2_config",
             },
@@ -181,7 +181,7 @@ class TestConfigValidator:
     def test_check_required_fields_success(self, validator, valid_config_data):
         """测试检查必需字段成功"""
         missing_fields = validator.check_required_fields(
-            TestConfigModel, valid_config_data
+            _ConfigModel, valid_config_data
         )
 
         assert missing_fields == []
@@ -191,7 +191,7 @@ class TestConfigValidator:
         incomplete_config = {"port": 8080}  # 缺少必需的name字段
 
         missing_fields = validator.check_required_fields(
-            TestConfigModel, incomplete_config
+            _ConfigModel, incomplete_config
         )
 
         assert "name" in missing_fields
@@ -201,14 +201,14 @@ class TestConfigValidator:
         incomplete_config = {}  # 缺少必需的database_url字段
 
         missing_fields = validator.check_required_fields(
-            AnotherTestConfigModel, incomplete_config
+            _AnotherConfigModel, incomplete_config
         )
 
         assert "database_url" in missing_fields
 
     def test_check_field_types_success(self, validator, valid_config_data):
         """测试检查字段类型成功"""
-        type_errors = validator.check_field_types(TestConfigModel, valid_config_data)
+        type_errors = validator.check_field_types(_ConfigModel, valid_config_data)
 
         assert type_errors == []
 
@@ -220,7 +220,7 @@ class TestConfigValidator:
             "debug": "not_bool",  # 应该是bool
         }
 
-        type_errors = validator.check_field_types(TestConfigModel, invalid_types_config)
+        type_errors = validator.check_field_types(_ConfigModel, invalid_types_config)
 
         # 在新版本Pydantic中，可能会有不同的错误类型
         # 我们至少要确保方法能正常执行
@@ -235,7 +235,7 @@ class TestConfigValidator:
 
     def test_get_config_schema_info(self, validator):
         """测试获取配置模型结构信息"""
-        schema_info = validator.get_config_schema_info(TestConfigModel)
+        schema_info = validator.get_config_schema_info(_ConfigModel)
 
         assert isinstance(schema_info, dict)
         assert "title" in schema_info
@@ -258,8 +258,8 @@ class TestConfigValidator:
 
     def test_compare_configs_no_differences(self, validator):
         """测试比较相同配置"""
-        config1 = TestConfigModel(name="service", port=8080)
-        config2 = TestConfigModel(name="service", port=8080)
+        config1 = _ConfigModel(name="service", port=8080)
+        config2 = _ConfigModel(name="service", port=8080)
 
         differences = validator.compare_configs(config1, config2)
 
@@ -269,8 +269,8 @@ class TestConfigValidator:
 
     def test_compare_configs_with_differences(self, validator):
         """测试比较不同配置"""
-        config1 = TestConfigModel(name="service1", port=8080, debug=False)
-        config2 = TestConfigModel(
+        config1 = _ConfigModel(name="service1", port=8080, debug=False)
+        config2 = _ConfigModel(
             name="service2", port=9000, debug=True, max_connections=100
         )
 
@@ -304,8 +304,8 @@ class TestConfigValidator:
             "debug": False,
         }  # 没有max_connections
 
-        config1 = TestConfigModel(**config1_data)
-        config2 = TestConfigModel(**config2_data)
+        config1 = _ConfigModel(**config1_data)
+        config2 = _ConfigModel(**config2_data)
 
         differences = validator.compare_configs(config1, config2)
 
@@ -323,7 +323,7 @@ class TestConfigValidator:
 
         with pytest.raises(ConfigValidationError) as exc_info:
             validator.validate_single_config(
-                TestConfigModel, invalid_config, "test_plugin"
+                _ConfigModel, invalid_config, "test_plugin"
             )
 
         error_message = str(exc_info.value)
@@ -348,7 +348,7 @@ class TestConfigValidator:
         }
 
         result = validator.validate_single_config(
-            AnotherTestConfigModel, complex_config, "complex_plugin"
+            _AnotherConfigModel, complex_config, "complex_plugin"
         )
 
         assert result["database_url"] == "postgresql://user:pass@localhost:5432/db"
@@ -365,5 +365,5 @@ class TestConfigValidator:
 
         with pytest.raises(ConfigValidationError):
             validator.validate_single_config(
-                AnotherTestConfigModel, invalid_constraint_config, "constraint_test"
+                _AnotherConfigModel, invalid_constraint_config, "constraint_test"
             )
