@@ -129,7 +129,7 @@ class TestDataSourceManager(BasePluginTest):
 
         # 验证模拟对象可用
         assert self.mock_event_bus is not None
-        assert self.mock_config_manager is not None
+        assert self.mock_config_center is not None
         assert self.mock_plugin_manager is not None
 
         # 可以在这里添加更多使用模拟对象的测试
@@ -205,13 +205,13 @@ class TestDataLayerIntegration(BasePluginTest):
         """测试与模拟依赖项的集成"""
         # 使用BasePluginTest提供的模拟对象
         assert self.mock_event_bus is not None
-        assert self.mock_config_manager is not None
+        assert self.mock_config_center is not None
         assert self.mock_plugin_manager is not None
 
         # 验证模拟对象的类型
         assert str(type(self.mock_event_bus)) == "<class 'unittest.mock.MagicMock'>"
         assert (
-            str(type(self.mock_config_manager)) == "<class 'unittest.mock.MagicMock'>"
+            str(type(self.mock_config_center)) == "<class 'unittest.mock.MagicMock'>"
         )
         assert (
             str(type(self.mock_plugin_manager)) == "<class 'unittest.mock.MagicMock'>"
@@ -219,5 +219,5 @@ class TestDataLayerIntegration(BasePluginTest):
 
         # 验证spec属性存在
         assert hasattr(self.mock_event_bus, "_spec_class")
-        assert hasattr(self.mock_config_manager, "_spec_class")
+        assert hasattr(self.mock_config_center, "_spec_class")
         assert hasattr(self.mock_plugin_manager, "_spec_class")

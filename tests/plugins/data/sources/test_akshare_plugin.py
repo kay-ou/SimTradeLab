@@ -11,7 +11,7 @@ AkShare数据源插件测试 - v5.0 架构完整测试版
 """
 
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -22,6 +22,7 @@ from simtradelab.plugins.data.sources.akshare_plugin import (
     AkShareDataPluginConfig,
     AkShareDataSource,
 )
+from tests.support.base_plugin_test import BasePluginTest
 
 
 @pytest.fixture
@@ -111,7 +112,7 @@ class TestAkShareDataPluginConfig:
             AkShareDataPluginConfig(start_date="2023-01-01", api_timeout=3)
 
 
-class TestAkShareDataSource:
+class TestAkShareDataSource(BasePluginTest):
     """测试AkShare数据源插件的完整功能"""
 
     @pytest.fixture
@@ -128,12 +129,15 @@ class TestAkShareDataSource:
             description="AkShare数据源插件",
             author="SimTradeLab Team",
         )
-        return AkShareDataSource(metadata, config)
+        instance = AkShareDataSource(metadata, config)
+        # 手动注入模拟的事件总线
+        instance.set_event_bus(self.mock_event_bus)
+        return instance
 
     @patch("akshare.stock_zh_a_spot_em")
     def test_plugin_initialization(
         self,
-        mock_ak_spot: MagicMock,
+        mock_ak_spot,
         plugin: AkShareDataSource,
         sample_akshare_spot_df: pd.DataFrame,
     ):
@@ -152,7 +156,7 @@ class TestAkShareDataSource:
     @patch("akshare.stock_zh_a_spot_em")
     def test_is_available_success(
         self,
-        mock_ak_spot: MagicMock,
+        mock_ak_spot,
         plugin: AkShareDataSource,
         sample_akshare_spot_df: pd.DataFrame,
     ):
@@ -162,7 +166,7 @@ class TestAkShareDataSource:
 
     @patch("akshare.stock_zh_a_spot_em")
     def test_is_available_failure(
-        self, mock_ak_spot: MagicMock, plugin: AkShareDataSource
+        self, mock_ak_spot, plugin: AkShareDataSource
     ):
         """测试服务可用性检查 - 失败"""
         mock_ak_spot.side_effect = Exception("Network Error")
@@ -172,7 +176,7 @@ class TestAkShareDataSource:
     @patch("akshare.stock_zh_a_hist")
     def test_get_history_data_success(
         self,
-        mock_ak_hist: MagicMock,
+        mock_ak_hist,
         plugin: AkShareDataSource,
         sample_akshare_hist_df: pd.DataFrame,
     ):
@@ -198,7 +202,7 @@ class TestAkShareDataSource:
 
     @patch("akshare.stock_zh_a_hist")
     def test_get_history_data_api_error(
-        self, mock_ak_hist: MagicMock, plugin: AkShareDataSource
+        self, mock_ak_hist, plugin: AkShareDataSource
     ):
         """测试当akshare API返回异常时的情况"""
         mock_ak_hist.side_effect = Exception("Network Error")
@@ -211,7 +215,7 @@ class TestAkShareDataSource:
 
     @patch("akshare.stock_zh_a_hist")
     def test_get_history_data_empty_response(
-        self, mock_ak_hist: MagicMock, plugin: AkShareDataSource
+        self, mock_ak_hist, plugin: AkShareDataSource
     ):
         """测试当akshare API返回空数据时的情况"""
         mock_ak_hist.return_value = pd.DataFrame()
@@ -224,7 +228,7 @@ class TestAkShareDataSource:
     @patch("akshare.stock_zh_a_hist")
     def test_get_multiple_history_data(
         self,
-        mock_ak_hist: MagicMock,
+        mock_ak_hist,
         plugin: AkShareDataSource,
         sample_akshare_hist_df: pd.DataFrame,
     ):
@@ -242,7 +246,7 @@ class TestAkShareDataSource:
     @patch("akshare.stock_zh_a_spot_em")
     def test_get_snapshot_success(
         self,
-        mock_ak_spot: MagicMock,
+        mock_ak_spot,
         plugin: AkShareDataSource,
         sample_akshare_spot_df: pd.DataFrame,
     ):
@@ -259,7 +263,7 @@ class TestAkShareDataSource:
 
     @patch("akshare.stock_zh_a_spot_em")
     def test_get_snapshot_api_error(
-        self, mock_ak_spot: MagicMock, plugin: AkShareDataSource
+        self, mock_ak_spot, plugin: AkShareDataSource
     ):
         """测试获取快照时API错误"""
         mock_ak_spot.side_effect = Exception("Network Error")
@@ -274,7 +278,7 @@ class TestAkShareDataSource:
     @patch("akshare.stock_zh_a_spot_em")
     def test_get_current_price_success(
         self,
-        mock_ak_spot: MagicMock,
+        mock_ak_spot,
         plugin: AkShareDataSource,
         sample_akshare_spot_df: pd.DataFrame,
     ):
@@ -290,7 +294,7 @@ class TestAkShareDataSource:
 
     @patch("akshare.stock_zh_a_spot_em")
     def test_get_current_price_api_error(
-        self, mock_ak_spot: MagicMock, plugin: AkShareDataSource
+        self, mock_ak_spot, plugin: AkShareDataSource
     ):
         """测试获取当前价格时API错误"""
         mock_ak_spot.side_effect = Exception("Network Error")
@@ -304,7 +308,7 @@ class TestAkShareDataSource:
     @patch("akshare.tool_trade_date_hist_sina")
     def test_get_all_trading_days_success(
         self,
-        mock_ak_trading_days: MagicMock,
+        mock_ak_trading_days,
         plugin: AkShareDataSource,
         sample_trading_days_df: pd.DataFrame,
     ):
@@ -320,7 +324,7 @@ class TestAkShareDataSource:
 
     @patch("akshare.tool_trade_date_hist_sina")
     def test_get_all_trading_days_api_error(
-        self, mock_ak_trading_days: MagicMock, plugin: AkShareDataSource
+        self, mock_ak_trading_days, plugin: AkShareDataSource
     ):
         """测试获取交易日时API错误"""
         mock_ak_trading_days.side_effect = Exception("Network Error")
@@ -383,7 +387,7 @@ class TestAkShareDataSource:
     @patch("akshare.stock_zh_a_spot_em")
     def test_check_limit_status_success(
         self,
-        mock_ak_spot: MagicMock,
+        mock_ak_spot,
         plugin: AkShareDataSource,
         sample_akshare_spot_df: pd.DataFrame,
     ):
@@ -401,7 +405,7 @@ class TestAkShareDataSource:
 
     @patch("akshare.stock_zh_a_spot_em")
     def test_check_limit_status_api_error(
-        self, mock_ak_spot: MagicMock, plugin: AkShareDataSource
+        self, mock_ak_spot, plugin: AkShareDataSource
     ):
         """测试检查涨跌停状态时API错误"""
         mock_ak_spot.side_effect = Exception("Network Error")
@@ -414,7 +418,7 @@ class TestAkShareDataSource:
     # 测试基本面数据获取
     @patch("akshare.stock_financial_analysis_indicator")
     def test_get_fundamentals_income_success(
-        self, mock_ak_financial: MagicMock, plugin: AkShareDataSource
+        self, mock_ak_financial, plugin: AkShareDataSource
     ):
         """测试成功获取基本面数据 - 利润表"""
         mock_data = pd.DataFrame(
@@ -441,7 +445,7 @@ class TestAkShareDataSource:
 
     @patch("akshare.stock_financial_analysis_indicator")
     def test_get_fundamentals_api_error(
-        self, mock_ak_financial: MagicMock, plugin: AkShareDataSource
+        self, mock_ak_financial, plugin: AkShareDataSource
     ):
         """测试获取基本面数据时API错误"""
         mock_ak_financial.side_effect = Exception("Network Error")
@@ -461,7 +465,7 @@ class TestAkShareDataSource:
     @patch("akshare.stock_info_a_code_name")
     def test_get_security_info_success(
         self,
-        mock_ak_info: MagicMock,
+        mock_ak_info,
         plugin: AkShareDataSource,
         sample_stock_info_df: pd.DataFrame,
     ):
@@ -479,7 +483,7 @@ class TestAkShareDataSource:
 
     @patch("akshare.stock_info_a_code_name")
     def test_get_security_info_api_error(
-        self, mock_ak_info: MagicMock, plugin: AkShareDataSource
+        self, mock_ak_info, plugin: AkShareDataSource
     ):
         """测试获取股票信息时API错误"""
         mock_ak_info.side_effect = Exception("Network Error")
@@ -494,7 +498,7 @@ class TestAkShareDataSource:
     @patch("akshare.stock_zh_a_spot_em")
     def test_lifecycle_methods(
         self,
-        mock_ak_spot: MagicMock,
+        mock_ak_spot,
         plugin: AkShareDataSource,
         sample_akshare_spot_df: pd.DataFrame,
     ):
@@ -511,7 +515,7 @@ class TestAkShareDataSource:
     @patch("akshare.stock_zh_a_hist")
     def test_get_history_data_with_fields(
         self,
-        mock_ak_hist: MagicMock,
+        mock_ak_hist,
         plugin: AkShareDataSource,
         sample_akshare_hist_df: pd.DataFrame,
     ):
@@ -531,7 +535,7 @@ class TestAkShareDataSource:
     @patch("akshare.stock_zh_a_hist")
     def test_get_history_data_different_frequencies(
         self,
-        mock_ak_hist: MagicMock,
+        mock_ak_hist,
         plugin: AkShareDataSource,
         sample_akshare_hist_df: pd.DataFrame,
     ):
