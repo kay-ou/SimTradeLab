@@ -210,9 +210,7 @@ class TestDataLayerIntegration(BasePluginTest):
 
         # 验证模拟对象的类型
         assert str(type(self.mock_event_bus)) == "<class 'unittest.mock.MagicMock'>"
-        assert (
-            str(type(self.mock_config_center)) == "<class 'unittest.mock.MagicMock'>"
-        )
+        assert str(type(self.mock_config_center)) == "<class 'unittest.mock.MagicMock'>"
         assert (
             str(type(self.mock_plugin_manager)) == "<class 'unittest.mock.MagicMock'>"
         )

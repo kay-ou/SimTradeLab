@@ -1,12 +1,16 @@
 # tests/support/base_plugin_test.py
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 # 导入需要模拟的核心服务类
 from src.simtradelab.core.event_bus import EventBus
 from src.simtradelab.plugins.config.dynamic_config_center import DynamicConfigCenter
-from src.simtradelab.plugins.lifecycle.plugin_lifecycle_manager import PluginLifecycleManager
+from src.simtradelab.plugins.lifecycle.plugin_lifecycle_manager import (
+    PluginLifecycleManager,
+)
+
 
 class BasePluginTest:
     """
@@ -38,7 +42,7 @@ class BasePluginTest:
         # 将所有模拟对象聚合到一个字典中，方便在测试用例中统一访问
         # 这种方式使得测试代码更清晰，易于维护
         self.mocks = {
-            'event_bus': self.mock_event_bus,
-            'config_center': self.mock_config_center,
-            'plugin_manager': self.mock_plugin_manager,
+            "event_bus": self.mock_event_bus,
+            "config_center": self.mock_config_center,
+            "plugin_manager": self.mock_plugin_manager,
         }

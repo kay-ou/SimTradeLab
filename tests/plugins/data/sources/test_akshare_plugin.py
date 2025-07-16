@@ -165,9 +165,7 @@ class TestAkShareDataSource(BasePluginTest):
         assert plugin.is_available() is True
 
     @patch("akshare.stock_zh_a_spot_em")
-    def test_is_available_failure(
-        self, mock_ak_spot, plugin: AkShareDataSource
-    ):
+    def test_is_available_failure(self, mock_ak_spot, plugin: AkShareDataSource):
         """测试服务可用性检查 - 失败"""
         mock_ak_spot.side_effect = Exception("Network Error")
         assert plugin.is_available() is False
@@ -201,9 +199,7 @@ class TestAkShareDataSource(BasePluginTest):
             assert col in df.columns
 
     @patch("akshare.stock_zh_a_hist")
-    def test_get_history_data_api_error(
-        self, mock_ak_hist, plugin: AkShareDataSource
-    ):
+    def test_get_history_data_api_error(self, mock_ak_hist, plugin: AkShareDataSource):
         """测试当akshare API返回异常时的情况"""
         mock_ak_hist.side_effect = Exception("Network Error")
 
@@ -262,9 +258,7 @@ class TestAkShareDataSource(BasePluginTest):
         assert snapshot["000001"]["last_price"] == 15.0
 
     @patch("akshare.stock_zh_a_spot_em")
-    def test_get_snapshot_api_error(
-        self, mock_ak_spot, plugin: AkShareDataSource
-    ):
+    def test_get_snapshot_api_error(self, mock_ak_spot, plugin: AkShareDataSource):
         """测试获取快照时API错误"""
         mock_ak_spot.side_effect = Exception("Network Error")
 
@@ -293,9 +287,7 @@ class TestAkShareDataSource(BasePluginTest):
         assert prices["000001"] == 15.0
 
     @patch("akshare.stock_zh_a_spot_em")
-    def test_get_current_price_api_error(
-        self, mock_ak_spot, plugin: AkShareDataSource
-    ):
+    def test_get_current_price_api_error(self, mock_ak_spot, plugin: AkShareDataSource):
         """测试获取当前价格时API错误"""
         mock_ak_spot.side_effect = Exception("Network Error")
 
@@ -482,9 +474,7 @@ class TestAkShareDataSource(BasePluginTest):
         assert "type" in info["000001"]
 
     @patch("akshare.stock_info_a_code_name")
-    def test_get_security_info_api_error(
-        self, mock_ak_info, plugin: AkShareDataSource
-    ):
+    def test_get_security_info_api_error(self, mock_ak_info, plugin: AkShareDataSource):
         """测试获取股票信息时API错误"""
         mock_ak_info.side_effect = Exception("Network Error")
 
