@@ -144,24 +144,33 @@ class PTradeAdapter:
 # src/simtradelab/backtest/engine.py
 class BacktestEngine:
     """可插拔的回测引擎"""
-    def __init__(self, config):
-        # v5.0: 增加组件间的依赖关系和兼容性验证
+    def __init__(self, plugin_manager, config=None):
+        self._plugin_manager = plugin_manager
+        self._config = config or {}
         self._validate_component_compatibility()
-        self.matcher = self._load_plugin(config.get('matcher', 'default_matcher'))
-        self.slippage_model = self._load_plugin(config.get('slippage', 'default_slippage'))
-        self.commission_model = self._load_plugin(config.get('commission', 'default_commission'))
-        self.latency_model = self._load_plugin(config.get('latency', 'default_latency'))
+        self._matching_engine = self._load_plugin(
+            self._config.get("matching_engine", "SimpleMatchingEngine"),
+            BaseMatchingEngine,
+        )
+        self._slippage_model = self._load_plugin(
+            self._config.get("slippage_model", "FixedSlippageModel"), BaseSlippageModel
+        )
+        self._commission_model = self._load_plugin(
+            self._config.get("commission_model", "FixedCommissionModel"),
+            BaseCommissionModel,
+        )
+        self._latency_model = self._load_plugin(
+            self._config.get("latency_model", "DefaultLatencyModel"),
+            BaseLatencyModel,
+        )
 
     def _validate_component_compatibility(self):
         """验证回测组件间的兼容性"""
-        # 检查组件版本兼容性
-        # 验证组件间的依赖关系
-        # 确保配置参数的一致性
         pass
 
-    def _load_plugin(self, plugin_name):
+    def _load_plugin(self, plugin_name, expected_type):
         # 从插件管理器加载对应回测组件插件
-        return plugin_manager.load_plugin(plugin_name)
+        return self._plugin_manager.load_plugin(plugin_name)
 
     def run(self, data_feed):
         for bar in data_feed:
@@ -378,6 +387,7 @@ class AkShareDataPluginConfig(BasePluginConfig):
 所有通过 `EventBus` 传递的事件都必须遵循以下结构：
 
 ```python
+# src/simtradelab/core/events/cloud_event.py
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -394,7 +404,7 @@ class CloudEvent(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="唯一事件ID")
     time: datetime = Field(default_factory=datetime.utcnow)
     datacontenttype: str = "application/json"
-    data: Dict[str, Any] = Field(..., description="事件的具体负载")
+    data: Optional[Dict[str, Any]] = Field(default=None, description="事件的具体负载数据")
 
     # v5.0 新增字段
     priority: int = Field(default=5, ge=1, le=10, description="事件优先级，1最高，10最低")
@@ -428,10 +438,9 @@ def some_strategy_logic(context, data):
         order_event = CloudEvent(
             type="com.simtradelab.trade.order.created",
             source="MyAwesomeStrategy",
-            id=str(uuid.uuid4()),
             data={'symbol': 'AAPL', 'amount': 100, 'order_type': 'market'}
         )
-        context.event_bus.emit(order_event)
+        context.event_bus.publish_cloud_event(order_event)
 
 # 另一个插件监听事件
 class OrderAuditorPlugin(BasePlugin):
@@ -462,17 +471,17 @@ class OrderAuditorPlugin(BasePlugin):
 我们提供一个 `pytest` 基类，它预设了所有必要的模拟。
 
 ```python
-# tests/framework/base_test.py
+# tests/support/base_plugin_test.py
 import pytest
 from unittest.mock import MagicMock
 
 class BasePluginTest:
     @pytest.fixture(autouse=True)
-    def setup_mocks(self):
+    def setup_mocks(self, mocker):
         # 模拟核心服务
-        self.mock_event_bus = MagicMock(spec=EventBus)
-        self.mock_config_center = MagicMock(spec=DynamicConfigCenter)
-        self.mock_plugin_manager = MagicMock(spec=PluginLifecycleManager)
+        self.mock_event_bus = mocker.MagicMock(spec=EventBus)
+        self.mock_config_center = mocker.MagicMock(spec=DynamicConfigCenter)
+        self.mock_plugin_manager = mocker.MagicMock(spec=PluginLifecycleManager)
 
         # 将模拟对象注入，方便测试用例使用
         self.mocks = {
@@ -617,7 +626,7 @@ v5.0 引入了完整的插件依赖管理系统，确保插件生态系统的稳
 每个插件都必须提供一个 `plugin_manifest.yaml` 文件，声明其元信息、依赖关系和能力。
 
 ```python
-# src/simtradelab/plugins/base.py
+# src/simtradelab/plugins/dependency/manifest.py
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
 
@@ -1028,46 +1037,42 @@ class AuditLogger:
         elif self.storage_backend == "file":
             # 存储到文件
             with open(f"audit_{event.tenant_id}_{datetime.now().strftime('%Y%m%d')}.log", "a") as f:
-                f.write(event.json() + "\n")
+                f.write(event.model_dump_json() + "\n")
 ```
 
 ## 13. 实施路线图 (Implementation Roadmap)
 
-### 13.1 Phase 1: 核心增强 (立即实施，1-2个月)
+### 13.1 Phase 1: 核心增强 (已完成)
 - ✅ **事件总线标准化**：实现CloudEvent模型和核心事件契约
 - ✅ **配置验证机制**：集成Pydantic配置验证
 - ✅ **基础测试框架**：创建BasePluginTest和示例测试用例
-- 🔄 **文档生成工具**：从配置模型自动生成API文档
+- ✅ **可插拔回测引擎**：实现回测组件插件化
+- ✅ **插件依赖管理**：实现依赖解析和版本管理
 
-### 13.2 Phase 2: 可插拔架构 (3-4个月)
-- ⏳ **可插拔回测引擎**：实现回测组件插件化
-- ⏳ **插件依赖管理**：实现依赖解析和版本管理
+### 13.2 Phase 2: 企业级功能 (待实施)
+- ⏳ **数据系统优化**: 实现冷热数据管理和分布式缓存
+- ⏳ **监控告警系统**: 实现插件监控、指标收集和告警管理
+- ⏳ **企业级多租户支持**：实现租户隔离和资源配额
 - ⏳ **开发者工具链**：创建cookiecutter模板和CLI工具
-- ⏳ **性能监控**：插件级别的性能分析工具
 
-### 13.3 Phase 3: 企业级功能 (6个月)
-- ⏳ **多租户支持**：实现租户隔离和资源配额
-- ⏳ **审计日志系统**：完整的操作审计和合规支持
+### 13.3 Phase 3: 生态系统 (未来规划)
 - ⏳ **插件市场**：插件分发和版本管理平台
 - ⏳ **高级安全**：数字签名验证和安全扫描
 
 ### 13.4 与当前代码的整合计划
 
-基于最近完成的PTrade适配器重构，建议的整合步骤：
+基于已完成的v5.0核心架构，建议的整合步骤：
 
 1. **立即行动**（本周）：
-   - 将PTrade路由器的生命周期控制框架进一步优化为可插拔回测组件
-   - 为Stock信息API添加Pydantic配置模型
-   - 创建第一个基于新测试框架的测试用例
+   - 开始实施数据系统优化（阶段9）
+   - 为所有现有插件创建并完善`plugin_manifest.yaml`
 
 2. **短期目标**（1个月内）：
-   - 实现事件总线的CloudEvent标准
-   - 为现有插件添加依赖管理清单
-   - 集成配置验证到插件加载流程
+   - 完成数据系统优化的核心功能
+   - 开始设计和实施监控告警系统（阶段10）
 
 3. **中期目标**（3个月内）：
-   - 完整的可插拔回测引擎
-   - 企业级多租户支持原型
-   - 开发者工具链Beta版本
+   - 完成监控告警系统的核心功能
+   - 开始设计和实施企业级多租户支持（阶段11）
 
 这个路线图确保了v5.0架构的渐进式实施，最小化对现有系统的影响，同时逐步建立起完整的企业级插件生态系统。
