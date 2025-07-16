@@ -9,7 +9,6 @@ import logging
 
 import pytest
 
-from simtradelab.adapters.ptrade.api_validator import APIValidator
 from simtradelab.adapters.ptrade.lifecycle_controller import (
     LifecycleController,
     LifecyclePhase,
@@ -31,15 +30,13 @@ def test_lifecycle_integration():
     # 1. 创建模拟上下文
     context = MockPTradeContext("research")
 
-    # 2. 创建生命周期控制器和API验证器
+    # 2. 创建生命周期控制器
     lifecycle_controller = LifecycleController("research")
-    api_validator = APIValidator(lifecycle_controller)
 
     # 3. 创建研究模式路由器
     router = ResearchAPIRouter(
         context=context,
         lifecycle_controller=lifecycle_controller,
-        api_validator=api_validator,
     )
 
     print("=== PTrade 生命周期控制框架集成测试 ===\n")
@@ -125,93 +122,9 @@ def test_lifecycle_integration():
     print("\n=== 集成测试完成 ===")
 
 
-@pytest.mark.integration
-def demonstrate_lifecycle_validation():
-    """演示生命周期验证的实际效果"""
-
-    print("\n=== PTrade 生命周期验证演示 ===\n")
-
-    # 创建控制器
-    lifecycle_controller = LifecycleController("backtest")
-    api_validator = APIValidator(lifecycle_controller)
-
-    # 1. 演示初始化阶段的限制
-    print("1. 演示初始化阶段 (initialize) 的API限制:")
-    lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
-
-    test_cases = [
-        ("set_universe", [["000001.SZ", "000002.SZ"]]),  # 修正：传入列表
-        ("set_commission", [0.0003]),
-        ("order", ["000001.SZ", 100]),  # 应该失败
-        ("get_price", ["000001.SZ"]),  # 应该成功
-    ]
-
-    for api_name, args in test_cases:
-        try:
-            result = api_validator.validate_api_call(api_name, *args)
-            if result.is_valid:
-                print(f"   ✓ {api_name}: 验证通过")
-            else:
-                print(f"   ✗ {api_name}: {result.error_message}")
-        except Exception as e:
-            print(f"   ✗ {api_name}: {e}")
-
-    # 2. 演示交易阶段的限制
-    print("\n2. 演示交易阶段 (handle_data) 的API限制:")
-    lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
-
-    for api_name, args in test_cases:
-        try:
-            result = api_validator.validate_api_call(api_name, *args)
-            if result.is_valid:
-                print(f"   ✓ {api_name}: 验证通过")
-            else:
-                print(f"   ✗ {api_name}: {result.error_message}")
-        except Exception as e:
-            print(f"   ✗ {api_name}: {e}")
-
-    # 3. 演示参数验证
-    print("\n3. 演示API参数验证:")
-
-    parameter_test_cases = [
-        ("order", ["000001.SZ", 0]),  # amount不能为0
-        ("order", ["", 100]),  # security不能为空
-        ("order", ["000001.SZ", "abc"]),  # amount必须是整数
-        ("set_commission", [-0.1]),  # commission不能为负
-        ("set_commission", [2.0]),  # commission不应超过100%
-    ]
-
-    for api_name, args in parameter_test_cases:
-        try:
-            result = api_validator.validate_api_call(api_name, *args)
-            if result.is_valid:
-                print(f"   ✓ {api_name}{args}: 验证通过")
-            else:
-                print(f"   ✗ {api_name}{args}: {result.error_message}")
-        except Exception as e:
-            print(f"   ✗ {api_name}{args}: {e}")
-
-    # 4. 展示调用统计
-    print("\n4. API调用和验证统计:")
-    lifecycle_stats = lifecycle_controller.get_call_statistics()
-    validation_stats = api_validator.get_validation_statistics()
-
-    print(f"   • 总API调用: {lifecycle_stats['total_api_calls']}")
-    print(f"   • 失败调用: {lifecycle_stats['failed_calls']}")
-    print(f"   • 成功率: {lifecycle_stats['success_rate']:.2%}")
-    print(f"   • 总验证: {validation_stats['total_validations']}")
-    print(f"   • 验证失败: {validation_stats['validation_failures']}")
-    print(f"   • 验证成功率: {validation_stats['success_rate']:.2%}")
-
-    print("\n=== 生命周期验证演示完成 ===")
-
-
 if __name__ == "__main__":
     # 设置日志级别
     logging.basicConfig(level=logging.INFO)
 
     # 运行集成测试
     test_lifecycle_integration()
-
-    # 运行验证演示
-    demonstrate_lifecycle_validation()

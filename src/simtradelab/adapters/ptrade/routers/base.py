@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 
 from ....core.event_bus import EventBus
-from ..api_validator import APIValidator, get_api_validator
 from ..context import PTradeContext
 from ..lifecycle_controller import LifecycleController, get_lifecycle_controller
 from ..models import Order, Position
@@ -26,7 +25,6 @@ class BaseAPIRouter:
         context: "PTradeContext",
         event_bus: Optional[EventBus] = None,
         lifecycle_controller: Optional[LifecycleController] = None,
-        api_validator: Optional[APIValidator] = None,
         plugin_manager: Optional[Any] = None,
     ):
         self.context = context
@@ -39,13 +37,11 @@ class BaseAPIRouter:
         if hasattr(strategy_mode, "value"):
             strategy_mode = strategy_mode.value
 
-        # 生命周期控制和API验证
+        # 生命周期控制
         self._lifecycle_controller = lifecycle_controller or get_lifecycle_controller()
-        self._api_validator = api_validator or get_api_validator(strategy_mode)
 
         # 设置策略模式
         self._lifecycle_controller._strategy_mode = strategy_mode
-        self._api_validator.set_strategy_mode(strategy_mode)
 
         self._logger.info(f"BaseAPIRouter initialized for {strategy_mode} mode")
 
@@ -63,16 +59,14 @@ class BaseAPIRouter:
         if not self.is_mode_supported(api_name):
             raise ValueError(f"API '{api_name}' is not supported in current mode")
 
-        validation_result = self._api_validator.validate_api_call(
-            api_name, *args, **kwargs
-        )
-
-        if not validation_result.is_valid:
+        # 生命周期验证
+        lifecycle_result = self._lifecycle_controller.validate_api_call(api_name)
+        if not lifecycle_result.is_valid:
             self._logger.error(
-                f"API validation failed for '{api_name}': "
-                f"{validation_result.error_message}"
+                f"API lifecycle validation failed for '{api_name}': "
+                f"{lifecycle_result.error_message}"
             )
-            raise ValueError(validation_result.error_message)
+            raise ValueError(lifecycle_result.error_message)
 
         try:
             result = method_func(*args, **kwargs)
@@ -530,14 +524,5 @@ class BaseAPIRouter:
 
     def is_mode_supported(self, api_name: str) -> bool:
         """检查API是否在当前模式下支持"""
-        # 使用API验证器检查模式支持
-        if self._api_validator:
-            try:
-                mode_result = self._api_validator._validate_mode_restriction(api_name)
-                return mode_result.is_valid
-            except Exception as e:
-                self._logger.warning(f"Mode validation error for {api_name}: {e}")
-                return True  # 默认允许，向后兼容
-
-        # 如果没有验证器，默认允许所有API
+        # 模式支持检查由子类实现
         return True

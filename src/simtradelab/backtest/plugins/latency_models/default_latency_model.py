@@ -8,10 +8,9 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
+from simtradelab.backtest.plugins.base import BaseLatencyModel, MarketData, Order
 from simtradelab.plugins.base import PluginMetadata
 from simtradelab.plugins.config.base_config import BasePluginConfig
-
-from ..base import BaseLatencyModel, MarketData, Order
 
 
 class DefaultLatencyModelConfig(BasePluginConfig):
@@ -38,6 +37,15 @@ class DefaultLatencyModel(BaseLatencyModel):
     ):
         super().__init__(metadata, config)
         self._config = config or DefaultLatencyModelConfig()
+
+    METADATA = PluginMetadata(
+        name="DefaultLatencyModel",
+        version="1.0.0",
+        description="默认延迟模型",
+        author="SimTradeLab",
+        category="latency_model",
+        tags=["backtest", "latency", "default"],
+    )
 
     def _on_initialize(self) -> None:
         """插件初始化"""

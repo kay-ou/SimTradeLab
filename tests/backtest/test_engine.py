@@ -20,8 +20,8 @@ from simtradelab.backtest.plugins.base import (
     Order,
     PluginMetadata,
 )
+from simtradelab.backtest.plugins.matching_engines import DepthMatchingEngine
 from simtradelab.core.plugin_manager import PluginManager
-from tests.backtest.plugins.test_matching_engines import ConcreteDepthMatchingEngine
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ def mock_plugin_manager():
             return mock_latency
         # 对于撮合引擎，返回一个具体的、可工作的实例
         if "DepthMatchingEngine" in plugin_name:
-            return ConcreteDepthMatchingEngine(metadata=metadata)
+            return DepthMatchingEngine(metadata=metadata)
         return MagicMock(spec=BaseMatchingEngine, metadata=metadata)
 
     manager.load_plugin.side_effect = load_plugin_side_effect

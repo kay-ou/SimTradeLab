@@ -6,7 +6,6 @@ PTrade回测模式API路由器
 from typing import Any, Dict, List, Optional, Union
 
 from ....core.event_bus import EventBus
-from ..api_validator import APIValidator
 from ..context import PTradeContext
 from ..lifecycle_controller import LifecycleController
 from ..models import Order, Position
@@ -22,11 +21,10 @@ class BacktestAPIRouter(BaseAPIRouter):
         context: "PTradeContext",
         event_bus: Optional[EventBus] = None,
         lifecycle_controller: Optional[LifecycleController] = None,
-        api_validator: Optional[APIValidator] = None,
         plugin_manager: Optional[Any] = None,
     ):
         super().__init__(
-            context, event_bus, lifecycle_controller, api_validator, plugin_manager
+            context, event_bus, lifecycle_controller, plugin_manager=plugin_manager
         )
 
         # 初始化回测服务

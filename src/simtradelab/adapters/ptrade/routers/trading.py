@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, Dict, Hashable, List, Optional, Union
 import pandas as pd
 
 from ....core.event_bus import EventBus
-from ..api_validator import APIValidator
 from ..lifecycle_controller import LifecycleController
 from .base import BaseAPIRouter
 
@@ -25,11 +24,10 @@ class TradingAPIRouter(BaseAPIRouter):
         context: "PTradeContext",
         event_bus: Optional[EventBus] = None,
         lifecycle_controller: Optional[LifecycleController] = None,
-        api_validator: Optional[APIValidator] = None,
         plugin_manager: Optional[Any] = None,
     ):
         super().__init__(
-            context, event_bus, lifecycle_controller, api_validator, plugin_manager
+            context, event_bus, lifecycle_controller, plugin_manager=plugin_manager
         )
         self._data_plugin = None  # 将在设置时从适配器获取
         self._supported_apis = {

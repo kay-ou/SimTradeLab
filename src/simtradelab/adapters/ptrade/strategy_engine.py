@@ -11,7 +11,6 @@ from datetime import datetime
 from typing import Any, Callable, Dict, Optional, Union
 
 from ...core.event_bus import EventBus
-from .api_validator import APIValidator
 from .context import (
     PTradeContext,
     PTradeMode,
@@ -66,7 +65,6 @@ class StrategyExecutionEngine:
         self.context: PTradeContext  # 将在_initialize_components中设置
         self.api_router: Optional[Any] = None
         self.lifecycle_controller: LifecycleController  # 将在_initialize_components中设置
-        self.api_validator: APIValidator  # 将在_initialize_components中设置
 
         # 策略相关
         self._strategy_functions: Dict[str, Callable[..., Any]] = {}
@@ -113,7 +111,7 @@ class StrategyExecutionEngine:
             raise ValueError("Context lifecycle manager is not initialized")
 
         self.lifecycle_controller = self.context._lifecycle_controller
-        self.api_validator = APIValidator(self.lifecycle_controller)
+
         self.plugin_manager = self.context.plugin_manager
 
         # 创建API路由器
@@ -122,14 +120,12 @@ class StrategyExecutionEngine:
                 self.context,
                 self.event_bus,
                 self.lifecycle_controller,
-                self.api_validator,
             )
         elif self.mode == PTradeMode.BACKTEST:
             self.api_router = BacktestAPIRouter(
                 self.context,
                 self.event_bus,
                 self.lifecycle_controller,
-                self.api_validator,
                 self.plugin_manager,
             )
         elif self.mode == PTradeMode.TRADING:
@@ -137,7 +133,6 @@ class StrategyExecutionEngine:
                 self.context,
                 self.event_bus,
                 self.lifecycle_controller,
-                self.api_validator,
             )
 
         self._logger.info(
@@ -274,9 +269,7 @@ class StrategyExecutionEngine:
             execution_results[
                 "lifecycle_stats"
             ] = self.lifecycle_controller.get_call_statistics()
-            execution_results[
-                "validation_stats"
-            ] = self.api_validator.get_validation_statistics()
+            execution_results["validation_stats"] = {}
             execution_results[
                 "portfolio_performance"
             ] = self._get_portfolio_performance()
@@ -387,7 +380,7 @@ class StrategyExecutionEngine:
         """获取详细统计信息"""
         return {
             "lifecycle_stats": self.lifecycle_controller.get_call_statistics(),
-            "validation_stats": self.api_validator.get_validation_statistics(),
+            "validation_stats": {},
             "portfolio_performance": self._get_portfolio_performance(),
             "execution_status": self.get_execution_status(),
         }
@@ -407,9 +400,6 @@ class StrategyExecutionEngine:
 
         # 重置Context
         self.context.reset_for_new_strategy()
-
-        # 重置API验证器
-        self.api_validator.reset_statistics()
 
     def shutdown(self) -> None:
         """关闭执行引擎"""

@@ -13,9 +13,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ..core.events.contracts import FillEvent
-from .performance import PerformanceManager as PerfManager
-from .plugins.base import (
+from simtradelab.backtest.performance import PerformanceManager as PerfManager
+from simtradelab.backtest.plugins.base import (
     BaseCommissionModel,
     BaseLatencyModel,
     BaseMatchingEngine,
@@ -24,7 +23,8 @@ from .plugins.base import (
     MarketData,
     Order,
 )
-from .portfolio import PortfolioManager
+from simtradelab.backtest.portfolio import PortfolioManager
+from simtradelab.core.events.contracts import FillEvent
 
 if TYPE_CHECKING:
     from ..core.plugin_manager import PluginManager

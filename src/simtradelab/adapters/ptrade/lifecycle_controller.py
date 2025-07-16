@@ -14,6 +14,14 @@ from typing import Any, Callable, Dict, List, Optional, Set
 from .lifecycle_config import get_api_allowed_phases, is_api_allowed_in_phase
 
 
+@dataclass
+class LifecycleValidationResult:
+    """生命周期验证结果"""
+
+    is_valid: bool
+    error_message: Optional[str] = None
+
+
 class LifecyclePhase(Enum):
     """PTrade策略生命周期阶段枚举"""
 
@@ -118,17 +126,14 @@ class LifecycleController:
             # 执行阶段切换回调
             self._execute_phase_callbacks(phase)
 
-    def validate_api_call(self, api_name: str) -> bool:
+    def validate_api_call(self, api_name: str) -> LifecycleValidationResult:
         """验证API调用是否在当前生命周期阶段允许
 
         Args:
             api_name: API函数名
 
         Returns:
-            bool: 是否允许调用
-
-        Raises:
-            PTradeLifecycleError: 如果调用不被允许
+            LifecycleValidationResult: 验证结果
         """
         with self._lock:
             # 如果没有设置当前阶段，默认允许（向后兼容）
@@ -137,7 +142,7 @@ class LifecycleController:
                     f"API '{api_name}' called without lifecycle phase set. "
                     "Consider setting phase for proper validation."
                 )
-                return True
+                return LifecycleValidationResult(is_valid=True)
 
             current_phase_name = self._current_phase.value
 
@@ -149,9 +154,11 @@ class LifecycleController:
                     f"Allowed phases: {allowed_phases}"
                 )
                 self._logger.error(error_msg)
-                raise PTradeLifecycleError(error_msg)
+                return LifecycleValidationResult(
+                    is_valid=False, error_message=error_msg
+                )
 
-            return True
+            return LifecycleValidationResult(is_valid=True)
 
     def record_api_call(
         self,
@@ -363,7 +370,7 @@ def set_global_lifecycle_controller(controller: LifecycleController) -> None:
     _global_controller = controller
 
 
-def validate_api_call(api_name: str) -> bool:
+def validate_api_call(api_name: str) -> "LifecycleValidationResult":
     """便捷函数：验证API调用"""
     return get_lifecycle_controller().validate_api_call(api_name)
 

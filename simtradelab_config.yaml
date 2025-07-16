@@ -10,6 +10,12 @@ backtest:
   memory_optimization: true
   min_commission: 5.0
   slippage: 0.001
+  # 明确指定回测插件
+  matching_engine: "DepthMatchingEngine"
+  slippage_model: "FixedSlippageModel"
+  commission_model: "FixedCommissionModel"
+  latency_model: "DefaultLatencyModel"
+
 data_sources:
   akshare:
     cache_dir: ./cache/akshare

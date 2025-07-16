@@ -13,7 +13,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 
-from .base import (
+from simtradelab.backtest.plugins.base import (
     BaseCommissionModel,
     BaseMatchingEngine,
     BaseSlippageModel,
@@ -22,42 +22,11 @@ from .base import (
     Order,
     PluginMetadata,
 )
-from .config import (
+from simtradelab.backtest.plugins.config import (
     DepthMatchingEngineConfig,
     LimitMatchingEngineConfig,
     SimpleMatchingEngineConfig,
 )
-
-
-class SimpleMatchingEngine(BaseMatchingEngine):
-    """
-    简单撮合引擎 (将被废弃)
-
-    实现基本的价格撮合逻辑，并集成滑点和手续费计算。
-    """
-
-    METADATA = PluginMetadata(
-        name="SimpleMatchingEngine",
-        version="1.1.0",
-        description="[DEPRECATED] 基本的价格撮合引擎，集成成本计算",
-        author="SimTradeLab",
-        category="matching_engine",
-        tags=["backtest", "matching", "simple", "deprecated"],
-    )
-
-    config_model = SimpleMatchingEngineConfig
-
-    def add_order(self, order: Order) -> None:
-        raise NotImplementedError(
-            "SimpleMatchingEngine is deprecated. Use DepthMatchingEngine instead."
-        )
-
-    def trigger_matching(
-        self, symbol: str, market_data: MarketData
-    ) -> Tuple[List[Fill], List[Order]]:
-        raise NotImplementedError(
-            "SimpleMatchingEngine is deprecated. Use DepthMatchingEngine instead."
-        )
 
 
 class DepthMatchingEngine(BaseMatchingEngine):
@@ -121,12 +90,26 @@ class DepthMatchingEngine(BaseMatchingEngine):
         self,
         metadata: PluginMetadata,
         config: Optional[DepthMatchingEngineConfig] = None,
-        slippage_model: Optional[BaseSlippageModel] = None,
-        commission_model: Optional[BaseCommissionModel] = None,
     ):
-        super().__init__(metadata, config, slippage_model, commission_model)
+        super().__init__(metadata, config)
         self._order_books: Dict[str, "DepthMatchingEngine._OrderBook"] = {}
         self._market_data_cache: Dict[str, Decimal] = {}
+
+    def _on_initialize(self):
+        """初始化撮合引擎状态"""
+        self._order_books.clear()
+        self._market_data_cache.clear()
+        self.logger.info(f"{self.METADATA.name} initialized.")
+
+    def _on_start(self):
+        """启动撮合引擎"""
+        self.logger.info(f"{self.METADATA.name} started.")
+
+    def _on_stop(self):
+        """停止撮合引擎，清理资源"""
+        self._order_books.clear()
+        self._market_data_cache.clear()
+        self.logger.info(f"{self.METADATA.name} stopped and cleaned up.")
 
     def _get_order_book(self, symbol: str) -> "DepthMatchingEngine._OrderBook":
         """获取或创建指定标的的订单簿"""
@@ -203,6 +186,7 @@ class DepthMatchingEngine(BaseMatchingEngine):
     def add_order(self, order: Order) -> None:
         order_book = self._get_order_book(order.symbol)
         market_price = self._market_data_cache.get(order.symbol, order.price)
+        order.status = "active"
         order_book.add_order(order, market_price)
 
     def trigger_matching(
@@ -219,36 +203,41 @@ class DepthMatchingEngine(BaseMatchingEngine):
             best_bid_price = -order_book.bids[0][0]
             best_ask_price = order_book.asks[0][0]
 
+            # 如果最优买价小于最优卖价，则无法撮合，退出循环
             if best_bid_price < best_ask_price:
                 break
 
+            # 只有在价格可匹配时才弹出订单
             bid_price, bid_ts, bid_order = heapq.heappop(order_book.bids)
             ask_price, ask_ts, ask_order = heapq.heappop(order_book.asks)
 
-            fill_price = best_ask_price
+            fill_price = best_ask_price  # 通常使用卖方价格作为成交价
             fill_qty = min(bid_order.quantity, ask_order.quantity)
 
-            if fill_qty <= 0:
-                continue
+            if fill_qty <= 0:  # 避免0数量成交
+                # 将未成交的订单放回，因为它们可能与其他订单匹配
+                heapq.heappush(order_book.bids, (bid_price, bid_ts, bid_order))
+                heapq.heappush(order_book.asks, (ask_price, ask_ts, ask_order))
+                break  # 如果数量为0，通常意味着订单有问题，终止撮合
 
-            # 如果买单是FOK订单且不能完全成交，则取消该订单，并将卖单放回队列
+            # FOK 订单检查
             if bid_order.time_in_force == "fok" and fill_qty < bid_order.quantity:
                 bid_order.status = "cancelled"
                 filled_orders.append(bid_order)
                 heapq.heappush(
                     order_book.asks, (ask_price, ask_ts, ask_order)
-                )  # 只把对手单放回去
+                )  # 将对手单放回
                 continue
 
-            # 如果卖单是FOK订单且不能完全成交，则取消该订单，并将买单放回队列
             if ask_order.time_in_force == "fok" and fill_qty < ask_order.quantity:
                 ask_order.status = "cancelled"
                 filled_orders.append(ask_order)
                 heapq.heappush(
                     order_book.bids, (bid_price, bid_ts, bid_order)
-                )  # 只把对手单放回去
+                )  # 将对手单放回
                 continue
 
+            # 创建成交记录
             fills.append(
                 Fill(
                     order_id=bid_order.order_id,
@@ -270,14 +259,19 @@ class DepthMatchingEngine(BaseMatchingEngine):
                 )
             )
 
+            # 更新订单状态
+            bid_order.filled_quantity += fill_qty
+            ask_order.filled_quantity += fill_qty
             bid_order.quantity -= fill_qty
             ask_order.quantity -= fill_qty
 
+            # 处理剩余订单
             if bid_order.quantity > 0:
                 if bid_order.time_in_force == "ioc":
-                    bid_order.status = "cancelled"
+                    bid_order.status = "cancelled"  # IOC 未完全成交的部分被取消
                     filled_orders.append(bid_order)
                 else:
+                    # 将部分成交的买单重新放回订单簿
                     heapq.heappush(order_book.bids, (bid_price, bid_ts, bid_order))
             else:
                 bid_order.status = "filled"
@@ -285,40 +279,13 @@ class DepthMatchingEngine(BaseMatchingEngine):
 
             if ask_order.quantity > 0:
                 if ask_order.time_in_force == "ioc":
-                    ask_order.status = "cancelled"
+                    ask_order.status = "cancelled"  # IOC 未完全成交的部分被取消
                     filled_orders.append(ask_order)
                 else:
+                    # 将部分成交的卖单重新放回订单簿
                     heapq.heappush(order_book.asks, (ask_price, ask_ts, ask_order))
             else:
                 ask_order.status = "filled"
                 filled_orders.append(ask_order)
 
         return fills, filled_orders
-
-
-class StrictLimitMatchingEngine(BaseMatchingEngine):
-    """
-    严格限价撮合引擎
-    """
-
-    METADATA = PluginMetadata(
-        name="StrictLimitMatchingEngine",
-        version="1.0.0",
-        description="严格的限价单撮合引擎",
-        author="SimTradeLab",
-        category="matching_engine",
-        tags=["backtest", "matching", "limit", "strict"],
-    )
-    config_model = LimitMatchingEngineConfig
-
-    def add_order(self, order: Order) -> None:
-        raise NotImplementedError(
-            "StrictLimitMatchingEngine has not been refactored yet."
-        )
-
-    def trigger_matching(
-        self, symbol: str, market_data: MarketData
-    ) -> Tuple[List[Fill], List[Order]]:
-        raise NotImplementedError(
-            "StrictLimitMatchingEngine has not been refactored yet."
-        )

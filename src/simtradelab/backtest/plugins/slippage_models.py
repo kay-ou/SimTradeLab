@@ -14,8 +14,13 @@ from typing import List, Optional
 
 import numpy as np
 
-from .base import BaseSlippageModel, MarketData, Order, PluginMetadata
-from .config import (
+from simtradelab.backtest.plugins.base import (
+    BaseSlippageModel,
+    MarketData,
+    Order,
+    PluginMetadata,
+)
+from simtradelab.backtest.plugins.config import (
     FixedSlippageModelConfig,
     LinearSlippageModelConfig,
     VolatilityBasedSlippageModelConfig,
@@ -233,16 +238,10 @@ class FixedSlippageModel(BaseSlippageModel):
         config: Optional[FixedSlippageModelConfig] = None,
     ):
         super().__init__(metadata, config)
-
-        if config:
-            self._base_slippage_rate = config.base_slippage_rate
-            self._min_slippage = config.min_slippage
-            self._max_slippage = config.max_slippage
-        else:
-            default_config = FixedSlippageModelConfig()
-            self._base_slippage_rate = default_config.base_slippage_rate
-            self._min_slippage = default_config.min_slippage
-            self._max_slippage = default_config.max_slippage
+        self._config = config or FixedSlippageModelConfig()
+        self._base_slippage_rate = self._config.base_slippage_rate
+        self._min_slippage = self._config.min_slippage
+        self._max_slippage = self._config.max_slippage
 
     def _on_initialize(self) -> None:
         self.logger.info("FixedSlippageModel initialized")

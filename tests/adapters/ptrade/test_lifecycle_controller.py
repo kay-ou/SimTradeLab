@@ -92,7 +92,7 @@ class TestLifecycleController:
 
         # 允许的API调用应该返回True
         result = controller.validate_api_call("order")
-        assert result is True
+        assert result.is_valid is True
 
         mock_is_allowed.assert_called_once_with("order", "handle_data")
 
@@ -104,12 +104,13 @@ class TestLifecycleController:
         controller = LifecycleController()
         controller.set_phase(LifecyclePhase.INITIALIZE)
 
-        # 禁止的API调用应该抛出异常
-        with pytest.raises(
-            PTradeLifecycleError,
-            match="API 'order' cannot be called in phase 'initialize'",
-        ):
-            controller.validate_api_call("order")
+        # 禁止的API调用应该返回 is_valid=False 和错误信息
+        result = controller.validate_api_call("order")
+        assert result.is_valid is False
+        assert result.error_message is not None
+        assert (
+            "API 'order' cannot be called in phase 'initialize'" in result.error_message
+        )
 
         mock_is_allowed.assert_called_once_with("order", "initialize")
 
@@ -275,7 +276,7 @@ class TestLifecycleControllerErrorHandling:
 
         # 没有设置阶段时应该允许调用（向后兼容）
         result = controller.validate_api_call("get_price")
-        assert result is True
+        assert result.is_valid is True
 
     def test_phase_transition_validation(self):
         """测试阶段转换验证"""

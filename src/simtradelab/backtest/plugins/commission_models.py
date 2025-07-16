@@ -12,8 +12,8 @@
 from decimal import Decimal
 from typing import Dict, List
 
-from .base import BaseCommissionModel, Fill, PluginMetadata
-from .config import (
+from simtradelab.backtest.plugins.base import BaseCommissionModel, Fill, PluginMetadata
+from simtradelab.backtest.plugins.config import (
     CommissionModelConfig,
     FixedCommissionModelConfig,
     TieredCommissionModelConfig,
@@ -180,12 +180,14 @@ class FixedCommissionModel(BaseCommissionModel):
 
     def __init__(self, metadata: PluginMetadata, config: FixedCommissionModelConfig):
         super().__init__(metadata, config)
-
+        self._config = config or FixedCommissionModelConfig()
         # 直接使用Pydantic配置对象，统一的费率配置
-        self._buy_commission_rate = config.commission_rate  # 使用统一的commission_rate
-        self._sell_commission_rate = config.commission_rate  # 使用统一的commission_rate
-        self._commission_rate = config.commission_rate
-        self._min_commission = config.min_commission
+        self._buy_commission_rate = self._config.commission_rate  # 使用统一的commission_rate
+        self._sell_commission_rate = (
+            self._config.commission_rate
+        )  # 使用统一的commission_rate
+        self._commission_rate = self._config.commission_rate
+        self._min_commission = self._config.min_commission
         self._max_commission = self._DEFAULT_MAX_COMMISSION
 
     def _on_initialize(self) -> None:

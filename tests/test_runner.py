@@ -49,6 +49,7 @@ def test_backtest_runner_initialization(
     更新测试以匹配新的统一插件管理架构
     """
     mock_pm_instance = MagicMock(spec=PluginManager)
+    mock_pm_instance.get_plugin_info.return_value = None
     mock_pm_class.return_value = mock_pm_instance
 
     mock_engine_instance = MagicMock(spec=BacktestEngine)
@@ -70,10 +71,10 @@ def test_backtest_runner_initialization(
     # 验证初始化
     assert runner.strategy_file == strategy_file
     assert runner.config == config
-    assert runner.plugin_manager == mock_pm_instance
+    assert runner._plugin_manager == mock_pm_instance
 
     # 验证插件注册是否被调用（而不是加载）
-    assert mock_pm_instance.register_plugin.call_count >= 3  # 至少注册3个默认插件
+    assert mock_pm_instance.register_plugin.call_count >= 4  # 至少注册3个默认插件
 
     # 验证 BacktestEngine 是否用PluginManager正确实例化
     mock_engine_class.assert_called_once_with(
@@ -148,6 +149,7 @@ class TestBacktestRunnerAdditional:
     def test_runner_with_custom_plugin_manager(self, strategy_file, mock_config):
         """测试使用自定义PluginManager初始化"""
         custom_pm = MagicMock(spec=PluginManager)
+        custom_pm.get_plugin_info.return_value = None
         custom_pm.get_all_plugins.return_value = {}
 
         with patch("simtradelab.runner.BacktestEngine") as mock_engine:
@@ -157,7 +159,7 @@ class TestBacktestRunnerAdditional:
                 plugin_manager=custom_pm,
             )
 
-            assert runner.plugin_manager is custom_pm
+            assert runner._plugin_manager is custom_pm
             # 应该仍然调用插件注册
             assert custom_pm.register_plugin.called
             # 验证BacktestEngine被正确创建

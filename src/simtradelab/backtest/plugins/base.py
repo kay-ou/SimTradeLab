@@ -257,12 +257,10 @@ class BaseMatchingEngine(BaseBacktestPlugin):
         self,
         metadata: PluginMetadata,
         config: Optional[BasePluginConfig] = None,
-        slippage_model: Optional[BaseSlippageModel] = None,
-        commission_model: Optional[BaseCommissionModel] = None,
     ):
         super().__init__(metadata, config)
-        self._slippage_model = slippage_model
-        self._commission_model = commission_model
+        self._slippage_model: Optional[BaseSlippageModel] = None
+        self._commission_model: Optional[BaseCommissionModel] = None
 
     def set_models(
         self,

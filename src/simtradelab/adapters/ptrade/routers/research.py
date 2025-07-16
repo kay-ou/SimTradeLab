@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 
 from ....core.event_bus import EventBus
-from ..api_validator import APIValidator
 from ..lifecycle_controller import LifecycleController
 from ..scheduling.scheduler import PTradeScheduler
 from .base import BaseAPIRouter
@@ -27,11 +26,10 @@ class ResearchAPIRouter(BaseAPIRouter):
         context: "PTradeContext",
         event_bus: Optional[EventBus] = None,
         lifecycle_controller: Optional[LifecycleController] = None,
-        api_validator: Optional[APIValidator] = None,
         plugin_manager: Optional[Any] = None,
     ):
         super().__init__(
-            context, event_bus, lifecycle_controller, api_validator, plugin_manager
+            context, event_bus, lifecycle_controller, plugin_manager=plugin_manager
         )
         self._scheduler = PTradeScheduler(event_bus)  # 初始化调度器
 

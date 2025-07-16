@@ -7,11 +7,12 @@
 更新为使用统一插件管理的BacktestEngine
 """
 
+import importlib
 import logging
 from typing import Any, Dict, Optional
 
 from .backtest.engine import BacktestEngine
-from .core.plugin_manager import PluginManager
+from .core.plugin_manager import PluginManager, PluginRegistrationError
 
 
 class BacktestRunner:
@@ -35,19 +36,19 @@ class BacktestRunner:
         self.logger = logging.getLogger(__name__)
         self.strategy_file = strategy_file
         self.config = config
-        self.plugin_manager = plugin_manager or PluginManager()
+        self._plugin_manager = plugin_manager or PluginManager()
 
-        # 确保回测插件已注册
+        # 确保所有内置的回测插件都已显式注册
         self._ensure_backtest_plugins_registered()
 
         # 从配置中注册额外插件
         if "plugins" in self.config:
-            self.plugin_manager.register_plugins_from_config(self.config["plugins"])
+            self._plugin_manager.register_plugins_from_config(self.config["plugins"])
 
         # 实例化使用统一插件管理的回测引擎
         backtest_config = self.config.get("backtest", {})
-        self.engine = BacktestEngine(
-            plugin_manager=self.plugin_manager,
+        self._engine = BacktestEngine(
+            plugin_manager=self._plugin_manager,
             config=backtest_config,
         )
 
@@ -55,31 +56,50 @@ class BacktestRunner:
 
     def _ensure_backtest_plugins_registered(self) -> None:
         """
-        确保回测插件已注册到PluginManager
-
-        注册默认的回测插件，如果尚未注册的话
+        显式导入并注册所有内置的回测插件。
+        这是最可靠的方法，避免了动态发现的复杂性和不确定性。
         """
-        from .backtest.plugins.commission_models import FixedCommissionModel
-        from .backtest.plugins.matching_engines import SimpleMatchingEngine
-        from .backtest.plugins.slippage_models import FixedSlippageModel
+        try:
+            from simtradelab.backtest.plugins.commission_models import (
+                FixedCommissionModel,
+            )
+            from simtradelab.backtest.plugins.latency_models.default_latency_model import (
+                DefaultLatencyModel,
+            )
+            from simtradelab.backtest.plugins.matching_engines import (
+                DepthMatchingEngine,
+            )
+            from simtradelab.backtest.plugins.slippage_models import FixedSlippageModel
 
-        # 注册默认回测插件（如果尚未注册）
-        plugins_to_register = [
-            SimpleMatchingEngine,
-            FixedSlippageModel,
-            FixedCommissionModel,
-        ]
+            plugins_to_register = [
+                DepthMatchingEngine,
+                FixedSlippageModel,
+                FixedCommissionModel,
+                DefaultLatencyModel,
+            ]
 
-        for plugin_class in plugins_to_register:
-            try:
-                plugin_name = plugin_class.METADATA.name
-                if plugin_name not in self.plugin_manager.get_all_plugins():
-                    self.plugin_manager.register_plugin(plugin_class)
-                    self.logger.debug(f"Registered backtest plugin: {plugin_name}")
-            except Exception as e:
-                self.logger.warning(
-                    f"Failed to register plugin {plugin_class.__name__}: {e}"
-                )
+            for plugin_class in plugins_to_register:
+                try:
+                    # 使用插件元数据中的名称进行注册
+                    plugin_name = plugin_class.METADATA.name
+                    # 检查插件是否已注册
+                    if self._plugin_manager.get_plugin_info(plugin_name) is None:
+                        self._plugin_manager.register_plugin(plugin_class)
+                        self.logger.info(
+                            f"Explicitly registered backtest plugin: {plugin_name}"
+                        )
+                except PluginRegistrationError as e:
+                    self.logger.warning(
+                        f"Could not register {plugin_class.__name__}: {e}"
+                    )
+        except ImportError as e:
+            self.logger.error(
+                f"Failed to import backtest plugins for registration: {e}"
+            )
+        except Exception as e:
+            self.logger.error(
+                f"An unexpected error occurred during plugin registration: {e}"
+            )
 
     def run(self):
         """运行回测"""
@@ -88,14 +108,14 @@ class BacktestRunner:
         # 此处应有加载数据和策略的逻辑
         # ...
 
-        with self.engine as _:
+        with self._engine as _:
             # 模拟数据流和订单提交
             # for market_data_event in data_stream:
             #     engine.update_market_data(market_data_event.symbol, market_data_event)
             #     strategy.handle_data(...) -> engine.submit_order(...)
             pass
 
-        stats = self.engine.get_statistics()
+        stats = self._engine.get_statistics()
         self.logger.info(f"Backtest finished. Stats: {stats}")
         return stats
 
