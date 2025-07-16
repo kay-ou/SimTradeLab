@@ -11,6 +11,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
+from ...core.plugin_manager import PluginManager
 from .lifecycle_controller import LifecycleController, LifecyclePhase
 from .models import (
     Blotter,
@@ -118,6 +119,7 @@ class PTradeContext:
     # === 调度任务属性 ===
     _daily_tasks: List[Dict[str, Any]] = field(default_factory=list)  # 日级任务
     _interval_tasks: List[Dict[str, Any]] = field(default_factory=list)  # 间隔任务
+    plugin_manager: Optional[Any] = None
 
     def __post_init__(self) -> None:
         """初始化后处理"""
@@ -148,6 +150,9 @@ class PTradeContext:
             self._lifecycle_manager = StrategyLifecycleManager(
                 self._lifecycle_controller
             )
+
+        if self.plugin_manager is None:
+            self.plugin_manager = PluginManager()
 
         # === 设置时间 ===
         if self.current_dt is None:

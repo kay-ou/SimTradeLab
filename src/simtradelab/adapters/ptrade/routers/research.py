@@ -402,9 +402,10 @@ class ResearchAPIRouter(BaseAPIRouter):
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
     ) -> Union[pd.DataFrame, Dict[str, Any], List[Dict[Hashable, Any]]]:
-        """获取历史行情数据 - 研究模式下不支持，需要通过父类的验证"""
-        # 调用父类的get_history，这会触发validate_and_execute验证
-        return super().get_history(
+        """获取历史行情数据 - 研究模式实现"""
+        return self.validate_and_execute(
+            "get_history",
+            self._get_history_impl,
             count,
             frequency,
             field,
@@ -416,6 +417,66 @@ class ResearchAPIRouter(BaseAPIRouter):
             start_date,
             end_date,
         )
+
+    def _get_history_impl(
+        self,
+        count: Optional[int] = None,
+        frequency: str = "1d",
+        field: Optional[Union[str, List[str]]] = None,
+        security_list: Optional[List[str]] = None,
+        fq: str = "pre",
+        include: bool = True,
+        fill: bool = True,
+        is_dict: bool = False,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Union[pd.DataFrame, Dict[str, Any], List[Dict[Hashable, Any]]]:
+        """获取历史行情数据的实际实现"""
+        data_plugin = self._get_data_plugin()
+        if data_plugin and hasattr(data_plugin, "get_history_data"):
+            try:
+                # 使用数据插件获取历史数据
+                if security_list and len(security_list) > 1:
+                    # 多个证券
+                    result = data_plugin.get_multiple_history_data(
+                        security_list=security_list,
+                        count=count or 30,
+                        frequency=frequency,
+                        fields=field
+                        if isinstance(field, list)
+                        else ([field] if field else None),
+                        fq=fq,
+                        include_now=include,
+                        fill_gaps=fill,
+                        as_dict=is_dict,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                    return result
+                else:
+                    # 单个证券或使用universe
+                    securities = security_list or getattr(
+                        self.context, "universe", ["000001.XSHE"]
+                    )
+                    if securities:
+                        security = securities[0]
+                        result = data_plugin.get_history_data(
+                            security=security,
+                            count=count or 30,
+                            frequency=frequency,
+                            fields=field
+                            if isinstance(field, list)
+                            else ([field] if field else None),
+                            fq=fq,
+                            start_date=start_date,
+                            end_date=end_date,
+                        )
+                        return result
+            except Exception as e:
+                self._logger.warning(f"Data plugin get_history failed: {e}")
+
+        # 如果数据插件不可用，返回空DataFrame
+        return pd.DataFrame()
 
     def get_snapshot(self, security_list: List[str]) -> pd.DataFrame:
         """获取当前行情快照 - 通过数据插件"""

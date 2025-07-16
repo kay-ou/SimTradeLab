@@ -201,6 +201,9 @@ class TestPTradeContext:
         order_id = context.blotter.create_order("000001.XSHE", 100, 10.0)
         assert order_id in context.blotter.orders
 
+        # 验证资金状态（下单可能影响可用资金）
+        assert context.portfolio.cash <= initial_cash
+
         # 验证订单信息正确性
         order = context.blotter.orders[order_id]
         assert order.symbol == "000001.XSHE"

@@ -5,7 +5,7 @@ PTrade适配器核心业务功能测试
 专注测试PTrade适配器在量化交易中的核心业务价值：
 1. 完整的交易策略执行流程
 2. 真实的下单和风险控制
-3. 投资组合管理的正确性  
+3. 投资组合管理的正确性
 4. 与数据源的有效集成
 """
 
@@ -18,7 +18,7 @@ import pytest
 from simtradelab.adapters.base import AdapterConfig
 from simtradelab.adapters.ptrade.adapter import PTradeAdapter
 from simtradelab.adapters.ptrade.context import PTradeMode
-from simtradelab.adapters.ptrade.utils import PTradeCompatibilityError
+from simtradelab.adapters.ptrade.utils import PTradeAPIError, PTradeCompatibilityError
 from simtradelab.core.event_bus import EventBus
 from simtradelab.core.plugin_manager import PluginManager
 
@@ -68,7 +68,7 @@ class TestPTradeAdapterQuantitativeTradingCore:
                 # 设置股票池：沪深300成分股样本
                 context.g.stocks = ["000001.SZ", "000002.SZ", "600000.SH"]
                 set_universe(context.g.stocks)
-                
+
                 # 策略参数
                 context.g.look_back_window = 20  # 20日动量
                 context.g.rebalance_freq = 5     # 每5天调仓
@@ -77,25 +77,25 @@ class TestPTradeAdapterQuantitativeTradingCore:
 
             def handle_data(context, data):
                 context.g.day_count += 1
-                
+
                 # 调仓逻辑：每5天执行一次
                 if context.g.day_count % context.g.rebalance_freq != 0:
                     return
-                
+
                 # 动量策略：选择表现最好的股票
                 best_performer = None
                 best_return = -float('inf')
-                
+
                 for stock in context.g.stocks:
                     if stock in data:
                         # 简化的动量计算（实际应该用历史数据）
                         current_price = data[stock]['close']
                         momentum_signal = current_price * 0.01  # 模拟动量信号
-                        
+
                         if momentum_signal > best_return:
                             best_return = momentum_signal
                             best_performer = stock
-                
+
                 # 执行交易：买入表现最好的股票
                 if best_performer:
                     position = context.portfolio.positions.get(best_performer)
@@ -103,7 +103,7 @@ class TestPTradeAdapterQuantitativeTradingCore:
                     target_value = context.portfolio.total_value * context.g.position_target
                     current_price = data[best_performer]['close']
                     target_shares = int(target_value / current_price / 100) * 100  # 按手数调整
-                    
+
                     shares_to_trade = target_shares - current_position
                     if abs(shares_to_trade) >= 100:  # 至少1手
                         order(best_performer, shares_to_trade)
@@ -185,12 +185,12 @@ class TestPTradeAdapterQuantitativeTradingCore:
                 # 尝试超额下单（测试风险控制）
                 total_value = context.portfolio.total_value
                 single_position_limit = total_value * context.g.max_position_size
-                
+
                 for stock in ["000001.SZ", "000002.SZ"]:
                     if stock in data:
                         price = data[stock]['close']
                         max_shares = int(single_position_limit / price / 100) * 100
-                        
+
                         # 执行大额下单测试风险控制
                         order(stock, max_shares)
         """
@@ -251,7 +251,7 @@ class TestPTradeAdapterQuantitativeTradingCore:
                 # 设置多资产投资组合
                 context.g.asset_allocation = {
                     "000001.SZ": 0.4,  # 40%配置
-                    "000002.SZ": 0.3,  # 30%配置  
+                    "000002.SZ": 0.3,  # 30%配置
                     "600000.SH": 0.3   # 30%配置
                 }
                 set_universe(list(context.g.asset_allocation.keys()))
@@ -260,7 +260,7 @@ class TestPTradeAdapterQuantitativeTradingCore:
             def handle_data(context, data):
                 portfolio = context.portfolio
                 current_total = portfolio.total_value
-                
+
                 # 计算每个资产的目标价值和当前价值
                 for symbol, target_weight in context.g.asset_allocation.items():
                     if symbol in data:
@@ -269,15 +269,15 @@ class TestPTradeAdapterQuantitativeTradingCore:
                         current_position = position.amount if position else 0
                         current_price = data[symbol]['close']
                         current_value = current_position * current_price
-                        
+
                         # 计算偏差
                         deviation = abs(current_value - target_value) / current_total
-                        
+
                         # 如果偏差超过阈值，进行调仓
                         if deviation > context.g.rebalance_threshold:
                             target_shares = int(target_value / current_price / 100) * 100
                             shares_to_trade = target_shares - current_position
-                            
+
                             if abs(shares_to_trade) >= 100:
                                 order(symbol, shares_to_trade)
         """
@@ -354,7 +354,7 @@ class TestPTradeAdapterQuantitativeTradingCore:
             def handle_data(context, data):
                 if context.g.test_completed:
                     return
-                    
+
                 # 执行测试交易
                 stock = "000001.SZ"
                 if stock in data:
@@ -759,10 +759,17 @@ class TestPTradeAdapterAdvancedFeatures:
         # 测试上下文管理器接口
         with adapter as ctx_adapter:
             assert ctx_adapter is adapter
+            # 在fixture中已经初始化，这里验证状态
             assert adapter.is_initialized()
 
         # 验证退出上下文后的状态 - _on_shutdown会清理所有资源
-        assert not adapter.is_initialized()  # 应该被清理
+        assert (
+            not adapter.is_initialized()
+        ), "Adapter should be uninitialized after exit"
+
+        # 重新初始化以进行后续测试或验证
+        adapter._on_initialize()
+        assert adapter.is_initialized(), "Adapter should be re-initializable"
 
     def test_mode_support_checking(self, adapter):
         """测试模式支持检查"""
@@ -853,10 +860,10 @@ class TestPTradeAdapterAdvancedFeatures:
             """
             def initialize(context):
                 context.g.initialized = True
-                
+
             def before_trading_start(context, data):
                 context.g.before_trading_called = True
-                
+
             def after_trading_end(context, data):
                 context.g.after_trading_called = True
         """
@@ -870,14 +877,26 @@ class TestPTradeAdapterAdvancedFeatures:
             # 加载策略
             adapter.load_strategy(strategy_path)
 
-            # 测试钩子执行 - 测试before_trading_start钩子（允许在initialize之后执行）
+            # 测试钩子执行 - 测试before_trading_start钩子
             result = adapter.execute_strategy_hook(
                 "before_trading_start", adapter._ptrade_context, {}
             )
-            # 钩子执行应该不会抛出异常
+            assert result is True, "Executing an existing hook should return True"
 
-            # 测试不存在的钩子 - 应该抛出异常
-            with pytest.raises(Exception):  # 期望抛出异常
+            # 模拟 handle_data 阶段以允许转换到 after_trading_end
+            # 即使 handle_data 未实现，调用它也应该能正确地推进生命周期状态
+            adapter.execute_strategy_hook("handle_data", adapter._ptrade_context, {})
+
+            # 现在可以测试 after_trading_end
+            result_after_trading = adapter.execute_strategy_hook(
+                "after_trading_end", adapter._ptrade_context, {}
+            )
+            assert (
+                result_after_trading is True
+            ), "Executing 'after_trading_end' hook should return True"
+
+            # 测试不存在的钩子 - 应该抛出PTradeAPIError
+            with pytest.raises(PTradeAPIError, match="Unknown strategy hook"):
                 adapter.execute_strategy_hook("nonexistent_hook")
 
         finally:

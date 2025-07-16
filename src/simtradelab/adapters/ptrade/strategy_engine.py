@@ -94,6 +94,18 @@ class StrategyExecutionEngine:
         else:
             raise ValueError(f"Unsupported mode: {self.mode}")
 
+        self.plugin_manager = self.context.plugin_manager
+        if self.mode == PTradeMode.RESEARCH:
+            self.context = create_research_context(self.capital_base)
+        elif self.mode == PTradeMode.BACKTEST:
+            self.context = create_backtest_context(
+                self.capital_base, self.commission_rate, self.slippage_rate
+            )
+        elif self.mode == PTradeMode.TRADING:
+            self.context = create_trading_context(self.capital_base)
+        else:
+            raise ValueError(f"Unsupported mode: {self.mode}")
+
         # 获取生命周期控制器和API验证器
         if self.context._lifecycle_controller is None:
             raise ValueError("Context lifecycle controller is not initialized")
@@ -102,6 +114,7 @@ class StrategyExecutionEngine:
 
         self.lifecycle_controller = self.context._lifecycle_controller
         self.api_validator = APIValidator(self.lifecycle_controller)
+        self.plugin_manager = self.context.plugin_manager
 
         # 创建API路由器
         if self.mode == PTradeMode.RESEARCH:
@@ -115,10 +128,9 @@ class StrategyExecutionEngine:
             self.api_router = BacktestAPIRouter(
                 self.context,
                 self.event_bus,
-                self.slippage_rate,
-                self.commission_rate,
                 self.lifecycle_controller,
                 self.api_validator,
+                self.plugin_manager,
             )
         elif self.mode == PTradeMode.TRADING:
             self.api_router = TradingAPIRouter(

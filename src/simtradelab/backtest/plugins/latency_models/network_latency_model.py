@@ -71,7 +71,7 @@ class NetworkLatencyModel(BaseLatencyModel):
 
         # 添加随机变异
         variance = base_latency * self._config.variance_factor
-        random_factor = random.uniform(-variance, variance)
+        random_factor = random.uniform(-variance, variance)  # nosec B311
 
         # 检查是否在高峰时段
         current_hour = order.timestamp.hour

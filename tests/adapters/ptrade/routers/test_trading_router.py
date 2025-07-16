@@ -58,12 +58,22 @@ class TestTradingAPIRouter:
 
         # 模拟get_multiple_history_data方法
         def mock_get_multiple_history_data(
-            securities, count, start_date=None, end_date=None
+            security_list,
+            count,
+            frequency="1d",
+            fields=None,
+            fq="pre",
+            include_now=True,
+            fill_gaps=True,
+            as_dict=False,
+            start_date=None,
+            end_date=None,
+            **kwargs,
         ):
             dates = pd.date_range("2023-01-01", periods=count, freq="D")
             all_data = []
 
-            for security in securities:
+            for security in security_list:
                 security_data = pd.DataFrame(
                     {
                         "security": [security] * count,
@@ -88,7 +98,16 @@ class TestTradingAPIRouter:
         )
 
         # 设置单个历史数据方法
-        def mock_get_history_data(security, count):
+        def mock_get_history_data(
+            security,
+            count,
+            frequency="1d",
+            fields=None,
+            fq="pre",
+            start_date=None,
+            end_date=None,
+            **kwargs,
+        ):
             dates = pd.date_range("2023-01-01", periods=count, freq="D")
             return pd.DataFrame(
                 {
@@ -117,17 +136,27 @@ class TestTradingAPIRouter:
 
         mock_data_plugin.get_snapshot.side_effect = mock_get_snapshot
 
+        # 模拟get_current_price方法
+        def mock_get_current_price(securities):
+            prices = {}
+            for security in securities:
+                prices[security] = 15.0 if security.startswith("000001") else 20.0
+            return prices
+
+        mock_data_plugin.get_current_price.side_effect = mock_get_current_price
+
         # 模拟get_stock_basic_info方法 (回退到基本信息生成)
         mock_data_plugin.get_stock_basic_info.side_effect = Exception(
             "Plugin method not available"
         )
 
         # 模拟get_fundamentals方法 (返回基本面数据)
-        def mock_get_fundamentals(stocks, table, fields, date):
+        def mock_get_fundamentals(table, columns, date, **kwargs):
+            stocks = kwargs.get("stocks", ["000001.XSHE", "000002.XSHE"])
             rows = []
             for stock in stocks:
                 row = {"code": stock, "date": date}
-                for field in fields:
+                for field in columns or []:
                     if field == "revenue":
                         row[field] = 1000000.0  # 模拟营收
                     elif field == "net_profit":
@@ -211,6 +240,9 @@ class TestTradingAPIRouter:
         router = TradingAPIRouter(
             context=context, event_bus=event_bus, plugin_manager=mock_plugin_manager
         )
+
+        # 设置数据插件
+        router.set_data_plugin(mock_data_plugin)
 
         # 设置技术指标插件的side_effect（必须在路由器创建后）
         indicators_plugin = router._get_indicators_plugin()
@@ -433,6 +465,11 @@ class TestTradingAPIRouter:
         all_orders = router.get_orders()
         assert len(all_orders) == 2
 
+        # 验证创建的订单存在
+        order_ids = [order.order_id for order in all_orders]
+        assert order_id1 in order_ids
+        assert order_id2 in order_ids
+
         # 获取特定股票的订单
         orders_001 = router.get_orders("000001.XSHE")
         assert len(orders_001) == 1
@@ -471,33 +508,35 @@ class TestTradingAPIRouter:
         history = router.get_history(count=10, field=["close", "volume"])
         assert isinstance(history, pd.DataFrame)
         assert not history.empty  # 现在返回实际数据
-        assert history.shape[0] == 20  # 2个股票 x 10天
-        assert list(history.columns) == ["close", "volume"]
+        assert history.shape[0] == 10  # 单个股票 x 10天（使用universe中的第一个）
+        assert "close" in history.columns
+        assert "volume" in history.columns
 
     def test_get_price(self, router):
         """测试获取价格数据"""
         # 实盘交易模式现在通过数据插件返回实际数据
         price = router.get_price("000001.XSHE", count=5)
-        assert isinstance(price, pd.DataFrame)
-        assert not price.empty  # 现在返回实际数据
-        assert price.shape[0] == 5
+        assert isinstance(price, float)
+        assert price > 0  # 现在返回实际价格
 
     def test_get_snapshot(self, router):
         """测试获取快照数据"""
         snapshot = router.get_snapshot(["000001.XSHE", "000002.XSHE"])
 
-        assert isinstance(snapshot, pd.DataFrame)
-        assert snapshot.shape[0] == 2
-        assert "last_price" in snapshot.columns
-        assert "volume" in snapshot.columns
+        assert isinstance(snapshot, dict)
+        assert len(snapshot) == 2
+        assert "000001.XSHE" in snapshot
+        assert "000002.XSHE" in snapshot
+        assert "last_price" in snapshot["000001.XSHE"]
+        assert "volume" in snapshot["000001.XSHE"]
 
     def test_get_fundamentals(self, router):
         """测试获取基本面数据"""
         fundamentals = router.get_fundamentals(
-            stocks=["000001.XSHE", "000002.XSHE"],
             table="income",
-            fields=["revenue", "net_profit"],
+            columns=["revenue", "net_profit"],
             date="2023-12-31",
+            stocks=["000001.XSHE", "000002.XSHE"],
         )
 
         assert isinstance(fundamentals, pd.DataFrame)

@@ -547,6 +547,7 @@ class TestAkShareDataSource:
         df = plugin.get_history_data(security="000001", frequency=DataFrequency.MONTHLY)
         call_args = mock_ak_hist.call_args[1]
         assert call_args["period"] == "monthly"
+        assert df is not None
 
     def test_get_history_data_unsupported_frequency(self, plugin: AkShareDataSource):
         """测试不支持的数据频率"""

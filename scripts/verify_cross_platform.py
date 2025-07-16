@@ -7,7 +7,7 @@ This script verifies that SimTradeLab is properly configured for
 cross-platform installation via pip.
 """
 
-import subprocess
+import subprocess  # nosec B404
 import sys
 import tempfile
 from pathlib import Path
@@ -17,7 +17,7 @@ def run_command(cmd, cwd=None):
     """Run a command and return success status and output."""
     try:
         result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, cwd=cwd
+            cmd, shell=True, capture_output=True, text=True, cwd=cwd  # nosec B602
         )
         return result.returncode == 0, result.stdout, result.stderr
     except Exception as e:
@@ -160,10 +160,10 @@ def test_wheel_installation():
 
         # Determine activation script
         if sys.platform == "win32":
-            activate_script = venv_path / "Scripts" / "activate.bat"
+            _ = venv_path / "Scripts" / "activate.bat"  # activate脚本路径，当前未使用
             pip_cmd = f"{venv_path / 'Scripts' / 'pip.exe'}"
         else:
-            activate_script = venv_path / "bin" / "activate"
+            _ = venv_path / "bin" / "activate"  # activate脚本路径，当前未使用
             pip_cmd = f"{venv_path / 'bin' / 'pip'}"
 
         # Install wheel

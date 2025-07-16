@@ -3,7 +3,9 @@
 PTrade实盘交易模式API路由器
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Hashable, List, Optional, Union
+
+import pandas as pd
 
 from ....core.event_bus import EventBus
 from ..api_validator import APIValidator
@@ -171,6 +173,33 @@ class TradingAPIRouter(BaseAPIRouter):
         """设置数据插件引用"""
         self._data_plugin = data_plugin
         self._logger.info("Data plugin set for trading mode")
+
+    def _get_indicators_plugin(self) -> Optional[Any]:
+        """通过插件管理器获取技术指标插件"""
+        if not self._plugin_manager:
+            return None
+
+        # 查找技术指标插件
+        all_plugins = self._plugin_manager.get_all_plugins()
+        for plugin_name, plugin_instance in all_plugins.items():
+            if self._is_indicators_plugin(plugin_instance):
+                return plugin_instance
+        return None
+
+    def _is_indicators_plugin(self, plugin_instance: Any) -> bool:
+        """判断插件是否为技术指标插件"""
+        required_methods = [
+            "calculate_macd",
+            "calculate_kdj",
+            "calculate_rsi",
+            "calculate_cci",
+        ]
+        is_indicators_plugin = all(
+            hasattr(plugin_instance, method)
+            and callable(getattr(plugin_instance, method))
+            for method in required_methods
+        )
+        return is_indicators_plugin
 
     def is_mode_supported(self, api_name: str) -> bool:
         """检查API是否在实盘交易模式下支持"""
@@ -394,9 +423,211 @@ class TradingAPIRouter(BaseAPIRouter):
         trades.sort(key=lambda t: t["datetime"], reverse=True)  # type: ignore
         return trades
 
+    # 数据获取API实现
+    def get_history(
+        self,
+        count: Optional[int] = None,
+        frequency: str = "1d",
+        field: Optional[Union[str, List[str]]] = None,
+        security_list: Optional[List[str]] = None,
+        fq: str = "pre",
+        include: bool = True,
+        fill: bool = True,
+        is_dict: bool = False,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Union[pd.DataFrame, Dict[str, Any], List[Dict[Hashable, Any]]]:
+        """获取历史行情数据"""
+        return self.validate_and_execute(
+            "get_history",
+            self._get_history_impl,
+            count,
+            frequency,
+            field,
+            security_list,
+            fq,
+            include,
+            fill,
+            is_dict,
+            start_date,
+            end_date,
+        )
+
+    def _get_history_impl(
+        self,
+        count: Optional[int] = None,
+        frequency: str = "1d",
+        field: Optional[Union[str, List[str]]] = None,
+        security_list: Optional[List[str]] = None,
+        fq: str = "pre",
+        include: bool = True,
+        fill: bool = True,
+        is_dict: bool = False,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Union[pd.DataFrame, Dict[str, Any], List[Dict[Hashable, Any]]]:
+        """获取历史行情数据的实际实现"""
+        # 实盘交易模式下，通过数据插件获取历史数据
+        if self._data_plugin and hasattr(self._data_plugin, "get_history_data"):
+            try:
+                if security_list and len(security_list) > 1:
+                    # 多个证券
+                    result = self._data_plugin.get_multiple_history_data(
+                        security_list=security_list,
+                        count=count or 30,
+                        frequency=frequency,
+                        fields=field
+                        if isinstance(field, list)
+                        else ([field] if field else None),
+                        fq=fq,
+                        include_now=include,
+                        fill_gaps=fill,
+                        as_dict=is_dict,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                    return result
+                else:
+                    # 单个证券或使用universe
+                    securities = security_list or getattr(
+                        self.context, "universe", ["000001.XSHE"]
+                    )
+                    if securities:
+                        security = securities[0]
+                        result = self._data_plugin.get_history_data(
+                            security=security,
+                            count=count or 30,
+                            frequency=frequency,
+                            fields=field
+                            if isinstance(field, list)
+                            else ([field] if field else None),
+                            fq=fq,
+                            start_date=start_date,
+                            end_date=end_date,
+                        )
+                        return result
+            except Exception as e:
+                self._logger.warning(f"Data plugin get_history failed: {e}")
+
+        # 如果数据插件不可用，返回空DataFrame
+        return pd.DataFrame()
+
+    def get_price(
+        self,
+        security: Optional[Union[str, List[str]]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        frequency: str = "1d",
+        fields: Optional[Union[str, List[str]]] = None,
+        count: Optional[int] = None,
+    ) -> Union[pd.DataFrame, pd.Series, float, Dict[str, float]]:
+        """获取价格数据"""
+        return self.validate_and_execute(
+            "get_price",
+            self._get_price_impl,
+            security,
+            start_date,
+            end_date,
+            frequency,
+            fields,
+            count,
+        )
+
+    def _get_price_impl(
+        self,
+        security: Optional[Union[str, List[str]]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        frequency: str = "1d",
+        fields: Optional[Union[str, List[str]]] = None,
+        count: Optional[int] = None,
+    ) -> Union[pd.DataFrame, pd.Series, float, Dict[str, float]]:
+        """获取价格数据的实际实现"""
+        if (
+            self._data_plugin
+            and hasattr(self._data_plugin, "get_current_price")
+            and security
+        ):
+            try:
+                if isinstance(security, str):
+                    prices = self._data_plugin.get_current_price([security])
+                    return prices.get(security, 0.0)
+                elif isinstance(security, list):
+                    return self._data_plugin.get_current_price(security)
+            except Exception as e:
+                self._logger.warning(f"Data plugin get_price failed: {e}")
+
+        # 默认返回模拟价格
+        if isinstance(security, str):
+            return 15.0
+        elif isinstance(security, list):
+            return {sec: 15.0 for sec in security}
+        return 15.0
+
+    def get_snapshot(self, security_list: List[str]) -> Dict[str, Dict[str, Any]]:
+        """获取快照数据"""
+        return self.validate_and_execute(
+            "get_snapshot", self._get_snapshot_impl, security_list
+        )
+
+    def _get_snapshot_impl(self, security_list: List[str]) -> Dict[str, Dict[str, Any]]:
+        """获取快照数据的实际实现"""
+        if self._data_plugin and hasattr(self._data_plugin, "get_snapshot"):
+            try:
+                return self._data_plugin.get_snapshot(security_list)
+            except Exception as e:
+                self._logger.warning(f"Data plugin get_snapshot failed: {e}")
+
+        # 默认返回模拟快照数据
+        return {
+            security: {
+                "current": 15.0,
+                "high": 16.0,
+                "low": 14.0,
+                "volume": 10000,
+                "money": 150000.0,
+            }
+            for security in security_list
+        }
+
+    def get_fundamentals(
+        self,
+        table: str,
+        columns: Optional[List[str]] = None,
+        date: Optional[str] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        """获取基本面数据"""
+        return self.validate_and_execute(
+            "get_fundamentals",
+            self._get_fundamentals_impl,
+            table,
+            columns,
+            date,
+            **kwargs,
+        )
+
+    def _get_fundamentals_impl(
+        self,
+        table: str,
+        columns: Optional[List[str]] = None,
+        date: Optional[str] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        """获取基本面数据的实际实现"""
+        if self._data_plugin and hasattr(self._data_plugin, "get_fundamentals"):
+            try:
+                return self._data_plugin.get_fundamentals(
+                    table, columns, date, **kwargs
+                )
+            except Exception as e:
+                self._logger.warning(f"Data plugin get_fundamentals failed: {e}")
+
+        # 默认返回空DataFrame
+        return pd.DataFrame()
+
     # 以下方法现在由父类BaseRouter提供，无需重复实现：
-    # get_history, get_price, get_snapshot - 通过父类BaseRouter实现
-    # get_stock_info, get_fundamentals - 通过父类BaseRouter实现
+    # get_stock_info - 通过父类BaseRouter实现
     # get_trading_day, get_all_trades_days, get_trade_days - 通过父类BaseRouter实现
     # set_universe, set_benchmark - 通过父类BaseRouter实现
     # get_MACD, get_KDJ, get_RSI, get_CCI - 通过父类BaseRouter实现

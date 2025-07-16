@@ -24,6 +24,7 @@ class Order:
         self.security = self.symbol
         self.limit_price = self.limit
         self.created_at = self.dt
+        self.order_id = self.id  # 添加 order_id 作为 id 的别名
 
 
 class Blotter:

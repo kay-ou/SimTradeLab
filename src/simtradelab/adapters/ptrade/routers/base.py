@@ -6,18 +6,16 @@ PTrade API 路由器基类
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Hashable, List, Optional, Union
+from typing import Any, Dict, Hashable, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 
 from ....core.event_bus import EventBus
 from ..api_validator import APIValidator, get_api_validator
+from ..context import PTradeContext
 from ..lifecycle_controller import LifecycleController, get_lifecycle_controller
-
-if TYPE_CHECKING:
-    from ..context import PTradeContext
-    from ..models import Order, Position
+from ..models import Order, Position
 
 
 class BaseAPIRouter:
@@ -38,7 +36,7 @@ class BaseAPIRouter:
 
         # 获取策略模式，确保是字符串格式
         strategy_mode = getattr(context, "mode", "backtest")
-        if hasattr(strategy_mode, "value"):  # 如果是枚举，获取其值
+        if hasattr(strategy_mode, "value"):
             strategy_mode = strategy_mode.value
 
         # 生命周期控制和API验证
@@ -62,11 +60,9 @@ class BaseAPIRouter:
 
         集成了PTrade生命周期验证和API参数验证
         """
-        # 1. 检查模式支持性
         if not self.is_mode_supported(api_name):
             raise ValueError(f"API '{api_name}' is not supported in current mode")
 
-        # 2. 进行完整的API验证（生命周期 + 参数）
         validation_result = self._api_validator.validate_api_call(
             api_name, *args, **kwargs
         )
@@ -78,7 +74,6 @@ class BaseAPIRouter:
             )
             raise ValueError(validation_result.error_message)
 
-        # 3. 执行API调用
         try:
             result = method_func(*args, **kwargs)
             self._logger.debug(f"API '{api_name}' executed successfully")
@@ -205,83 +200,6 @@ class BaseAPIRouter:
         )
 
     # ==========================================
-    # 插件管理辅助方法
-    # ==========================================
-
-    def _get_data_plugin(self) -> Optional[Any]:
-        """通过插件管理器获取数据源插件"""
-        # 首先检查是否有直接设置的数据插件（用于BacktestAPIRouter等）
-        if hasattr(self, "_data_plugin") and self._data_plugin:
-            return self._data_plugin
-
-        if not self._plugin_manager:
-            return None
-
-        # 查找数据源插件
-        all_plugins = self._plugin_manager.get_all_plugins()
-        for plugin_name, plugin_instance in all_plugins.items():
-            if self._is_data_source_plugin(plugin_instance):
-                return plugin_instance
-        return None
-
-    def _get_indicators_plugin(self) -> Optional[Any]:
-        """通过插件管理器获取技术指标插件"""
-        if not self._plugin_manager:
-            return None
-
-        # 查找技术指标插件
-        all_plugins = self._plugin_manager.get_all_plugins()
-        for plugin_name, plugin_instance in all_plugins.items():
-            if self._is_indicators_plugin(plugin_instance):
-                return plugin_instance
-        return None
-
-    def _is_data_source_plugin(self, plugin_instance: Any) -> bool:
-        """判断插件是否为数据源插件"""
-        required_methods = [
-            "get_history_data",
-            "get_current_price",
-            "get_snapshot",
-            "get_multiple_history_data",
-        ]
-        return all(
-            hasattr(plugin_instance, method)
-            and callable(getattr(plugin_instance, method))
-            for method in required_methods
-        )
-
-    def _is_indicators_plugin(self, plugin_instance: Any) -> bool:
-        """判断插件是否为技术指标插件"""
-        # 通过多种条件识别技术指标插件
-        is_indicators_plugin = (
-            # 通过名称识别
-            (
-                hasattr(plugin_instance, "metadata")
-                and plugin_instance.metadata.name == "technical_indicators_plugin"
-            )
-            # 通过category识别
-            or (
-                hasattr(plugin_instance, "metadata")
-                and hasattr(plugin_instance.metadata, "category")
-                and plugin_instance.metadata.category in ["indicators", "analysis"]
-            )
-            # 通过标签识别
-            or (
-                hasattr(plugin_instance, "metadata")
-                and hasattr(plugin_instance.metadata, "tags")
-                and "indicators" in plugin_instance.metadata.tags
-            )
-            # 通过方法识别
-            or (
-                hasattr(plugin_instance, "calculate_macd")
-                and hasattr(plugin_instance, "calculate_kdj")
-                and hasattr(plugin_instance, "calculate_rsi")
-                and hasattr(plugin_instance, "calculate_cci")
-            )
-        )
-        return is_indicators_plugin
-
-    # ==========================================
     # 行情数据 API (插件化实现)
     # ==========================================
 
@@ -298,115 +216,10 @@ class BaseAPIRouter:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
     ) -> Union[pd.DataFrame, Dict[str, Any], List[Dict[Hashable, Any]]]:
-        """获取历史行情数据 - 通过数据插件实现"""
-        return self.validate_and_execute(
-            "get_history",
-            self._get_history_impl,
-            count,
-            frequency,
-            field,
-            security_list,
-            fq,
-            include,
-            fill,
-            is_dict,
-            start_date,
-            end_date,
+        """获取历史行情数据"""
+        raise NotImplementedError(
+            f"get_history method not implemented in {self.__class__.__name__}"
         )
-
-    def _get_history_impl(
-        self,
-        count: Optional[int] = None,
-        frequency: str = "1d",
-        field: Optional[Union[str, List[str]]] = None,
-        security_list: Optional[List[str]] = None,
-        fq: str = "pre",
-        include: bool = True,
-        fill: bool = True,
-        is_dict: bool = False,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-    ) -> Union[pd.DataFrame, Dict[str, Any], List[Dict[Hashable, Any]]]:
-        """获取历史行情数据的实际实现"""
-        # 如果没有指定股票列表，使用上下文中的universe
-        if (
-            not security_list
-            and hasattr(self.context, "universe")
-            and self.context.universe
-        ):
-            security_list = list(self.context.universe)
-
-        if not security_list:
-            # 如果仍然没有股票列表，返回空数据
-            return {} if is_dict else pd.DataFrame()
-
-        data_plugin = self._get_data_plugin()
-        if data_plugin and hasattr(data_plugin, "get_history_data"):
-            try:
-                # 处理参数：如果只有一个证券且以字符串形式传递
-                if security_list and len(security_list) == 1:
-                    security = security_list[0]
-                    count_val = count or 10
-
-                    # 使用数据插件获取历史数据
-                    df_result = data_plugin.get_history_data(security, count_val)
-
-                    if not df_result.empty:
-                        # 处理字段过滤
-                        if field and isinstance(field, (list, str)):
-                            if isinstance(field, str):
-                                field = [field]
-                            # 过滤指定字段，保留必要的标识字段
-                            available_fields = [
-                                f for f in field if f in df_result.columns
-                            ]
-                            if available_fields:
-                                df_result = df_result[available_fields]
-
-                        if is_dict:
-                            # 转换为字典格式
-                            return df_result.to_dict("records")
-                        else:
-                            return df_result
-                    else:
-                        return {} if is_dict else pd.DataFrame()
-                else:
-                    # 多证券处理
-                    if security_list and count:
-                        all_data = []
-                        for security in security_list:
-                            df_result = data_plugin.get_history_data(security, count)
-                            if not df_result.empty:
-                                all_data.append(df_result)
-
-                        if all_data:
-                            combined_df = pd.concat(all_data, ignore_index=True)
-
-                            # 处理字段过滤
-                            if field and isinstance(field, (list, str)):
-                                if isinstance(field, str):
-                                    field = [field]
-                                # 过滤指定字段，保留必要的标识字段
-                                available_fields = [
-                                    f for f in field if f in combined_df.columns
-                                ]
-                                if available_fields:
-                                    combined_df = combined_df[available_fields]
-
-                            return (
-                                combined_df.to_dict("records")
-                                if is_dict
-                                else combined_df
-                            )
-
-                    return {} if is_dict else pd.DataFrame()
-            except Exception as e:
-                self._logger.warning(f"Data plugin get_history failed: {e}")
-
-        # 默认返回空的DataFrame
-        if is_dict:
-            return {}
-        return pd.DataFrame()
 
     def get_price(
         self,
@@ -417,107 +230,16 @@ class BaseAPIRouter:
         fields: Optional[Union[str, List[str]]] = None,
         count: Optional[int] = None,
     ) -> Union[pd.DataFrame, pd.Series, float, Dict[str, float]]:
-        """获取价格数据 - 通过数据插件实现"""
-        return self.validate_and_execute(
-            "get_price",
-            self._get_price_impl,
-            security,
-            start_date,
-            end_date,
-            frequency,
-            fields,
-            count,
+        """获取价格数据"""
+        raise NotImplementedError(
+            f"get_price method not implemented in {self.__class__.__name__}"
         )
-
-    def _get_price_impl(
-        self,
-        security: Optional[Union[str, List[str]]] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        frequency: str = "1d",
-        fields: Optional[Union[str, List[str]]] = None,
-        count: Optional[int] = None,
-    ) -> Union[pd.DataFrame, pd.Series, float, Dict[str, float]]:
-        """获取价格数据的实际实现"""
-        data_plugin = self._get_data_plugin()
-        if data_plugin and hasattr(data_plugin, "get_history_data") and security:
-            try:
-                # 处理单个证券的情况
-                if isinstance(security, str):
-                    count_val = count or 1
-                    df_result = data_plugin.get_history_data(security, count_val)
-
-                    if not df_result.empty:
-                        # 如果指定了count且count>1，返回DataFrame
-                        if count and count > 1:
-                            return df_result
-                        else:
-                            # 如果count=1或None，返回单个价格值
-                            return float(df_result.iloc[-1]["close"])
-                    else:
-                        # 如果没有数据，根据count参数决定返回类型
-                        if count and count > 1:
-                            return pd.DataFrame()
-                        else:
-                            return 0.0
-                # 处理多个证券的情况（返回字典）
-                elif isinstance(security, list):
-                    count_val = count or 1
-                    if count and count > 1:
-                        # 当count>1时，对于多个证券应该返回DataFrame
-                        all_data = []
-                        for sec in security:
-                            df_result = data_plugin.get_history_data(sec, count_val)
-                            if not df_result.empty:
-                                all_data.append(df_result)
-                        if all_data:
-                            return pd.concat(all_data, ignore_index=True)
-                        else:
-                            return pd.DataFrame()
-                    else:
-                        # 当count=1或None时，返回价格字典
-                        prices = {}
-                        for sec in security:
-                            df_result = data_plugin.get_history_data(sec, count_val)
-                            if not df_result.empty:
-                                prices[sec] = float(df_result.iloc[-1]["close"])
-                            else:
-                                prices[sec] = 0.0
-                        return prices
-            except Exception as e:
-                self._logger.warning(f"Data plugin get_price failed: {e}")
-
-        # 默认返回空的DataFrame
-        return pd.DataFrame()
 
     def get_snapshot(self, security_list: List[str]) -> pd.DataFrame:
-        """获取行情快照 - 通过数据插件实现"""
-        return self.validate_and_execute(
-            "get_snapshot", self._get_snapshot_impl, security_list
+        """获取行情快照"""
+        raise NotImplementedError(
+            f"get_snapshot method not implemented in {self.__class__.__name__}"
         )
-
-    def _get_snapshot_impl(self, security_list: List[str]) -> pd.DataFrame:
-        """获取行情快照的实际实现"""
-        data_plugin = self._get_data_plugin()
-        if data_plugin and hasattr(data_plugin, "get_snapshot"):
-            try:
-                # 使用数据插件获取行情快照
-                snapshot = data_plugin.get_snapshot(security_list)
-                if snapshot:
-                    # 转换为DataFrame格式
-                    rows = []
-                    for security, data_dict in snapshot.items():
-                        row = {"security": security}
-                        row.update(data_dict)
-                        rows.append(row)
-                    return pd.DataFrame(rows)
-                else:
-                    return pd.DataFrame()
-            except Exception as e:
-                self._logger.warning(f"Data plugin get_snapshot failed: {e}")
-
-        # 默认返回空的DataFrame
-        return pd.DataFrame()
 
     # ==========================================
     # 基础信息 API (默认实现)
@@ -525,15 +247,15 @@ class BaseAPIRouter:
 
     def get_trading_day(self, date: str, offset: int = 0) -> str:
         """获取交易日期"""
-        return date  # 默认返回输入日期
+        return date
 
     def get_all_trades_days(self) -> List[str]:
         """获取全部交易日期"""
-        return []  # 默认返回空列表
+        return []
 
     def get_trade_days(self, start_date: str, end_date: str) -> List[str]:
         """获取指定范围交易日期"""
-        return []  # 默认返回空列表
+        return []
 
     # ==========================================
     # 股票信息 API (默认实现)
@@ -541,30 +263,15 @@ class BaseAPIRouter:
 
     def get_stock_info(self, security_list: List[str]) -> Dict[str, Any]:
         """获取股票基础信息"""
-        return {}  # 默认返回空字典
+        return {}
 
     def get_fundamentals(
         self, stocks: List[str], table: str, fields: List[str], date: str
     ) -> pd.DataFrame:
-        """获取财务数据信息 - 通过数据插件实现"""
-        return self.validate_and_execute(
-            "get_fundamentals", self._get_fundamentals_impl, stocks, table, fields, date
+        """获取财务数据信息"""
+        raise NotImplementedError(
+            f"get_fundamentals method not implemented in {self.__class__.__name__}"
         )
-
-    def _get_fundamentals_impl(
-        self, stocks: List[str], table: str, fields: List[str], date: str
-    ) -> pd.DataFrame:
-        """获取财务数据信息的实际实现"""
-        data_plugin = self._get_data_plugin()
-        if data_plugin and hasattr(data_plugin, "get_fundamentals"):
-            try:
-                # 使用数据插件获取财务数据
-                return data_plugin.get_fundamentals(stocks, table, fields, date)
-            except Exception as e:
-                self._logger.warning(f"Data plugin get_fundamentals failed: {e}")
-
-        # 默认返回空DataFrame
-        return pd.DataFrame()
 
     def get_stock_name(self, security: str) -> str:
         """获取股票名称"""

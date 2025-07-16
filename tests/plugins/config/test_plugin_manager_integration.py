@@ -57,7 +57,7 @@ class TestPluginManagerConfigValidation:
 
     def test_load_plugin_without_config_model(self):
         """测试加载没有配置模型的插件"""
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         # 注册插件
         plugin_name = manager.register_plugin(MockTestPlugin)
@@ -71,7 +71,7 @@ class TestPluginManagerConfigValidation:
 
     def test_load_plugin_with_config_model_default_config(self):
         """测试使用默认配置加载有配置模型的插件"""
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         # 注册插件
         plugin_name = manager.register_plugin(MockTestPluginWithConfigModel)
@@ -85,7 +85,7 @@ class TestPluginManagerConfigValidation:
 
     def test_load_plugin_with_valid_config_object(self):
         """测试使用有效配置对象加载插件"""
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         # 创建有效配置
         config = SimpleMatchingEngineConfig(
@@ -101,7 +101,7 @@ class TestPluginManagerConfigValidation:
 
     def test_load_plugin_with_valid_config_dict(self):
         """测试使用有效配置字典加载插件"""
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         # 注册插件
         plugin_name = manager.register_plugin(MockTestPluginWithConfigModel)
@@ -120,7 +120,7 @@ class TestPluginManagerConfigValidation:
 
     def test_load_plugin_with_invalid_config_dict(self):
         """测试使用无效配置字典加载插件"""
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         # 注册插件
         plugin_name = manager.register_plugin(MockTestPluginWithConfigModel)
@@ -173,7 +173,7 @@ class TestPluginManagerConfigValidation:
 
     def test_config_conversion_from_dict(self):
         """测试从字典配置转换"""
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         # 注册插件
         plugin_name = manager.register_plugin(MockTestPluginWithConfigModel)
@@ -193,7 +193,7 @@ class TestPluginManagerConfigValidation:
 
     def test_config_conversion_from_pydantic_model(self):
         """测试从Pydantic模型转换"""
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         # 注册插件
         plugin_name = manager.register_plugin(MockTestPluginWithConfigModel)
@@ -210,7 +210,7 @@ class TestPluginManagerConfigValidation:
 
     def test_plugin_already_loaded_error(self):
         """测试插件已加载错误"""
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         # 注册并加载插件
         plugin_name = manager.register_plugin(MockTestPlugin)
@@ -222,7 +222,7 @@ class TestPluginManagerConfigValidation:
 
     def test_plugin_not_registered_error(self):
         """测试插件未注册错误"""
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         # 尝试加载未注册的插件
         with pytest.raises(PluginLoadError, match="not registered"):
@@ -231,7 +231,7 @@ class TestPluginManagerConfigValidation:
     def test_config_validation_logging(self):
         """测试配置验证日志"""
         with patch("logging.getLogger") as mock_logger:
-            manager = PluginManager(auto_register_builtin=False)
+            manager = PluginManager(register_core_plugins=False)
 
             # 注册插件
             plugin_name = manager.register_plugin(MockTestPluginWithConfigModel)
@@ -245,7 +245,7 @@ class TestPluginManagerConfigValidation:
 
     def test_reload_plugin_config_validation(self):
         """测试重载插件时的配置验证"""
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         # 注册并加载插件
         plugin_name = manager.register_plugin(MockTestPluginWithConfigModel)
@@ -259,7 +259,7 @@ class TestPluginManagerConfigValidation:
 
     def test_batch_load_with_config_validation(self):
         """测试批量加载插件时的配置验证"""
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         # 注册多个插件
         plugin1_name = manager.register_plugin(MockTestPlugin)
@@ -300,7 +300,7 @@ class TestConfigValidationEdgeCases:
             def _on_stop(self):
                 pass
 
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
         plugin_name = manager.register_plugin(PluginWithNoneConfigModel)
 
         # 应该使用基础配置成功加载
@@ -331,7 +331,7 @@ class TestConfigValidationEdgeCases:
             def _on_stop(self):
                 pass
 
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
         plugin_name = manager.register_plugin(PluginWithInvalidConfigModel)
 
         # 应该处理错误情况
@@ -340,7 +340,7 @@ class TestConfigValidationEdgeCases:
 
     def test_empty_config_dict(self):
         """测试空配置字典"""
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         plugin_name = manager.register_plugin(MockTestPluginWithConfigModel)
 
@@ -351,7 +351,7 @@ class TestConfigValidationEdgeCases:
 
     def test_config_with_extra_fields(self):
         """测试包含额外字段的配置"""
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         plugin_name = manager.register_plugin(MockTestPluginWithConfigModel)
 

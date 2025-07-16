@@ -6,21 +6,19 @@
 风险控制、持仓管理等，从API路由器中分离出来
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from . import BaseService
-
-if TYPE_CHECKING:
-    from ..context import PTradeContext
-    from ..models import Order, Position
+from ..context import PTradeContext
+from ..models import Order, Position
+from .base_service import BaseService
 
 
 class TradingService(BaseService):
     """交易服务 - 处理实盘交易模式下的业务逻辑"""
 
     def __init__(self, context: "PTradeContext", **kwargs):
-        super().__init__(**kwargs)
-        self.context = context
+        super().__init__(context=context, **kwargs)
+        # context 已经在父类中设置，无需重复设置
 
     def initialize(self) -> None:
         """初始化交易服务"""

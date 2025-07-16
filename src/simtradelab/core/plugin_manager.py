@@ -69,7 +69,6 @@ class PluginManager:
     def __init__(
         self,
         event_bus: Optional[EventBus] = None,
-        auto_register_builtin: bool = False,
         register_core_plugins: bool = True,
     ):
         """
@@ -77,15 +76,13 @@ class PluginManager:
 
         Args:
             event_bus: 事件总线实例，可选
-            auto_register_builtin: 是否自动注册内置插件，默认False（显式注册原则）
             register_core_plugins: 是否注册核心插件，默认True（测试时可设为False）
         """
-        self._event_bus = event_bus  # 不强制创建EventBus
+        self._event_bus = event_bus
         self._plugins: Dict[str, PluginRegistry] = {}
         self._plugin_paths: Set[Path] = set()
         self._lock = threading.RLock()
         self._logger = logging.getLogger(__name__)
-        self._auto_register_builtin = auto_register_builtin
         self._should_register_core_plugins = register_core_plugins
 
         # 集成统一配置管理器
@@ -98,12 +95,8 @@ class PluginManager:
         if self._event_bus:
             self._register_builtin_handlers()
 
-        # E4修复：简化插件注册机制
-        # 只有明确启用时才进行自动发现（用于开发模式）
-        if self._auto_register_builtin:
-            self._auto_discover_builtin_plugins()
-        elif self._should_register_core_plugins:
-            # 显式注册核心插件（测试时可禁用）
+        # E4修复：默认显式注册核心插件
+        if self._should_register_core_plugins:
             self._register_core_plugins()
 
     @property
@@ -155,7 +148,7 @@ class PluginManager:
         if not is_base_plugin_subclass:
             try:
                 is_base_plugin_subclass = issubclass(plugin_class, BasePlugin)
-            except Exception:
+            except Exception:  # nosec B110
                 pass
 
         if not is_base_plugin_subclass:
@@ -1033,115 +1026,3 @@ class PluginManager:
         except Exception as e:
             self._logger.error(f"Unexpected error importing {module_path}: {e}")
             return None
-
-    def _auto_discover_builtin_plugins(self) -> None:
-        """
-        自动发现和注册内置插件（开发模式）
-
-        E4修复：保留自动发现作为可选功能，默认禁用
-        """
-        try:
-            # 扫描插件目录，自动发现并注册标记为AUTO_REGISTER的插件
-            self._logger.info("Starting auto-discovery of builtin plugins...")
-            self._scan_builtin_plugin_directories()
-
-            # 显示已注册的插件
-            registered_plugins = list(self._plugins.keys())
-            self._logger.info(
-                f"Auto-discovery completed. Registered plugins: {registered_plugins}"
-            )
-        except Exception as e:
-            self._logger.error(f"Failed to auto-discover builtin plugins: {e}")
-            import traceback
-
-            self._logger.error(f"Traceback: {traceback.format_exc()}")
-
-    def _scan_builtin_plugin_directories(self) -> None:
-        """扫描内置插件目录"""
-        try:
-            # 获取插件根目录
-            current_file = Path(__file__)
-            plugins_dir = current_file.parent.parent / "plugins"
-
-            if plugins_dir.exists():
-                self._logger.debug(f"Scanning plugin directory: {plugins_dir}")
-                self._scan_plugin_directory(plugins_dir)
-            else:
-                self._logger.warning(f"Plugin directory not found: {plugins_dir}")
-
-        except Exception as e:
-            self._logger.error(f"Failed to scan plugin directories: {e}")
-
-    def _scan_plugin_directory(self, plugin_dir: Path) -> None:
-        """递归扫描插件目录"""
-        try:
-            # 扫描所有Python文件，查找插件类
-            for py_file in plugin_dir.rglob("*.py"):
-                if py_file.name.startswith("__"):
-                    continue
-
-                # 尝试从文件中发现插件
-                self._discover_plugins_in_file(py_file)
-
-        except Exception as e:
-            self._logger.error(f"Failed to scan plugin directory {plugin_dir}: {e}")
-
-    def _discover_plugins_in_file(self, py_file: Path) -> None:
-        """从Python文件中发现插件"""
-        try:
-            # 构建模块路径
-            relative_path = py_file.relative_to(Path(__file__).parent.parent)
-            module_path = str(relative_path.with_suffix("")).replace("/", ".")
-
-            # 动态导入模块
-            import importlib
-
-            module = importlib.import_module(f"simtradelab.{module_path}")
-
-            # 查找插件类
-            for attr_name in dir(module):
-                attr = getattr(module, attr_name)
-                if (
-                    isinstance(attr, type)
-                    and hasattr(attr, "METADATA")
-                    and attr_name.endswith("Plugin")
-                ):
-                    self._logger.debug(
-                        f"Discovered plugin class: {attr_name} in {module_path}"
-                    )
-
-                    # 检查是否标记为自动注册
-                    if hasattr(attr, "AUTO_REGISTER") and attr.AUTO_REGISTER:
-                        self._auto_register_plugin(attr)
-
-        except Exception as e:
-            self._logger.debug(f"Could not discover plugins in {py_file}: {e}")
-
-    def _auto_register_plugin(self, plugin_class: type) -> None:
-        """自动注册标记为AUTO_REGISTER的插件"""
-        try:
-            # 获取插件的默认配置
-            default_config = getattr(plugin_class, "DEFAULT_CONFIG", {})
-
-            # 创建插件配置
-            config = BasePluginConfig(**default_config)
-
-            # 注册、加载并启动插件
-            plugin_name = self.register_plugin(plugin_class, config)
-            self._logger.info(
-                f"Auto-registering plugin: {plugin_class.__name__} as {plugin_name}"
-            )
-
-            self.load_plugin(plugin_name, config)
-            self._logger.info(f"Loaded plugin: {plugin_name}")
-
-            self.start_plugin(plugin_name)
-            self._logger.info(f"Started plugin: {plugin_name}")
-
-        except Exception as e:
-            self._logger.error(
-                f"Failed to auto-register plugin {plugin_class.__name__}: {e}"
-            )
-            import traceback
-
-            self._logger.error(f"Traceback: {traceback.format_exc()}")

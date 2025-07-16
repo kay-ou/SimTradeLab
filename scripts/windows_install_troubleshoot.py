@@ -9,7 +9,7 @@ Run this script if you encounter problems installing SimTradeLab with pip.
 
 import importlib.util
 import platform
-import subprocess
+import subprocess  # nosec B404
 import sys
 
 
@@ -44,7 +44,7 @@ def check_platform():
 def check_pip():
     """Check pip installation and version."""
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             [sys.executable, "-m", "pip", "--version"], capture_output=True, text=True
         )
         print(f"pip version: {result.stdout.strip()}")
@@ -61,11 +61,13 @@ def check_build_tools():
 
     # Check for Visual Studio Build Tools
     try:
-        result = subprocess.run(["where", "cl"], capture_output=True, text=True)
+        result = subprocess.run(
+            ["where", "cl"], capture_output=True, text=True
+        )  # nosec B603 B607
         if result.returncode == 0:
             print("✅ Microsoft C++ Build Tools found")
             return True
-    except:
+    except Exception:  # nosec B110
         pass
 
     print("❌ Microsoft C++ Build Tools not found")
@@ -135,7 +137,7 @@ def test_installation():
 
     try:
         print("Attempting to install SimTradeLab...")
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             [sys.executable, "-m", "pip", "install", "simtradelab", "--user"],
             capture_output=True,
             text=True,
@@ -170,9 +172,9 @@ def main():
 
     # System checks
     python_ok = check_python_version()
-    platform_ok = check_platform()
+    _ = check_platform()  # 平台检查，当前脚本主要针对Windows
     pip_ok = check_pip()
-    build_tools_ok = check_build_tools()
+    _ = check_build_tools()  # 构建工具检查结果
 
     check_dependencies()
 

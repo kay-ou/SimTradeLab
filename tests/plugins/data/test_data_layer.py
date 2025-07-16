@@ -69,7 +69,7 @@ class TestDataSourceManager(BasePluginTest):
 
         status = manager_with_csv.get_data_source_status()
         assert "csv" in status
-        assert status["csv"]["enabled"] == True
+        assert status["csv"]["enabled"]
 
     def test_unified_data_access(self, manager_with_csv):
         """测试统一数据访问接口"""

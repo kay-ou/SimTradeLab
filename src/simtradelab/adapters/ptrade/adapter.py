@@ -11,13 +11,14 @@ import importlib.util
 import types
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from types import TracebackType
+from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from ...core.event_bus import EventBus
 from ..base import AdapterConfig, BaseAdapter
 from .context import PTradeContext, PTradeMode
 from .lifecycle_controller import PTradeLifecycleError
-from .models import Portfolio
+from .models import Portfolio, SecurityUnitData
 from .routers import BacktestAPIRouter, ResearchAPIRouter, TradingAPIRouter
 from .utils import PTradeAdapterError, PTradeAPIError, PTradeCompatibilityError
 
@@ -52,7 +53,7 @@ class PTradeAdapter(BaseAdapter):
             Union[BacktestAPIRouter, TradingAPIRouter, ResearchAPIRouter]
         ] = None  # 核心：API路由器
         self._data_cache: Dict[str, Any] = {}
-        self._current_data: Dict[str, Dict[str, float]] = {}
+        self._current_data: Dict[str, "SecurityUnitData"] = {}
 
         # 插件引用（通过服务发现动态获取）
         self._available_data_plugins: List[Dict[str, Any]] = []  # 所有可用的数据源插件
@@ -139,17 +140,20 @@ class PTradeAdapter(BaseAdapter):
 
         if current_mode == PTradeMode.BACKTEST:
             router = BacktestAPIRouter(
-                self._ptrade_context,
-                self._event_bus,
-                slippage_rate=self._slippage_rate,
-                commission_rate=self._commission_rate,
+                context=self._ptrade_context,
+                event_bus=self._event_bus,
+                plugin_manager=self._plugin_manager,
             )
             # 传递活跃数据插件引用给回测模式路由器
             if active_data_plugin:
                 router.set_data_plugin(active_data_plugin)
             return router
         elif current_mode == PTradeMode.TRADING:
-            live_router = TradingAPIRouter(self._ptrade_context, self._event_bus)
+            live_router = TradingAPIRouter(
+                context=self._ptrade_context,
+                event_bus=self._event_bus,
+                plugin_manager=self._plugin_manager,
+            )
             # 传递活跃数据插件引用给实盘交易模式路由器
             if active_data_plugin:
                 live_router.set_data_plugin(active_data_plugin)
@@ -220,6 +224,7 @@ class PTradeAdapter(BaseAdapter):
 
         # 监听插件系统事件
         if self._event_bus is not None:
+            # 在这里设置事件监听器
             self._setup_event_listeners()
 
         mode_name = self._current_mode.value if self._current_mode else "unknown"
@@ -626,8 +631,31 @@ class PTradeAdapter(BaseAdapter):
 
     def _setup_event_listeners(self) -> None:
         """设置事件监听器"""
-        # 监听插件系统事件
-        pass
+        if not self._event_bus:
+            return
+
+        # 定义事件处理器
+        def handle_plugin_event(event: Any) -> None:
+            self._logger.info(
+                f"Received plugin event: {event.type}, invalidating cache."
+            )
+            self._invalidate_plugin_cache()
+
+        # 订阅事件
+        try:
+            listener_id = self._event_bus.subscribe(
+                "plugin.loaded", handle_plugin_event
+            )
+            self._event_listeners.append(listener_id)
+            self._logger.debug("Event listeners for plugin events have been set up.")
+        except Exception as e:
+            self._logger.error(f"Failed to subscribe to plugin events: {e}")
+
+    def _on_shutdown(self) -> None:
+        """在适配器关闭时执行清理"""
+        self.stop()
+        self._initialized = False  # 重置初始化状态
+        self._logger.info("PTrade Adapter has been shut down and uninitialized.")
 
     def _cleanup_event_listeners(self) -> None:
         """清理事件监听器"""
@@ -748,17 +776,16 @@ class PTradeAdapter(BaseAdapter):
         if self._ptrade_context is None or not self._ptrade_context.universe:
             return {}
 
-        # 优先使用API路由器的数据获取方法
-        if self._api_router and hasattr(self._api_router, "get_current_data"):
+        # 优先使用上下文的数据获取方法
+        if self._ptrade_context and hasattr(self._ptrade_context, "get_current_data"):
             try:
-                current_data = self._api_router.get_current_data(
-                    list(self._ptrade_context.universe)
-                )
-                # 更新当前数据缓存
-                self._current_data.update(current_data)
-                return current_data
+                current_data = self._ptrade_context.get_current_data()
+                if current_data:
+                    # 更新当前数据缓存
+                    self._current_data.update(current_data)
+                    return current_data
             except Exception as e:
-                self._logger.warning(f"API router data generation failed: {e}")
+                self._logger.warning(f"Context data generation failed: {e}")
 
         # 回退到直接使用数据插件
         active_data_plugin = self._get_active_data_plugin()
@@ -781,7 +808,7 @@ class PTradeAdapter(BaseAdapter):
         """获取股票当前价格"""
         # 先从缓存查找
         if security in self._current_data:
-            return self._current_data[security].get("last_price", 10.0)
+            return self._current_data[security].price
 
         # 使用活跃数据插件获取
         active_data_plugin = self._get_active_data_plugin()
@@ -846,18 +873,11 @@ class PTradeAdapter(BaseAdapter):
         if hook_name not in self._strategy_hooks:
             raise PTradeAPIError(f"Unknown strategy hook: {hook_name}")
 
-        hook_func = self._strategy_hooks[hook_name]
-        if not hook_func:
-            self._logger.warning(f"Strategy hook {hook_name} is not implemented")
-            return None
-
         try:
-            # 使用API使用限制上下文执行钩子函数
-            # 设置生命周期阶段
+            # 1. 首先尝试设置生命周期阶段，无论钩子是否实现
             if hasattr(self, "_lifecycle_controller") and self._lifecycle_controller:
                 from .lifecycle_controller import LifecyclePhase
 
-                # 将钩子名称映射到生命周期阶段
                 phase_mapping = {
                     "initialize": LifecyclePhase.INITIALIZE,
                     "before_trading_start": LifecyclePhase.BEFORE_TRADING_START,
@@ -869,7 +889,18 @@ class PTradeAdapter(BaseAdapter):
                 }
                 if hook_name in phase_mapping:
                     self._lifecycle_controller.set_phase(phase_mapping[hook_name])
-            return hook_func(*args, **kwargs)
+
+            # 2. 获取钩子函数并执行
+            hook_func = self._strategy_hooks[hook_name]
+            if not hook_func:
+                self._logger.warning(
+                    f"Strategy hook '{hook_name}' is not implemented, but phase transition was successful."
+                )
+                return True  # 即使未实现，也认为成功
+
+            hook_func(*args, **kwargs)
+            return True  # 明确返回True表示成功执行
+
         except Exception as e:
             self._logger.error(f"Error executing strategy hook {hook_name}: {e}")
             raise PTradeAPIError(f"Strategy hook {hook_name} failed: {e}")
@@ -948,7 +979,7 @@ class PTradeAdapter(BaseAdapter):
 
                             # 调试：显示初始化后的状态
                             self._logger.info(
-                                f"After initialize - securities: {getattr(self._ptrade_context, 'securities', 'Not found')}"
+                                f"After initialize - universe: {getattr(self._ptrade_context, 'universe', 'Not found')}"
                             )
                             self._logger.info(
                                 f"After initialize - universe: {self._ptrade_context.universe}"
@@ -956,14 +987,12 @@ class PTradeAdapter(BaseAdapter):
 
                             # 同步策略中设置的securities到universe
                             if (
-                                hasattr(self._ptrade_context, "securities")
-                                and self._ptrade_context.securities
+                                hasattr(self._ptrade_context, "universe")
+                                and self._ptrade_context.universe
                             ):
-                                self._ptrade_context.set_universe(
-                                    self._ptrade_context.securities
-                                )
+                                # The universe is already set, no need to sync.
                                 self._logger.info(
-                                    f"Synced securities to universe: {self._ptrade_context.securities}"
+                                    f"Universe already set in context: {self._ptrade_context.universe}"
                                 )
                             else:
                                 self._logger.warning(
@@ -1052,7 +1081,10 @@ class PTradeAdapter(BaseAdapter):
             try:
                 # 检查API使用限制
                 # 检查API调用权限
-                if hasattr(self, "_lifecycle_controller"):
+                if (
+                    hasattr(self, "_lifecycle_controller")
+                    and self._lifecycle_controller
+                ):
                     self._lifecycle_controller.validate_api_call(api_name)
 
                 # 自动注入适配器引用作为第一个参数
@@ -1161,6 +1193,11 @@ class PTradeAdapter(BaseAdapter):
         """上下文管理器入口"""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore[no-untyped-def]
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         """上下文管理器出口"""
         self._on_shutdown()

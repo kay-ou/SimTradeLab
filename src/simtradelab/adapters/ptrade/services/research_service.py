@@ -6,16 +6,14 @@
 从API路由器中分离出来。使用统一的数据源管理器进行数据访问。
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, overload
+from typing import Any, Dict, List, Optional, Union, overload
 
 import numpy as np
 import pandas as pd
 
 from ....plugins.data import DataSourceManager
-from . import BaseService
-
-if TYPE_CHECKING:
-    from ..context import PTradeContext
+from ..context import PTradeContext
+from .base_service import BaseService
 
 
 class ResearchService(BaseService):
@@ -27,9 +25,8 @@ class ResearchService(BaseService):
         plugin_manager: Optional[Any] = None,
         **kwargs: Any,
     ):
-        super().__init__(**kwargs)
-        self.context = context
-        self._plugin_manager = plugin_manager
+        super().__init__(context=context, plugin_manager=plugin_manager, **kwargs)
+        # context 和 plugin_manager 已经在父类中设置，无需重复设置
 
         # 初始化数据源管理器
         self._data_source_manager = DataSourceManager(plugin_manager)

@@ -150,7 +150,7 @@ class DataSourceManager:
                             data_source = self._data_sources[name]
                             if data_source.is_available():
                                 available_sources.append(name)
-                        except Exception:
+                        except Exception:  # nosec B110
                             # 忽略不可用的数据源
                             pass
             return available_sources
@@ -283,7 +283,7 @@ class DataSourceManager:
                     supported_markets = data_source.get_supported_markets()
                     if not required_markets.issubset(supported_markets):
                         continue
-                except Exception:
+                except Exception:  # nosec B112
                     continue
 
             try:

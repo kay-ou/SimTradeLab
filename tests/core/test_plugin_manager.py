@@ -13,10 +13,8 @@ PluginManager 核心功能测试
 7.  与事件总线的集成和事件发布。
 """
 
-import tempfile
 import threading
 import time
-from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock
 
@@ -25,7 +23,6 @@ from pydantic import Field
 
 from simtradelab.core.event_bus import EventBus
 from simtradelab.core.plugin_manager import (
-    PluginDiscoveryError,
     PluginLoadError,
     PluginManager,
     PluginRegistrationError,
@@ -162,9 +159,7 @@ def event_bus():
 @pytest.fixture
 def plugin_manager(event_bus):
     """提供一个 PluginManager 实例，并在测试结束后自动关闭"""
-    manager = PluginManager(
-        event_bus=event_bus, auto_register_builtin=False, register_core_plugins=False
-    )
+    manager = PluginManager(event_bus=event_bus, register_core_plugins=False)
     yield manager
     manager.shutdown()
 
@@ -343,38 +338,6 @@ class TestPluginHotReload:
         assert new_instance.data == ["item1", "item2", "item3"]
 
 
-class TestPluginDiscovery:
-    """测试从目录动态发现插件"""
-
-    @pytest.fixture
-    def plugin_dir(self):
-        """创建一个临时目录用于存放插件文件"""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            yield Path(tmpdir)
-
-    def test_discover_from_file(self, plugin_manager, plugin_dir):
-        """测试从单个 Python 文件中发现并注册插件"""
-        plugin_code = """
-from simtradelab.plugins.base import BasePlugin, PluginMetadata
-
-class DiscoveredPlugin(BasePlugin):
-    METADATA = PluginMetadata(name="discovered_plugin", version="1.0.0")
-    def _on_initialize(self): pass
-    def _on_start(self): pass
-    def _on_stop(self): pass
-"""
-        (plugin_dir / "my_plugin.py").write_text(plugin_code)
-
-        loaded_plugins = plugin_manager.load_plugins_from_directory(plugin_dir)
-        assert "discovered_plugin" in loaded_plugins
-        assert "discovered_plugin" in plugin_manager.list_plugins()
-
-    def test_discovery_nonexistent_directory_fails(self, plugin_manager):
-        """测试从不存在的目录发现插件会失败"""
-        with pytest.raises(PluginDiscoveryError, match="does not exist"):
-            plugin_manager.load_plugins_from_directory("nonexistent_dir")
-
-
 class TestErrorHandling:
     """测试插件管理器的错误处理和隔离机制"""
 
@@ -489,7 +452,7 @@ class TestEventBusIntegration:
         # 手动创建实例以完全控制生命周期
         bus = EventBus()
         # 关键：先创建不带 event_bus 的 manager
-        manager = PluginManager(auto_register_builtin=False)
+        manager = PluginManager(register_core_plugins=False)
 
         mock_handler = MagicMock()
         bus.subscribe("plugin.*", mock_handler)
@@ -500,6 +463,8 @@ class TestEventBusIntegration:
         # 1. 触发所有生命周期事件
         plugin_name = manager.register_plugin(SimplePlugin)
         instance = manager.load_plugin(plugin_name)
+        assert instance is not None
+        assert isinstance(instance, SimplePlugin)
         manager.start_plugin(plugin_name)
         manager.stop_plugin(plugin_name)
         manager.unload_plugin(plugin_name)

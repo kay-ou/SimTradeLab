@@ -38,7 +38,7 @@ def handle_data(context, data):
 
         # 1. 查询当前持仓
         log.info("=== 持仓查询 ===")
-        positions = get_positions()
+        _ = get_positions()  # 获取所有持仓，演示用途
         position = get_position(security)
 
         if position:

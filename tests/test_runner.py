@@ -160,6 +160,8 @@ class TestBacktestRunnerAdditional:
             assert runner.plugin_manager is custom_pm
             # 应该仍然调用插件注册
             assert custom_pm.register_plugin.called
+            # 验证BacktestEngine被正确创建
+            mock_engine.assert_called_once()
 
     def test_runner_with_plugins_in_config(self, strategy_file):
         """测试配置中包含插件配置"""
@@ -182,6 +184,10 @@ class TestBacktestRunnerAdditional:
                 mock_pm.register_plugins_from_config.assert_called_once_with(
                     config["plugins"]
                 )
+                # 验证BacktestEngine被正确创建
+                mock_engine.assert_called_once()
+                # 验证runner创建成功
+                assert runner is not None
 
     def test_runner_plugin_registration_error(self, strategy_file, mock_config):
         """测试插件注册错误处理"""
@@ -199,11 +205,15 @@ class TestBacktestRunnerAdditional:
                 # 应该能正常初始化，只是记录警告
                 runner = BacktestRunner(strategy_file=strategy_file, config=mock_config)
                 assert runner is not None
+                # 验证BacktestEngine被调用
+                mock_engine.assert_called_once()
 
     def test_runner_context_manager(self, strategy_file, mock_config):
         """测试上下文管理器功能"""
         with patch("simtradelab.runner.BacktestEngine") as mock_engine:
             runner = BacktestRunner(strategy_file=strategy_file, config=mock_config)
+            # 验证BacktestEngine被调用
+            mock_engine.assert_called_once()
 
             # 测试__enter__
             assert runner.__enter__() is runner
@@ -253,6 +263,10 @@ class TestBacktestRunnerAdditional:
 
                 # 验证没有调用register_plugin，因为插件已存在
                 mock_pm.register_plugin.assert_not_called()
+                # 验证BacktestEngine被调用
+                mock_engine.assert_called_once()
+                # 验证runner创建成功
+                assert runner is not None
 
     def test_run_backtest_with_exception_handling(self, strategy_file, mock_config):
         """测试run_backtest函数的异常处理"""

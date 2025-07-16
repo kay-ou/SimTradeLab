@@ -88,7 +88,7 @@ class BacktestRunner:
         # 此处应有加载数据和策略的逻辑
         # ...
 
-        with self.engine as engine:
+        with self.engine as _:
             # 模拟数据流和订单提交
             # for market_data_event in data_stream:
             #     engine.update_market_data(market_data_event.symbol, market_data_event)

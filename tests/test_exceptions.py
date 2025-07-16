@@ -114,7 +114,7 @@ class TestTradingSystemExceptionHandling:
         def execute_strategy():
             try:
                 # 模拟策略计算错误
-                sharpe_ratio = 0.15 / 0  # 除零错误
+                _ = 0.15 / 0  # 除零错误
             except ZeroDivisionError:
                 raise StrategyError(
                     f"Strategy execution failed: {strategy_name} - {error_details}"
@@ -225,6 +225,11 @@ class TestSystemRecoveryAndDiagnostics:
         # 验证业务价值：系统能够跟踪错误链并执行恢复策略
         with pytest.raises(EngineError) as exc_info:
             simulate_trading_day()
+
+        # 验证异常信息
+        assert "Trading engine stopped due to multiple component failures" in str(
+            exc_info.value
+        )
 
         # 验证错误恢复链被正确记录
         assert len(system_errors) == 2

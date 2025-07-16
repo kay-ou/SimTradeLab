@@ -55,7 +55,7 @@ def handle_data(context, data):
     每个交易日都会调用此函数
     """
     # 获取当前日期
-    current_date = context.current_dt.date()
+    _ = context.current_dt.date()  # 当前示例中未使用，但保留获取逻辑
 
     # 获取股票列表（从数据中获取可用股票）
     securities = list(data.keys())
@@ -85,7 +85,7 @@ def handle_data(context, data):
 
     # 计算技术指标
     close_prices = pd.Series(hist_data[security]["close"])
-    volumes = pd.Series(hist_data[security]["volume"])
+    _ = pd.Series(hist_data[security]["volume"])  # 成交量数据，当前未使用
 
     # 计算均线
     ma_short = close_prices.rolling(window=g.short_ma).mean().iloc[-1]
