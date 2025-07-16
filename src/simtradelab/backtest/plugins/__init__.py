@@ -48,9 +48,7 @@ __all__ = [
     "PLUGIN_TYPE_SLIPPAGE_MODEL",
     "PLUGIN_TYPE_COMMISSION_MODEL",
     # 撮合引擎实现
-    "SimpleMatchingEngine",
     "DepthMatchingEngine",
-    "StrictLimitMatchingEngine",
     # 滑点模型实现
     "LinearSlippageModel",
     "VolumeBasedSlippageModel",

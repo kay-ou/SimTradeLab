@@ -3,9 +3,7 @@
 撮合引擎插件实现
 
 提供多种撮合引擎插件，模拟不同的交易撮合逻辑：
-- 简单撮合引擎：基本的价格撮合
 - 深度撮合引擎：考虑订单深度的撮合
-- 限价撮合引擎：严格的限价单撮合
 """
 
 import heapq
@@ -14,19 +12,13 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 
 from simtradelab.backtest.plugins.base import (
-    BaseCommissionModel,
     BaseMatchingEngine,
-    BaseSlippageModel,
     Fill,
     MarketData,
     Order,
     PluginMetadata,
 )
-from simtradelab.backtest.plugins.config import (
-    DepthMatchingEngineConfig,
-    LimitMatchingEngineConfig,
-    SimpleMatchingEngineConfig,
-)
+from simtradelab.backtest.plugins.config import DepthMatchingEngineConfig
 
 
 class DepthMatchingEngine(BaseMatchingEngine):

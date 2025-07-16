@@ -104,16 +104,6 @@ class CommissionModelConfig(BasePluginConfig):
         return v
 
 
-class SimpleMatchingEngineConfig(MatchingEngineConfig):
-    """简单撮合引擎配置"""
-
-    model_config = ConfigDict(
-        title="简单撮合引擎配置",
-        description="基本的价格撮合引擎配置选项",
-        extra="ignore",
-    )
-
-
 class DepthMatchingEngineConfig(MatchingEngineConfig):
     """深度撮合引擎配置"""
 
@@ -141,10 +131,7 @@ class DepthMatchingEngineConfig(MatchingEngineConfig):
         default=Decimal("0.02"), description="最大价差比例", ge=0, le=1
     )
 
-    model_config = ConfigDict(
-        title="深度撮合引擎配置",
-        description="考虑订单深度的撮合引擎配置选项",
-    )
+    model_config = ConfigDict(title="深度撮合引擎配置", description="考虑订单深度的撮合引擎配置选项")
 
 
 class LimitMatchingEngineConfig(MatchingEngineConfig):
@@ -273,7 +260,7 @@ class TieredCommissionModelConfig(CommissionModelConfig):
 
 # 配置映射字典，用于插件自动配置模型选择
 BACKTEST_PLUGIN_CONFIG_MAPPING = {
-    "SimpleMatchingEngine": SimpleMatchingEngineConfig,
+    "SimpleMatchingEngine": MatchingEngineConfig,
     "DepthMatchingEngine": DepthMatchingEngineConfig,
     "LimitMatchingEngine": LimitMatchingEngineConfig,
     "FixedSlippageModel": FixedSlippageModelConfig,

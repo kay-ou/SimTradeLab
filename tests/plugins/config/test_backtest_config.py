@@ -16,19 +16,19 @@ from simtradelab.backtest.plugins.config import (
     FixedCommissionModelConfig,
     LimitMatchingEngineConfig,
     LinearSlippageModelConfig,
-    SimpleMatchingEngineConfig,
+    MatchingEngineConfig,
     TieredCommissionModelConfig,
     VolumeBasedSlippageModelConfig,
     get_config_model_for_plugin,
 )
 
 
-class TestSimpleMatchingEngineConfig:
+class TestMatchingEngineConfig:
     """简单撮合引擎配置测试"""
 
     def test_default_config(self):
         """测试默认配置"""
-        config = SimpleMatchingEngineConfig()
+        config = MatchingEngineConfig()
 
         assert config.price_tolerance == Decimal("0.01")
         assert config.enable_partial_fill is True
@@ -42,7 +42,7 @@ class TestSimpleMatchingEngineConfig:
             "max_order_size": "10000",
         }
 
-        config = SimpleMatchingEngineConfig(**data)
+        config = MatchingEngineConfig(**data)
 
         assert config.price_tolerance == Decimal("0.05")
         assert config.enable_partial_fill is False
@@ -51,15 +51,15 @@ class TestSimpleMatchingEngineConfig:
     def test_invalid_price_tolerance(self):
         """测试无效价格容忍度"""
         with pytest.raises(ValidationError):
-            SimpleMatchingEngineConfig(price_tolerance="-0.01")
+            MatchingEngineConfig(price_tolerance=Decimal("-0.01"))
 
         with pytest.raises(ValidationError):
-            SimpleMatchingEngineConfig(price_tolerance="1.5")
+            MatchingEngineConfig(price_tolerance=Decimal("1.5"))
 
     def test_invalid_max_order_size(self):
         """测试无效最大订单数量"""
         with pytest.raises(ValidationError):
-            SimpleMatchingEngineConfig(max_order_size="-100")
+            MatchingEngineConfig(max_order_size=Decimal("-100"))
 
 
 class TestDepthMatchingEngineConfig:
@@ -258,8 +258,7 @@ class TestConfigMapping:
         """测试根据插件名获取配置模型"""
         # 测试已知插件
         assert (
-            get_config_model_for_plugin("SimpleMatchingEngine")
-            == SimpleMatchingEngineConfig
+            get_config_model_for_plugin("SimpleMatchingEngine") == MatchingEngineConfig
         )
         assert (
             get_config_model_for_plugin("DepthMatchingEngine")
@@ -304,7 +303,7 @@ class TestConfigFromDict:
             "default": {"price_tolerance": "0.02", "enable_partial_fill": False}
         }
 
-        config = SimpleMatchingEngineConfig.load_from_dict(config_data)
+        config = MatchingEngineConfig.load_from_dict(config_data, env="default")
 
         assert config.price_tolerance == Decimal("0.02")
         assert config.enable_partial_fill is False
@@ -319,13 +318,13 @@ class TestConfigFromDict:
         }
 
         with pytest.raises(ValidationError):
-            SimpleMatchingEngineConfig.load_from_dict(config_data)
+            MatchingEngineConfig.load_from_dict(config_data, env="default")
 
     def test_load_with_missing_optional_fields(self):
         """测试加载缺少可选字段的配置"""
         config_data = {"default": {"enable_partial_fill": True}}
 
-        config = SimpleMatchingEngineConfig.load_from_dict(config_data)
+        config = MatchingEngineConfig.load_from_dict(config_data, env="default")
 
         # 应该使用默认值
         assert config.price_tolerance == Decimal("0.01")

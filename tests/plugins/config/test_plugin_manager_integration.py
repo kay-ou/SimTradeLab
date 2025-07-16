@@ -9,9 +9,9 @@ from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pydantic import ValidationError
 
-from simtradelab.backtest.plugins.config import SimpleMatchingEngineConfig
+from simtradelab.backtest.plugins.config import MatchingEngineConfig
+from simtradelab.core.config.config_manager import ConfigValidationError
 from simtradelab.core.plugin_manager import PluginLoadError, PluginManager
 from simtradelab.plugins.base import BasePlugin, PluginMetadata
 from simtradelab.plugins.data.config import MockDataPluginConfig
@@ -40,7 +40,7 @@ class MockTestPluginWithConfigModel(BasePlugin):
     )
 
     # 定义配置模型
-    config_model = SimpleMatchingEngineConfig
+    config_model = MatchingEngineConfig
 
     def _on_initialize(self):
         pass
@@ -88,7 +88,7 @@ class TestPluginManagerConfigValidation:
         manager = PluginManager(register_core_plugins=False)
 
         # 创建有效配置
-        config = SimpleMatchingEngineConfig(
+        config = MatchingEngineConfig(
             price_tolerance=Decimal("0.02"), enable_partial_fill=True
         )
 
@@ -145,13 +145,15 @@ class TestPluginManagerConfigValidation:
         预期行为：ConfigManager应抛出验证错误，PluginManager将其包装为PluginLoadError。
         """
         # 1. 准备
-        # 模拟ConfigManager在验证时抛出ValidationError
+        # 模拟ConfigManager在验证时抛出ConfigValidationError
         mock_config_manager = MagicMock()
         mock_get_config_manager.return_value = mock_config_manager
-        validation_error = ValidationError.from_exception_data(
-            title="SimpleMatchingEngineConfig", line_errors=[]
+        config_validation_error = ConfigValidationError(
+            plugin_name="TestPluginWithConfigModel", message="模拟验证失败"
         )
-        mock_config_manager.create_validated_config.side_effect = validation_error
+        mock_config_manager.create_validated_config.side_effect = (
+            config_validation_error
+        )
 
         # 2. 执行
         # @patch确保了在实例化PluginManager时，_register_core_plugins已经被模拟
@@ -163,8 +165,8 @@ class TestPluginManagerConfigValidation:
         with pytest.raises(PluginLoadError) as excinfo:
             manager.load_plugin(plugin_name, wrong_config_object)
 
-        # 验证原始错误是ValidationError
-        assert isinstance(excinfo.value.__cause__, ValidationError)
+        # 验证原始错误是ConfigValidationError
+        assert isinstance(excinfo.value.__cause__, ConfigValidationError)
 
         # 验证ConfigManager被正确调用
         mock_config_manager.create_validated_config.assert_called_once_with(
@@ -362,9 +364,9 @@ class TestConfigValidationEdgeCases:
             "unknown_field": "should_be_ignored",  # 额外字段
         }
 
-        # 应该忽略额外字段并成功加载
-        instance = manager.load_plugin(plugin_name, config_dict)
-        assert instance is not None
+        # 应该因额外字段而加载失败
+        with pytest.raises(PluginLoadError, match="Extra inputs are not permitted"):
+            manager.load_plugin(plugin_name, config_dict)
 
     def teardown_method(self):
         """清理测试环境"""
