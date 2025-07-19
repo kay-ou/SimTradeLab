@@ -19,7 +19,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from ...core.events.contracts import create_config_changed_event
-from ...exceptions import SimTradeLabError
+from ...exceptions import SimTradeLabException
 
 
 class ConfigChangeEvent(BaseModel):
@@ -46,7 +46,7 @@ class ConfigSource(BaseModel):
     checksum: Optional[str] = None
 
 
-class DynamicConfigError(SimTradeLabError):
+class DynamicConfigError(SimTradeLabException):
     """动态配置异常"""
 
     pass

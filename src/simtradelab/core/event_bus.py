@@ -23,11 +23,11 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from ..exceptions import SimTradeLabError
+from ..exceptions import SimTradeLabException
 from .events.cloud_event import CloudEvent
 
 
-class EventBusError(SimTradeLabError):
+class EventBusError(SimTradeLabException):
     """事件总线相关异常"""
 
     pass

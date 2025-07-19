@@ -14,10 +14,10 @@ from .order import Blotter, Order
 from .portfolio import Portfolio, Position
 
 __all__ = [
-    "Order",
-    "Blotter",
     "Portfolio",
     "Position",
+    "Order",
+    "Blotter",
     "SecurityUnitData",
     "SimulationParameters",
     "VolumeShareSlippage",

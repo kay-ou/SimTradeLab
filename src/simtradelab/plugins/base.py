@@ -14,10 +14,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from ..exceptions import SimTradeLabError
+from ..exceptions import SimTradeLabException
 
 
-class PluginError(SimTradeLabError):
+class PluginError(SimTradeLabException):
     """插件相关异常"""
 
     pass
@@ -170,6 +170,11 @@ class BasePlugin(abc.ABC):
     def is_running(self) -> bool:
         """检查插件是否正在运行"""
         return self._state == PluginState.STARTED
+        
+    @property
+    def is_enabled(self) -> bool:
+        """检查插件是否已启用"""
+        return self.config.enabled
 
     @property
     def event_bus(self) -> Optional[Any]:
@@ -701,3 +706,15 @@ class BasePlugin(abc.ABC):
             new_mode: 新模式
         """
         _ = old_mode, new_mode  # 避免未使用参数警告
+
+    def enable(self) -> None:
+        """启用插件"""
+        if not self.is_enabled:
+            self.config.enabled = True
+            self.logger.info(f"Plugin '{self.metadata.name}' has been enabled.")
+
+    def disable(self) -> None:
+        """禁用插件"""
+        if self.is_enabled:
+            self.config.enabled = False
+            self.logger.info(f"Plugin '{self.metadata.name}' has been disabled.")

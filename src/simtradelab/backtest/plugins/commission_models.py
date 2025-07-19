@@ -35,7 +35,7 @@ class ChinaAStockCommissionModel(BaseCommissionModel):
     config_model = CommissionModelConfig
 
     METADATA = PluginMetadata(
-        name="ChinaAStockCommissionModel",
+        name="china_a_stock_commission_model",
         version="1.0.0",
         description="中国A股市场手续费模型",
         author="SimTradeLab",
@@ -164,7 +164,7 @@ class FixedCommissionModel(BaseCommissionModel):
     config_model = FixedCommissionModelConfig
 
     METADATA = PluginMetadata(
-        name="FixedCommissionModel",
+        name="fixed_commission_model",
         version="1.0.0",
         description="固定费率手续费模型",
         author="SimTradeLab",
@@ -249,7 +249,7 @@ class TieredCommissionModel(BaseCommissionModel):
     config_model = TieredCommissionModelConfig
 
     METADATA = PluginMetadata(
-        name="TieredCommissionModel",
+        name="tiered_commission_model",
         version="1.0.0",
         description="阶梯费率手续费模型",
         author="SimTradeLab",
@@ -395,7 +395,7 @@ class ComprehensiveCommissionModel(BaseCommissionModel):
     config_model = CommissionModelConfig
 
     METADATA = PluginMetadata(
-        name="ComprehensiveCommissionModel",
+        name="comprehensive_commission_model",
         version="1.0.0",
         description="综合手续费模型",
         author="SimTradeLab",
@@ -523,7 +523,7 @@ class PerShareCommissionModel(BaseCommissionModel):
     config_model = CommissionModelConfig
 
     METADATA = PluginMetadata(
-        name="PerShareCommissionModel",
+        name="per_share_commission_model",
         version="1.0.0",
         description="按股计费手续费模型",
         author="SimTradeLab",

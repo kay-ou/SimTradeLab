@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-
+import logging
 
 def initialize(context):
     """
     策略初始化函数。
     """
-    context.securities = ["STOCK_A"]  # 设置要交易的股票
+    g.security = "STOCK_A"
+    context.universe = [g.security]
     context.has_bought = False  # 标记是否已买入
 
 
@@ -18,6 +19,12 @@ def handle_data(context, data):
         cash_to_use = context.portfolio.cash * 0.9
         price = data["STOCK_A"]["close"]
         amount_to_buy = int(cash_to_use / price)
+
+        logging.info(f"--- 调试信息 ---")
+        logging.info(f"可用现金: {context.portfolio.cash}")
+        logging.info(f"股票价格: {price}")
+        logging.info(f"计划买入数量: {amount_to_buy}")
+        logging.info(f"-----------------")
 
         if amount_to_buy > 0:
             order("STOCK_A", amount_to_buy)

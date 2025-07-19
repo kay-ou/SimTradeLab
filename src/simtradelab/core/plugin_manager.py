@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Type, Union
 
-from ..exceptions import SimTradeLabError
+from ..exceptions import SimTradeLabException
 from ..plugins.base import BasePlugin, PluginMetadata, PluginState
 from ..plugins.config.base_config import BasePluginConfig
 from .config.config_manager import get_config_manager
@@ -22,7 +22,7 @@ from .event_bus import EventBus
 from .events.cloud_event import CloudEvent
 
 
-class PluginManagerError(SimTradeLabError):
+class PluginManagerError(SimTradeLabException):
     """插件管理器异常"""
 
     pass
@@ -922,10 +922,20 @@ class PluginManager:
 
             # 定义核心插件映射：插件名 -> 模块路径
             core_plugins = {
-                "mock_data_plugin": (
-                    "simtradelab.plugins.data.sources.mock_data_plugin.MockDataPlugin"
-                ),
-                # 可以根据需要添加更多核心插件
+                "mock_data_plugin": "simtradelab.plugins.data.sources.mock_data_plugin.MockDataPlugin",
+                "depth_matching_engine": "simtradelab.backtest.plugins.matching_engines.DepthMatchingEngine",
+                "fixed_commission_model": "simtradelab.backtest.plugins.commission_models.FixedCommissionModel",
+                "default_latency_model": "simtradelab.backtest.plugins.latency_models.default_latency_model.DefaultLatencyModel",
+                "linear_slippage_model": "simtradelab.backtest.plugins.slippage_models.LinearSlippageModel",
+                # 添加其他可能需要的核心回测插件
+                "china_a_stock_commission_model": "simtradelab.backtest.plugins.commission_models.ChinaAStockCommissionModel",
+                "tiered_commission_model": "simtradelab.backtest.plugins.commission_models.TieredCommissionModel",
+                "comprehensive_commission_model": "simtradelab.backtest.plugins.commission_models.ComprehensiveCommissionModel",
+                "per_share_commission_model": "simtradelab.backtest.plugins.commission_models.PerShareCommissionModel",
+                "volume_based_slippage_model": "simtradelab.backtest.plugins.slippage_models.VolumeBasedSlippageModel",
+                "fixed_slippage_model": "simtradelab.backtest.plugins.slippage_models.FixedSlippageModel",
+                "dynamic_slippage_model": "simtradelab.backtest.plugins.slippage_models.DynamicSlippageModel",
+                "volatility_based_slippage_model": "simtradelab.backtest.plugins.slippage_models.VolatilityBasedSlippageModel",
             }
 
             registered_count = 0

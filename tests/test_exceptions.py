@@ -11,7 +11,6 @@ SimTradeLab异常系统测试
 import pytest
 
 from simtradelab.exceptions import (
-    ConfigurationError,
     DataLoadError,
     DataSourceError,
     DataValidationError,
@@ -19,8 +18,9 @@ from simtradelab.exceptions import (
     InsufficientFundsError,
     InsufficientPositionError,
     InvalidOrderError,
+    PluginConfigurationError,
     ReportGenerationError,
-    SimTradeLabError,
+    SimTradeLabException,
     StrategyError,
     TradingError,
 )
@@ -55,7 +55,7 @@ class TestTradingSystemExceptionHandling:
 
         # 验证异常继承关系支持统一处理
         assert isinstance(exc_info.value, TradingError)
-        assert isinstance(exc_info.value, SimTradeLabError)
+        assert isinstance(exc_info.value, SimTradeLabException)
 
     def test_position_management_exception_scenario(self):
         """测试持仓管理异常场景 - 卖空风控的核心需求"""
@@ -160,7 +160,7 @@ class TestTradingSystemExceptionHandling:
         try:
             fetch_market_data()
         except DataSourceError as e:
-            assert isinstance(e, SimTradeLabError)
+            assert isinstance(e, SimTradeLabException)
             assert data_provider in str(e)
             assert symbol in str(e)
 
@@ -173,19 +173,19 @@ class TestTradingSystemExceptionHandling:
         def validate_system_configuration():
             # 模拟缺失配置
             if not missing_config:
-                raise ConfigurationError(
+                raise PluginConfigurationError(
                     f"Required configuration missing: {missing_config}"
                 )
 
             # 模拟无效配置值
             risk_threshold = -0.1  # 负值风险阈值
             if risk_threshold < 0:
-                raise ConfigurationError(
+                raise PluginConfigurationError(
                     f"Invalid {invalid_config}: {risk_threshold}. Must be non-negative"
                 )
 
         # 验证业务价值：配置问题在系统启动时被检测
-        with pytest.raises(ConfigurationError) as exc_info:
+        with pytest.raises(PluginConfigurationError) as exc_info:
             validate_system_configuration()
 
         error_message = str(exc_info.value)
@@ -364,7 +364,7 @@ class TestSimpleExceptionFunctionality:
     def test_all_exception_types_instantiable(self):
         """验证所有异常类型都可以正常实例化并包含有意义的信息"""
         exceptions_to_test = [
-            (SimTradeLabError, "Base system error"),
+            (SimTradeLabException, "Base system error"),
             (DataSourceError, "Data connection failed"),
             (DataLoadError, "File load error"),
             (DataValidationError, "Data validation failed"),
@@ -374,7 +374,7 @@ class TestSimpleExceptionFunctionality:
             (InvalidOrderError, "Invalid order"),
             (EngineError, "Engine error"),
             (StrategyError, "Strategy error"),
-            (ConfigurationError, "Configuration error"),
+            (PluginConfigurationError, "Configuration error"),
             (ReportGenerationError, "Report generation failed"),
         ]
 
@@ -382,7 +382,7 @@ class TestSimpleExceptionFunctionality:
             # 验证异常可以正常创建和使用
             error = exception_class(test_message)
             assert str(error) == test_message
-            assert isinstance(error, SimTradeLabError)
+            assert isinstance(error, SimTradeLabException)
             assert isinstance(error, Exception)
 
     def test_exception_hierarchy_for_unified_handling(self):

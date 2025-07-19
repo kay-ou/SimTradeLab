@@ -10,7 +10,7 @@
 import warnings
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import pandas as pd
 
@@ -111,3 +111,41 @@ class PerformanceManager:
         # 使用 pyfolio 的 perf_stats 函数获取摘要
         stats = pf.timeseries.perf_stats(self.returns)
         return stats.to_dict()
+
+    def get_localized_summary(self) -> Dict[str, Any]:
+        """
+        获取本地化（中文）的关键性能指标摘要。
+        """
+        summary = self.get_summary()
+        if not summary:
+            return {}
+
+        # pyfolio 默认的英文键名到中文的映射
+        key_map = {
+            "Annual return": "年化收益率",
+            "Cumulative returns": "累计收益率",
+            "Annual volatility": "年化波动率",
+            "Sharpe ratio": "夏普比率",
+            "Calmar ratio": "卡玛比率",
+            "Stability": "稳定性",
+            "Max drawdown": "最大回撤",
+            "Omega ratio": "欧米茄比率",
+            "Sortino ratio": "索提诺比率",
+            "Skew": "偏度",
+            "Kurtosis": "峰度",
+            "Tail ratio": "尾部比率",
+            "Common sense ratio": "常识比率",
+            "Daily value at risk": "每日风险价值 (VaR)",
+            "Alpha": "阿尔法",
+            "Beta": "贝塔",
+        }
+        
+        localized_summary = {key_map.get(k, k): v for k, v in summary.items()}
+
+        # 添加额外的、更容易理解的指标
+        if self.daily_portfolio_values:
+            final_value = list(self.daily_portfolio_values.values())[-1]
+            localized_summary["最终投资组合价值"] = float(final_value)
+            localized_summary["总回报率"] = float(final_value / self.initial_capital - 1)
+
+        return localized_summary

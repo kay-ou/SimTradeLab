@@ -39,7 +39,7 @@ class LinearSlippageModel(BaseSlippageModel):
     """
 
     METADATA = PluginMetadata(
-        name="LinearSlippageModel",
+        name="linear_slippage_model",
         version="1.1.0",  # 版本提升，因为修复了重大bug
         description="线性滑点计算模型",
         author="SimTradeLab",
@@ -125,7 +125,7 @@ class VolumeBasedSlippageModel(BaseSlippageModel):
     """
 
     METADATA = PluginMetadata(
-        name="VolumeBasedSlippageModel",
+        name="volume_based_slippage_model",
         version="1.0.0",
         description="基于成交量的动态滑点模型",
         author="SimTradeLab",
@@ -222,7 +222,7 @@ class FixedSlippageModel(BaseSlippageModel):
     """
 
     METADATA = PluginMetadata(
-        name="FixedSlippageModel",
+        name="fixed_slippage_model",
         version="1.0.0",
         description="固定滑点模型",
         author="SimTradeLab",
@@ -282,7 +282,7 @@ class DynamicSlippageModel(BaseSlippageModel):
     """
 
     METADATA = PluginMetadata(
-        name="DynamicSlippageModel",
+        name="dynamic_slippage_model",
         version="1.0.0",
         description="动态滑点模型，基于市场状况调整",
         author="SimTradeLab",
@@ -407,7 +407,7 @@ class VolatilityBasedSlippageModel(BaseSlippageModel):
     """
 
     METADATA = PluginMetadata(
-        name="VolatilityBasedSlippageModel",
+        name="volatility_based_slippage_model",
         version="1.1.0",  # 版本提升，修复配置bug
         description="基于波动率的滑点模型",
         author="SimTradeLab",

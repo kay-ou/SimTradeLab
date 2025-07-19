@@ -291,8 +291,9 @@ class BacktestEngine:
         return self._fills.copy()
 
     def get_statistics(self) -> Dict[str, Any]:
-        """获取回测统计数据"""
-        return {
+        """获取回测统计数据, 包括核心交易统计和本地化的性能指标。"""
+        # 核心交易统计
+        stats = {
             "total_orders": self._stats["total_orders"],
             "total_fills": self._stats["total_fills"],
             "total_commission": float(self._stats["total_commission"]),
@@ -305,6 +306,13 @@ class BacktestEngine:
                 else 0
             ),
         }
+
+        # 获取并合并本地化的性能指标
+        if self._performance_manager:
+            performance_summary = self._performance_manager.get_localized_summary()
+            stats.update(performance_summary)
+            
+        return stats
 
     def get_plugin_info(self) -> Dict[str, Any]:
         """

@@ -12,7 +12,7 @@ from simtradelab.adapters.ptrade.utils.exceptions import (
     PTradeAPIError,
     PTradeCompatibilityError,
 )
-from simtradelab.exceptions import SimTradeLabError
+from simtradelab.exceptions import SimTradeLabException as SimTradeLabError
 
 
 class TestPTradeAdapterError:

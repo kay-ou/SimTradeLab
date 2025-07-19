@@ -24,6 +24,7 @@ class DefaultLatencyModelConfig(BasePluginConfig):
 
 
 class DefaultLatencyModel(BaseLatencyModel):
+    config_model = DefaultLatencyModelConfig
     """
     默认延迟模型
 
@@ -39,7 +40,7 @@ class DefaultLatencyModel(BaseLatencyModel):
         self._config = config or DefaultLatencyModelConfig()
 
     METADATA = PluginMetadata(
-        name="DefaultLatencyModel",
+        name="default_latency_model",
         version="1.0.0",
         description="默认延迟模型",
         author="SimTradeLab",

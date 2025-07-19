@@ -1,78 +1,138 @@
 # -*- coding: utf-8 -*-
 """
-SimTradeLab 异常系统
-
-定义了框架中使用的所有异常类型，提供清晰的错误层次结构。
+SimTradeLab 核心异常
 """
 
 
-class SimTradeLabError(Exception):
-    """SimTradeLab 基础异常类"""
+class SimTradeLabException(Exception):
+    """所有 SimTradeLab 自定义异常的基类。"""
 
     pass
 
 
-class DataSourceError(SimTradeLabError):
-    """数据源相关异常"""
+# region 插件异常
+
+
+class PluginError(SimTradeLabException):
+    """与插件相关的错误的基类。"""
+
+    pass
+
+
+class PluginNotFoundError(PluginError, KeyError):
+    """当找不到指定的插件时引发。"""
+
+    pass
+
+
+class PluginLoadError(PluginError, ImportError):
+    """当无法加载插件时引发，例如由于依赖项缺失或导入错误。"""
+
+    pass
+
+
+class PluginConfigurationError(PluginError, ValueError):
+    """当插件配置无效时引发。"""
+
+    pass
+
+
+class PluginRegistrationError(PluginError):
+    """当插件注册失败时引发。"""
+
+    pass
+
+
+# endregion
+
+# region 数据异常
+
+
+class DataSourceError(SimTradeLabException):
+    """与数据源操作相关的错误的基类。"""
 
     pass
 
 
 class DataLoadError(DataSourceError):
-    """数据加载异常"""
+    """在数据加载过程中发生错误时引发。"""
 
     pass
 
 
 class DataValidationError(DataSourceError):
-    """数据验证异常"""
+    """当数据未能通过验证检查时引发。"""
 
     pass
 
 
-class TradingError(SimTradeLabError):
-    """交易相关异常"""
+# endregion
+
+# region 交易异常
+
+
+class TradingError(SimTradeLabException):
+    """与交易操作相关的错误的基类。"""
 
     pass
 
 
 class InsufficientFundsError(TradingError):
-    """资金不足异常"""
+    """当没有足够的资金来执行交易时引发。"""
 
     pass
 
 
 class InsufficientPositionError(TradingError):
-    """持仓不足异常"""
+    """当没有足够的持仓来执行卖出交易时引发。"""
 
     pass
 
 
 class InvalidOrderError(TradingError):
-    """无效订单异常"""
+    """当订单参数无效时引发。"""
 
     pass
 
 
-class EngineError(SimTradeLabError):
-    """引擎相关异常"""
+# endregion
+
+# region 引擎和策略异常
+
+
+class EngineError(SimTradeLabException):
+    """与回测引擎操作相关的错误的基类。"""
 
     pass
 
 
 class StrategyError(EngineError):
-    """策略异常"""
+    """在策略执行过程中发生错误时引发。"""
 
     pass
 
 
-class ConfigurationError(SimTradeLabError):
-    """配置异常"""
+class StrategyNotFoundException(SimTradeLabException, FileNotFoundError):
+    """当策略文件不存在时引发。"""
 
     pass
 
 
-class ReportGenerationError(SimTradeLabError):
-    """报告生成异常"""
+class StrategySyntaxError(SimTradeLabException, SyntaxError):
+    """当策略文件存在语法错误时引发。"""
 
     pass
+
+
+# endregion
+
+# region 其他异常
+
+
+class ReportGenerationError(SimTradeLabException):
+    """在报告生成过程中发生错误时引发。"""
+
+    pass
+
+
+# endregion

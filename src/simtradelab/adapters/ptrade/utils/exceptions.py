@@ -3,10 +3,10 @@
 PTrade异常类定义
 """
 
-from ....exceptions import SimTradeLabError
+from ....exceptions import SimTradeLabException
 
 
-class PTradeAdapterError(SimTradeLabError):
+class PTradeAdapterError(SimTradeLabException):
     """PTrade适配器异常"""
 
     pass

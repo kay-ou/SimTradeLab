@@ -20,7 +20,28 @@ from .core.event_bus import EventBus
 from .core.plugin_manager import PluginManager
 
 # 异常
-from .exceptions import ConfigurationError, SimTradeLabError
+from .exceptions import (
+    DataLoadError,
+    DataSourceError,
+    DataValidationError,
+    EngineError,
+    InsufficientFundsError,
+    InsufficientPositionError,
+    InvalidOrderError,
+)
+from .exceptions import PluginConfigurationError as ConfigurationError
+from .exceptions import (
+    PluginError,
+    PluginLoadError,
+    PluginNotFoundError,
+    PluginRegistrationError,
+    ReportGenerationError,
+    SimTradeLabException,
+    StrategyError,
+    StrategyNotFoundException,
+    StrategySyntaxError,
+    TradingError,
+)
 
 # 插件系统
 from .plugins.base import BasePlugin, PluginMetadata
@@ -28,10 +49,9 @@ from .plugins.config.base_config import BasePluginConfig
 from .plugins.data.base_data_source import BaseDataSourcePlugin
 
 # 运行器
-from .runner import BacktestRunner
+
 
 __all__ = [
-    "BacktestRunner",
     "BacktestEngine",
     # 核心组件
     "EventBus",
@@ -47,6 +67,22 @@ __all__ = [
     "BaseSlippageModel",
     "BaseCommissionModel",
     # 异常
-    "SimTradeLabError",
+    "SimTradeLabException",
     "ConfigurationError",
+    "PluginError",
+    "PluginNotFoundError",
+    "PluginRegistrationError",
+    "PluginLoadError",
+    "DataSourceError",
+    "DataLoadError",
+    "DataValidationError",
+    "TradingError",
+    "InsufficientFundsError",
+    "InsufficientPositionError",
+    "InvalidOrderError",
+    "EngineError",
+    "StrategyError",
+    "StrategyNotFoundException",
+    "StrategySyntaxError",
+    "ReportGenerationError",
 ]

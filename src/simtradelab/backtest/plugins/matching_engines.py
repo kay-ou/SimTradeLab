@@ -29,7 +29,7 @@ class DepthMatchingEngine(BaseMatchingEngine):
     """
 
     METADATA = PluginMetadata(
-        name="DepthMatchingEngine",
+        name="depth_matching_engine",
         version="1.4.0",
         description="考虑订单深度的撮合引擎，支持高级订单类型",
         author="SimTradeLab",
@@ -230,26 +230,42 @@ class DepthMatchingEngine(BaseMatchingEngine):
                 continue
 
             # 创建成交记录
-            fills.append(
-                Fill(
-                    order_id=bid_order.order_id,
-                    symbol=symbol,
-                    side="buy",
-                    quantity=fill_qty,
-                    price=fill_price,
-                    timestamp=datetime.now(),
-                )
+            buy_fill = Fill(
+                order_id=bid_order.order_id,
+                symbol=symbol,
+                side="buy",
+                quantity=fill_qty,
+                price=fill_price,
+                timestamp=datetime.now(),
             )
-            fills.append(
-                Fill(
-                    order_id=ask_order.order_id,
-                    symbol=symbol,
-                    side="sell",
-                    quantity=fill_qty,
-                    price=fill_price,
-                    timestamp=datetime.now(),
-                )
+            sell_fill = Fill(
+                order_id=ask_order.order_id,
+                symbol=symbol,
+                side="sell",
+                quantity=fill_qty,
+                price=fill_price,
+                timestamp=datetime.now(),
             )
+
+            # 计算佣金和滑点
+            if self._commission_model:
+                buy_fill.commission = self._commission_model.calculate_commission(
+                    buy_fill
+                )
+                sell_fill.commission = self._commission_model.calculate_commission(
+                    sell_fill
+                )
+
+            if self._slippage_model:
+                buy_fill.slippage = self._slippage_model.calculate_slippage(
+                    bid_order, market_data, fill_price
+                )
+                sell_fill.slippage = self._slippage_model.calculate_slippage(
+                    ask_order, market_data, fill_price
+                )
+
+            fills.append(buy_fill)
+            fills.append(sell_fill)
 
             # 更新订单状态
             bid_order.filled_quantity += fill_qty
