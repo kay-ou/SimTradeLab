@@ -147,9 +147,17 @@ async def list_strategies():
             
             # 简单解析策略描述
             description = ""
+            ready_to_extract = False
             for line in content.split('\n'):
+                line = line.strip()
                 if '"""' in line or "'''" in line:
+                    if line in ['"""', "'''"]:
+                        ready_to_extract = True
+                        continue
                     description = line.strip(' "\'')
+                    break
+                elif ready_to_extract:
+                    description = line.strip()
                     break
             
             strategies.append({
