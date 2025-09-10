@@ -17,7 +17,7 @@
 
 SimTradeLab（深测Lab） 是一个由社区独立开发的开源策略回测框架，灵感来源于 PTrade 的事件驱动架构。它具备完全自主的实现与出色的扩展能力，为策略开发者提供一个轻量级、结构清晰、模块可插拔的策略验证环境。框架无需依赖 PTrade 即可独立运行，但与其语法保持高度兼容。所有在 SimTradeLab 中编写的策略可无缝迁移至 PTrade 平台，反之亦然，两者之间的 API 可直接互通使用。详情参考：https://github.com/kay-ou/ptradeAPI 项目。
 
-> **如果希望开发进度加快，请通过链接注册支持我一下，你还可得100美金Claude Code额度：https://anyrouter.top/register?aff=5UV9**
+> SimTradeLab项目**QQ群1051628635**，本群仅限技术交流，如需了解支持 Ptrade/QMT 等接口的券商及其官方业务流程，请通过私信联系或访问券商官网获取官方信息。
 
 ### ✨ 核心特性
 
