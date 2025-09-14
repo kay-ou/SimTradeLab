@@ -504,27 +504,232 @@
         --card-bg: #2d2d2d;
         --text-color: #e9ecef;
         --border-color: #404040;
+        --muted-text: #adb5bd;
+        --dark-border: #495057;
+        --dark-hover: #3d3d3d;
+        --dark-shadow: 0 2px 15px rgba(0,0,0,0.3);
     }
-    
+
     body {
-        background-color: var(--light-bg);
+        background-color: var(--light-bg) !important;
+        color: var(--text-color) !important;
+    }
+
+    /* 主内容区 */
+    .main-content {
+        background-color: var(--light-bg) !important;
         color: var(--text-color);
     }
-    
+
+    /* 卡片样式 */
     .card {
-        background-color: var(--card-bg);
-        border-color: var(--border-color);
+        background-color: var(--card-bg) !important;
+        border-color: var(--border-color) !important;
+        color: var(--text-color) !important;
+        box-shadow: var(--dark-shadow);
     }
-    
+
+    .card-header {
+        background-color: var(--dark-hover) !important;
+        border-bottom-color: var(--border-color) !important;
+        color: var(--text-color) !important;
+    }
+
+    .card-body {
+        background-color: var(--card-bg) !important;
+        color: var(--text-color) !important;
+    }
+
+    /* 文字颜色 */
+    h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
+        color: var(--text-color) !important;
+    }
+
+    p, span, div, label, .form-label {
+        color: var(--text-color) !important;
+    }
+
+    .text-muted {
+        color: var(--muted-text) !important;
+    }
+
+    .card-text {
+        color: var(--text-color) !important;
+    }
+
+    /* 表格样式 */
     .table {
+        background-color: var(--card-bg) !important;
+        color: var(--text-color) !important;
+    }
+
+    .table th {
+        background: var(--primary-gradient) !important;
+        color: white !important;
+        border-color: var(--border-color) !important;
+    }
+
+    .table td {
+        border-color: var(--border-color) !important;
+        color: var(--text-color) !important;
+    }
+
+    .table tbody tr:hover {
+        background-color: var(--dark-hover) !important;
+        color: var(--text-color) !important;
+    }
+
+    /* 表单控件样式 */
+    .form-control, .form-select {
+        background-color: var(--card-bg) !important;
+        border-color: var(--border-color) !important;
+        color: var(--text-color) !important;
+    }
+
+    .form-control:focus, .form-select:focus {
+        background-color: var(--card-bg) !important;
+        border-color: #667eea !important;
+        color: var(--text-color) !important;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25) !important;
+    }
+
+    .form-control::placeholder {
+        color: var(--muted-text) !important;
+    }
+
+    /* 按钮样式保持原色 */
+    .btn-outline-primary,
+    .btn-outline-secondary,
+    .btn-outline-success,
+    .btn-outline-danger {
+        border-color: var(--border-color);
         background-color: var(--card-bg);
         color: var(--text-color);
     }
-    
-    .form-control {
-        background-color: var(--card-bg);
-        border-color: var(--border-color);
+
+    .btn-outline-primary:hover,
+    .btn-outline-secondary:hover,
+    .btn-outline-success:hover,
+    .btn-outline-danger:hover {
+        background-color: var(--dark-hover);
         color: var(--text-color);
+    }
+
+    /* 列表组样式 */
+    .list-group-item {
+        background-color: var(--card-bg) !important;
+        border-color: var(--border-color) !important;
+        color: var(--text-color) !important;
+    }
+
+    .list-group-item:hover {
+        background-color: var(--dark-hover) !important;
+        color: var(--text-color) !important;
+    }
+
+    .list-group-item.active {
+        background: var(--primary-gradient) !important;
+        border-color: transparent !important;
+        color: white !important;
+    }
+
+    /* 导航标签 */
+    .nav-tabs {
+        border-bottom-color: var(--border-color);
+    }
+
+    .nav-tabs .nav-link {
+        color: var(--muted-text);
+        border-color: transparent;
+    }
+
+    .nav-tabs .nav-link:hover {
+        border-color: transparent;
+        color: #667eea;
+        background-color: var(--dark-hover);
+    }
+
+    .nav-tabs .nav-link.active {
+        background-color: var(--card-bg) !important;
+        color: #667eea !important;
+        border-color: var(--border-color) var(--border-color) var(--card-bg) !important;
+    }
+
+    /* 边框样式 */
+    .border, .border-bottom {
+        border-color: var(--border-color) !important;
+    }
+
+    /* 模态框样式 */
+    .modal-content {
+        background-color: var(--card-bg) !important;
+        color: var(--text-color) !important;
+    }
+
+    .modal-body {
+        background-color: var(--card-bg) !important;
+        color: var(--text-color) !important;
+    }
+
+    .modal-footer {
+        border-top-color: var(--border-color) !important;
+        background-color: var(--card-bg) !important;
+    }
+
+    /* 警告框样式 */
+    .alert {
+        color: var(--text-color) !important;
+    }
+
+    /* 进度条容器 */
+    .progress {
+        background-color: var(--border-color) !important;
+    }
+
+    /* 代码编辑器 */
+    .CodeMirror, .ace_editor {
+        border-color: var(--border-color) !important;
+    }
+
+    /* 输入组 */
+    .input-group .form-control {
+        border-color: var(--border-color) !important;
+    }
+
+    /* 小文字 */
+    small, .small {
+        color: var(--muted-text) !important;
+    }
+
+    /* 徽章样式 */
+    .badge {
+        color: white !important;
+    }
+
+    /* 图标颜色 */
+    .fas, .far, .fab {
+        color: inherit !important;
+    }
+
+    /* 链接样式 */
+    a {
+        color: #74b9ff !important;
+    }
+
+    a:hover {
+        color: #0984e3 !important;
+    }
+
+    /* 状态徽章保持原有颜色 */
+    .status-pending { background-color: #ffeaa7 !important; color: #2d3436 !important; }
+    .status-running { background-color: #74b9ff !important; color: white !important; }
+    .status-completed { background-color: #00b894 !important; color: white !important; }
+    .status-failed { background-color: #e17055 !important; color: white !important; }
+
+    /* 选择器样式 */
+    option {
+        background-color: var(--card-bg) !important;
+        color: var(--text-color) !important;
     }
 }
 
@@ -548,6 +753,22 @@
     background: #a8a8a8;
 }
 
+/* 暗黑模式下的滚动条 */
+@media (prefers-color-scheme: dark) {
+    ::-webkit-scrollbar-track {
+        background: #2d2d2d;
+        border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #6c757d;
+        border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #868e96;
+    }
+}
 /* 工具提示样式 */
 .tooltip {
     font-size: 0.875rem;
