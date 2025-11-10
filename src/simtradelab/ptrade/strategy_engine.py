@@ -7,22 +7,13 @@ PTrade 策略执行框架
 
 import logging
 import traceback
-from datetime import datetime
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional
 
-from .context import (
-    Context,
-    PTradeMode,
-    create_backtest_context,
-    create_research_context,
-    create_trading_context,
-)
-from .lifecycle_controller import LifecycleController
+from .context import Context
 
 
 class StrategyExecutionError(Exception):
     """策略执行错误"""
-
     pass
 
 
@@ -38,83 +29,94 @@ class StrategyExecutionEngine:
 
     def __init__(
         self,
-        mode: PTradeMode = PTradeMode.BACKTEST,
-        capital_base: float = 1000000,
-        commission_rate: float = 0.0003,
-        slippage_rate: float = 0.0,
+        context: Context,
+        api: Any,
+        stats_collector: Any,
+        g: Any,
+        log: logging.Logger,
     ):
         """
         初始化策略执行引擎
 
         Args:
-            mode: 运行模式
-            capital_base: 起始资金
-            commission_rate: 佣金费率
-            slippage_rate: 滑点率
+            context: PTrade Context对象
+            api: PtradeAPI对象
+            stats_collector: 统计收集器
+            g: Global对象
+            log: 日志对象
         """
-        self.mode = mode
-        self.capital_base = capital_base
-        self.commission_rate = commission_rate
-        self.slippage_rate = slippage_rate
+        # 核心组件（外部注入）
+        self.context = context
+        self.api = api
+        self.stats_collector = stats_collector
+        self.g = g
+        self.log = log
 
-        # 核心组件
-        self.context: Context  # 将在_initialize_components中设置
-        self.api_router: Optional[Any] = None
-        self.lifecycle_controller: LifecycleController  # 将在_initialize_components中设置
+        # 获取生命周期控制器
+        if self.context._lifecycle_controller is None:
+            raise ValueError("Context lifecycle controller is not initialized")
+        self.lifecycle_controller = self.context._lifecycle_controller
 
         # 策略相关
         self._strategy_functions: Dict[str, Callable[..., Any]] = {}
         self._strategy_name: Optional[str] = None
         self._is_running = False
-
-        # 日志
-        self._logger = logging.getLogger(self.__class__.__name__)
-
-        # 初始化组件
-        self._initialize_components()
-
-    def _initialize_components(self) -> None:
-        """初始化核心组件"""
-        # 创建Context
-        if self.mode == PTradeMode.RESEARCH:
-            self.context = create_research_context(self.capital_base)
-        elif self.mode == PTradeMode.BACKTEST:
-            self.context = create_backtest_context(
-                self.capital_base, self.commission_rate, self.slippage_rate
-            )
-        elif self.mode == PTradeMode.TRADING:
-            self.context = create_trading_context(self.capital_base)
-        else:
-            raise ValueError(f"Unsupported mode: {self.mode}")
-
-        # 获取生命周期控制器和API验证器
-        if self.context._lifecycle_controller is None:
-            raise ValueError("Context lifecycle controller is not initialized")
-        if self.context._lifecycle_manager is None:
-            raise ValueError("Context lifecycle manager is not initialized")
-
-        self.lifecycle_controller = self.context._lifecycle_controller
-
-
-        self._logger.info(
-            f"Strategy execution engine initialized in {self.mode.value} mode"
-        )
-
     # ==========================================
     # 策略注册接口
     # ==========================================
 
-    def register_strategy(self, strategy_name: str) -> "StrategyBuilder":
-        """注册策略并返回策略构建器
+    def load_strategy_from_file(self, strategy_path: str) -> None:
+        """从文件加载策略并自动注册所有生命周期函数
+
+        Args:
+            strategy_path: 策略文件路径
+        """
+        # 读取策略代码
+        with open(strategy_path, 'r', encoding='utf-8') as f:
+            strategy_code = f.read()
+
+        # 构建命名空间
+        strategy_namespace = {
+            '__name__': '__main__',
+            '__file__': strategy_path,
+            'g': self.g,
+            'log': self.log,
+            'context': self.context,
+        }
+
+        # 注入API方法
+        for attr_name in dir(self.api):
+            if not attr_name.startswith('_'):
+                attr = getattr(self.api, attr_name)
+                if callable(attr) or attr_name == 'FUNDAMENTAL_TABLES':
+                    strategy_namespace[attr_name] = attr
+
+        # 执行策略代码
+        exec(strategy_code, strategy_namespace)
+
+        # 自动注册所有生命周期函数
+        if 'initialize' in strategy_namespace:
+            self.register_initialize(strategy_namespace['initialize'])
+        if 'handle_data' in strategy_namespace:
+            self.register_handle_data(strategy_namespace['handle_data'])
+        if 'before_trading_start' in strategy_namespace:
+            self.register_before_trading_start(strategy_namespace['before_trading_start'])
+        if 'after_trading_end' in strategy_namespace:
+            self.register_after_trading_end(strategy_namespace['after_trading_end'])
+        if 'tick_data' in strategy_namespace:
+            self.register_tick_data(strategy_namespace['tick_data'])
+        if 'on_order_response' in strategy_namespace:
+            self.register_on_order_response(strategy_namespace['on_order_response'])
+        if 'on_trade_response' in strategy_namespace:
+            self.register_on_trade_response(strategy_namespace['on_trade_response'])
+
+    def set_strategy_name(self, strategy_name: str) -> None:
+        """设置策略名称
 
         Args:
             strategy_name: 策略名称
-
-        Returns:
-            StrategyBuilder: 策略构建器对象
         """
         self._strategy_name = strategy_name
-        return StrategyBuilder(self)
 
     def register_initialize(self, func: Callable[[Context], None]) -> None:
         """注册initialize函数"""
@@ -164,9 +166,9 @@ class StrategyExecutionEngine:
     # ==========================================
 
     def __getattr__(self, name: str) -> Any:
-        """代理PTrade API调用到API路由器"""
-        if self.api_router and hasattr(self.api_router, name):
-            return getattr(self.api_router, name)
+        """代理PTrade API调用"""
+        if hasattr(self.api, name):
+            return getattr(self.api, name)
         raise AttributeError(
             f"'{self.__class__.__name__}' object has no attribute '{name}'"
         )
@@ -175,172 +177,144 @@ class StrategyExecutionEngine:
     # 策略执行接口
     # ==========================================
 
-    def run_strategy(self, data_source: Optional[Any] = None) -> Dict[str, Any]:
-        """运行策略
+    def run_backtest(self, date_range) -> bool:
+        """运行回测策略
 
         Args:
-            data_source: 数据源（回测模式需要）
+            date_range: 交易日序列
 
         Returns:
-            Dict[str, Any]: 执行结果和统计信息
+            bool: 是否成功完成
         """
         if not self._strategy_functions.get("initialize"):
             raise StrategyExecutionError("Strategy must have an initialize function")
 
         self._is_running = True
-        execution_results: Dict[str, Any] = {
-            "strategy_name": self._strategy_name,
-            "mode": self.mode.value,
-            "start_time": datetime.now(),
-            "end_time": None,
-            "success": False,
-            "error": None,
-            "lifecycle_stats": {},
-            "validation_stats": {},
-            "portfolio_performance": {},
-        }
 
         try:
-            self._logger.info(f"Starting strategy execution: {self._strategy_name}")
+            self.log.info(f"Starting strategy execution: {self._strategy_name}")
 
             # 1. 执行初始化
             self._execute_initialize()
 
-            # 2. 根据模式执行策略
-            if self.mode in [PTradeMode.RESEARCH]:
-                self._run_research_mode()
-            elif self.mode == PTradeMode.BACKTEST:
-                self._run_backtest_mode(data_source)
-            elif self.mode == PTradeMode.TRADING:
-                self._run_trading_mode()
+            # 2. 执行每日循环
+            success = self._run_daily_loop(date_range)
 
-            execution_results["success"] = True
-            self._logger.info("Strategy execution completed successfully")
+            if success:
+                self.log.info("Strategy execution completed successfully")
+
+            return success
 
         except Exception as e:
-            execution_results["error"] = str(e)
-            execution_results["traceback"] = traceback.format_exc()
-            self._logger.error(f"Strategy execution failed: {e}")
+            self.log.error(f"Strategy execution failed: {e}")
+            traceback.print_exc()
+            return False
 
         finally:
             self._is_running = False
-            execution_results["end_time"] = datetime.now()
-
-            # 收集统计信息
-            execution_results[
-                "lifecycle_stats"
-            ] = self.lifecycle_controller.get_call_statistics()
-            execution_results["validation_stats"] = {}
-            execution_results[
-                "portfolio_performance"
-            ] = self._get_portfolio_performance()
-
-        return execution_results
 
     def _execute_initialize(self) -> None:
         """执行初始化阶段"""
-        self._logger.info("Executing initialize phase")
+        self.log.info("Executing initialize phase")
         self.context.execute_initialize()
 
-    def _run_research_mode(self) -> None:
-        """运行研究模式"""
-        self._logger.info("Running in research mode")
+    def _run_daily_loop(self, date_range) -> bool:
+        """执行每日回测循环
 
-        # 研究模式通常是一次性执行，不需要数据循环
-        # 用户可以在initialize中进行所有研究工作
-        pass
+        Args:
+            date_range: 交易日序列
 
-    def _run_backtest_mode(self, data_source: Optional[Any] = None) -> None:
-        """运行回测模式"""
-        self._logger.info("Running in backtest mode")
+        Returns:
+            是否成功完成所有交易日
+        """
+        from datetime import timedelta
+        from simtradelab.ptrade.object import clear_daily_cache, Data
 
-        if not data_source:
-            self._logger.warning("No data source provided for backtest mode")
-            return
+        for current_date in date_range:
+            # 更新日期上下文
+            self.context.current_dt = current_date
+            self.context.previous_date = (current_date - timedelta(days=1)).date()
+            self.context.blotter.current_dt = current_date
 
-        # 模拟回测数据循环
-        if hasattr(data_source, "__iter__"):
-            for data_point in data_source:
-                self._process_data_point(data_point)
-        else:
-            # 单次数据处理
-            self._process_data_point(data_source)
+            # 清理全局缓存
+            clear_daily_cache()
 
-    def _run_trading_mode(self) -> None:
-        """运行实盘交易模式"""
-        self._logger.info("Running in trading mode")
+            # 记录交易前状态
+            prev_portfolio_value = self.context.portfolio.portfolio_value
+            prev_cash = self.context.portfolio._cash
 
-        # 实盘交易模式需要实时数据流
-        # 这里是简化实现，实际需要连接到实时数据源
-        self._logger.warning(
-            "Trading mode requires real-time data connection (not implemented)"
-        )
+            # 收集交易前统计
+            self.stats_collector.collect_pre_trading(self.context, current_date)
 
-    def _process_data_point(self, data: Any) -> None:
-        """处理单个数据点"""
+            # 构造data对象
+            data = Data(current_date, self.context.portfolio._bt_ctx)
+
+            # 执行策略生命周期
+            if not self._execute_lifecycle(data):
+                return False
+
+            # 收集交易金额
+            current_cash = self.context.portfolio._cash
+            self.stats_collector.collect_trading_amounts(prev_cash, current_cash)
+
+            # 收集交易后统计
+            self.stats_collector.collect_post_trading(self.context, prev_portfolio_value)
+
+        return True
+
+    def _execute_lifecycle(self, data) -> bool:
+        """执行策略生命周期方法
+
+        Args:
+            data: Data对象
+
+        Returns:
+            是否成功执行
+        """
+        from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
+
+        # before_trading_start
+        if not self._safe_call('before_trading_start', LifecyclePhase.BEFORE_TRADING_START, data):
+            return False
+
+        # handle_data
+        if not self._safe_call('handle_data', LifecyclePhase.HANDLE_DATA, data):
+            return False
+
+        # after_trading_end（允许失败）
+        self._safe_call('after_trading_end', LifecyclePhase.AFTER_TRADING_END, data, allow_fail=True)
+
+        return True
+
+    def _safe_call(
+        self,
+        func_name: str,
+        phase,
+        data,
+        allow_fail: bool = False
+    ) -> bool:
+        """安全调用策略方法
+
+        Args:
+            func_name: 函数名
+            phase: 生命周期阶段
+            data: Data对象
+            allow_fail: 是否允许失败
+
+        Returns:
+            是否成功执行
+        """
+        if func_name not in self._strategy_functions:
+            return True  # 函数不存在，跳过
+
         try:
-            # 更新Context中的当前时间
-            if isinstance(data, dict):
-                self.context.current_dt = data.get("datetime", datetime.now())
-
-            # 执行盘前处理（如果定义了）
-            if self._strategy_functions.get("before_trading_start"):
-                self.context.execute_before_trading_start(data)
-
-            # 执行主策略逻辑
-            if self._strategy_functions.get("handle_data"):
-                self.context.execute_handle_data(data)
-
-            # 执行tick数据处理（如果定义了）
-            if self._strategy_functions.get("tick_data"):
-                self.context.execute_tick_data(data)
-
-            # 执行盘后处理（如果定义了）
-            if self._strategy_functions.get("after_trading_end"):
-                self.context.execute_after_trading_end(data)
-
+            self.lifecycle_controller.set_phase(phase)
+            self._strategy_functions[func_name](self.context, data)
+            return True
         except Exception as e:
-            self._logger.error(f"Error processing data point: {e}")
-            raise
-
-    def _get_portfolio_performance(self) -> Dict[str, Any]:
-        """获取投资组合性能指标"""
-        portfolio = self.context.portfolio
-
-        return {
-            "total_value": portfolio.portfolio_value,
-            "cash": portfolio.cash,
-            "positions_value": portfolio.positions_value,
-            "returns": portfolio.returns,
-            "pnl": portfolio.pnl,
-            "positions_count": len(portfolio.positions),
-            "recorded_vars": self.context.recorded_vars.copy(),
-        }
-
-    # ==========================================
-    # 状态查询接口
-    # ==========================================
-
-    def get_execution_status(self) -> Dict[str, Any]:
-        """获取执行状态"""
-        return {
-            "is_running": self._is_running,
-            "strategy_name": self._strategy_name,
-            "mode": self.mode.value,
-            "current_phase": self.context.get_current_lifecycle_phase(),
-            "initialized": self.context.initialized,
-            "portfolio_value": self.context.portfolio.portfolio_value,
-            "registered_functions": list(self._strategy_functions.keys()),
-        }
-
-    def get_detailed_statistics(self) -> Dict[str, Any]:
-        """获取详细统计信息"""
-        return {
-            "lifecycle_stats": self.lifecycle_controller.get_call_statistics(),
-            "validation_stats": {},
-            "portfolio_performance": self._get_portfolio_performance(),
-            "execution_status": self.get_execution_status(),
-        }
+            self.log.error(f"{func_name}执行失败: {e}")
+            traceback.print_exc()
+            return allow_fail
 
     # ==========================================
     # 重置和清理接口
@@ -348,7 +322,7 @@ class StrategyExecutionEngine:
 
     def reset_strategy(self) -> None:
         """重置策略状态"""
-        self._logger.info("Resetting strategy state")
+        self.log.info("Resetting strategy state")
 
         self._strategy_functions.clear()
         self._strategy_name = None
@@ -356,125 +330,3 @@ class StrategyExecutionEngine:
 
         # 重置Context
         self.context.reset_for_new_strategy()
-
-    def shutdown(self) -> None:
-        """关闭执行引擎"""
-        self._logger.info("Shutting down strategy execution engine")
-
-        self._is_running = False
-        # 清理资源（如需要其他清理操作，可以在此添加）
-
-
-class StrategyBuilder:
-    """策略构建器
-
-    提供流式API来构建策略
-    """
-
-    def __init__(self, engine: StrategyExecutionEngine):
-        self.engine = engine
-
-    def initialize(self, func: Callable[[Context], None]) -> "StrategyBuilder":
-        """设置初始化函数"""
-        self.engine.register_initialize(func)
-        return self
-
-    def handle_data(
-        self, func: Callable[[Context, Any], None]
-    ) -> "StrategyBuilder":
-        """设置主策略逻辑函数"""
-        self.engine.register_handle_data(func)
-        return self
-
-    def before_trading_start(
-        self, func: Callable[[Context, Any], None]
-    ) -> "StrategyBuilder":
-        """设置盘前处理函数"""
-        self.engine.register_before_trading_start(func)
-        return self
-
-    def after_trading_end(
-        self, func: Callable[[Context, Any], None]
-    ) -> "StrategyBuilder":
-        """设置盘后处理函数"""
-        self.engine.register_after_trading_end(func)
-        return self
-
-    def tick_data(
-        self, func: Callable[[Context, Any], None]
-    ) -> "StrategyBuilder":
-        """设置tick数据处理函数"""
-        self.engine.register_tick_data(func)
-        return self
-
-    def on_order_response(
-        self, func: Callable[[Context, Any], None]
-    ) -> "StrategyBuilder":
-        """设置委托回报处理函数"""
-        self.engine.register_on_order_response(func)
-        return self
-
-    def on_trade_response(
-        self, func: Callable[[Context, Any], None]
-    ) -> "StrategyBuilder":
-        """设置成交回报处理函数"""
-        self.engine.register_on_trade_response(func)
-        return self
-
-    def run(self, data_source: Optional[Any] = None) -> Dict[str, Any]:
-        """运行策略"""
-        return self.engine.run_strategy(data_source)
-
-
-# ==========================================
-# 便捷工厂函数
-# ==========================================
-
-
-def create_strategy_engine(
-    mode: Union[str, PTradeMode] = "backtest",
-    capital_base: float = 1000000,
-    commission_rate: float = 0.0003,
-    slippage_rate: float = 0.0,
-) -> StrategyExecutionEngine:
-    """创建策略执行引擎
-
-    Args:
-        mode: 运行模式 ("research", "backtest", "trading")
-        capital_base: 起始资金
-        commission_rate: 佣金费率
-        slippage_rate: 滑点率
-
-    Returns:
-        StrategyExecutionEngine: 策略执行引擎实例
-    """
-    if isinstance(mode, str):
-        mode = PTradeMode(mode)
-
-    return StrategyExecutionEngine(
-        mode=mode,
-        capital_base=capital_base,
-        commission_rate=commission_rate,
-        slippage_rate=slippage_rate,
-    )
-
-
-def create_research_engine(capital_base: float = 1000000) -> StrategyExecutionEngine:
-    """创建研究模式执行引擎"""
-    return create_strategy_engine("research", capital_base)
-
-
-def create_backtest_engine(
-    capital_base: float = 1000000,
-    commission_rate: float = 0.0003,
-    slippage_rate: float = 0.0,
-) -> StrategyExecutionEngine:
-    """创建回测模式执行引擎"""
-    return create_strategy_engine(
-        "backtest", capital_base, commission_rate, slippage_rate
-    )
-
-
-def create_trading_engine(capital_base: float = 1000000) -> StrategyExecutionEngine:
-    """创建实盘交易模式执行引擎"""
-    return create_strategy_engine("trading", capital_base)

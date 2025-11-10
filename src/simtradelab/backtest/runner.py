@@ -18,8 +18,7 @@ from simtradelab.ptrade.api import PtradeAPI, timing, get_current_elapsed_time
 from simtradelab.service.data_server import DataServer
 from simtradelab.backtest.config import BacktestConfig
 from simtradelab.backtest.stats_collector import StatsCollector
-from simtradelab.backtest.strategy_loader import StrategyLoader
-from simtradelab.backtest.strategy_executor import StrategyExecutor
+from simtradelab.ptrade.strategy_engine import StrategyExecutionEngine
 from simtradelab.ptrade.strategy_validator import validate_strategy_file
 
 
@@ -128,14 +127,22 @@ class BacktestRunner:
             context, api = self._initialize_context(config, config.start_date)
             stats_collector = StatsCollector()
 
+            # 创建策略执行引擎
+            engine = StrategyExecutionEngine(
+                context=context,
+                api=api,
+                stats_collector=stats_collector,
+                g=self.g,
+                log=self.log
+            )
+
             # 加载策略
-            strategy_loader = StrategyLoader(config.strategy_path, self.g, self.log, context, api)
-            strategy_namespace = strategy_loader.load()
+            engine.set_strategy_name(strategy_name)
+            engine.load_strategy_from_file(config.strategy_path)
             print("✓ 策略加载完成\n")
 
             # 执行回测
-            executor = StrategyExecutor(strategy_namespace, context, stats_collector, self.log)
-            success = self._execute_backtest(executor, date_range)
+            success = self._execute_backtest(engine, date_range)
 
             if not success:
                 self.log.error("回测中断")
@@ -322,22 +329,21 @@ class BacktestRunner:
         self.context = context
         return context, api
 
-    def _execute_backtest(self, executor: StrategyExecutor, date_range) -> bool:
+    def _execute_backtest(self, engine: StrategyExecutionEngine, date_range) -> bool:
         """执行回测主循环
 
         Args:
-            executor: 策略执行器
+            engine: 策略执行引擎
             date_range: 交易日序列
 
         Returns:
             是否成功
         """
         print("初始化策略...")
-        executor.initialize()
 
         print(f"\n开始回测循环...")
 
-        success = executor.run_daily_loop(date_range)
+        success = engine.run_backtest(date_range)
 
         return success
 

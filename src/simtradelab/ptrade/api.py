@@ -75,7 +75,7 @@ def timing(func):
                         print(f"  [PERF] {func_name}(批量{len(args[1])}只) 耗时: {elapsed:.2f}s", flush=True)
                     else:
                         print(f"  [PERF] {func_name} 耗时: {elapsed:.2f}s", flush=True)
-                elif class_name in ['BacktestRunner', 'StrategyExecutor']:
+                elif class_name in ['BacktestRunner', 'StrategyExecutionEngine']:
                     # 回测相关类显示耗时
                     print(f"✓ {func_name} 完成，耗时: {format_elapsed_time(elapsed)}", flush=True)
         return result
