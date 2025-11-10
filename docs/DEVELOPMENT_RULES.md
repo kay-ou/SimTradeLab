@@ -4,8 +4,6 @@
 
 *   **架构先行，文档驱动 (Architecture First, Document-Driven)**
     *   在进行任何重要修改前，必须仔细阅读并深刻理解以下核心文档，以确保开发工作与项目蓝图保持一致：
-        *   [`docs/SimTradeLab_Complete_Plugin_Architecture_v5.0.md`](docs/SimTradeLab_Complete_Plugin_Architecture_v5.0.md)
-        *   [`docs/SimTradeLab_Current_Progress_Report.md`](docs/SimTradeLab_Current_Progress_Report.md)
         *   [`docs/PTrade_API_Summary.md`](docs/PTrade_API_Summary.md)
     *   所有开发活动必须严格遵守已定义的架构，保持代码的模块化、可扩展性和可维护性。
 
