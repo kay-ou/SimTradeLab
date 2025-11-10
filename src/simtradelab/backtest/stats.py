@@ -423,7 +423,7 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
     return chart_filename
 
 
-def print_backtest_report(report, log, start_date, end_date, positions_count):
+def print_backtest_report(report, log, start_date, end_date, time_str, positions_count):
     """打印回测报告到日志
 
     Args:
@@ -431,12 +431,13 @@ def print_backtest_report(report, log, start_date, end_date, positions_count):
         log: 日志对象
         start_date: 回测开始日期
         end_date: 回测结束日期
+        time_str: 格式化后的耗时字符串（如：3分32秒）
         positions_count: 持仓数量数组
     """
     log.info("")
     log.info("=" * 70)
     log.info(f"回测报告 {start_date.strftime('%Y%m%d')}-{end_date.strftime('%Y%m%d')} | "
-             f"周期: {report['trading_days']}天")
+             f"周期: {report['trading_days']}天 | 耗时: {time_str}")
     log.info("=" * 70)
 
     # 核心指标

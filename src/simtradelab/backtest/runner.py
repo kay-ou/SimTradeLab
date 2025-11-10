@@ -14,7 +14,7 @@ import os
 from simtradelab.ptrade.context import Context
 from simtradelab.ptrade.object import Global, LazyDataDict, Portfolio, BacktestContext
 from simtradelab.backtest.stats import generate_backtest_report, generate_backtest_charts, print_backtest_report
-from simtradelab.ptrade.api import PtradeAPI, timing
+from simtradelab.ptrade.api import PtradeAPI, timing, get_current_elapsed_time
 from simtradelab.service.data_server import DataServer
 from simtradelab.backtest.config import BacktestConfig
 from simtradelab.backtest.stats_collector import StatsCollector
@@ -362,10 +362,14 @@ class BacktestRunner:
         # 生成报告
         report = generate_backtest_report(stats, config.start_date, config.end_date, benchmark_df)
 
+        # 获取总耗时（从timing装饰器保存的开始时间中计算）
+        time_str = get_current_elapsed_time(self, 'run')
+
         # 打印报告
         print_backtest_report(
             report, self.log,
             config.start_date, config.end_date,
+            time_str,
             np.array(positions_count)
         )
 

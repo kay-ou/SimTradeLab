@@ -13,13 +13,57 @@ import time
 from functools import wraps
 
 
+def format_elapsed_time(elapsed: float) -> str:
+    """格式化耗时显示
+
+    Args:
+        elapsed: 耗时（秒）
+
+    Returns:
+        格式化后的字符串（如：3分32秒 或 45.23秒）
+    """
+    minutes = int(elapsed / 60)
+    seconds = int(elapsed % 60)
+    if minutes > 0:
+        return f"{minutes}分{seconds}秒"
+    else:
+        return f"{elapsed:.2f}秒"
+
+
+def get_current_elapsed_time(instance, func_name: str) -> str:
+    """获取正在执行的函数的当前耗时
+
+    Args:
+        instance: 实例对象
+        func_name: 函数名
+
+    Returns:
+        格式化后的耗时字符串
+    """
+    if hasattr(instance, '_timing_start'):
+        start_time = instance._timing_start.get(func_name, 0)
+        if start_time > 0:
+            elapsed = time.time() - start_time
+            return format_elapsed_time(elapsed)
+    return '0秒'
+
+
 def timing(func):
     """性能计时装饰器"""
     @wraps(func)
     def wrapper(*args, **kwargs):
         start = time.time()
+
+        # 保存开始时间（供函数内部访问当前耗时）
+        if args and hasattr(args[0], '__class__'):
+            instance = args[0]
+            if not hasattr(instance, '_timing_start'):
+                instance._timing_start = {}
+            instance._timing_start[func.__name__] = start
+
         result = func(*args, **kwargs)
         elapsed = time.time() - start
+
         if elapsed > 0.1:  # 只记录耗时超过100ms的调用
             func_name = func.__name__
             # 尝试获取第一个参数的类型信息
@@ -32,13 +76,8 @@ def timing(func):
                     else:
                         print(f"  [PERF] {func_name} 耗时: {elapsed:.2f}s", flush=True)
                 elif class_name in ['BacktestRunner', 'StrategyExecutor']:
-                    # 回测相关类显示耗时（格式化为分秒）
-                    minutes = int(elapsed / 60)
-                    seconds = int(elapsed % 60)
-                    if minutes > 0:
-                        print(f"✓ {func_name} 完成，耗时: {minutes}分{seconds}秒", flush=True)
-                    else:
-                        print(f"✓ {func_name} 完成，耗时: {elapsed:.2f}秒", flush=True)
+                    # 回测相关类显示耗时
+                    print(f"✓ {func_name} 完成，耗时: {format_elapsed_time(elapsed)}", flush=True)
         return result
     return wrapper
 
