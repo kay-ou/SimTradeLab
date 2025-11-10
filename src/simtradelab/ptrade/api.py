@@ -34,6 +34,30 @@ def timing(func):
     return wrapper
 
 
+def validate_lifecycle(func):
+    """生命周期验证装饰器
+
+    自动检查API是否可以在当前生命周期阶段调用
+    """
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        # 如果context有lifecycle_controller，进行验证
+        if hasattr(self, 'context') and self.context and hasattr(self.context, '_lifecycle_controller'):
+            controller = self.context._lifecycle_controller
+            if controller:
+                from .lifecycle_controller import PTradeLifecycleError
+                api_name = func.__name__
+                validation_result = controller.validate_api_call(api_name)
+                if not validation_result.is_valid:
+                    raise PTradeLifecycleError(validation_result.error_message)
+                # 记录API调用
+                controller.record_api_call(api_name, success=True)
+
+        # 执行原函数
+        return func(self, *args, **kwargs)
+    return wrapper
+
+
 class PtradeAPI:
     """ptrade API模拟器（面向对象封装）"""
 
@@ -896,6 +920,7 @@ class PtradeAPI:
 
     # ==================== 交易API ====================
 
+    @validate_lifecycle
     def order(self, security, amount, limit_price=None):
         """买卖指定数量的股票
 
@@ -918,6 +943,7 @@ class PtradeAPI:
             return order.id
         return None
 
+    @validate_lifecycle
     def order_target(self, stock, amount, limit_price=None):
         """下单到目标数量
 
@@ -1012,6 +1038,7 @@ class PtradeAPI:
 
         return order.id
 
+    @validate_lifecycle
     def order_value(self, stock, value, limit_price=None):
         """按金额下单
 
@@ -1086,6 +1113,7 @@ class PtradeAPI:
 
         return order.id
 
+    @validate_lifecycle
     def order_target_value(self, stock, value, limit_price=None):
         """调整股票持仓市值到目标价值
 
@@ -1183,6 +1211,7 @@ class PtradeAPI:
 
     # ==================== 配置API ====================
 
+    @validate_lifecycle
     def set_benchmark(self, benchmark):
         """设置基准"""
         if benchmark not in self.benchmark_data:
@@ -1191,6 +1220,7 @@ class PtradeAPI:
         self.context.benchmark = benchmark
         self.log.info(f"设置基准: {benchmark}")
 
+    @validate_lifecycle
     def set_universe(self, stocks):
         """设置股票池并预加载数据"""
         if isinstance(stocks, list):
@@ -1210,6 +1240,7 @@ class PtradeAPI:
         """是否实盘"""
         return False
 
+    @validate_lifecycle
     def set_commission(self, commission_ratio=0.0003, min_commission=5.0, type="STOCK"):
         """设置交易佣金"""
         if commission_ratio is not None:
@@ -1219,20 +1250,24 @@ class PtradeAPI:
         if type is not None:
             self.context.commission_type = type
 
+    @validate_lifecycle
     def set_slippage(self, slippage=0.0):
         """设置滑点"""
         if slippage is not None:
             self.context.slippage = slippage
 
+    @validate_lifecycle
     def set_fixed_slippage(self, fixedslippage=0.001):
         """设置固定滑点"""
         if fixedslippage is not None:
             self.context.fixed_slippage = fixedslippage
 
+    @validate_lifecycle
     def set_limit_mode(self, limit_mode='LIMIT'):
         """设置下单限制模式"""
         self.context.limit_mode = limit_mode
 
+    @validate_lifecycle
     def set_volume_ratio(self, volume_ratio=0.25):
         """设置成交比例
 
@@ -1241,6 +1276,7 @@ class PtradeAPI:
         """
         self.context.volume_ratio = volume_ratio
 
+    @validate_lifecycle
     def set_yesterday_position(self, poslist):
         """设置底仓（回测用）
 

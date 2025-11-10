@@ -1,34 +1,43 @@
 # -*- coding: utf-8 -*-
 """
-回测执行器
+回测执行器 - 重构版
 
-负责策略加载、回测主循环、信号处理等
+职责：编排回测流程，协调各组件工作
 """
 
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
 import signal
-import sys
-import time
-import json
 import logging
 import os
+import time
 
 from simtradelab.ptrade.context import Context
-from simtradelab.ptrade.object import Global, LazyDataDict, Data, clear_daily_cache, BacktestContext
+from simtradelab.ptrade.object import Global, LazyDataDict, Portfolio, BacktestContext
 from simtradelab.backtest.stats import generate_backtest_report, generate_backtest_charts, print_backtest_report
 from simtradelab.ptrade.api import PtradeAPI
 from simtradelab.service.data_server import DataServer
+from simtradelab.backtest.config import BacktestConfig
+from simtradelab.backtest.stats_collector import StatsCollector
+from simtradelab.backtest.strategy_loader import StrategyLoader
+from simtradelab.backtest.strategy_executor import StrategyExecutor
+
 
 class BacktestRunner:
-    """回测执行器"""
+    """回测执行器 - 负责编排整个回测流程"""
 
-    def __init__(self, data_path, use_data_server=True):
+    def __init__(self, data_path: str, use_data_server: bool = True):
+        """初始化回测执行器
+
+        Args:
+            data_path: 数据文件路径
+            use_data_server: 是否使用数据服务器（常驻内存）
+        """
         self.data_path = data_path
         self.use_data_server = use_data_server
 
-        # 数据容器
+        # 数据容器（延迟加载）
+        self._data_loaded = False
         self.stock_data_dict = None
         self.valuation_dict = None
         self.fundamentals_dict = None
@@ -37,82 +46,125 @@ class BacktestRunner:
         self.stock_metadata = None
         self.index_constituents = {}
         self.stock_status_history = {}
-
-        # 用于传统模式
         self.stock_data_store = None
         self.fundamentals_store = None
 
+        # 全局对象
         self.g = Global()
         self.log = None
         self.context = None
 
-        self.backtest_stats = {
-            'portfolio_values': [],
-            'positions_count': [],
-            'daily_pnl': [],
-            'daily_buy_amount': [],
-            'daily_sell_amount': [],
-            'daily_positions_value': [],
-            'trade_dates': [],
-        }
-
+        # 注册信号处理
         signal.signal(signal.SIGINT, self._signal_handler)
 
-    def __enter__(self):
-        """进入上下文管理器"""
-        return self
+    def run(
+        self,
+        strategy_name: str,
+        start_date: str,
+        end_date: str,
+        strategies_path: str,
+        initial_capital: float = 1000000.0
+    ) -> dict:
+        """运行回测
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """退出上下文管理器，但不关闭数据文件（数据常驻）"""
-        # 数据服务器模式：不关闭文件，保持数据常驻
-        # 传统模式：关闭文件
-        if not self.use_data_server:
-            self._close_stores()
-        return False
+        Args:
+            strategy_name: 策略名称
+            start_date: 开始日期
+            end_date: 结束日期
+            strategies_path: 策略文件路径
+            initial_capital: 初始资金
 
-    def _signal_handler(self, sig, frame):
-        """处理Ctrl+C信号，优雅关闭资源"""
-        print("\n\n收到中断信号...")
+        Returns:
+            回测报告字典
+        """
+        # 构建配置
+        config = BacktestConfig(
+            strategy_name=strategy_name,
+            start_date=start_date,
+            end_date=end_date,
+            data_path=self.data_path,
+            strategies_path=strategies_path,
+            initial_capital=initial_capital,
+            use_data_server=self.use_data_server
+        )
+
+        try:
+            # 加载数据（仅首次或非服务器模式）
+            benchmark_df = self._load_data()
+
+            # 初始化日志
+            self._setup_logging(config)
+
+            self.log.info(f"开始运行回测, 策略名称: {strategy_name}")
+            self.log.info(f"回测周期: {config.start_date.date()} 至 {config.end_date.date()}")
+
+            # 创建交易日序列
+            date_range = self._create_date_range(benchmark_df, config.start_date, config.end_date)
+            self.log.info(f"交易日数: {len(date_range)} 天\n")
+
+            # 初始化回测组件
+            context, api = self._initialize_context(config, config.start_date)
+            stats_collector = StatsCollector()
+
+            # 加载策略
+            strategy_loader = StrategyLoader(config.strategy_path, self.g, self.log, context, api)
+            strategy_namespace = strategy_loader.load()
+            print("✓ 策略加载完成\n")
+
+            # 执行回测
+            executor = StrategyExecutor(strategy_namespace, context, stats_collector, self.log)
+            success = self._execute_backtest(executor, date_range)
+
+            if not success:
+                self.log.error("回测中断")
+                return {}
+
+            # 生成报告
+            return self._generate_reports(
+                stats_collector.stats,
+                config,
+                benchmark_df,
+                stats_collector.stats['positions_count']
+            )
+
+        finally:
+            self._cleanup()
+
+    def _load_data(self) -> pd.DataFrame:
+        """加载数据（仅首次或非服务器模式）
+
+        Returns:
+            基准数据DataFrame
+        """
+        if self._data_loaded and self.use_data_server:
+            # 数据已加载且使用服务器模式，直接返回
+            return self.benchmark_data['000300.SS']
+
         if self.use_data_server:
-            print("数据保持常驻，下次运行无需重新加载")
+            return self._load_data_server_mode()
         else:
-            print("正在关闭数据文件...")
-            self._close_stores()
-        # 立即退出，不返回到调用点
-        os._exit(0)
+            return self._load_traditional_mode()
 
-    def _close_stores(self):
-        """关闭HDF5存储"""
-        # 数据服务器模式下不关闭（数据常驻）
-        if self.use_data_server:
-            return
+    def _load_data_server_mode(self) -> pd.DataFrame:
+        """数据服务器模式加载"""
+        data_server = DataServer(self.data_path)
+        self.stock_data_dict = data_server.stock_data_dict
+        self.valuation_dict = data_server.valuation_dict
+        self.fundamentals_dict = data_server.fundamentals_dict
+        self.exrights_dict = data_server.exrights_dict
+        self.benchmark_data = data_server.benchmark_data
+        self.stock_metadata = data_server.stock_metadata
+        self.index_constituents = data_server.index_constituents
+        self.stock_status_history = data_server.stock_status_history
+        self.stock_data_store = data_server.stock_data_store
+        self.fundamentals_store = data_server.fundamentals_store
+        self._data_loaded = True
+        return data_server.get_benchmark_data()
 
-        # 传统模式才关闭
-        for store in [self.stock_data_store, self.fundamentals_store]:
-            if store is not None:
-                try:
-                    store.close()
-                except Exception:
-                    pass
+    def _load_traditional_mode(self) -> pd.DataFrame:
+        """传统模式加载"""
+        import json
 
-    def load_data(self):
-        """加载数据（支持服务器模式和传统模式）"""
-        if self.use_data_server:
-            # 服务器模式：使用单例，数据常驻内存
-            data_server = DataServer(self.data_path)
-            self.stock_data_dict = data_server.stock_data_dict
-            self.valuation_dict = data_server.valuation_dict
-            self.fundamentals_dict = data_server.fundamentals_dict
-            self.exrights_dict = data_server.exrights_dict
-            self.benchmark_data = data_server.benchmark_data
-            self.stock_metadata = data_server.stock_metadata
-            self.index_constituents = data_server.index_constituents
-            self.stock_status_history = data_server.stock_status_history
-            self.stock_data_store = data_server.stock_data_store
-            self.fundamentals_store = data_server.fundamentals_store
-            return data_server.get_benchmark_data()
-
-        # 传统模式：每次重新加载
         print("=" * 70)
         print("加载本地数据...")
         print("=" * 70)
@@ -120,13 +172,13 @@ class BacktestRunner:
         self.stock_data_store = pd.HDFStore(f'{self.data_path}/ptrade_data.h5', 'r')
         self.fundamentals_store = pd.HDFStore(f'{self.data_path}/ptrade_fundamentals.h5', 'r')
 
-        # 提取所有表的键名
+        # 提取键名
         all_stock_keys = [k.split('/')[-1] for k in self.stock_data_store.keys() if k.startswith('/stock_data/')]
         valuation_keys = [k.split('/')[-1] for k in self.fundamentals_store.keys() if k.startswith('/valuation/')]
         fundamentals_keys = [k.split('/')[-1] for k in self.fundamentals_store.keys() if k.startswith('/fundamentals/')]
         exrights_keys = [k.split('/')[-1] for k in self.stock_data_store.keys() if k.startswith('/exrights/')]
 
-        # 构建数据字典（基本面预加载，价格数据延迟加载）
+        # 构建数据字典
         print("预加载基本面数据...")
         self.stock_data_dict = LazyDataDict(self.stock_data_store, '/stock_data/', all_stock_keys, max_cache_size=2000)
         self.valuation_dict = LazyDataDict(self.fundamentals_store, '/valuation/', valuation_keys, preload=True)
@@ -137,7 +189,7 @@ class BacktestRunner:
         print(f"✓ 基本面数据: {len(valuation_keys)} 只")
         print(f"✓ 除权数据: {len(exrights_keys)} 只")
 
-        # 加载元数据和基准
+        # 加载元数据
         self.stock_metadata = self.stock_data_store['/stock_metadata']
         benchmark_df = self.stock_data_store['/benchmark']
         metadata = self.stock_data_store['/metadata']
@@ -149,15 +201,66 @@ class BacktestRunner:
 
         self.benchmark_data = {'000300.SS': benchmark_df}
         print("✓ 数据加载完成\n")
+        self._data_loaded = True
 
         return benchmark_df
 
-    def load_strategy(self, strategy_name, strategies_path):
-        """加载并初始化策略"""
-        strategy_path = f'{strategies_path}/{strategy_name}/backtest.py'
-        with open(strategy_path, 'r', encoding='utf-8') as f:
-            strategy_code = f.read()
+    def _setup_logging(self, config: BacktestConfig):
+        """配置日志系统
 
+        Args:
+            config: 回测配置
+        """
+        import sys
+
+        log_filename = config.get_log_filename()
+        os.makedirs(config.log_dir, exist_ok=True)
+
+        print(f"日志文件: {log_filename}")
+
+        logging.basicConfig(
+            level=logging.INFO,
+            format='[%(levelname)s] %(message)s',
+            handlers=[
+                logging.StreamHandler(sys.stdout),
+                logging.FileHandler(log_filename, mode='w', encoding='utf-8')
+            ],
+            force=True
+        )
+        self.log = logging.getLogger('backtest')
+
+    def _create_date_range(self, benchmark_df: pd.DataFrame, start_date, end_date):
+        """创建交易日序列
+
+        Args:
+            benchmark_df: 基准数据
+            start_date: 开始日期
+            end_date: 结束日期
+
+        Returns:
+            交易日DatetimeIndex
+        """
+        return benchmark_df.index[
+            (benchmark_df.index >= start_date) &
+            (benchmark_df.index <= end_date) &
+            (benchmark_df['volume'] > 0)
+        ]
+
+    def _initialize_context(self, config: BacktestConfig, start_date) -> tuple:
+        """初始化上下文和API
+
+        Args:
+            config: 回测配置
+            start_date: 开始日期
+
+        Returns:
+            (Context, PtradeAPI) 元组
+        """
+        # 创建组合和上下文
+        portfolio = Portfolio(config.initial_capital)
+        context = Context(portfolio=portfolio, current_dt=start_date)
+
+        # 创建API
         api = PtradeAPI(
             stock_data_dict=self.stock_data_dict,
             valuation_dict=self.valuation_dict,
@@ -169,200 +272,115 @@ class BacktestRunner:
             fundamentals_store=self.fundamentals_store,
             index_constituents=self.index_constituents,
             stock_status_history=self.stock_status_history,
-            context=self.context,
+            context=context,
             log=self.log
         )
 
-        # 创建策略执行环境
-        strategy_namespace = {
-            '__name__': '__main__',
-            '__file__': strategy_path,
-            'g': self.g,
-            'log': self.log,
-            'context': self.context,
-        }
+        # 初始化回测上下文
+        bt_ctx = BacktestContext(
+            stock_data_dict=self.stock_data_dict,
+            get_stock_date_index_func=api.get_stock_date_index,
+            check_limit_func=api.check_limit,
+            log_obj=self.log,
+            context_obj=context
+        )
 
-        # 注入API方法
-        for attr_name in dir(api):
-            if not attr_name.startswith('_'):
-                attr = getattr(api, attr_name)
-                if callable(attr) or attr_name == 'FUNDAMENTAL_TABLES':
-                    strategy_namespace[attr_name] = attr
+        # 绑定回测上下文
+        context.portfolio._bt_ctx = bt_ctx
+        context.blotter._bt_ctx = bt_ctx
 
-        exec(strategy_code, strategy_namespace)
-        print("✓ 策略加载完成\n")
+        self.context = context
+        return context, api
 
-        return strategy_namespace, api
-
-    def run(self, strategy_name, start_date, end_date, strategies_path):
-        """运行回测
+    def _execute_backtest(self, executor: StrategyExecutor, date_range) -> bool:
+        """执行回测主循环
 
         Args:
-            strategy_name: 策略名称
-            start_date: 开始日期
-            end_date: 结束日期
-            strategies_path: 策略文件路径
+            executor: 策略执行器
+            date_range: 交易日序列
 
         Returns:
-            dict: 回测报告
+            是否成功完成
         """
-        try:
-            # 加载数据
-            benchmark_df = self.load_data()
+        print("初始化策略...")
+        executor.initialize()
 
-            print(f"\n开始运行回测, 策略名称: {strategy_name}")
+        print(f"\n开始回测循环...")
+        start_time = time.time()
 
-            # 回测参数
-            start_date = pd.Timestamp(start_date)
-            end_date = pd.Timestamp(end_date)
+        success = executor.run_daily_loop(date_range)
 
-            # 创建日志
-            log_filename = f'{strategies_path}/{strategy_name}/stats/backtest_{start_date.strftime("%y%m%d")}_{end_date.strftime("%y%m%d")}_{datetime.now().strftime("%y%m%d_%H%M%S")}.log'
+        elapsed = time.time() - start_time
+        print(f"回测耗时: {elapsed:.2f}秒")
 
-            # 自动创建目录
-            log_dir = os.path.dirname(log_filename)
-            os.makedirs(log_dir, exist_ok=True)
+        return success
 
-            print(f"日志文件: {log_filename}")
+    def _generate_reports(
+        self,
+        stats: dict,
+        config: BacktestConfig,
+        benchmark_df: pd.DataFrame,
+        positions_count
+    ) -> dict:
+        """生成回测报告和图表
 
-            # 配置日志（实时刷新）
-            logging.basicConfig(
-                level=logging.INFO,
-                format='[%(levelname)s] %(message)s',
-                handlers=[
-                    logging.StreamHandler(sys.stdout),
-                    logging.FileHandler(log_filename, mode='w', encoding='utf-8')
-                ],
-                force=True
-            )
-            self.log = logging.getLogger('backtest')
+        Args:
+            stats: 统计数据
+            config: 回测配置
+            benchmark_df: 基准数据
+            positions_count: 持仓数量数组
 
-            # 加载策略
-            strategy_namespace, api = self.load_strategy(strategy_name, strategies_path)
+        Returns:
+            回测报告字典
+        """
+        # 生成报告
+        report = generate_backtest_report(stats, config.start_date, config.end_date, benchmark_df)
 
-            # 预构建日期索引（性能关键优化）
-            #print("预构建股票日期索引...")
-            #api.prebuild_date_index()
+        # 打印报告
+        total_elapsed = 0  # 这里可以传入实际耗时
+        print_backtest_report(
+            report, self.log,
+            config.start_date, config.end_date,
+            total_elapsed,
+            np.array(positions_count)
+        )
 
-            # 创建交易日序列
-            date_range = benchmark_df.index[
-                (benchmark_df.index >= start_date) &
-                (benchmark_df.index <= end_date) &
-                (benchmark_df['volume'] > 0)
-            ]
+        # 生成图表
+        chart_filename = generate_backtest_charts(
+            stats,
+            config.start_date, config.end_date,
+            self.benchmark_data,
+            config.get_chart_filename()
+        )
 
-            self.log.info(f"回测周期: {start_date.date()} 至 {end_date.date()}")
-            self.log.info(f"交易日数: {len(date_range)} 天\n")
+        log_filename = config.get_log_filename()
+        print(f"\n日志已保存至: {log_filename}")
+        print(f"图表已保存至: {chart_filename}")
 
-            # 初始化context
-            from simtradelab.ptrade.object import Portfolio
-            portfolio = Portfolio(1000000)  # 初始资金100万
-            self.context = Context(portfolio=portfolio, current_dt=start_date)
-            api.context = self.context
+        return report
 
-            # 初始化回测上下文
-            bt_ctx = BacktestContext(
-                stock_data_dict=self.stock_data_dict,
-                get_stock_date_index_func=api.get_stock_date_index,
-                check_limit_func=api.check_limit,
-                log_obj=self.log,
-                context_obj=self.context
-            )
+    def _cleanup(self):
+        """清理资源"""
+        if not self.use_data_server:
+            print("\n正在关闭数据文件...")
+            self._close_stores()
+        else:
+            print("\n数据保持常驻内存，下次运行无需重新加载")
 
-            # 更新context和blotter的bt_ctx
-            self.context.portfolio._bt_ctx = bt_ctx
-            self.context.blotter._bt_ctx = bt_ctx
+    def _close_stores(self):
+        """关闭HDF5存储"""
+        if self.use_data_server:
+            return
 
-            # 更新策略命名空间
-            strategy_namespace.update({'context': self.context, 'g': self.g, 'log': self.log})
-
-            print("初始化策略...")
-            strategy_namespace['initialize'](self.context)
-
-            # 逐日回测
-            start_time = time.time()
-
-            for current_date in date_range:
-                self.context.current_dt = current_date
-                self.context.previous_date = (current_date - timedelta(days=1)).date()
-                self.context.blotter.current_dt = current_date
-
-                # 每日开始前清理全局缓存（防止内存膨胀）
-                clear_daily_cache()
-
-                # 记录当日开始前的状态
-                prev_portfolio_value = self.context.portfolio.portfolio_value
-                prev_cash = self.context.portfolio._cash
-
-                # 记录当日组合价值（开盘前）
-                self.backtest_stats['portfolio_values'].append(prev_portfolio_value)
-                self.backtest_stats['positions_count'].append(
-                    sum(1 for p in self.context.portfolio.positions.values() if p.amount > 0)
-                )
-                self.backtest_stats['trade_dates'].append(current_date)
-
-                # 构造data对象
-                data = Data(current_date, bt_ctx)
-
-                # 调用before_trading_start
+        for store in [self.stock_data_store, self.fundamentals_store]:
+            if store is not None:
                 try:
-                    strategy_namespace['before_trading_start'](self.context, data)
-                except Exception as e:
-                    self.log.error(f"before_trading_start执行失败: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    break
+                    store.close()
+                except Exception:
+                    pass
 
-                # 调用handle_data
-                try:
-                    strategy_namespace['handle_data'](self.context, data)
-                except Exception as e:
-                    self.log.error(f"handle_data执行失败: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    break
-
-                # 记录当日交易金额
-                cash_change = self.context.portfolio._cash - prev_cash
-                self.backtest_stats['daily_buy_amount'].append(max(0, -cash_change))
-                self.backtest_stats['daily_sell_amount'].append(max(0, cash_change))
-
-                # 调用after_trading_end
-                try:
-                    strategy_namespace['after_trading_end'](self.context, data)
-                except Exception as e:
-                    self.log.error(f"after_trading_end执行失败: {e}")
-                    import traceback
-                    traceback.print_exc()
-
-                # 记录当日结束后的状态
-                after_portfolio_value = self.context.portfolio.portfolio_value
-                daily_pnl = after_portfolio_value - prev_portfolio_value
-                self.backtest_stats['daily_pnl'].append(daily_pnl)
-                self.backtest_stats['daily_positions_value'].append(self.context.portfolio.positions_value)
-
-            # 生成回测报告
-            total_elapsed = time.time() - start_time
-            report = generate_backtest_report(self.backtest_stats, start_date, end_date, benchmark_df)
-            print_backtest_report(report, self.log, start_date, end_date, total_elapsed,
-                                np.array(self.backtest_stats['positions_count']))
-
-            # 生成图表
-            chart_filename = generate_backtest_charts(
-                self.backtest_stats, start_date, end_date,
-                self.benchmark_data, strategy_name, strategies_path
-            )
-
-            print(f"\n日志已保存至: {log_filename}")
-            print(f"图表已保存至: {chart_filename}")
-
-            return report
-
-        finally:
-            # 数据服务器模式：不关闭文件，数据保持常驻
-            # 传统模式：关闭文件
-            if not self.use_data_server:
-                print("\n正在关闭数据文件...")
-                self._close_stores()
-            else:
-                print("\n数据保持常驻内存，下次运行无需重新加载")
+    def _signal_handler(self, sig, frame):
+        """处理Ctrl+C信号"""
+        print("\n\n收到中断信号...")
+        self._cleanup()
+        os._exit(0)

@@ -90,11 +90,22 @@ def calculate_benchmark_metrics(daily_returns, benchmark_daily_returns, annual_r
         return {
             'alpha': 0,
             'beta': 0,
-            'information_ratio': 0
+            'information_ratio': 0,
+            'tracking_error': 0
         }
 
     # 对齐长度
     min_len = min(len(daily_returns), len(benchmark_daily_returns))
+
+    # 协方差计算至少需要2个样本
+    if min_len < 2:
+        return {
+            'alpha': 0,
+            'beta': 0,
+            'information_ratio': 0,
+            'tracking_error': 0
+        }
+
     strategy_returns = daily_returns[:min_len]
     benchmark_returns = benchmark_daily_returns[:min_len]
 
@@ -227,25 +238,15 @@ def generate_backtest_report(backtest_stats, start_date, end_date, benchmark_df)
     return report
 
 
-def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_data, strategy_name, output_dir):
-    """生成回测图表
+def _validate_chart_data(backtest_stats):
+    """验证并对齐图表数据
 
     Args:
         backtest_stats: 回测统计数据字典
-        start_date: 回测开始日期
-        end_date: 回测结束日期
-        benchmark_data: 基准数据字典
-        strategy_name: 策略名称
-        output_dir: 输出目录
 
     Returns:
-        str: 图表文件路径
+        tuple: (dates, portfolio_values, daily_pnl, daily_buy, daily_sell, daily_positions_val)
     """
-    # 设置字体（使用英文标签避免中文字体问题）
-    plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
-    plt.rcParams['axes.unicode_minus'] = False
-
-    # 提取数据
     dates = np.array(backtest_stats['trade_dates'])
     portfolio_values = np.array(backtest_stats['portfolio_values'])
     daily_pnl = np.array(backtest_stats['daily_pnl'])
@@ -253,26 +254,36 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
     daily_sell = np.array(backtest_stats['daily_sell_amount'])
     daily_positions_val = np.array(backtest_stats['daily_positions_value'])
 
-    # 数据验证：确保所有数组长度一致
-    if len(daily_positions_val) < len(dates):
-        # 如果positions_value数据不足，填充0
-        daily_positions_val = np.pad(daily_positions_val, (0, len(dates) - len(daily_positions_val)), constant_values=0)
-    if len(daily_pnl) < len(dates):
-        daily_pnl = np.pad(daily_pnl, (0, len(dates) - len(daily_pnl)), constant_values=0)
-    if len(daily_buy) < len(dates):
-        daily_buy = np.pad(daily_buy, (0, len(dates) - len(daily_buy)), constant_values=0)
-    if len(daily_sell) < len(dates):
-        daily_sell = np.pad(daily_sell, (0, len(dates) - len(daily_sell)), constant_values=0)
+    # 数据验证：确保所有数组长度一致，空数组填充为0
+    expected_len = len(dates)
+    if len(daily_positions_val) == 0 or len(daily_positions_val) < expected_len:
+        daily_positions_val = np.zeros(expected_len)
+    if len(daily_pnl) == 0 or len(daily_pnl) < expected_len:
+        daily_pnl = np.zeros(expected_len)
+    if len(daily_buy) == 0 or len(daily_buy) < expected_len:
+        daily_buy = np.zeros(expected_len)
+    if len(daily_sell) == 0 or len(daily_sell) < expected_len:
+        daily_sell = np.zeros(expected_len)
 
-    # 创建图表 - 4行1列布局
-    fig, axes = plt.subplots(4, 1, figsize=(16, 20), sharex=True)
+    return dates, portfolio_values, daily_pnl, daily_buy, daily_sell, daily_positions_val
 
-    # ========== 图1: 资产曲线 vs 基准 + 买卖点标注 ==========
-    ax1 = axes[0]
 
+def _plot_nav_curve(ax, dates, portfolio_values, daily_buy, daily_sell, benchmark_data, start_date, end_date):
+    """绘制净值曲线子图
+
+    Args:
+        ax: matplotlib axes对象
+        dates: 日期数组
+        portfolio_values: 组合价值数组
+        daily_buy: 每日买入金额
+        daily_sell: 每日卖出金额
+        benchmark_data: 基准数据字典
+        start_date: 开始日期
+        end_date: 结束日期
+    """
     # 策略净值曲线
     strategy_nav = portfolio_values / portfolio_values[0]
-    ax1.plot(dates, strategy_nav, linewidth=2, label='Strategy NAV', color='#1f77b4')
+    ax.plot(dates, strategy_nav, linewidth=2, label='Strategy NAV', color='#1f77b4')
 
     # 基准净值曲线
     if '000300.SS' in benchmark_data and not benchmark_data['000300.SS'].empty:
@@ -283,55 +294,104 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
         ]
         if len(benchmark_slice) > 0:
             benchmark_nav = benchmark_slice['close'] / benchmark_slice['close'].iloc[0]
-            ax1.plot(benchmark_slice.index[:len(dates)], benchmark_nav[:len(dates)],
-                    linewidth=2, label='CSI 300', color='#ff7f0e', alpha=0.7)
+            ax.plot(benchmark_slice.index[:len(dates)], benchmark_nav[:len(dates)],
+                   linewidth=2, label='CSI 300', color='#ff7f0e', alpha=0.7)
 
     # 标注买卖点
     buy_dates = dates[daily_buy > 0]
     buy_navs = strategy_nav[daily_buy > 0]
-    ax1.scatter(buy_dates, buy_navs, marker='^', color='red', s=50, label='Buy', zorder=5)
+    ax.scatter(buy_dates, buy_navs, marker='^', color='red', s=50, label='Buy', zorder=5)
 
     sell_dates = dates[daily_sell > 0]
     sell_navs = strategy_nav[daily_sell > 0]
-    ax1.scatter(sell_dates, sell_navs, marker='v', color='green', s=50, label='Sell', zorder=5)
+    ax.scatter(sell_dates, sell_navs, marker='v', color='green', s=50, label='Sell', zorder=5)
 
-    ax1.set_title('Portfolio Value vs Benchmark', fontsize=14, fontweight='bold')
-    ax1.set_ylabel('Net Asset Value', fontsize=12)
-    ax1.legend(loc='best', fontsize=10)
-    ax1.grid(True, alpha=0.3)
+    ax.set_title('Portfolio Value vs Benchmark', fontsize=14, fontweight='bold')
+    ax.set_ylabel('Net Asset Value', fontsize=12)
+    ax.legend(loc='best', fontsize=10)
+    ax.grid(True, alpha=0.3)
 
-    # ========== 图2: 每日盈亏柱状图 ==========
-    ax2 = axes[1]
 
+def _plot_daily_pnl(ax, dates, daily_pnl):
+    """绘制每日盈亏子图
+
+    Args:
+        ax: matplotlib axes对象
+        dates: 日期数组
+        daily_pnl: 每日盈亏数组
+    """
     colors = ['red' if pnl >= 0 else 'green' for pnl in daily_pnl]
-    ax2.bar(dates, daily_pnl, color=colors, alpha=0.7, width=0.8)
-    ax2.axhline(y=0, color='black', linestyle='-', linewidth=1)
-    ax2.set_title('Daily P&L', fontsize=14, fontweight='bold')
-    ax2.set_ylabel('P&L (CNY)', fontsize=12)
-    ax2.grid(True, alpha=0.3, axis='y')
+    ax.bar(dates, daily_pnl, color=colors, alpha=0.7, width=0.8)
+    ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+    ax.set_title('Daily P&L', fontsize=14, fontweight='bold')
+    ax.set_ylabel('P&L (CNY)', fontsize=12)
+    ax.grid(True, alpha=0.3, axis='y')
 
-    # ========== 图3: 每日买入/卖出金额 ==========
-    ax3 = axes[2]
 
+def _plot_trade_amounts(ax, dates, daily_buy, daily_sell):
+    """绘制交易金额子图
+
+    Args:
+        ax: matplotlib axes对象
+        dates: 日期数组
+        daily_buy: 每日买入金额
+        daily_sell: 每日卖出金额
+    """
     width = 0.4
-    ax3.bar(dates, daily_buy, color='red', alpha=0.7, width=width, label='Buy Amount')
-    ax3.bar(dates, -daily_sell, color='green', alpha=0.7, width=width, label='Sell Amount')
-    ax3.axhline(y=0, color='black', linestyle='-', linewidth=1)
-    ax3.set_title('Daily Buy/Sell Amount', fontsize=14, fontweight='bold')
-    ax3.set_ylabel('Amount (CNY)', fontsize=12)
-    ax3.legend(loc='best', fontsize=10)
-    ax3.grid(True, alpha=0.3, axis='y')
+    ax.bar(dates, daily_buy, color='red', alpha=0.7, width=width, label='Buy Amount')
+    ax.bar(dates, -daily_sell, color='green', alpha=0.7, width=width, label='Sell Amount')
+    ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+    ax.set_title('Daily Buy/Sell Amount', fontsize=14, fontweight='bold')
+    ax.set_ylabel('Amount (CNY)', fontsize=12)
+    ax.legend(loc='best', fontsize=10)
+    ax.grid(True, alpha=0.3, axis='y')
 
-    # ========== 图4: 每日持仓市值 ==========
-    ax4 = axes[3]
 
-    ax4.fill_between(dates, daily_positions_val, alpha=0.3, color='#9467bd')
-    ax4.plot(dates, daily_positions_val, linewidth=2, color='#9467bd', label='Positions Value')
-    ax4.set_title('Daily Positions Value', fontsize=14, fontweight='bold')
-    ax4.set_xlabel('Date', fontsize=12)
-    ax4.set_ylabel('Value (CNY)', fontsize=12)
-    ax4.legend(loc='best', fontsize=10)
-    ax4.grid(True, alpha=0.3)
+def _plot_positions_value(ax, dates, daily_positions_val):
+    """绘制持仓市值子图
+
+    Args:
+        ax: matplotlib axes对象
+        dates: 日期数组
+        daily_positions_val: 每日持仓市值数组
+    """
+    ax.fill_between(dates, daily_positions_val, alpha=0.3, color='#9467bd')
+    ax.plot(dates, daily_positions_val, linewidth=2, color='#9467bd', label='Positions Value')
+    ax.set_title('Daily Positions Value', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Date', fontsize=12)
+    ax.set_ylabel('Value (CNY)', fontsize=12)
+    ax.legend(loc='best', fontsize=10)
+    ax.grid(True, alpha=0.3)
+
+
+def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_data, chart_filename):
+    """生成回测图表
+
+    Args:
+        backtest_stats: 回测统计数据字典
+        start_date: 回测开始日期
+        end_date: 回测结束日期
+        benchmark_data: 基准数据字典
+        chart_filename: 图表文件完整路径
+
+    Returns:
+        str: 图表文件路径
+    """
+    # 设置字体
+    plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+    plt.rcParams['axes.unicode_minus'] = False
+
+    # 验证并提取数据
+    dates, portfolio_values, daily_pnl, daily_buy, daily_sell, daily_positions_val = _validate_chart_data(backtest_stats)
+
+    # 创建图表 - 4行1列布局
+    fig, axes = plt.subplots(4, 1, figsize=(16, 20), sharex=True)
+
+    # 绘制4个子图
+    _plot_nav_curve(axes[0], dates, portfolio_values, daily_buy, daily_sell, benchmark_data, start_date, end_date)
+    _plot_daily_pnl(axes[1], dates, daily_pnl)
+    _plot_trade_amounts(axes[2], dates, daily_buy, daily_sell)
+    _plot_positions_value(axes[3], dates, daily_positions_val)
 
     # 设置x轴日期格式
     for ax in axes:
@@ -342,15 +402,13 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
     # 调整布局
     plt.tight_layout()
 
-    # 保存图表
-    chart_filename = f'{output_dir}/{strategy_name}/stats/backtest_{start_date.strftime("%y%m%d")}_{end_date.strftime("%y%m%d")}_{datetime.now().strftime("%y%m%d_%H%M%S")}.png'
-
     # 自动创建目录
     chart_dir = os.path.dirname(chart_filename)
     os.makedirs(chart_dir, exist_ok=True)
 
+    # 保存图表
     plt.savefig(chart_filename, dpi=150, bbox_inches='tight')
-    plt.close()  # 关闭图表，释放内存
+    plt.close()
 
     return chart_filename
 
@@ -367,56 +425,31 @@ def print_backtest_report(report, log, start_date, end_date, total_elapsed, posi
         positions_count: 持仓数量数组
     """
     log.info("")
-    log.info("=" * 60)
-    log.info(f"回测统计报告 {start_date.strftime('%Y%m%d')} - {end_date.strftime('%Y%m%d')} 总用时: {total_elapsed:.0f}秒 ({total_elapsed/60:.1f}分钟)")
-    log.info("=" * 60)
+    log.info("=" * 70)
+    log.info(f"回测报告 {start_date.strftime('%Y%m%d')}-{end_date.strftime('%Y%m%d')} | "
+             f"周期: {report['trading_days']}天 | 耗时: {total_elapsed/60:.1f}分钟")
+    log.info("=" * 70)
 
+    # 核心指标
     log.info("")
-    log.info("【整体表现】")
-    log.info(f"  初始资金: {report['initial_value']:,.2f}")
-    log.info(f"  最终资金: {report['final_value']:,.2f}")
-    log.info(f"  总收益率: {report['total_return']*100:.2f}%")
-    log.info(f"  年化收益率: {report['annual_return']*100:.2f}%")
-    log.info(f"  最大回撤: {report['max_drawdown']*100:.2f}%")
+    log.info(f"总收益率: {report['total_return']*100:+.2f}%  |  "
+             f"年化收益: {report['annual_return']*100:+.2f}%  |  "
+             f"最大回撤: {report['max_drawdown']*100:.2f}%")
+    log.info(f"夏普比率: {report['sharpe_ratio']:.3f}  |  "
+             f"信息比率: {report['information_ratio']:.3f}  |  "
+             f"本金: {report['initial_value']/10000:.0f}万 → {report['final_value']/10000:.1f}万")
 
+    # 基准对比
     log.info("")
-    log.info("【基准对比（沪深300）】")
-    log.info(f"  基准总收益: {report['benchmark_return']*100:.2f}%")
-    log.info(f"  基准年化收益: {report['benchmark_annual_return']*100:.2f}%")
-    log.info(f"  超额收益: {report['excess_return']*100:.2f}%")
-    log.info(f"  Alpha（年化）: {report['alpha']*100:.2f}%")
-    log.info(f"  Beta: {report['beta']:.3f}")
+    log.info(f"vs 沪深300: 超额收益 {report['excess_return']*100:+.2f}% | "
+             f"Alpha {report['alpha']*100:+.2f}% | Beta {report['beta']:.3f}")
 
+    # 交易统计
+    avg_pos = np.mean(positions_count) if len(positions_count) > 0 else 0
+    max_pos = np.max(positions_count) if len(positions_count) > 0 else 0
     log.info("")
-    log.info("【风险调整指标】")
-    log.info(f"  夏普比率: {report['sharpe_ratio']:.3f}")
-    log.info(f"  信息比率: {report['information_ratio']:.3f}")
+    log.info(f"盈利天数: {report['win_count']}/{report['trading_days']}天 ({report['win_rate']*100:.1f}%) | "
+             f"盈亏比: {report['profit_loss_ratio']:.2f} | "
+             f"持仓: {avg_pos:.1f}只(最大{max_pos}只)")
 
-    log.info("")
-    log.info("【交易统计】")
-    log.info(f"  回测天数: {report['trading_days']} 天")
-    log.info(f"  盈利天数: {report['win_count']} 天")
-    log.info(f"  亏损天数: {report['lose_count']} 天")
-    log.info(f"  胜率: {report['win_rate']*100:.2f}%")
-    log.info(f"  盈亏比: {report['profit_loss_ratio']:.2f}")
-
-    if len(positions_count) > 0:
-        log.info(f"  平均持仓数: {np.mean(positions_count):.1f} 只")
-        log.info(f"  最大持仓数: {np.max(positions_count)} 只")
-    else:
-        log.info("  平均持仓数: 0 只")
-        log.info("  最大持仓数: 0 只")
-
-    log.info("")
-    log.info("【每日收益率统计】")
-    if len(report['daily_returns']) > 0:
-        log.info(f"  平均: {np.mean(report['daily_returns'])*100:.2f}%")
-        log.info(f"  标准差: {np.std(report['daily_returns'])*100:.2f}%")
-        log.info(f"  最大单日收益: {np.max(report['daily_returns'])*100:.2f}%")
-        log.info(f"  最大单日亏损: {np.min(report['daily_returns'])*100:.2f}%")
-
-        # 计算日胜率
-        daily_win_rate = np.sum(report['daily_returns'] > 0) / len(report['daily_returns'])
-        log.info(f"  日胜率: {daily_win_rate*100:.2f}%")
-    else:
-        log.info("  无数据")
+    log.info("=" * 70)

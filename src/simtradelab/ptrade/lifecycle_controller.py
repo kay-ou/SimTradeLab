@@ -121,7 +121,7 @@ class LifecycleController:
             self._current_phase = phase
             self._phase_executed.add(phase)
 
-            self._logger.info(f"Lifecycle phase changed: {old_phase} -> {phase}")
+            self._logger.debug(f"Lifecycle phase changed: {old_phase} -> {phase}")
 
             # 执行阶段切换回调
             self._execute_phase_callbacks(phase)
@@ -290,7 +290,7 @@ class LifecycleController:
             new_phase: 目标阶段
 
         Raises:
-            PTradeLif ecycleError: 如果转换不合法
+            PTradeLifecycleError: 如果转换不合法
         """
         # 允许的转换规则
         allowed_transitions = {

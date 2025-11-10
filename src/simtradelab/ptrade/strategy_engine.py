@@ -87,17 +87,6 @@ class StrategyExecutionEngine:
         else:
             raise ValueError(f"Unsupported mode: {self.mode}")
 
-        if self.mode == PTradeMode.RESEARCH:
-            self.context = create_research_context(self.capital_base)
-        elif self.mode == PTradeMode.BACKTEST:
-            self.context = create_backtest_context(
-                self.capital_base, self.commission_rate, self.slippage_rate
-            )
-        elif self.mode == PTradeMode.TRADING:
-            self.context = create_trading_context(self.capital_base)
-        else:
-            raise ValueError(f"Unsupported mode: {self.mode}")
-
         # 获取生命周期控制器和API验证器
         if self.context._lifecycle_controller is None:
             raise ValueError("Context lifecycle controller is not initialized")
@@ -290,9 +279,8 @@ class StrategyExecutionEngine:
     def _process_data_point(self, data: Any) -> None:
         """处理单个数据点"""
         try:
-            # 更新Context中的当前数据
+            # 更新Context中的当前时间
             if isinstance(data, dict):
-                self.context.set_current_data(data)
                 self.context.current_dt = data.get("datetime", datetime.now())
 
             # 执行盘前处理（如果定义了）
@@ -310,9 +298,6 @@ class StrategyExecutionEngine:
             # 执行盘后处理（如果定义了）
             if self._strategy_functions.get("after_trading_end"):
                 self.context.execute_after_trading_end(data)
-
-            # 更新投资组合
-            self.context.update_portfolio()
 
         except Exception as e:
             self._logger.error(f"Error processing data point: {e}")
@@ -368,7 +353,6 @@ class StrategyExecutionEngine:
         self._strategy_functions.clear()
         self._strategy_name = None
         self._is_running = False
-        self._current_data = None
 
         # 重置Context
         self.context.reset_for_new_strategy()
@@ -378,10 +362,7 @@ class StrategyExecutionEngine:
         self._logger.info("Shutting down strategy execution engine")
 
         self._is_running = False
-        # 清理资源
-        if self.event_bus:
-            # EventBus的清理逻辑
-            pass
+        # 清理资源（如需要其他清理操作，可以在此添加）
 
 
 class StrategyBuilder:
