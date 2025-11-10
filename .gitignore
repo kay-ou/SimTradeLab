@@ -65,8 +65,6 @@ reports/
 *.log
 logs/
 
-*.csv
-*.h5
 *.png
 *.log
 web/uploads/
