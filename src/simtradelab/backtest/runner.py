@@ -217,7 +217,12 @@ class BacktestRunner:
             end_date = pd.Timestamp(end_date)
 
             # 创建日志
-            log_filename = f'{strategies_path}/{strategy_name}/backtest_{start_date.strftime("%y%m%d")}_{end_date.strftime("%y%m%d")}_{datetime.now().strftime("%y%m%d_%H%M%S")}.log'
+            log_filename = f'{strategies_path}/{strategy_name}/stats/backtest_{start_date.strftime("%y%m%d")}_{end_date.strftime("%y%m%d")}_{datetime.now().strftime("%y%m%d_%H%M%S")}.log'
+
+            # 自动创建目录
+            log_dir = os.path.dirname(log_filename)
+            os.makedirs(log_dir, exist_ok=True)
+
             print(f"日志文件: {log_filename}")
 
             # 配置日志（实时刷新）

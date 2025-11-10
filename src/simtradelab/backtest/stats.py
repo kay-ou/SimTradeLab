@@ -5,6 +5,7 @@
 包含收益率、风险指标、交易统计等计算函数，以及图表生成函数
 """
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -342,7 +343,12 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
     plt.tight_layout()
 
     # 保存图表
-    chart_filename = f'{output_dir}/{strategy_name}/backtest_{start_date.strftime("%y%m%d")}_{end_date.strftime("%y%m%d")}_{datetime.now().strftime("%y%m%d_%H%M%S")}.png'
+    chart_filename = f'{output_dir}/{strategy_name}/stats/backtest_{start_date.strftime("%y%m%d")}_{end_date.strftime("%y%m%d")}_{datetime.now().strftime("%y%m%d_%H%M%S")}.png'
+
+    # 自动创建目录
+    chart_dir = os.path.dirname(chart_filename)
+    os.makedirs(chart_dir, exist_ok=True)
+
     plt.savefig(chart_filename, dpi=150, bbox_inches='tight')
     plt.close()  # 关闭图表，释放内存
 
