@@ -15,20 +15,16 @@ import json
 import logging
 import os
 
-from backtest_core import Global, LazyDataDict, Context, BacktestContext, Data, clear_daily_cache
-from backtest_stats import generate_backtest_report, generate_backtest_charts, print_backtest_report
-from ptrade_api import PtradeAPI
-from data_server import DataServer
-
-# 强制Python无缓冲输出
-os.environ['PYTHONUNBUFFERED'] = '1'
-sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
-
+from simtradelab.ptrade.context import Context
+from simtradelab.ptrade.object import Global, LazyDataDict, Data, clear_daily_cache, BacktestContext
+from simtradelab.backtest.stats import generate_backtest_report, generate_backtest_charts, print_backtest_report
+from simtradelab.ptrade.api import PtradeAPI
+from simtradelab.service.data_server import DataServer
 
 class BacktestRunner:
     """回测执行器"""
 
-    def __init__(self, data_path='/home/kay/dev/ptrade/data', use_data_server=True):
+    def __init__(self, data_path, use_data_server=True):
         self.data_path = data_path
         self.use_data_server = use_data_server
 
@@ -198,7 +194,7 @@ class BacktestRunner:
 
         return strategy_namespace, api
 
-    def run(self, strategy_name, start_date, end_date, strategies_path='/home/kay/dev/ptrade/strategies'):
+    def run(self, strategy_name, start_date, end_date, strategies_path):
         """运行回测
 
         Args:
@@ -254,7 +250,9 @@ class BacktestRunner:
             self.log.info(f"交易日数: {len(date_range)} 天\n")
 
             # 初始化context
-            self.context = Context(start_date, None)
+            from simtradelab.ptrade.object import Portfolio
+            portfolio = Portfolio(1000000)  # 初始资金100万
+            self.context = Context(portfolio=portfolio, current_dt=start_date)
             api.context = self.context
 
             # 初始化回测上下文
@@ -331,7 +329,6 @@ class BacktestRunner:
                     self.log.error(f"after_trading_end执行失败: {e}")
                     import traceback
                     traceback.print_exc()
-                    break
 
                 # 记录当日结束后的状态
                 after_portfolio_value = self.context.portfolio.portfolio_value

@@ -224,7 +224,7 @@ class PtradeAPI:
 
     def get_research_path(self):
         """返回研究目录路径"""
-        return '/home/kay/dev/ptrade/research/'
+        return '../../../research/'
 
     def get_Ashares(self, date=None):
         """返回A股代码列表，支持历史查询"""
@@ -236,10 +236,10 @@ class PtradeAPI:
         if self.stock_metadata.empty:
             return list(self.stock_data_dict.keys())
 
-        listed = pd.to_datetime(self.stock_metadata['listed_date']) <= target_date
+        listed = pd.to_datetime(self.stock_metadata['listed_date'], format='mixed') <= target_date
         not_delisted = (
             (self.stock_metadata['de_listed_date'] == '2900-01-01') |
-            (pd.to_datetime(self.stock_metadata['de_listed_date'], errors='coerce') > target_date)
+            (pd.to_datetime(self.stock_metadata['de_listed_date'], errors='coerce', format='mixed') > target_date)
         )
 
         return self.stock_metadata[listed & not_delisted].index.tolist()
@@ -929,7 +929,7 @@ class PtradeAPI:
         Returns:
             订单id或None
         """
-        from backtest_core import Order
+        from simtradelab.ptrade.object import Order
 
         current_amount = 0
         if stock in self.context.portfolio.positions:
@@ -988,13 +988,13 @@ class PtradeAPI:
             if cost <= self.context.portfolio._cash:
                 self.context.portfolio._cash -= cost
                 if stock not in self.context.portfolio.positions:
-                    from backtest_core import Position
+                    from simtradelab.ptrade.object import Position
                     self.context.portfolio.positions[stock] = Position(stock, delta, execution_price)
                 else:
                     old_pos = self.context.portfolio.positions[stock]
                     new_amount = old_pos.amount + delta
                     new_cost = (old_pos.amount * old_pos.cost_basis + delta * execution_price) / new_amount
-                    from backtest_core import Position
+                    from simtradelab.ptrade.object import Position
                     self.context.portfolio.positions[stock] = Position(stock, new_amount, new_cost)
                 order.status = '8'
                 order.filled = delta
@@ -1023,7 +1023,7 @@ class PtradeAPI:
         Returns:
             订单id或None
         """
-        from backtest_core import Order
+        from simtradelab.ptrade.object import Order
 
         # 确定使用价格
         if limit_price is not None:
@@ -1072,13 +1072,13 @@ class PtradeAPI:
         if cost <= self.context.portfolio._cash:
             self.context.portfolio._cash -= cost
             if stock not in self.context.portfolio.positions:
-                from backtest_core import Position
+                from simtradelab.ptrade.object import Position
                 self.context.portfolio.positions[stock] = Position(stock, amount, current_price)
             else:
                 old_pos = self.context.portfolio.positions[stock]
                 new_amount = old_pos.amount + amount
                 new_cost = (old_pos.amount * old_pos.cost_basis + amount * current_price) / new_amount
-                from backtest_core import Position
+                from simtradelab.ptrade.object import Position
                 self.context.portfolio.positions[stock] = Position(stock, new_amount, new_cost)
             order.status = '8'
             order.filled = amount
@@ -1251,7 +1251,7 @@ class PtradeAPI:
             self.log.warning("set_yesterday_position 参数必须是列表")
             return
 
-        from backtest_core import Position
+        from simtradelab.ptrade.object import Position
         for pos_info in poslist:
             security = pos_info.get('security')
             amount = pos_info.get('amount', 0)

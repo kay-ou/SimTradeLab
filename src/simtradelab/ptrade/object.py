@@ -5,11 +5,10 @@
 包含Portfolio, Position, Order, Context等核心对象
 """
 
-from datetime import timedelta
 from collections import OrderedDict
+import bisect
 import pandas as pd
 import numpy as np
-import bisect
 
 
 # 全局缓存：用于StockData的mavg和vwap计算
@@ -308,22 +307,22 @@ class Data(dict):
         return stock_data
 
 
-class Context:
-    """模拟context对象"""
-    def __init__(self, current_dt, bt_ctx=None):
-        self.current_dt = current_dt
-        self.previous_date = (current_dt - timedelta(days=1)).date()
-        self.portfolio = Portfolio(bt_ctx, self)
-        self.blotter = Blotter(current_dt, bt_ctx)
-        # 回测配置
-        self.commission_ratio = 0.0003
-        self.min_commission = 5.0
-        self.commission_type = 'STOCK'
-        self.slippage = 0.0
-        self.fixed_slippage = 0.0
-        self.limit_mode = 'LIMITED'
-        self.volume_ratio = 0.25
-        self.benchmark = '000300.SS'
+# class Context:
+#     """模拟context对象"""
+#     def __init__(self, current_dt, bt_ctx=None):
+#         self.current_dt = current_dt
+#         self.previous_date = (current_dt - timedelta(days=1)).date()
+#         self.portfolio = Portfolio(bt_ctx, self)
+#         self.blotter = Blotter(current_dt, bt_ctx)
+#         # 回测配置
+#         self.commission_ratio = 0.0003
+#         self.min_commission = 5.0
+#         self.commission_type = 'STOCK'
+#         self.slippage = 0.0
+#         self.fixed_slippage = 0.0
+#         self.limit_mode = 'LIMITED'
+#         self.volume_ratio = 0.25
+#         self.benchmark = '000300.SS'
 
 class Blotter:
     """模拟blotter对象"""

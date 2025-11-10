@@ -11,7 +11,7 @@ import os
 # 强制无缓冲输出（确保日志实时显示）
 sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', buffering=1)
 
-from backtest_runner import BacktestRunner
+from simtradelab.backtest.runner import BacktestRunner
 
 
 if __name__ == '__main__':
@@ -22,13 +22,13 @@ if __name__ == '__main__':
 
     # 回测周期
     start_date = '2024-01-01'
-    end_date = '2024-06-30'
+    end_date = '2024-01-30'
 
     # 数据路径
-    data_path = '/home/kay/dev/ptrade/data'
+    data_path = '../../../data'
 
     # 策略路径
-    strategies_path = '/home/kay/dev/ptrade/strategies'
+    strategies_path = '../../../strategies'
 
     # ==================== 启动回测 ====================
 

@@ -10,17 +10,14 @@ import traceback
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional, Union
 
-from ...core.event_bus import EventBus
 from .context import (
-    PTradeContext,
+    Context,
     PTradeMode,
     create_backtest_context,
     create_research_context,
     create_trading_context,
 )
 from .lifecycle_controller import LifecycleController
-from .models import SecurityUnitData
-from .routers import BacktestAPIRouter, ResearchAPIRouter, TradingAPIRouter
 
 
 class StrategyExecutionError(Exception):
@@ -61,8 +58,7 @@ class StrategyExecutionEngine:
         self.slippage_rate = slippage_rate
 
         # 核心组件
-        self.event_bus = EventBus()
-        self.context: PTradeContext  # 将在_initialize_components中设置
+        self.context: Context  # 将在_initialize_components中设置
         self.api_router: Optional[Any] = None
         self.lifecycle_controller: LifecycleController  # 将在_initialize_components中设置
 
@@ -70,7 +66,6 @@ class StrategyExecutionEngine:
         self._strategy_functions: Dict[str, Callable[..., Any]] = {}
         self._strategy_name: Optional[str] = None
         self._is_running = False
-        self._current_data: Optional[Dict[str, SecurityUnitData]] = None
 
         # 日志
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -92,7 +87,6 @@ class StrategyExecutionEngine:
         else:
             raise ValueError(f"Unsupported mode: {self.mode}")
 
-        self.plugin_manager = self.context.plugin_manager
         if self.mode == PTradeMode.RESEARCH:
             self.context = create_research_context(self.capital_base)
         elif self.mode == PTradeMode.BACKTEST:
@@ -112,28 +106,6 @@ class StrategyExecutionEngine:
 
         self.lifecycle_controller = self.context._lifecycle_controller
 
-        self.plugin_manager = self.context.plugin_manager
-
-        # 创建API路由器
-        if self.mode == PTradeMode.RESEARCH:
-            self.api_router = ResearchAPIRouter(
-                self.context,
-                self.event_bus,
-                self.lifecycle_controller,
-            )
-        elif self.mode == PTradeMode.BACKTEST:
-            self.api_router = BacktestAPIRouter(
-                self.context,
-                self.event_bus,
-                self.lifecycle_controller,
-                self.plugin_manager,
-            )
-        elif self.mode == PTradeMode.TRADING:
-            self.api_router = TradingAPIRouter(
-                self.context,
-                self.event_bus,
-                self.lifecycle_controller,
-            )
 
         self._logger.info(
             f"Strategy execution engine initialized in {self.mode.value} mode"
@@ -155,44 +127,44 @@ class StrategyExecutionEngine:
         self._strategy_name = strategy_name
         return StrategyBuilder(self)
 
-    def register_initialize(self, func: Callable[[PTradeContext], None]) -> None:
+    def register_initialize(self, func: Callable[[Context], None]) -> None:
         """注册initialize函数"""
         self._strategy_functions["initialize"] = func
         self.context.register_initialize(func)
 
-    def register_handle_data(self, func: Callable[[PTradeContext, Any], None]) -> None:
+    def register_handle_data(self, func: Callable[[Context, Any], None]) -> None:
         """注册handle_data函数"""
         self._strategy_functions["handle_data"] = func
         self.context.register_handle_data(func)
 
     def register_before_trading_start(
-        self, func: Callable[[PTradeContext, Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> None:
         """注册before_trading_start函数"""
         self._strategy_functions["before_trading_start"] = func
         self.context.register_before_trading_start(func)
 
     def register_after_trading_end(
-        self, func: Callable[[PTradeContext, Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> None:
         """注册after_trading_end函数"""
         self._strategy_functions["after_trading_end"] = func
         self.context.register_after_trading_end(func)
 
-    def register_tick_data(self, func: Callable[[PTradeContext, Any], None]) -> None:
+    def register_tick_data(self, func: Callable[[Context, Any], None]) -> None:
         """注册tick_data函数"""
         self._strategy_functions["tick_data"] = func
         self.context.register_tick_data(func)
 
     def register_on_order_response(
-        self, func: Callable[[PTradeContext, Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> None:
         """注册on_order_response函数"""
         self._strategy_functions["on_order_response"] = func
         self.context.register_on_order_response(func)
 
     def register_on_trade_response(
-        self, func: Callable[[PTradeContext, Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> None:
         """注册on_trade_response函数"""
         self._strategy_functions["on_trade_response"] = func
@@ -421,48 +393,48 @@ class StrategyBuilder:
     def __init__(self, engine: StrategyExecutionEngine):
         self.engine = engine
 
-    def initialize(self, func: Callable[[PTradeContext], None]) -> "StrategyBuilder":
+    def initialize(self, func: Callable[[Context], None]) -> "StrategyBuilder":
         """设置初始化函数"""
         self.engine.register_initialize(func)
         return self
 
     def handle_data(
-        self, func: Callable[[PTradeContext, Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> "StrategyBuilder":
         """设置主策略逻辑函数"""
         self.engine.register_handle_data(func)
         return self
 
     def before_trading_start(
-        self, func: Callable[[PTradeContext, Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> "StrategyBuilder":
         """设置盘前处理函数"""
         self.engine.register_before_trading_start(func)
         return self
 
     def after_trading_end(
-        self, func: Callable[[PTradeContext, Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> "StrategyBuilder":
         """设置盘后处理函数"""
         self.engine.register_after_trading_end(func)
         return self
 
     def tick_data(
-        self, func: Callable[[PTradeContext, Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> "StrategyBuilder":
         """设置tick数据处理函数"""
         self.engine.register_tick_data(func)
         return self
 
     def on_order_response(
-        self, func: Callable[[PTradeContext, Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> "StrategyBuilder":
         """设置委托回报处理函数"""
         self.engine.register_on_order_response(func)
         return self
 
     def on_trade_response(
-        self, func: Callable[[PTradeContext, Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> "StrategyBuilder":
         """设置成交回报处理函数"""
         self.engine.register_on_trade_response(func)

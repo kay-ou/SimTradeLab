@@ -11,7 +11,7 @@
 import pandas as pd
 import json
 import atexit
-from backtest_core import LazyDataDict
+from ..ptrade.object import LazyDataDict
 
 
 class DataServer:

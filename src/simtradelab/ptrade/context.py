@@ -11,19 +11,12 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
-from ...core.plugin_manager import PluginManager
 from .lifecycle_controller import LifecycleController, LifecyclePhase
-from .models import (
+from simtradelab.ptrade.object import (
     Blotter,
-    Commission,
-    FutureParams,
     Portfolio,
-    Position,
-    SecurityUnitData,
-    SimulationParameters,
-    VolumeShareSlippage,
+    Position
 )
-
 
 class PTradeMode(Enum):
     """PTrade运行模式"""
@@ -49,7 +42,7 @@ class StrategyLifecycleManager:
         self._strategy_functions[phase] = func
 
     def execute_lifecycle_phase(
-        self, phase: str, context: "PTradeContext", data: Optional[Any] = None
+        self, phase: str, context: "Context", data: Optional[Any] = None
     ) -> Any:
         """执行指定的生命周期阶段"""
         # 设置当前阶段
@@ -77,7 +70,7 @@ class StrategyLifecycleManager:
 
 
 @dataclass
-class PTradeContext:
+class Context:
     """PTrade策略上下文对象 - 完全符合PTrade规范
 
     这是策略执行的核心上下文对象，包含了所有策略运行所需的状态信息
@@ -90,10 +83,7 @@ class PTradeContext:
     # === PTrade官方Context属性 ===
     capital_base: Optional[float] = None  # 起始资金
     previous_date: Optional[datetime] = None  # 前一个交易日
-    sim_params: Optional[SimulationParameters] = None
     initialized: bool = False  # 是否执行初始化
-    slippage: Optional[VolumeShareSlippage] = None
-    commission: Optional[Commission] = None
     blotter: Optional[Blotter] = None
     recorded_vars: Dict[str, Any] = field(default_factory=dict)  # 收益曲线值
 
@@ -107,10 +97,8 @@ class PTradeContext:
     _volume_ratio: float = 0.25  # 成交比例
     _limit_mode: str = "volume"  # 限制模式
     _yesterday_position: Dict[str, Any] = field(default_factory=dict)  # 底仓
-
-    # === 期货期权专用属性 ===
-    _future_params: Optional[FutureParams] = None  # 期货参数
-    _margin_rate_overrides: Dict[str, float] = field(default_factory=dict)  # 自定义保证金比例
+    commission_ratio: float = 0.0003  # 佣金费率
+    slippage: float = 0.0  # 滑点
 
     # === 生命周期管理属性 ===
     _lifecycle_controller: Optional[LifecycleController] = None
@@ -119,28 +107,19 @@ class PTradeContext:
     # === 调度任务属性 ===
     _daily_tasks: List[Dict[str, Any]] = field(default_factory=list)  # 日级任务
     _interval_tasks: List[Dict[str, Any]] = field(default_factory=list)  # 间隔任务
-    plugin_manager: Optional[Any] = None
 
     def __post_init__(self) -> None:
         """初始化后处理"""
         # === 初始化g全局对象 ===
         self.g = types.SimpleNamespace()  # 全局变量容器
 
+        # === 设置时间 ===
+        if self.current_dt is None:
+            self.current_dt = datetime.now()
+
         # === 初始化必需组件 ===
         if self.blotter is None:
-            self.blotter = Blotter()
-
-        if self.sim_params is None and self.capital_base:
-            self.sim_params = SimulationParameters(self.capital_base)
-
-        if self.slippage is None:
-            self.slippage = VolumeShareSlippage()
-
-        if self.commission is None:
-            self.commission = Commission()
-
-        if self._future_params is None:
-            self._future_params = FutureParams()
+            self.blotter = Blotter(self.current_dt)
 
         # === 初始化生命周期管理 ===
         if self._lifecycle_controller is None:
@@ -151,53 +130,46 @@ class PTradeContext:
                 self._lifecycle_controller
             )
 
-        if self.plugin_manager is None:
-            self.plugin_manager = PluginManager()
-
-        # === 设置时间 ===
-        if self.current_dt is None:
-            self.current_dt = datetime.now()
-
         self.blotter.current_dt = self.current_dt
 
     # ==========================================
     # 策略生命周期函数注册接口
     # ==========================================
 
-    def register_initialize(self, func: Callable[["PTradeContext"], None]) -> None:
+    def register_initialize(self, func: Callable[["Context"], None]) -> None:
         """注册initialize函数"""
         self._lifecycle_manager.register_strategy_function("initialize", func)
 
     def register_handle_data(
-        self, func: Callable[["PTradeContext", Any], None]
+        self, func: Callable[["Context", Any], None]
     ) -> None:
         """注册handle_data函数"""
         self._lifecycle_manager.register_strategy_function("handle_data", func)
 
     def register_before_trading_start(
-        self, func: Callable[["PTradeContext", Any], None]
+        self, func: Callable[["Context", Any], None]
     ) -> None:
         """注册before_trading_start函数"""
         self._lifecycle_manager.register_strategy_function("before_trading_start", func)
 
     def register_after_trading_end(
-        self, func: Callable[["PTradeContext", Any], None]
+        self, func: Callable[["Context", Any], None]
     ) -> None:
         """注册after_trading_end函数"""
         self._lifecycle_manager.register_strategy_function("after_trading_end", func)
 
-    def register_tick_data(self, func: Callable[["PTradeContext", Any], None]) -> None:
+    def register_tick_data(self, func: Callable[["Context", Any], None]) -> None:
         """注册tick_data函数"""
         self._lifecycle_manager.register_strategy_function("tick_data", func)
 
     def register_on_order_response(
-        self, func: Callable[["PTradeContext", Any], None]
+        self, func: Callable[["Context", Any], None]
     ) -> None:
         """注册on_order_response函数"""
         self._lifecycle_manager.register_strategy_function("on_order_response", func)
 
     def register_on_trade_response(
-        self, func: Callable[["PTradeContext", Any], None]
+        self, func: Callable[["Context", Any], None]
     ) -> None:
         """注册on_trade_response函数"""
         self._lifecycle_manager.register_strategy_function("on_trade_response", func)
@@ -260,13 +232,11 @@ class PTradeContext:
 
     def set_commission(self, commission: float) -> None:
         """设置佣金费率"""
-        if self.commission:
-            self.commission.cost = commission
+        self.commission_ratio = commission
 
     def set_slippage(self, slippage: float) -> None:
         """设置滑点"""
-        if self.slippage:
-            self.slippage.price_impact = slippage
+        self.slippage = slippage
 
     def set_volume_ratio(self, ratio: float) -> None:
         """设置成交比例"""
@@ -283,16 +253,6 @@ class PTradeContext:
     def set_parameters(self, params: Dict[str, Any]) -> None:
         """设置策略参数"""
         self._parameters.update(params)
-
-    def set_future_commission(self, commission: float) -> None:
-        """设置期货手续费"""
-        if self._future_params:
-            # 注意：FutureParams没有commission属性，这里需要扩展
-            self._future_params.commission = commission
-
-    def set_margin_rate(self, security: str, rate: float) -> None:
-        """设置期货保证金比例"""
-        self._margin_rate_overrides[security] = rate
 
     # ==========================================
     # 调度任务管理接口
@@ -329,26 +289,6 @@ class PTradeContext:
             return False
 
     # ==========================================
-    # 数据访问接口
-    # ==========================================
-
-    def get_current_data(self) -> Optional[Dict[str, SecurityUnitData]]:
-        """获取当前数据（SecurityUnitData字典）"""
-        # 这应该由数据适配器提供，这里返回占位符
-        return getattr(self, "_current_data", None)
-
-    def set_current_data(self, data: Dict[str, SecurityUnitData]) -> None:
-        """设置当前数据"""
-        self._current_data = data
-
-    def get_security_data(self, security: str) -> Optional[SecurityUnitData]:
-        """获取指定证券的当前数据"""
-        current_data = self.get_current_data()
-        if current_data:
-            return current_data.get(security)
-        return None
-
-    # ==========================================
     # 工具方法
     # ==========================================
 
@@ -364,10 +304,6 @@ class PTradeContext:
         """获取持仓信息"""
         return self.portfolio.positions.get(security)
 
-    def update_portfolio(self) -> None:
-        """更新投资组合信息"""
-        self.portfolio.update_portfolio_value()
-
     def reset_for_new_strategy(self) -> None:
         """为新策略重置上下文状态"""
         self.initialized = False
@@ -377,7 +313,7 @@ class PTradeContext:
         self._lifecycle_controller.reset()
 
         # 重置blotter
-        self.blotter = Blotter()
+        self.blotter = Blotter(self.current_dt)
         self.blotter.current_dt = self.current_dt
 
 
@@ -386,10 +322,10 @@ class PTradeContext:
 # ==========================================
 
 
-def create_research_context(capital_base: float = 1000000) -> PTradeContext:
+def create_research_context(capital_base: float = 1000000) -> Context:
     """创建研究模式上下文"""
     portfolio = Portfolio(cash=capital_base)
-    return PTradeContext(
+    return Context(
         portfolio=portfolio, mode=PTradeMode.RESEARCH, capital_base=capital_base
     )
 
@@ -398,10 +334,10 @@ def create_backtest_context(
     capital_base: float = 1000000,
     commission_rate: float = 0.0003,
     slippage_rate: float = 0.0,
-) -> PTradeContext:
+) -> Context:
     """创建回测模式上下文"""
     portfolio = Portfolio(cash=capital_base)
-    context = PTradeContext(
+    context = Context(
         portfolio=portfolio, mode=PTradeMode.BACKTEST, capital_base=capital_base
     )
     context.set_commission(commission_rate)
@@ -409,9 +345,9 @@ def create_backtest_context(
     return context
 
 
-def create_trading_context(capital_base: float = 1000000) -> PTradeContext:
+def create_trading_context(capital_base: float = 1000000) -> Context:
     """创建实盘交易模式上下文"""
     portfolio = Portfolio(cash=capital_base)
-    return PTradeContext(
+    return Context(
         portfolio=portfolio, mode=PTradeMode.TRADING, capital_base=capital_base
     )

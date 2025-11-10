@@ -252,6 +252,17 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
     daily_sell = np.array(backtest_stats['daily_sell_amount'])
     daily_positions_val = np.array(backtest_stats['daily_positions_value'])
 
+    # 数据验证：确保所有数组长度一致
+    if len(daily_positions_val) < len(dates):
+        # 如果positions_value数据不足，填充0
+        daily_positions_val = np.pad(daily_positions_val, (0, len(dates) - len(daily_positions_val)), constant_values=0)
+    if len(daily_pnl) < len(dates):
+        daily_pnl = np.pad(daily_pnl, (0, len(dates) - len(daily_pnl)), constant_values=0)
+    if len(daily_buy) < len(dates):
+        daily_buy = np.pad(daily_buy, (0, len(dates) - len(daily_buy)), constant_values=0)
+    if len(daily_sell) < len(dates):
+        daily_sell = np.pad(daily_sell, (0, len(dates) - len(daily_sell)), constant_values=0)
+
     # 创建图表 - 4行1列布局
     fig, axes = plt.subplots(4, 1, figsize=(16, 20), sharex=True)
 

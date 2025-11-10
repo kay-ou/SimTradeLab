@@ -17,17 +17,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-requires-python = ">=3.10.0"
-dependencies = [
-    "pandas>=2.3.0,<3.0.0",
-    "numpy>=2.0.0,<3.0.0",
-    "matplotlib>=3.10.3,<4.0.0",
-    "PyYAML>=6.0.0",
-    "colorama>=0.4.0; sys_platform == 'win32'",
-    "pydantic>=2.0.0",
-    "networkx>=2.6.0,<3.0.0",
-    "watchdog>=6.0.0,<7.0.0",
-]
+requires-python = ">=3.9.0"
 
 [project.urls]
 Homepage = "https://github.com/kay-ou/SimTradeLab"
@@ -38,149 +28,35 @@ Documentation = "https://github.com/kay-ou/SimTradeLab/blob/main/README.md"
 simtradelab = "simtradelab.cli:main"
 
 # Development scripts
-[tool.poetry.scripts]
-test = "pytest"
-test-cov = "pytest --cov=simtradelab --cov-report=html --cov-report=term-missing"
-lint = "ruff check src tests"
-lint-fix = "ruff check --fix src tests"
-format = "black src tests"
-format-check = "black --check src tests"
-type-check = "mypy src"
-security-check = "bandit -r src"
-pre-commit-install = "pre-commit install"
-pre-commit-run = "pre-commit run --all-files"
+[tool.poetry]
+name = "simtradelab"
+version = "1.2.0"
+description = "开源策略回测框架，灵感来自PTrade的事件驱动模型，提供轻量、清晰、可插拔的策略验证环境"
+authors = ["kay <kayou@duck.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "simtradelab", from = "src"}]
 
-[project.optional-dependencies]
-data = ["akshare>=1.17.16", "tushare>=1.2.89"]
-web = [
-    "fastapi>=0.68.0",
-    "uvicorn[standard]>=0.15.0",
-    "python-multipart>=0.0.5",
-    "jinja2>=3.0.0",
-    "aiofiles>=0.7.0",
-]
+[tool.poetry.dependencies]
+python = "^3.9"
+pandas = "*" # 0.23.4
+numpy = "<2.0" # 1.11.2
+
+# AI模型训练依赖
+seaborn = "*" #0.7.1
+scikit-learn = "*" #0.18
+scipy = "*" #0.18.0
+ta-lib = "*" #0.4.10
+xgboost = "0.90" #0.6a2
+tqdm = "^4.67.1"
+statsmodels = "^0.14.5"
+h5py = ">=3.8,<4.0"
+tables = "<3.10"
+
+[tool.poetry.group.dev.dependencies]
+baostock = "^0.8.9"
+jupyter = "^1.1.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.poetry]
-packages = [
-    { include = "simtradelab", from = "src" }
-]
-include = [
-    "README.md",
-    "CHANGELOG.md",
-    "data/*.csv",
-    "strategies/*.py",
-    "docs/**/*",
-    "tests/**/*",
-]
-
-[tool.poetry.group.data.dependencies]
-akshare = "^1.17.16"
-tushare = "^1.2.89"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.2.1"
-pytest-cov = "^5.0.0"
-pytest-mock = "^3.12.0"
-pytest-xdist = "^3.6.0"
-pytest-asyncio = "^0.21.0"
-psutil = "^6.0.0"
-black = "^23.0.0"
-isort = "^5.12.0"
-mypy = "^1.5.0"
-pre-commit = "^3.0.0"
-bandit = "^1.7.0"
-build = "^1.2.2.post1"
-ruff = "^0.12.3"
-pandas-stubs = "^2.3.0.250703"
-pywin32 = { version = "^306", markers = "sys_platform == 'win32'" }
-
-# Testing Configuration
-pyfolio-reloaded = "^0.9.9"
-[tool.pytest.ini_options]
-minversion = "6.0"
-addopts = [
-    "--strict-markers",
-    "--strict-config",
-    "--cov=simtradelab",
-    "--cov-report=term-missing",
-    "--cov-report=html:htmlcov",
-    "--cov-report=xml",
-]
-testpaths = ["tests"]
-markers = [
-    "unit: Unit tests",
-    "integration: Integration tests",
-    "slow: Slow tests",
-    "data: Tests requiring data files",
-    "network: Tests requiring network access",
-    "asyncio: Async tests",
-]
-
-[tool.coverage.run]
-source = ["simtradelab"]
-omit = [
-    "*/tests/*",
-    "*/test_*.py",
-    "*/__pycache__/*",
-    "*/site-packages/*",
-]
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "if self.debug:",
-    "if settings.DEBUG",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if 0:",
-    "if __name__ == .__main__.:",
-    "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod",
-]
-
-# Code Quality Tools
-[tool.ruff]
-line-length = 88
-fix = true
-
-[tool.black]
-line-length = 88
-target-version = ['py310']
-
-[tool.isort]
-profile = "black"
-line_length = 88
-
-[tool.mypy]
-python_version = "3.10"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-namespace_packages = true
-explicit_package_bases = true
-
-[[tool.mypy.overrides]]
-module = "simtradelab.*"
-follow_imports = "normal"
-no_implicit_optional = true
-
-[[tool.mypy.overrides]]
-module = [
-    "akshare.*",
-    "tushare.*",
-    "matplotlib.*",
-]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "tests.*"
-ignore_errors = true
-
-[tool.bandit]
-exclude_dirs = ["tests"]
-skips = ["B101"]
