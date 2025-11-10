@@ -24,14 +24,19 @@ class DataServer:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, data_path='/home/kay/dev/ptrade/data'):
+    def __init__(self, data_path=None):
         # 只初始化一次
         if DataServer._initialized:
             print("使用已加载的数据（常驻内存）")
             return
 
+        # 使用统一路径管理
+        if data_path is None:
+            from ..paths import DATA_PATH
+            data_path = str(DATA_PATH)
+
         print("=" * 70)
-        print("首次加载 - 数据将常驻内存")
+        print("首次加载 - 在jupyter notebook中数据将常驻内存")
         print("=" * 70)
 
         self.data_path = data_path

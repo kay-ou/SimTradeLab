@@ -9,6 +9,7 @@ import logging
 from simtradelab.ptrade.context import Context
 from simtradelab.ptrade.object import Global
 from simtradelab.ptrade.api import PtradeAPI
+from simtradelab.ptrade.strategy_validator import StrategyValidator
 
 
 class StrategyLoader:
@@ -33,10 +34,19 @@ class StrategyLoader:
 
         Returns:
             包含策略函数的命名空间字典
+
+        Raises:
+            ValueError: 策略验证失败
         """
         # 读取策略代码
         with open(self.strategy_path, 'r', encoding='utf-8') as f:
             strategy_code = f.read()
+
+        # 静态验证策略
+        validator = StrategyValidator(strategy_code)
+        if not validator.validate():
+            error_msg = "\n策略验证失败：\n" + "\n".join(f"  - {e}" for e in validator.get_errors())
+            raise ValueError(error_msg)
 
         # 构建基础命名空间
         strategy_namespace = {

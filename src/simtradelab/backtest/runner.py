@@ -10,29 +10,34 @@ import pandas as pd
 import signal
 import logging
 import os
-import time
 
 from simtradelab.ptrade.context import Context
 from simtradelab.ptrade.object import Global, LazyDataDict, Portfolio, BacktestContext
 from simtradelab.backtest.stats import generate_backtest_report, generate_backtest_charts, print_backtest_report
-from simtradelab.ptrade.api import PtradeAPI
+from simtradelab.ptrade.api import PtradeAPI, timing
 from simtradelab.service.data_server import DataServer
 from simtradelab.backtest.config import BacktestConfig
 from simtradelab.backtest.stats_collector import StatsCollector
 from simtradelab.backtest.strategy_loader import StrategyLoader
 from simtradelab.backtest.strategy_executor import StrategyExecutor
+from simtradelab.ptrade.strategy_validator import validate_strategy_file
 
 
 class BacktestRunner:
     """回测执行器 - 负责编排整个回测流程"""
 
-    def __init__(self, data_path: str, use_data_server: bool = True):
+    def __init__(self, data_path: str = None, use_data_server: bool = True):
         """初始化回测执行器
 
         Args:
-            data_path: 数据文件路径
+            data_path: 数据文件路径，为None时使用默认路径
             use_data_server: 是否使用数据服务器（常驻内存）
         """
+        # 使用统一路径管理
+        if data_path is None:
+            from simtradelab.paths import DATA_PATH
+            data_path = str(DATA_PATH)
+
         self.data_path = data_path
         self.use_data_server = use_data_server
 
@@ -57,6 +62,7 @@ class BacktestRunner:
         # 注册信号处理
         signal.signal(signal.SIGINT, self._signal_handler)
 
+    @timing
     def run(
         self,
         strategy_name: str,
@@ -88,6 +94,16 @@ class BacktestRunner:
             use_data_server=self.use_data_server
         )
 
+        # 先验证策略，避免数据加载后才发现策略错误
+        print("检查策略...")
+        is_valid, errors = validate_strategy_file(config.strategy_path)
+        if not is_valid:
+            print("\n策略验证失败:")
+            for error in errors:
+                print(f"  - {error}")
+            return {}
+        print("✓ 策略检查通过\n")
+
         try:
             # 加载数据（仅首次或非服务器模式）
             benchmark_df = self._load_data()
@@ -100,6 +116,12 @@ class BacktestRunner:
 
             # 创建交易日序列
             date_range = self._create_date_range(benchmark_df, config.start_date, config.end_date)
+
+            if len(date_range) == 0:
+                self.log.error(f"错误：交易日序列为空！请检查日期范围 {config.start_date.date()} - {config.end_date.date()}")
+                self.log.error(f"基准数据范围: {benchmark_df.index.min()} - {benchmark_df.index.max()}")
+                return {}
+
             self.log.info(f"交易日数: {len(date_range)} 天\n")
 
             # 初始化回测组件
@@ -130,6 +152,7 @@ class BacktestRunner:
         finally:
             self._cleanup()
 
+    @timing
     def _load_data(self) -> pd.DataFrame:
         """加载数据（仅首次或非服务器模式）
 
@@ -138,6 +161,7 @@ class BacktestRunner:
         """
         if self._data_loaded and self.use_data_server:
             # 数据已加载且使用服务器模式，直接返回
+            print("✓ 数据已在内存中，无需重新加载\n")
             return self.benchmark_data['000300.SS']
 
         if self.use_data_server:
@@ -200,7 +224,6 @@ class BacktestRunner:
             self.stock_status_history = json.loads(metadata['stock_status_history'])
 
         self.benchmark_data = {'000300.SS': benchmark_df}
-        print("✓ 数据加载完成\n")
         self._data_loaded = True
 
         return benchmark_df
@@ -256,12 +279,14 @@ class BacktestRunner:
         Returns:
             (Context, PtradeAPI) 元组
         """
+        from simtradelab.ptrade.data_context import DataContext
+
         # 创建组合和上下文
         portfolio = Portfolio(config.initial_capital)
         context = Context(portfolio=portfolio, current_dt=start_date)
 
-        # 创建API
-        api = PtradeAPI(
+        # 创建数据上下文
+        data_context = DataContext(
             stock_data_dict=self.stock_data_dict,
             valuation_dict=self.valuation_dict,
             fundamentals_dict=self.fundamentals_dict,
@@ -271,7 +296,12 @@ class BacktestRunner:
             stock_data_store=self.stock_data_store,
             fundamentals_store=self.fundamentals_store,
             index_constituents=self.index_constituents,
-            stock_status_history=self.stock_status_history,
+            stock_status_history=self.stock_status_history
+        )
+
+        # 创建API
+        api = PtradeAPI(
+            data_context=data_context,
             context=context,
             log=self.log
         )
@@ -300,18 +330,14 @@ class BacktestRunner:
             date_range: 交易日序列
 
         Returns:
-            是否成功完成
+            是否成功
         """
         print("初始化策略...")
         executor.initialize()
 
         print(f"\n开始回测循环...")
-        start_time = time.time()
 
         success = executor.run_daily_loop(date_range)
-
-        elapsed = time.time() - start_time
-        print(f"回测耗时: {elapsed:.2f}秒")
 
         return success
 
@@ -337,11 +363,9 @@ class BacktestRunner:
         report = generate_backtest_report(stats, config.start_date, config.end_date, benchmark_df)
 
         # 打印报告
-        total_elapsed = 0  # 这里可以传入实际耗时
         print_backtest_report(
             report, self.log,
             config.start_date, config.end_date,
-            total_elapsed,
             np.array(positions_count)
         )
 
@@ -365,7 +389,7 @@ class BacktestRunner:
             print("\n正在关闭数据文件...")
             self._close_stores()
         else:
-            print("\n数据保持常驻内存，下次运行无需重新加载")
+            print("\n数据保持常驻内存，下次在jupyter notebook中运行无需重新加载")
 
     def _close_stores(self):
         """关闭HDF5存储"""

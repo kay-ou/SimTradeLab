@@ -91,7 +91,7 @@ class LifecycleController:
         self._api_call_count: Dict[str, int] = {}
         self._phase_duration: Dict[LifecyclePhase, float] = {}
 
-        self._logger.info(f"LifecycleController initialized for {strategy_mode} mode")
+        self._logger.debug(f"LifecycleController initialized for {strategy_mode} mode")
 
     @property
     def current_phase(self) -> Optional[LifecyclePhase]:

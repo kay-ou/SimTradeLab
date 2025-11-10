@@ -21,16 +21,26 @@ def calculate_returns(portfolio_values):
     Returns:
         dict: 包含total_return, annual_return, daily_returns等
     """
+    if len(portfolio_values) == 0:
+        return {
+            'total_return': 0,
+            'annual_return': 0,
+            'daily_returns': np.array([]),
+            'initial_value': 0,
+            'final_value': 0,
+            'trading_days': 0
+        }
+
     initial_value = portfolio_values[0]
     final_value = portfolio_values[-1]
-    total_return = (final_value - initial_value) / initial_value
+    total_return = (final_value - initial_value) / initial_value if initial_value > 0 else 0
 
     # 每日收益率
     daily_returns = np.diff(portfolio_values) / portfolio_values[:-1]
 
     # 年化收益率（假设252个交易日）
     trading_days = len(portfolio_values)
-    annual_return = (final_value / initial_value) ** (252 / trading_days) - 1 if trading_days > 0 else 0
+    annual_return = (final_value / initial_value) ** (252 / trading_days) - 1 if trading_days > 0 and initial_value > 0 else 0
 
     return {
         'total_return': total_return,
@@ -413,7 +423,7 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
     return chart_filename
 
 
-def print_backtest_report(report, log, start_date, end_date, total_elapsed, positions_count):
+def print_backtest_report(report, log, start_date, end_date, positions_count):
     """打印回测报告到日志
 
     Args:
@@ -421,13 +431,12 @@ def print_backtest_report(report, log, start_date, end_date, total_elapsed, posi
         log: 日志对象
         start_date: 回测开始日期
         end_date: 回测结束日期
-        total_elapsed: 总用时（秒）
         positions_count: 持仓数量数组
     """
     log.info("")
     log.info("=" * 70)
     log.info(f"回测报告 {start_date.strftime('%Y%m%d')}-{end_date.strftime('%Y%m%d')} | "
-             f"周期: {report['trading_days']}天 | 耗时: {total_elapsed/60:.1f}分钟")
+             f"周期: {report['trading_days']}天")
     log.info("=" * 70)
 
     # 核心指标

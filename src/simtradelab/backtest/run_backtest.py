@@ -12,30 +12,25 @@ import os
 sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', buffering=1)
 
 from simtradelab.backtest.runner import BacktestRunner
+from simtradelab.paths import DATA_PATH, STRATEGIES_PATH
 
 
 if __name__ == '__main__':
     # ==================== 回测配置 ====================
 
     # 策略名称
-    strategy_name = '20mv'
+    strategy_name = '5mv'
 
     # 回测周期
-    start_date = '2024-01-01'
-    end_date = '2024-01-30'
-
-    # 数据路径
-    data_path = '../../../data'
-
-    # 策略路径
-    strategies_path = '../../../strategies'
+    start_date = '2025-01-01'
+    end_date = '2025-10-31'
 
     # ==================== 启动回测 ====================
 
-    runner = BacktestRunner(data_path=data_path)
+    runner = BacktestRunner(data_path=str(DATA_PATH))
     report = runner.run(
         strategy_name=strategy_name,
         start_date=start_date,
         end_date=end_date,
-        strategies_path=strategies_path
+        strategies_path=str(STRATEGIES_PATH)
     )
