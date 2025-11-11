@@ -22,8 +22,8 @@ def initialize(context):
 
     log.info("=" * 60)
     log.info("简化版5均线策略 - 每日交易测试")
-    log.info(f"股票池: {context.stocks}")
-    log.info(f"最大持仓: {context.max_position} 只")
+    log.info("股票池: {}".format(context.stocks))
+    log.info("最大持仓: {} 只".format(context.max_position))
     log.info("=" * 60)
 
 
@@ -45,20 +45,20 @@ def handle_data(context, data):
     if context.day_count % 2 == 1:
         # 奇数日：清空所有持仓
         if len(current_stocks) > 0:
-            log.info(f"[Day {context.day_count}] 清空持仓")
+            log.info("[Day {}] 清空持仓".format(context.day_count))
             for stock in current_stocks:
                 order_target(stock, 0)
     else:
         # 偶数日：买入前2只股票
         if len(current_stocks) == 0:
-            log.info(f"[Day {context.day_count}] 买入股票")
+            log.info("[Day {}] 买入股票".format(context.day_count))
             stocks_to_buy = context.stocks[:context.max_position]
 
             for stock in stocks_to_buy:
                 # 每只股票分配相等资金
                 target_value = context.portfolio.portfolio_value / context.max_position
                 order_value(stock, target_value)
-                log.info(f"  买入 {stock}")
+                log.info("  买入 {}".format(stock))
 
 
 def after_trading_end(context, data):
@@ -66,6 +66,5 @@ def after_trading_end(context, data):
     positions = context.portfolio.positions
     position_count = sum(1 for pos in positions.values() if pos.amount > 0)
 
-    log.info(f"日终 | 总资产: {context.portfolio.portfolio_value:.2f} | "
-             f"持仓: {position_count} 只 | "
-             f"现金: {context.portfolio.cash:.2f}")
+    log.info("日终 | 总资产: {:.2f} | 持仓: {} 只 | 现金: {:.2f}".format(
+             context.portfolio.portfolio_value, position_count, context.portfolio.cash))

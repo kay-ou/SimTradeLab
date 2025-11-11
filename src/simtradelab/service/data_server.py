@@ -11,7 +11,90 @@
 import pandas as pd
 import json
 import atexit
+from typing import Tuple, Dict
 from ..ptrade.object import LazyDataDict
+
+
+def load_data_from_hdf5(data_path: str) -> Tuple[
+    pd.HDFStore, pd.HDFStore,
+    LazyDataDict, LazyDataDict, LazyDataDict, LazyDataDict,
+    Dict, pd.DataFrame, Dict, Dict, object
+]:
+    """从HDF5文件加载所有数据（可复用的加载函数）
+
+    Args:
+        data_path: 数据目录路径
+
+    Returns:
+        元组包含: (
+            stock_data_store, fundamentals_store,
+            stock_data_dict, valuation_dict, fundamentals_dict, exrights_dict,
+            benchmark_data, stock_metadata, index_constituents, stock_status_history,
+            adj_pre_cache
+        )
+    """
+    print("正在加载数据文件...")
+
+    stock_data_store = pd.HDFStore(f'{data_path}/ptrade_data.h5', 'r')
+    fundamentals_store = pd.HDFStore(f'{data_path}/ptrade_fundamentals.h5', 'r')
+
+    # 提取所有表的键名
+    all_stock_keys = [k.split('/')[-1] for k in stock_data_store.keys() if k.startswith('/stock_data/')]
+    valuation_keys = [k.split('/')[-1] for k in fundamentals_store.keys() if k.startswith('/valuation/')]
+    fundamentals_keys = [k.split('/')[-1] for k in fundamentals_store.keys() if k.startswith('/fundamentals/')]
+    exrights_keys = [k.split('/')[-1] for k in stock_data_store.keys() if k.startswith('/exrights/')]
+
+    # 构建数据字典（全部预加载到内存）
+    print("预加载所有数据...")
+    stock_data_dict = LazyDataDict(stock_data_store, '/stock_data/', all_stock_keys, preload=True)
+    valuation_dict = LazyDataDict(fundamentals_store, '/valuation/', valuation_keys, preload=True)
+    fundamentals_dict = LazyDataDict(fundamentals_store, '/fundamentals/', fundamentals_keys, preload=True)
+    exrights_dict = LazyDataDict(stock_data_store, '/exrights/', exrights_keys, max_cache_size=800)
+
+    print(f"✓ 股票数据: {len(all_stock_keys)} 只")
+    print(f"✓ 基本面数据: {len(valuation_keys)} 只")
+    print(f"✓ 除权数据: {len(exrights_keys)} 只")
+
+    # 加载元数据和基准
+    stock_metadata = stock_data_store['/stock_metadata']
+    benchmark_df = stock_data_store['/benchmark']
+    metadata = stock_data_store['/metadata']
+
+    index_constituents = {}
+    stock_status_history = {}
+    if 'index_constituents' in metadata.index and pd.notna(metadata['index_constituents']): # type: ignore
+        index_constituents = json.loads(metadata['index_constituents']) # type: ignore
+    if 'stock_status_history' in metadata.index and pd.notna(metadata['stock_status_history']): # type: ignore
+        stock_status_history = json.loads(metadata['stock_status_history']) # type: ignore
+
+    benchmark_data = {'000300.SS': benchmark_df}
+
+    # 加载复权因子缓存
+    from ..ptrade.adj_pre_cache import load_adj_pre_cache
+    from ..ptrade.data_context import DataContext
+    temp_context = DataContext(
+        stock_data_dict=stock_data_dict,
+        valuation_dict=valuation_dict,
+        fundamentals_dict=fundamentals_dict,
+        exrights_dict=exrights_dict,
+        benchmark_data=benchmark_data,
+        stock_metadata=stock_metadata,
+        stock_data_store=stock_data_store,
+        fundamentals_store=fundamentals_store,
+        index_constituents=index_constituents,
+        stock_status_history=stock_status_history,
+        adj_pre_cache=None
+    )
+    adj_pre_cache = load_adj_pre_cache(temp_context)
+
+    print("✓ 数据加载完成\n")
+
+    return (
+        stock_data_store, fundamentals_store,
+        stock_data_dict, valuation_dict, fundamentals_dict, exrights_dict,
+        benchmark_data, stock_metadata, index_constituents, stock_status_history,
+        adj_pre_cache
+    )
 
 
 class DataServer:
@@ -49,6 +132,7 @@ class DataServer:
         self.exrights_dict = None
         self.benchmark_data = None
         self.stock_metadata = None
+        self.adj_pre_cache = None
 
         self.index_constituents = {}
         self.stock_status_history = {}
@@ -73,44 +157,16 @@ class DataServer:
 
     def _load_data(self):
         """加载HDF5数据文件"""
-        print("正在加载数据文件...")
-
-        self.stock_data_store = pd.HDFStore(f'{self.data_path}/ptrade_data.h5', 'r')
-        self.fundamentals_store = pd.HDFStore(f'{self.data_path}/ptrade_fundamentals.h5', 'r')
-
-        # 提取所有表的键名
-        all_stock_keys = [k.split('/')[-1] for k in self.stock_data_store.keys() if k.startswith('/stock_data/')]
-        valuation_keys = [k.split('/')[-1] for k in self.fundamentals_store.keys() if k.startswith('/valuation/')]
-        fundamentals_keys = [k.split('/')[-1] for k in self.fundamentals_store.keys() if k.startswith('/fundamentals/')]
-        exrights_keys = [k.split('/')[-1] for k in self.stock_data_store.keys() if k.startswith('/exrights/')]
-
-        # 构建数据字典（基本面预加载，价格数据延迟加载）
-        print("预加载基本面数据...")
-        self.stock_data_dict = LazyDataDict(self.stock_data_store, '/stock_data/', all_stock_keys, max_cache_size=2000)
-        self.valuation_dict = LazyDataDict(self.fundamentals_store, '/valuation/', valuation_keys, preload=True)
-        self.fundamentals_dict = LazyDataDict(self.fundamentals_store, '/fundamentals/', fundamentals_keys, preload=True)
-        self.exrights_dict = LazyDataDict(self.stock_data_store, '/exrights/', exrights_keys, max_cache_size=800)
-
-        print(f"✓ 股票数据: {len(all_stock_keys)} 只")
-        print(f"✓ 基本面数据: {len(valuation_keys)} 只")
-        print(f"✓ 除权数据: {len(exrights_keys)} 只")
-
-        # 加载元数据和基准
-        self.stock_metadata = self.stock_data_store['/stock_metadata']
-        benchmark_df = self.stock_data_store['/benchmark']
-        metadata = self.stock_data_store['/metadata']
-
-        if 'index_constituents' in metadata.index and pd.notna(metadata['index_constituents']):
-            self.index_constituents = json.loads(metadata['index_constituents'])
-        if 'stock_status_history' in metadata.index and pd.notna(metadata['stock_status_history']):
-            self.stock_status_history = json.loads(metadata['stock_status_history'])
-
-        self.benchmark_data = {'000300.SS': benchmark_df}
-        print("✓ 数据加载完成\n")
+        (
+            self.stock_data_store, self.fundamentals_store,
+            self.stock_data_dict, self.valuation_dict, self.fundamentals_dict, self.exrights_dict,
+            self.benchmark_data, self.stock_metadata, self.index_constituents, self.stock_status_history,
+            self.adj_pre_cache
+        ) = load_data_from_hdf5(self.data_path)
 
     def get_benchmark_data(self):
         """获取基准数据"""
-        return self.benchmark_data['000300.SS']
+        return self.benchmark_data['000300.SS'] # type: ignore
 
     @classmethod
     def shutdown(cls):

@@ -20,7 +20,8 @@ class DataContext:
         stock_data_store,
         fundamentals_store,
         index_constituents: Dict,
-        stock_status_history: Dict
+        stock_status_history: Dict,
+        adj_pre_cache
     ):
         """初始化数据上下文
 
@@ -46,3 +47,4 @@ class DataContext:
         self.fundamentals_store = fundamentals_store
         self.index_constituents = index_constituents
         self.stock_status_history = stock_status_history
+        self.adj_pre_cache = None

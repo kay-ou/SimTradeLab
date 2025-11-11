@@ -12,10 +12,10 @@ import logging
 import os
 
 from simtradelab.ptrade.context import Context
-from simtradelab.ptrade.object import Global, LazyDataDict, Portfolio, BacktestContext
+from simtradelab.ptrade.object import Global, Portfolio, BacktestContext
 from simtradelab.backtest.stats import generate_backtest_report, generate_backtest_charts, print_backtest_report
 from simtradelab.ptrade.api import PtradeAPI, timing, get_current_elapsed_time
-from simtradelab.service.data_server import DataServer
+from simtradelab.service.data_server import DataServer, load_data_from_hdf5
 from simtradelab.backtest.config import BacktestConfig
 from simtradelab.backtest.stats_collector import StatsCollector
 from simtradelab.ptrade.strategy_engine import StrategyExecutionEngine
@@ -52,6 +52,7 @@ class BacktestRunner:
         self.stock_status_history = {}
         self.stock_data_store = None
         self.fundamentals_store = None
+        self.adj_pre_cache = None
 
         # 全局对象
         self.g = Global()
@@ -166,7 +167,7 @@ class BacktestRunner:
         if self._data_loaded and self.use_data_server:
             # 数据已加载且使用服务器模式，直接返回
             print("✓ 数据已在内存中，无需重新加载\n")
-            return self.benchmark_data['000300.SS']
+            return self.benchmark_data['000300.SS'] # type: ignore
 
         if self.use_data_server:
             return self._load_data_server_mode()
@@ -186,51 +187,26 @@ class BacktestRunner:
         self.stock_status_history = data_server.stock_status_history
         self.stock_data_store = data_server.stock_data_store
         self.fundamentals_store = data_server.fundamentals_store
+        self.adj_pre_cache = data_server.adj_pre_cache
         self._data_loaded = True
-        return data_server.get_benchmark_data()
+        return data_server.get_benchmark_data() # type: ignore
 
     def _load_traditional_mode(self) -> pd.DataFrame:
         """传统模式加载"""
-        import json
 
         print("=" * 70)
         print("加载本地数据...")
         print("=" * 70)
 
-        self.stock_data_store = pd.HDFStore(f'{self.data_path}/ptrade_data.h5', 'r')
-        self.fundamentals_store = pd.HDFStore(f'{self.data_path}/ptrade_fundamentals.h5', 'r')
+        (
+            self.stock_data_store, self.fundamentals_store,
+            self.stock_data_dict, self.valuation_dict, self.fundamentals_dict, self.exrights_dict,
+            self.benchmark_data, self.stock_metadata, self.index_constituents, self.stock_status_history,
+            self.adj_pre_cache
+        ) = load_data_from_hdf5(self.data_path)
 
-        # 提取键名
-        all_stock_keys = [k.split('/')[-1] for k in self.stock_data_store.keys() if k.startswith('/stock_data/')]
-        valuation_keys = [k.split('/')[-1] for k in self.fundamentals_store.keys() if k.startswith('/valuation/')]
-        fundamentals_keys = [k.split('/')[-1] for k in self.fundamentals_store.keys() if k.startswith('/fundamentals/')]
-        exrights_keys = [k.split('/')[-1] for k in self.stock_data_store.keys() if k.startswith('/exrights/')]
-
-        # 构建数据字典
-        print("预加载基本面数据...")
-        self.stock_data_dict = LazyDataDict(self.stock_data_store, '/stock_data/', all_stock_keys, max_cache_size=2000)
-        self.valuation_dict = LazyDataDict(self.fundamentals_store, '/valuation/', valuation_keys, preload=True)
-        self.fundamentals_dict = LazyDataDict(self.fundamentals_store, '/fundamentals/', fundamentals_keys, preload=True)
-        self.exrights_dict = LazyDataDict(self.stock_data_store, '/exrights/', exrights_keys, max_cache_size=800)
-
-        print(f"✓ 股票数据: {len(all_stock_keys)} 只")
-        print(f"✓ 基本面数据: {len(valuation_keys)} 只")
-        print(f"✓ 除权数据: {len(exrights_keys)} 只")
-
-        # 加载元数据
-        self.stock_metadata = self.stock_data_store['/stock_metadata']
-        benchmark_df = self.stock_data_store['/benchmark']
-        metadata = self.stock_data_store['/metadata']
-
-        if 'index_constituents' in metadata.index and pd.notna(metadata['index_constituents']):
-            self.index_constituents = json.loads(metadata['index_constituents'])
-        if 'stock_status_history' in metadata.index and pd.notna(metadata['stock_status_history']):
-            self.stock_status_history = json.loads(metadata['stock_status_history'])
-
-        self.benchmark_data = {'000300.SS': benchmark_df}
         self._data_loaded = True
-
-        return benchmark_df
+        return self.benchmark_data['000300.SS'] # type: ignore
 
     def _setup_logging(self, config: BacktestConfig):
         """配置日志系统
@@ -300,7 +276,8 @@ class BacktestRunner:
             stock_data_store=self.stock_data_store,
             fundamentals_store=self.fundamentals_store,
             index_constituents=self.index_constituents,
-            stock_status_history=self.stock_status_history
+            stock_status_history=self.stock_status_history,
+            adj_pre_cache=self.adj_pre_cache
         )
 
         # 创建API

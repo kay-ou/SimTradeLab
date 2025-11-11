@@ -129,7 +129,6 @@ class PtradeAPI:
         self._stock_date_index = {}  # {stock: (date_dict, sorted_dates)}
         self._prebuilt_index = False  # 标记是否已预构建索引
         self._sorted_status_dates = None  # 缓存排序后的状态历史日期
-        self._adj_factors_cache = {}  # 缓存股票的完整复权因子序列
         self._history_cache = {}  # 缓存get_history结果 {(tuple(stocks), count, field, fq, current_dt): result}
 
     def prebuild_date_index(self, stocks=None):
@@ -154,57 +153,6 @@ class PtradeAPI:
 
         self._prebuilt_index = True
         print(f"  完成！已构建 {len(self._stock_date_index)} 只股票的索引")
-
-    def _get_cumulative_adj_factors(self, stock, dates):
-        """批量计算累计复权因子（前复权），带缓存"""
-        # 检查缓存
-        if stock in self._adj_factors_cache:
-            cached_factors, cached_dates = self._adj_factors_cache[stock]
-            # 如果请求的日期都在缓存范围内，直接返回
-            if dates.min() >= cached_dates.min() and dates.max() <= cached_dates.max():
-                return cached_factors.loc[dates]
-
-        try:
-            exrights_df = self.data_context.exrights_dict.get(stock)
-            if exrights_df is None or exrights_df.empty:
-                # 无除权数据，所有因子为1
-                factors = pd.Series(1.0, index=dates)
-                self._adj_factors_cache[stock] = (factors, dates)
-                return factors
-
-            # 获取股票的所有历史日期
-            stock_df = self.data_context.stock_data_dict.get(stock)
-            if stock_df is None:
-                return pd.Series(1.0, index=dates)
-
-            all_dates = stock_df.index
-
-            # 优化：使用numpy数组加速计算
-            dates_array = all_dates.to_numpy(dtype='datetime64[ns]')
-            factors_array = np.ones(len(all_dates), dtype=np.float64)
-
-            if len(exrights_df) > 0:
-                # 按除权日期排序
-                sorted_ex_dates = sorted(exrights_df.index, reverse=True)
-
-                # 计算累计复权因子（使用numpy向量化操作）
-                cumulative_factor = 1.0
-                for ex_date in sorted_ex_dates:
-                    cumulative_factor *= exrights_df.loc[ex_date, 'adj_factor']
-                    # numpy向量化比较和赋值（比pandas快10倍）
-                    ex_date_np = pd.Timestamp(ex_date).to_numpy().astype('datetime64[ns]')
-                    mask = dates_array < ex_date_np
-                    factors_array[mask] = cumulative_factor
-
-            # 转回pandas Series并缓存
-            adj_factors = pd.Series(factors_array, index=all_dates)
-            self._adj_factors_cache[stock] = (adj_factors, all_dates)
-
-            # 返回请求的日期范围
-            return adj_factors.loc[dates]
-
-        except Exception:
-            return pd.Series(1.0, index=dates)
 
     def get_stock_date_index(self, stock):
         """获取股票日期索引，返回 (date_dict, sorted_dates) 元组"""
@@ -611,8 +559,12 @@ class PtradeAPI:
             except:
                 continue
 
-        # 优化3: 批量切片（使用numpy切片，比逐个快）
+        # 优化3+4: 批量切片+复权（减少循环开销）
         result = {}
+
+        # 分离需要复权和不需要复权的股票
+        needs_adj = fq == 'pre' and self.data_context.adj_pre_cache
+
         for stock, (data_source, current_idx) in stock_info.items():
             if include:
                 start_idx = max(0, current_idx - count + 1)
@@ -623,24 +575,25 @@ class PtradeAPI:
 
             slice_df = data_source.iloc[start_idx:end_idx]
 
-            # 优化4: 只在需要时复权
-            if fq == 'pre' and len(slice_df) > 0:
-                slice_df = slice_df.copy()
-                try:
-                    adj_factors = self._get_cumulative_adj_factors(stock, slice_df.index)
-                    # 向量化批量应用复权
-                    price_cols = ['open', 'high', 'low', 'close']
-                    for col in price_cols:
-                        if col in slice_df.columns and adj_factors is not None:
-                            slice_df[col] = slice_df[col] * adj_factors
-                except:
-                    pass
+            if len(slice_df) == 0:
+                continue
 
-            # 优化5: 直接提取numpy数组（比字典推导式快）
-            stock_result = {}
-            for field_name in fields:
-                if field_name in slice_df.columns:
-                    stock_result[field_name] = slice_df[field_name].values
+            # 只对需要复权的股票copy和处理
+            if needs_adj and stock in self.data_context.adj_pre_cache:
+                slice_df = slice_df.copy()
+                adj_factors = self.data_context.adj_pre_cache[stock]
+
+                # 快速路径：索引对齐直接iloc切片
+                aligned_factors = adj_factors.iloc[start_idx:end_idx]
+
+                # 向量化应用复权（一次性处理所有价格列）
+                price_cols = [col for col in ['open', 'high', 'low', 'close'] if col in slice_df.columns]
+                if price_cols:
+                    slice_df[price_cols] = slice_df[price_cols].multiply(aligned_factors, axis=0)
+
+            # 直接提取numpy数组
+            stock_result = {field_name: slice_df[field_name].values
+                          for field_name in fields if field_name in slice_df.columns}
 
             if stock_result:
                 result[stock] = stock_result

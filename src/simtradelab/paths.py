@@ -43,3 +43,6 @@ def get_strategies_path() -> Path:
 PROJECT_ROOT = get_project_root()
 DATA_PATH = get_data_path()
 STRATEGIES_PATH = get_strategies_path()
+
+# HDF5缓存文件路径
+ADJ_PRE_CACHE_PATH = DATA_PATH / 'ptrade_adj_pre.h5'
