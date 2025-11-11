@@ -67,7 +67,6 @@ class BacktestRunner:
         strategy_name: str,
         start_date: str,
         end_date: str,
-        strategies_path: str,
         initial_capital: float = 1000000.0
     ) -> dict:
         """运行回测
@@ -76,7 +75,6 @@ class BacktestRunner:
             strategy_name: 策略名称
             start_date: 开始日期
             end_date: 结束日期
-            strategies_path: 策略文件路径
             initial_capital: 初始资金
 
         Returns:
@@ -88,7 +86,6 @@ class BacktestRunner:
             start_date=start_date,
             end_date=end_date,
             data_path=self.data_path,
-            strategies_path=strategies_path,
             initial_capital=initial_capital,
             use_data_server=self.use_data_server
         )
