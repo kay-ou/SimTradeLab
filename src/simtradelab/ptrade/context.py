@@ -324,7 +324,7 @@ class Context:
 
 def create_research_context(capital_base: float = 1000000) -> Context:
     """创建研究模式上下文"""
-    portfolio = Portfolio(cash=capital_base)
+    portfolio = Portfolio(initial_capital=capital_base)
     return Context(
         portfolio=portfolio, mode=PTradeMode.RESEARCH, capital_base=capital_base
     )
@@ -336,7 +336,7 @@ def create_backtest_context(
     slippage_rate: float = 0.0,
 ) -> Context:
     """创建回测模式上下文"""
-    portfolio = Portfolio(cash=capital_base)
+    portfolio = Portfolio(initial_capital=capital_base)
     context = Context(
         portfolio=portfolio, mode=PTradeMode.BACKTEST, capital_base=capital_base
     )
@@ -347,7 +347,7 @@ def create_backtest_context(
 
 def create_trading_context(capital_base: float = 1000000) -> Context:
     """创建实盘交易模式上下文"""
-    portfolio = Portfolio(cash=capital_base)
+    portfolio = Portfolio(initial_capital=capital_base)
     return Context(
         portfolio=portfolio, mode=PTradeMode.TRADING, capital_base=capital_base
     )

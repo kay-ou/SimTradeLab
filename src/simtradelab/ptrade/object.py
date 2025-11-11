@@ -487,9 +487,9 @@ class Order:
 
 class Portfolio:
     """模拟portfolio对象"""
-    def __init__(self, bt_ctx=None, context_obj=None):
-        self._cash = 100000.0
-        self.starting_cash = 100000.0
+    def __init__(self, initial_capital=100000.0, bt_ctx=None, context_obj=None):
+        self._cash = initial_capital
+        self.starting_cash = initial_capital
         self.positions = {}
         self.positions_value = 0.0
         self._bt_ctx = bt_ctx
