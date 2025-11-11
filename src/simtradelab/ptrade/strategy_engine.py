@@ -253,6 +253,9 @@ class StrategyExecutionEngine:
             if not self._execute_lifecycle(data):
                 return False
 
+            # 处理分红事件（在生命周期执行完、订单成交后）
+            self._process_dividend_events(current_date)
+
             # 收集交易金额
             current_cash = self.context.portfolio._cash
             self.stats_collector.collect_trading_amounts(prev_cash, current_cash)
@@ -276,9 +279,6 @@ class StrategyExecutionEngine:
         # before_trading_start
         if not self._safe_call('before_trading_start', LifecyclePhase.BEFORE_TRADING_START, data):
             return False
-
-        # 处理分红事件
-        self._process_dividend_events(data.current_date)
 
         # handle_data
         if not self._safe_call('handle_data', LifecyclePhase.HANDLE_DATA, data):
@@ -324,6 +324,11 @@ class StrategyExecutionEngine:
 
         Args:
             current_date: 当前交易日
+
+        分红处理逻辑：
+        1. 分红到账时全额到账（不扣税）
+        2. 记录每批次的分红金额
+        3. 卖出时根据持股时间（FIFO）计算并扣除分红税
         """
         try:
             date_str = current_date.strftime('%Y%m%d')
@@ -341,16 +346,29 @@ class StrategyExecutionEngine:
                 if date_str not in stock_dividends:
                     continue
 
-                # 计算分红金额（每股税后分红 × 股数）
-                dividend_per_share = stock_dividends[date_str]
-                dividend_amount = dividend_per_share * position.amount
+                # 获取税前分红金额（每股）
+                dividend_per_share_before_tax = stock_dividends[date_str]
 
-                if dividend_amount > 0:
-                    # 添加分红到现金
+                # 预扣税率20%（保守估计）
+                pre_tax_rate = 0.20
+                dividend_per_share_after_tax = dividend_per_share_before_tax * (1 - pre_tax_rate)
+                total_dividend_after_tax = dividend_per_share_after_tax * position.amount
+
+                if total_dividend_after_tax > 0:
+                    # 税后金额到账
                     old_cash = self.context.portfolio._cash
-                    self.context.portfolio._cash += dividend_amount
+                    self.context.portfolio._cash += total_dividend_after_tax
                     self.context.portfolio._invalidate_cache()
-                    self.log.info(f"💰分红 | {stock_code} | {position.amount}股 | 分红金额: {dividend_amount:.2f}元 | 现金: {old_cash:.2f} → {self.context.portfolio._cash:.2f}")
+
+                    # 记录分红到批次（用于卖出时税务调整）
+                    self.context.portfolio.add_dividend(stock_code, dividend_per_share_before_tax)
+
+                    self.log.info(
+                        f"💰分红 | {stock_code} | {position.amount}股 | "
+                        f"税前{dividend_per_share_before_tax:.4f}元/股 | 预扣税率{pre_tax_rate:.0%} | "
+                        f"到账{total_dividend_after_tax:.2f}元 | "
+                        f"现金: {old_cash:.2f} → {self.context.portfolio._cash:.2f}"
+                    )
 
         except Exception as e:
             self.log.warning(f"分红处理失败: {e}")

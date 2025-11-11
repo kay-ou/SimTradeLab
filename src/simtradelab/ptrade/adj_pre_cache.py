@@ -65,6 +65,9 @@ def _calculate_cumulative_adj_pre(stock, data_context):
 
 def create_adj_pre_cache(data_context):
     """创建并保存所有股票的复权因子缓存"""
+    import time
+    from tqdm import tqdm
+
     print("正在创建复权因子缓存...")
     start_time = time.time()
 
@@ -73,10 +76,8 @@ def create_adj_pre_cache(data_context):
     saved_count = 0
 
     with pd.HDFStore(ADJ_PRE_CACHE_PATH, 'w', complevel=9, complib='blosc') as store:
-        for i, stock in enumerate(all_stocks):
-            if (i + 1) % 1000 == 0:
-                print(f"  已处理 {i + 1}/{total_stocks} 只，已保存 {saved_count} 只...")
-
+        for stock in tqdm(all_stocks, desc='  处理', ncols=80, ascii=True,
+                         bar_format='{desc}: {percentage:3.0f}%|{bar}| {n:4d}/{total:4d} [{elapsed}<{remaining}]'):
             adj_pre = _calculate_cumulative_adj_pre(stock, data_context)
             if adj_pre is not None and not adj_pre.empty:
                 # 只保存有除权的股票（不是全1.0）
@@ -116,15 +117,14 @@ def load_adj_pre_cache(data_context):
 def create_dividend_cache(data_context):
     """创建分红事件缓存
 
-    返回格式: {stock_code: {date_str: dividend_amount_after_tax}}
+    返回格式: {stock_code: {date_str: dividend_amount_before_tax}}
 
-    注意：bonus_ps是每次分红的税前金额（每股分多少元），直接使用
+    注意：存储税前分红金额，税率由context.dividend_tax_rate配置
     """
     print("正在创建分红事件缓存...")
     start_time = time.time()
 
     dividend_cache = {}
-    dividend_tax_rate = 0.20  # 20%红利税
 
     for stock_code, exrights_df in data_context.exrights_dict.items():
         if exrights_df is None or exrights_df.empty:
@@ -136,11 +136,8 @@ def create_dividend_cache(data_context):
             dividend_per_share_before_tax = row['bonus_ps']
 
             if dividend_per_share_before_tax > 0:
-                # 应用20%红利税
-                dividend_per_share_after_tax = dividend_per_share_before_tax * (1 - dividend_tax_rate)
-
                 date_str = str(date_int)
-                stock_dividends[date_str] = dividend_per_share_after_tax
+                stock_dividends[date_str] = dividend_per_share_before_tax
 
         if stock_dividends:
             dividend_cache[stock_code] = stock_dividends

@@ -440,32 +440,33 @@ class Blotter:
                 cost = actual_amount * execution_price
                 if cost <= portfolio._cash:
                     portfolio._cash -= cost
-                    if order.stock not in portfolio.positions:
-                        portfolio.positions[order.stock] = Position(order.stock, actual_amount, execution_price)
-                    else:
-                        # 加仓
-                        old_pos = portfolio.positions[order.stock]
-                        new_amount = old_pos.amount + actual_amount
-                        new_cost = (old_pos.amount * old_pos.cost_basis + actual_amount * execution_price) / new_amount
-                        portfolio.positions[order.stock] = Position(order.stock, new_amount, new_cost)
+                    portfolio.add_position(order.stock, actual_amount, execution_price, current_dt)
                     order.status = 'filled'
                     order.filled = actual_amount
                     executed_orders.append(order)
-                    portfolio._invalidate_cache()  # 清空缓存
                 self.open_orders.remove(order)
             elif actual_amount < 0:
                 # 卖出
                 if order.stock in portfolio.positions:
                     position = portfolio.positions[order.stock]
+                    sell_qty = position.amount
+
+                    # 减仓/清仓（含FIFO分红税调整）
+                    portfolio.remove_position(order.stock, sell_qty, current_dt)
+
+                    # 卖出收入到账
+                    sell_revenue = sell_qty * execution_price
+                    portfolio._cash += sell_revenue
+
+                    # 更新价格
                     position.last_sale_price = execution_price
-                    position.market_value = position.amount * execution_price
-                    portfolio._cash += position.amount * execution_price
-                    # 删除持仓
-                    del portfolio.positions[order.stock]
+                    if position.amount > 0:
+                        position.market_value = position.amount * execution_price
+
                     order.status = 'filled'
                     order.filled = actual_amount
                     executed_orders.append(order)
-                    portfolio._invalidate_cache()  # 清空缓存
+
                 self.open_orders.remove(order)
 
         return executed_orders
@@ -496,11 +497,86 @@ class Portfolio:
         # 日内缓存
         self._cached_portfolio_value = None
         self._cache_date = None
+        # 持股批次追踪（用于分红税FIFO计算）
+        self._position_lots = {}
 
     def _invalidate_cache(self):
         """清空缓存（持仓变化时调用）"""
         self._cached_portfolio_value = None
         self._cache_date = None
+
+    def add_position(self, stock, amount, price, date):
+        """买入建仓/加仓"""
+        if stock not in self.positions:
+            self.positions[stock] = Position(stock, amount, price)
+            self._position_lots[stock] = [{'date': date, 'amount': amount, 'dividends': []}]
+        else:
+            old_pos = self.positions[stock]
+            new_amount = old_pos.amount + amount
+            new_cost = (old_pos.amount * old_pos.cost_basis + amount * price) / new_amount
+            self.positions[stock] = Position(stock, new_amount, new_cost)
+            self._position_lots[stock].append({'date': date, 'amount': amount, 'dividends': []})
+        self._invalidate_cache()
+
+    def remove_position(self, stock, amount, sell_date):
+        """卖出减仓/清仓（FIFO扣减批次）"""
+        if stock not in self.positions:
+            return 0.0
+
+        # FIFO计算税务调整并扣减批次
+        tax_adjustment = 0.0
+        if stock in self._position_lots:
+            lots = self._position_lots[stock]
+            remaining = amount
+            i = 0
+
+            while i < len(lots) and remaining > 0:
+                lot = lots[i]
+                holding_days = (sell_date - lot['date']).days
+
+                # 真实税率
+                if holding_days <= 30:
+                    actual_rate = 0.20
+                elif holding_days <= 365:
+                    actual_rate = 0.10
+                else:
+                    actual_rate = 0.0
+
+                # 本批次卖出数量
+                sell_qty = min(remaining, lot['amount'])
+                ratio = sell_qty / lot['amount']
+
+                # 税务调整
+                lot_div_total = sum(lot['dividends'])
+                tax_adjustment += lot_div_total * ratio * (actual_rate - 0.20)
+
+                # 扣减批次
+                if lot['amount'] <= remaining:
+                    remaining -= lot['amount']
+                    lots.pop(i)
+                else:
+                    lot['amount'] -= remaining
+                    remaining = 0
+                    i += 1
+
+        # 更新持仓
+        position = self.positions[stock]
+        if position.amount == amount:
+            del self.positions[stock]
+            if stock in self._position_lots:
+                del self._position_lots[stock]
+        else:
+            position.amount -= amount
+
+        self._invalidate_cache()
+        return tax_adjustment
+
+    def add_dividend(self, stock, dividend_per_share):
+        """记录分红到各批次"""
+        if stock in self._position_lots:
+            for lot in self._position_lots[stock]:
+                lot_div = dividend_per_share * lot['amount']
+                lot['dividends'].append(lot_div)
 
     @property
     def cash(self):

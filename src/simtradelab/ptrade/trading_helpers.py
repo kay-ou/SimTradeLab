@@ -135,37 +135,29 @@ def execute_buy(stock: str, amount: int, price: float, context, log) -> bool:
     Returns:
         是否成功
     """
-    from simtradelab.ptrade.object import Position
-
     cost = amount * price
     commission = calculate_commission(context, amount, price, is_sell=False)
     total_cost = cost + commission
-    
+
     if total_cost > context.portfolio._cash:
         log.warning(f"【买入失败】{stock} | 原因: 现金不足 (需要{total_cost:.2f}, 可用{context.portfolio._cash:.2f})")
         return False
 
     context.portfolio._cash -= total_cost
-    
+
     # 记录手续费
     if not hasattr(context, 'total_commission'):
         context.total_commission = 0
     context.total_commission += commission
 
-    if stock not in context.portfolio.positions:
-        context.portfolio.positions[stock] = Position(stock, amount, price)
-    else:
-        old_pos = context.portfolio.positions[stock]
-        new_amount = old_pos.amount + amount
-        new_cost = (old_pos.amount * old_pos.cost_basis + amount * price) / new_amount
-        context.portfolio.positions[stock] = Position(stock, new_amount, new_cost)
+    # 建仓/加仓（含批次追踪）
+    context.portfolio.add_position(stock, amount, price, context.current_dt)
 
-    context.portfolio._invalidate_cache()
     return True
 
 
 def execute_sell(stock: str, amount: int, price: float, context, log) -> bool:
-    """执行卖出操作
+    """执行卖出操作（FIFO：先进先出）
 
     Args:
         stock: 股票代码
@@ -190,25 +182,30 @@ def execute_sell(stock: str, amount: int, price: float, context, log) -> bool:
     # 计算手续费
     revenue = amount * price
     commission = calculate_commission(context, amount, price, is_sell=True)
-    net_revenue = revenue - commission
-    
+
+    # 减仓/清仓（含FIFO分红税调整）
+    tax_adjustment = context.portfolio.remove_position(stock, amount, context.current_dt)
+
+    # 净收入
+    net_revenue = revenue - commission - tax_adjustment
+
     # 记录手续费
     if not hasattr(context, 'total_commission'):
         context.total_commission = 0
     context.total_commission += commission
 
-    # 更新持仓
+    # 更新价格
     position.last_sale_price = price
-
-    if position.amount == amount:
-        # 全部卖出
-        context.portfolio._cash += net_revenue
-        del context.portfolio.positions[stock]
-    else:
-        # 部分卖出
-        context.portfolio._cash += net_revenue
-        position.amount -= amount
+    if position.amount > 0:
         position.market_value = position.amount * price
 
-    context.portfolio._invalidate_cache()
+    # 入账
+    context.portfolio._cash += net_revenue
+
+    # 日志
+    if tax_adjustment > 0:
+        log.info(f"📊分红税 | {stock} | 补税{tax_adjustment:.2f}元")
+    elif tax_adjustment < 0:
+        log.info(f"📊分红税 | {stock} | 退税{-tax_adjustment:.2f}元")
+
     return True
