@@ -1161,6 +1161,12 @@ class PtradeAPI:
     @validate_lifecycle
     def set_commission(self, commission_ratio=0.0003, min_commission=5.0, type="STOCK"):
         """设置交易佣金"""
+        # 验证ptrade平台限制：佣金费率和最低交易佣金不能小于或者等于0
+        if commission_ratio is not None and commission_ratio <= 0:
+            raise ValueError("IQInvalidArgument: 佣金费率和最低交易佣金不能小于或者等于0,请核对后重新输入")
+        if min_commission is not None and min_commission <= 0:
+            raise ValueError("IQInvalidArgument: 佣金费率和最低交易佣金不能小于或者等于0,请核对后重新输入")
+            
         if commission_ratio is not None:
             self.context.commission_ratio = commission_ratio
         if min_commission is not None:

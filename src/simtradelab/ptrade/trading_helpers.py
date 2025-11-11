@@ -4,7 +4,6 @@
 """
 
 import pandas as pd
-import uuid
 from typing import Optional, Tuple
 
 
@@ -83,6 +82,7 @@ def create_order(stock: str, amount: int, price: float, context) -> Tuple[str, o
     Returns:
         (order_id, order对象)
     """
+    import uuid
     from simtradelab.ptrade.object import Order
 
     order_id = str(uuid.uuid4()).replace('-', '')
@@ -94,6 +94,32 @@ def create_order(stock: str, amount: int, price: float, context) -> Tuple[str, o
         price=price
     )
     return order_id, order
+
+
+def calculate_commission(context, amount, price, is_sell=False):
+    """计算手续费"""
+    commission_ratio = getattr(context, 'commission_ratio', 0.0003)
+    min_commission = getattr(context, 'min_commission', 5.0)
+    
+    # 如果手续费率为0，则完全不收手续费
+    if commission_ratio == 0:
+        return 0
+    
+    value = amount * price
+    # 佣金费
+    broker_fee = max(value * commission_ratio, min_commission)
+    # 经手费率：万分之0.487
+    transfer_fee = value * 0.0000487
+    
+    commission = broker_fee + transfer_fee
+    
+    # 印花税(仅卖出时收取)
+    if is_sell:
+        tax_rate = getattr(context, 'tax_rate', 0.001)
+        tax = value * tax_rate
+        commission += tax
+    
+    return commission
 
 
 def execute_buy(stock: str, amount: int, price: float, context, log) -> bool:
@@ -112,11 +138,19 @@ def execute_buy(stock: str, amount: int, price: float, context, log) -> bool:
     from simtradelab.ptrade.object import Position
 
     cost = amount * price
-    if cost > context.portfolio._cash:
-        log.warning(f"【买入失败】{stock} | 原因: 现金不足 (需要{cost:.2f}, 可用{context.portfolio._cash:.2f})")
+    commission = calculate_commission(context, amount, price, is_sell=False)
+    total_cost = cost + commission
+    
+    if total_cost > context.portfolio._cash:
+        log.warning(f"【买入失败】{stock} | 原因: 现金不足 (需要{total_cost:.2f}, 可用{context.portfolio._cash:.2f})")
         return False
 
-    context.portfolio._cash -= cost
+    context.portfolio._cash -= total_cost
+    
+    # 记录手续费
+    if not hasattr(context, 'total_commission'):
+        context.total_commission = 0
+    context.total_commission += commission
 
     if stock not in context.portfolio.positions:
         context.portfolio.positions[stock] = Position(stock, amount, price)
@@ -153,16 +187,26 @@ def execute_sell(stock: str, amount: int, price: float, context, log) -> bool:
         log.warning(f"【卖出失败】{stock} | 原因: 持仓不足 (持有{position.amount}, 尝试卖出{amount})")
         return False
 
+    # 计算手续费
+    revenue = amount * price
+    commission = calculate_commission(context, amount, price, is_sell=True)
+    net_revenue = revenue - commission
+    
+    # 记录手续费
+    if not hasattr(context, 'total_commission'):
+        context.total_commission = 0
+    context.total_commission += commission
+
     # 更新持仓
     position.last_sale_price = price
 
     if position.amount == amount:
         # 全部卖出
-        context.portfolio._cash += amount * price
+        context.portfolio._cash += net_revenue
         del context.portfolio.positions[stock]
     else:
         # 部分卖出
-        context.portfolio._cash += amount * price
+        context.portfolio._cash += net_revenue
         position.amount -= amount
         position.market_value = position.amount * price
 

@@ -277,6 +277,9 @@ class StrategyExecutionEngine:
         if not self._safe_call('before_trading_start', LifecyclePhase.BEFORE_TRADING_START, data):
             return False
 
+        # 处理分红事件
+        self._process_dividend_events(data.current_date)
+
         # handle_data
         if not self._safe_call('handle_data', LifecyclePhase.HANDLE_DATA, data):
             return False
@@ -315,6 +318,79 @@ class StrategyExecutionEngine:
             self.log.error(f"{func_name}执行失败: {e}")
             traceback.print_exc()
             return allow_fail
+
+    def _process_dividend_events(self, current_date):
+        """处理分红事件
+
+        Args:
+            current_date: 当前交易日
+        """
+        try:
+            # 遍历所有持仓股票
+            for stock_code, position in self.context.portfolio.positions.items():
+                if position.amount <= 0:
+                    continue
+
+                # 获取该股票的除权数据
+                exrights_data = self.api.get_stock_exrights(stock_code)
+                if exrights_data is None or len(exrights_data) == 0:
+                    continue
+
+                # 检查是否有分红事件
+                date_str = current_date.strftime('%Y%m%d')
+                has_dividend = date_str in exrights_data.index.astype(str)
+
+                if has_dividend:
+                    dividend_amount = self._calculate_dividend(stock_code, position.amount, current_date)
+                    if dividend_amount > 0:
+                        # 添加分红到现金
+                        old_cash = self.context.portfolio._cash
+                        self.context.portfolio._cash += dividend_amount
+                        self.context.portfolio._invalidate_cache()
+                        self.log.info(f"💰分红 | {stock_code} | {position.amount}股 | 分红金额: {dividend_amount:.2f}元 | 现金: {old_cash:.2f} → {self.context.portfolio._cash:.2f}")
+
+        except Exception as e:
+            self.log.warning(f"分红处理失败: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _calculate_dividend(self, stock_code, shares, current_date):
+        """计算分红金额
+        
+        Args:
+            stock_code: 股票代码
+            shares: 持股数量
+            current_date: 分红日期
+        
+        Returns:
+            分红金额
+        """
+        try:
+            # 获取除权数据
+            exrights_data = self.api.get_stock_exrights(stock_code)
+            if exrights_data is None or len(exrights_data) == 0:
+                return 0.0
+            
+            # 查找当前日期的分红记录
+            date_str = current_date.strftime('%Y%m%d')
+            current_records = exrights_data[exrights_data.index.astype(str) == date_str]
+            if len(current_records) == 0:
+                return 0.0
+            
+            # 获取当前记录的bonus_ps值（当次税前分红）
+            current_bonus = current_records['bonus_ps'].iloc[0]
+
+            # bonus_ps直接代表当次分红每股金额（税前）
+            # 应用20%红利税
+            dividend_tax_rate = 0.20
+            dividend_per_share_after_tax = current_bonus * (1 - dividend_tax_rate)
+            total_dividend = dividend_per_share_after_tax * shares
+
+            return total_dividend if total_dividend > 0 else 0.0
+            
+        except Exception as e:
+            self.log.warning(f"计算{stock_code}分红失败: {e}")
+            return 0.0
 
     # ==========================================
     # 重置和清理接口
