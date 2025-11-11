@@ -21,11 +21,15 @@ from slice_fundamentals import slice_fundamentals_data
 def main():
     """执行完整数据切片"""
 
-    # 配置
+    # 配置 - 使用~表示用户目录
     source_dir = '~/dev/ptrade/data'
     target_dir = '~/dev/SimTradeLab/data'
     start_date = '20250101'
     end_date = '20251031'
+
+    # 展开用户目录
+    source_dir = os.path.expanduser(source_dir)
+    target_dir = os.path.expanduser(target_dir)
 
     print("=" * 70)
     print("SimTradeLab 数据切片工具")
@@ -35,8 +39,8 @@ def main():
     print(f"  目标目录: {target_dir}")
     print(f"  日期范围: {start_date} ~ {end_date}")
     print(f"\n将处理:")
-    print(f"  1. {source_dir}/ptrade_data.h5")
-    print(f"  2. {source_dir}/ptrade_fundamentals.h5")
+    print(f"  1. {os.path.join(source_dir, 'ptrade_data.h5')}")
+    print(f"  2. {os.path.join(source_dir, 'ptrade_fundamentals.h5')}")
     print()
 
     # 确认

@@ -74,3 +74,4 @@ cache/
 CLAUDE.md
 GEMINI.md
 .pre-commit-config.yaml
+data/ptrade_adj_pre.h5

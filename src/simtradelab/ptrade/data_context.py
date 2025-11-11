@@ -21,7 +21,8 @@ class DataContext:
         fundamentals_store,
         index_constituents: Dict,
         stock_status_history: Dict,
-        adj_pre_cache
+        adj_pre_cache,
+        dividend_cache=None
     ):
         """初始化数据上下文
 
@@ -36,6 +37,8 @@ class DataContext:
             fundamentals_store: 基本面数据HDF5存储
             index_constituents: 指数成份股字典
             stock_status_history: 股票状态历史字典
+            adj_pre_cache: 复权因子缓存
+            dividend_cache: 分红事件缓存
         """
         self.stock_data_dict = stock_data_dict
         self.valuation_dict = valuation_dict
@@ -47,4 +50,5 @@ class DataContext:
         self.fundamentals_store = fundamentals_store
         self.index_constituents = index_constituents
         self.stock_status_history = stock_status_history
-        self.adj_pre_cache = None
+        self.adj_pre_cache = adj_pre_cache
+        self.dividend_cache = dividend_cache if dividend_cache is not None else {}

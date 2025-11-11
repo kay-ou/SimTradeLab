@@ -101,13 +101,54 @@ def load_adj_pre_cache(data_context):
 
     print("正在加载复权因子缓存...")
     start_time = time.time()
-    
+
     adj_factors_cache = {}
     with pd.HDFStore(ADJ_PRE_CACHE_PATH, 'r') as store:
         for key in store.keys():
             stock = key.strip('/')
             adj_factors_cache[stock] = store[key]
-            
+
     elapsed = time.time() - start_time
     print(f"复权因子缓存加载完成！共 {len(adj_factors_cache)} 只股票，耗时 {elapsed:.2f} 秒")
     return adj_factors_cache
+
+
+def create_dividend_cache(data_context):
+    """创建分红事件缓存
+
+    返回格式: {stock_code: {date_str: dividend_amount_after_tax}}
+
+    注意：bonus_ps是每次分红的税前金额（每股分多少元），直接使用
+    """
+    print("正在创建分红事件缓存...")
+    start_time = time.time()
+
+    dividend_cache = {}
+    dividend_tax_rate = 0.20  # 20%红利税
+
+    for stock_code, exrights_df in data_context.exrights_dict.items():
+        if exrights_df is None or exrights_df.empty:
+            continue
+
+        stock_dividends = {}
+
+        for date_int, row in exrights_df.iterrows():
+            dividend_per_share_before_tax = row['bonus_ps']
+
+            if dividend_per_share_before_tax > 0:
+                # 应用20%红利税
+                dividend_per_share_after_tax = dividend_per_share_before_tax * (1 - dividend_tax_rate)
+
+                date_str = str(date_int)
+                stock_dividends[date_str] = dividend_per_share_after_tax
+
+        if stock_dividends:
+            dividend_cache[stock_code] = stock_dividends
+
+    elapsed = time.time() - start_time
+    print(f"✓ 分红事件缓存创建完成！")
+    print(f"  有分红股票: {len(dividend_cache)} 只")
+    print(f"  总分红事件: {sum(len(v) for v in dividend_cache.values())} 次")
+    print(f"  耗时: {elapsed:.2f} 秒")
+
+    return dividend_cache

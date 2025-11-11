@@ -53,6 +53,7 @@ class BacktestRunner:
         self.stock_data_store = None
         self.fundamentals_store = None
         self.adj_pre_cache = None
+        self.dividend_cache = None
 
         # 全局对象
         self.g = Global()
@@ -188,6 +189,7 @@ class BacktestRunner:
         self.stock_data_store = data_server.stock_data_store
         self.fundamentals_store = data_server.fundamentals_store
         self.adj_pre_cache = data_server.adj_pre_cache
+        self.dividend_cache = data_server.dividend_cache
         self._data_loaded = True
         return data_server.get_benchmark_data() # type: ignore
 
@@ -202,7 +204,7 @@ class BacktestRunner:
             self.stock_data_store, self.fundamentals_store,
             self.stock_data_dict, self.valuation_dict, self.fundamentals_dict, self.exrights_dict,
             self.benchmark_data, self.stock_metadata, self.index_constituents, self.stock_status_history,
-            self.adj_pre_cache
+            self.adj_pre_cache, self.dividend_cache
         ) = load_data_from_hdf5(self.data_path)
 
         self._data_loaded = True
@@ -277,7 +279,8 @@ class BacktestRunner:
             fundamentals_store=self.fundamentals_store,
             index_constituents=self.index_constituents,
             stock_status_history=self.stock_status_history,
-            adj_pre_cache=self.adj_pre_cache
+            adj_pre_cache=self.adj_pre_cache,
+            dividend_cache=self.dividend_cache
         )
 
         # 创建API

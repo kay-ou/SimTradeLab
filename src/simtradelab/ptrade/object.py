@@ -50,15 +50,14 @@ class LazyDataDict:
 
         # 如果启用预加载，一次性加载所有数据到内存
         if preload:
-            print(f"预加载 {len(all_keys_list)} 个数据项到内存...")
-            for i, key in enumerate(all_keys_list):
-                if (i + 1) % 1000 == 0:
-                    print(f"  已加载 {i + 1}/{len(all_keys_list)}")
+            from tqdm import tqdm
+
+            for key in tqdm(all_keys_list, desc='  加载', ncols=80, ascii=True,
+                          bar_format='{desc}: {percentage:3.0f}%|{bar}| {n:4d}/{total:4d} [{elapsed}<{remaining}]'):
                 try:
                     self._cache[key] = self.store[f'{self.prefix}{key}']
                 except KeyError:
                     pass
-            print(f"  完成！实际加载 {len(self._cache)} 个数据项")
 
     def __contains__(self, key):
         return key in self._all_keys

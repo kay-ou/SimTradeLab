@@ -115,8 +115,8 @@ def slice_hdf5_data(
 
         print(f"  ✓ 保存 {saved_count} 只股票价格数据")
 
-        # 5. 复制 exrights（除权数据，不按日期切片，保留所有历史除权信息）
-        print("\n[5/6] 复制除权数据...")
+        # 5. 切片 exrights（除权数据，只保留日期范围内的除权事件）
+        print("\n[5/6] 切片除权数据...")
         exrights_keys = [k for k in source_store.keys() if k.startswith('/exrights/')]
         print(f"  找到 {len(exrights_keys)} 只股票的除权数据")
 
@@ -128,9 +128,14 @@ def slice_hdf5_data(
             try:
                 df = source_store[key]
                 if len(df) > 0:
-                    # 除权数据保留全部历史（前复权需要所有历史除权信息）
-                    target_store.put(key, df, format='fixed')
-                    saved_exrights += 1
+                    # 切片除权数据，只保留日期范围内的记录
+                    start_int = int(start_date)
+                    end_int = int(end_date)
+                    sliced_df = df[(df.index >= start_int) & (df.index <= end_int)]
+
+                    if len(sliced_df) > 0:
+                        target_store.put(key, sliced_df, format='fixed')
+                        saved_exrights += 1
             except Exception as e:
                 print(f"  警告: 跳过 {key}: {e}")
                 continue

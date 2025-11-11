@@ -18,7 +18,7 @@ from ..ptrade.object import LazyDataDict
 def load_data_from_hdf5(data_path: str) -> Tuple[
     pd.HDFStore, pd.HDFStore,
     LazyDataDict, LazyDataDict, LazyDataDict, LazyDataDict,
-    Dict, pd.DataFrame, Dict, Dict, object
+    Dict, pd.DataFrame, Dict, Dict, object, Dict
 ]:
     """从HDF5文件加载所有数据（可复用的加载函数）
 
@@ -33,27 +33,32 @@ def load_data_from_hdf5(data_path: str) -> Tuple[
             adj_pre_cache
         )
     """
-    print("正在加载数据文件...")
+    print("正在打开数据文件...")
 
     stock_data_store = pd.HDFStore(f'{data_path}/ptrade_data.h5', 'r')
     fundamentals_store = pd.HDFStore(f'{data_path}/ptrade_fundamentals.h5', 'r')
 
     # 提取所有表的键名
+    print("正在读取数据索引...")
     all_stock_keys = [k.split('/')[-1] for k in stock_data_store.keys() if k.startswith('/stock_data/')]
     valuation_keys = [k.split('/')[-1] for k in fundamentals_store.keys() if k.startswith('/valuation/')]
     fundamentals_keys = [k.split('/')[-1] for k in fundamentals_store.keys() if k.startswith('/fundamentals/')]
     exrights_keys = [k.split('/')[-1] for k in stock_data_store.keys() if k.startswith('/exrights/')]
 
-    # 构建数据字典（全部预加载到内存）
-    print("预加载所有数据...")
+    # 构建数据字典（按需加载）
+    print(f"\n[1/3] 股票价格（{len(all_stock_keys)}只）...")
     stock_data_dict = LazyDataDict(stock_data_store, '/stock_data/', all_stock_keys, preload=True)
+
+    print(f"[2/3] 估值数据（{len(valuation_keys)}只）...")
     valuation_dict = LazyDataDict(fundamentals_store, '/valuation/', valuation_keys, preload=True)
-    fundamentals_dict = LazyDataDict(fundamentals_store, '/fundamentals/', fundamentals_keys, preload=True)
+
+    print(f"[3/3] 财务数据（{len(fundamentals_keys)}只，延迟加载）...")
+    fundamentals_dict = LazyDataDict(fundamentals_store, '/fundamentals/', fundamentals_keys, max_cache_size=800)
+
+    # 除权数据延迟加载
     exrights_dict = LazyDataDict(stock_data_store, '/exrights/', exrights_keys, max_cache_size=800)
 
-    print(f"✓ 股票数据: {len(all_stock_keys)} 只")
-    print(f"✓ 基本面数据: {len(valuation_keys)} 只")
-    print(f"✓ 除权数据: {len(exrights_keys)} 只")
+    print(f"✓ 已加载: 股票{len(all_stock_keys)}只 | 估值{len(valuation_keys)}只 | 除权{len(exrights_keys)}只 | 财务{len(fundamentals_keys)}只(延迟)\n")
 
     # 加载元数据和基准
     stock_metadata = stock_data_store['/stock_metadata']
@@ -69,8 +74,8 @@ def load_data_from_hdf5(data_path: str) -> Tuple[
 
     benchmark_data = {'000300.SS': benchmark_df}
 
-    # 加载复权因子缓存
-    from ..ptrade.adj_pre_cache import load_adj_pre_cache
+    # 加载复权因子缓存和分红缓存
+    from ..ptrade.adj_pre_cache import load_adj_pre_cache, create_dividend_cache
     from ..ptrade.data_context import DataContext
     temp_context = DataContext(
         stock_data_dict=stock_data_dict,
@@ -86,6 +91,7 @@ def load_data_from_hdf5(data_path: str) -> Tuple[
         adj_pre_cache=None
     )
     adj_pre_cache = load_adj_pre_cache(temp_context)
+    dividend_cache = create_dividend_cache(temp_context)
 
     print("✓ 数据加载完成\n")
 
@@ -93,7 +99,7 @@ def load_data_from_hdf5(data_path: str) -> Tuple[
         stock_data_store, fundamentals_store,
         stock_data_dict, valuation_dict, fundamentals_dict, exrights_dict,
         benchmark_data, stock_metadata, index_constituents, stock_status_history,
-        adj_pre_cache
+        adj_pre_cache, dividend_cache
     )
 
 
@@ -161,7 +167,7 @@ class DataServer:
             self.stock_data_store, self.fundamentals_store,
             self.stock_data_dict, self.valuation_dict, self.fundamentals_dict, self.exrights_dict,
             self.benchmark_data, self.stock_metadata, self.index_constituents, self.stock_status_history,
-            self.adj_pre_cache
+            self.adj_pre_cache, self.dividend_cache
         ) = load_data_from_hdf5(self.data_path)
 
     def get_benchmark_data(self):
