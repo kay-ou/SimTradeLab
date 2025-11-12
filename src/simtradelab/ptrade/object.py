@@ -509,13 +509,13 @@ class Portfolio:
         """买入建仓/加仓"""
         if stock not in self.positions:
             self.positions[stock] = Position(stock, amount, price)
-            self._position_lots[stock] = [{'date': date, 'amount': amount, 'dividends': []}]
+            self._position_lots[stock] = [{'date': date, 'amount': amount, 'dividends': [], 'dividends_total': 0.0}]
         else:
             old_pos = self.positions[stock]
             new_amount = old_pos.amount + amount
             new_cost = (old_pos.amount * old_pos.cost_basis + amount * price) / new_amount
             self.positions[stock] = Position(stock, new_amount, new_cost)
-            self._position_lots[stock].append({'date': date, 'amount': amount, 'dividends': []})
+            self._position_lots[stock].append({'date': date, 'amount': amount, 'dividends': [], 'dividends_total': 0.0})
         self._invalidate_cache()
 
     def remove_position(self, stock, amount, sell_date):
@@ -523,44 +523,18 @@ class Portfolio:
         if stock not in self.positions:
             return 0.0
 
-        # FIFO计算税务调整并扣减批次
-        tax_adjustment = 0.0
-        if stock in self._position_lots:
-            lots = self._position_lots[stock]
-            remaining = amount
-            i = 0
+        position = self.positions[stock]
 
-            while i < len(lots) and remaining > 0:
-                lot = lots[i]
-                holding_days = (sell_date - lot['date']).days
+        # 边界检查：卖出数量不能超过持仓
+        if amount > position.amount:
+            raise ValueError(
+                '卖出数量({})超过持仓({}): {}'.format(amount, position.amount, stock)
+            )
 
-                # 真实税率
-                if holding_days <= 30:
-                    actual_rate = 0.20
-                elif holding_days <= 365:
-                    actual_rate = 0.10
-                else:
-                    actual_rate = 0.0
-
-                # 本批次卖出数量
-                sell_qty = min(remaining, lot['amount'])
-                ratio = sell_qty / lot['amount']
-
-                # 税务调整
-                lot_div_total = sum(lot['dividends'])
-                tax_adjustment += lot_div_total * ratio * (actual_rate - 0.20)
-
-                # 扣减批次
-                if lot['amount'] <= remaining:
-                    remaining -= lot['amount']
-                    lots.pop(i)
-                else:
-                    lot['amount'] -= remaining
-                    remaining = 0
-                    i += 1
+        # FIFO计算税务调整
+        tax_adjustment = self._calculate_dividend_tax(stock, amount, sell_date)
 
         # 更新持仓
-        position = self.positions[stock]
         if position.amount == amount:
             del self.positions[stock]
             if stock in self._position_lots:
@@ -577,6 +551,50 @@ class Portfolio:
             for lot in self._position_lots[stock]:
                 lot_div = dividend_per_share * lot['amount']
                 lot['dividends'].append(lot_div)
+                lot['dividends_total'] = lot.get('dividends_total', 0.0) + lot_div
+
+    def _calculate_dividend_tax(self, stock, amount, sell_date):
+        """计算分红税调整（FIFO）"""
+        if stock not in self._position_lots:
+            return 0.0
+
+        lots = self._position_lots[stock]
+        remaining = amount
+        tax_adjustment = 0.0
+        i = 0
+
+        while i < len(lots) and remaining > 0:
+            lot = lots[i]
+            holding_days = (sell_date - lot['date']).days
+
+            # 真实税率
+            if holding_days <= 30:
+                actual_rate = 0.20
+            elif holding_days <= 365:
+                actual_rate = 0.10
+            else:
+                actual_rate = 0.0
+
+            # 本批次卖出数量
+            sell_qty = min(remaining, lot['amount'])
+            ratio = sell_qty / lot['amount']
+
+            # 优先使用缓存总和
+            lot_div_total = lot.get('dividends_total', sum(lot['dividends']))
+            tax_adjustment += lot_div_total * ratio * (actual_rate - 0.20)
+
+            # 扣减批次
+            if lot['amount'] <= remaining:
+                remaining -= lot['amount']
+                lots.pop(i)
+            else:
+                lot['amount'] -= remaining
+                # 更新剩余部分的分红总额
+                lot['dividends_total'] = lot_div_total * (1.0 - ratio)
+                remaining = 0
+                i += 1
+
+        return tax_adjustment
 
     @property
     def cash(self):
