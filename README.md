@@ -502,7 +502,9 @@ MIT License - 查看 [LICENSE](LICENSE) 文件
 
 ## ⚖️ 免责声明
 
-SimTradeLab 是独立开发的开源项目，不隶属于PTrade平台。本框架仅用于教学研究和策略验证，不提供投资建议。使用本框架产生的任何损失，开发者不承担责任。
+SimTradeLab 是一个由社区独立开发的开源策略回测框架，灵感来源于 PTrade 的事件驱动设计理念，但并未包含 PTrade 的源代码、商标或任何受保护内容。该项目不隶属于 PTrade，也未获得其官方授权。SimTradeLab 的所有实现均为自主构建，仅用于教学研究、策略验证和非商业性用途。
+
+使用本框架构建或测试策略的用户应自行确保符合所在地区的法律法规、交易平台的使用条款及数据源的合规性。项目开发者不对任何由使用本项目所引发的直接或间接损失承担责任。
 
 ---
 
@@ -518,5 +520,20 @@ SimTradeLab 是独立开发的开源项目，不隶属于PTrade平台。本框�
 **⭐ 如果这个项目对您有帮助，请给我们一个星标！**
 
 [🐛 报告问题](https://github.com/kay-ou/SimTradeLab/issues) | [💡 功能请求](https://github.com/kay-ou/SimTradeLab/issues)
+
+</div>
+
+---
+
+<div align="center">
+
+## 💖 赞助支持
+
+如果这个项目对您有帮助，欢迎赞助支持开发！
+
+<img src="https://github.com/kay-ou/SimTradeLab/blob/main/sponsor/WechatPay.png?raw=true" alt="微信赞助" width="200">
+<img src="https://github.com/kay-ou/SimTradeLab/blob/main/sponsor/AliPay.png?raw=true" alt="支付宝赞助" width="200">
+
+**您的支持是我们持续改进的动力！**
 
 </div>
