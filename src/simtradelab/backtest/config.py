@@ -11,13 +11,13 @@ import pandas as pd
 
 def _default_data_path():
     """获取默认数据路径"""
-    from ..paths import DATA_PATH
+    from ..utils.paths import DATA_PATH
     return str(DATA_PATH)
 
 
 def _default_strategies_path():
     """获取默认策略路径"""
-    from ..paths import STRATEGIES_PATH
+    from ..utils.paths import STRATEGIES_PATH
     return str(STRATEGIES_PATH)
 
 
@@ -32,6 +32,10 @@ class BacktestConfig:
     strategies_path: str = field(default_factory=_default_strategies_path)
     initial_capital: float = 1000000.0
     use_data_server: bool = True
+
+    # 性能优化配置
+    enable_multiprocessing: bool = True  # 是否启用多进程数据加载（默认启用）
+    num_workers: int = None  # 多进程worker数量（None=自动检测为CPU核心数-1）
 
     def __post_init__(self):
         """验证并转换参数"""

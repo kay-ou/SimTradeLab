@@ -9,36 +9,63 @@ from collections import OrderedDict
 import bisect
 import pandas as pd
 import numpy as np
+from functools import wraps
+from joblib import Parallel, delayed
+from tqdm import tqdm
+
+from ..utils.performance_config import get_performance_config
+from .cache_manager import cache_manager
+from .adjustment_calculator import AdjustmentCalculator
 
 
-# 全局缓存：用于StockData的mavg和vwap计算
-_GLOBAL_MA_CACHE = OrderedDict()
-_GLOBAL_VWAP_CACHE = OrderedDict()
-_MAX_GLOBAL_CACHE_SIZE = 5000  # 减小最大缓存条目数
-_CACHE_CURRENT_DATE = None  # 跟踪当前日期，用于每日清理
+# ==================== 多进程worker函数 ====================
+def _load_data_chunk(hdf5_filename, prefix, keys_chunk):
+    """多进程worker：加载一批数据
+
+    Args:
+        hdf5_filename: HDF5文件路径
+        prefix: 数据路径前缀
+        keys_chunk: 要加载的key列表
+
+    Returns:
+        dict: {key: dataframe}
+    """
+    result = {}
+    store = pd.HDFStore(hdf5_filename, 'r')
+    try:
+        for key in keys_chunk:
+            try:
+                result[key] = store[f'{prefix}{key}']
+            except KeyError:
+                pass
+    finally:
+        store.close()
+    return result
 
 
-def clear_daily_cache():
-    """清理全局缓存（每日调用）"""
-    global _GLOBAL_MA_CACHE, _GLOBAL_VWAP_CACHE, _CACHE_CURRENT_DATE
-    _GLOBAL_MA_CACHE.clear()
-    _GLOBAL_VWAP_CACHE.clear()
-    _CACHE_CURRENT_DATE = None
+def ensure_data_loaded(func):
+    """装饰器：确保数据已加载后再访问"""
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        self._ensure_data_loaded()
+        return func(self, *args, **kwargs)
+    return wrapper
 
 
 class BacktestContext:
     """回测上下文配置（封装共享依赖）"""
     def __init__(self, stock_data_dict=None, get_stock_date_index_func=None,
-                 check_limit_func=None, log_obj=None, context_obj=None):
+                 check_limit_func=None, log_obj=None, context_obj=None, data_context=None):
         self.stock_data_dict = stock_data_dict
         self.get_stock_date_index = get_stock_date_index_func
         self.check_limit = check_limit_func
         self.log = log_obj
         self.context = context_obj
+        self.data_context = data_context
 
 class LazyDataDict:
-    """延迟加载数据字典（可选全量加载）"""
-    def __init__(self, store, prefix, all_keys_list, max_cache_size=6000, preload=False):
+    """延迟加载数据字典（可选全量加载，支持多进程加速）"""
+    def __init__(self, store, prefix, all_keys_list, max_cache_size=6000, preload=False, use_multiprocessing=True):
         self.store = store
         self.prefix = prefix
         self._cache = OrderedDict()  # 使用OrderedDict实现LRU
@@ -50,14 +77,43 @@ class LazyDataDict:
 
         # 如果启用预加载，一次性加载所有数据到内存
         if preload:
-            from tqdm import tqdm
+            config = get_performance_config()
 
-            for key in tqdm(all_keys_list, desc='  加载', ncols=80, ascii=True,
-                          bar_format='{desc}: {percentage:3.0f}%|{bar}| {n:4d}/{total:4d} [{elapsed}<{remaining}]'):
-                try:
-                    self._cache[key] = self.store[f'{self.prefix}{key}']
-                except KeyError:
-                    pass
+            # 判断是否使用多进程
+            enable_mp = (use_multiprocessing and
+                        config.enable_multiprocessing and
+                        len(all_keys_list) >= config.min_batch_size)
+
+            if enable_mp:
+                # 多进程并行加载
+                num_workers = config.num_workers
+                chunk_size = max(50, len(all_keys_list) // (num_workers * 2))
+                chunks = [all_keys_list[i:i+chunk_size]
+                         for i in range(0, len(all_keys_list), chunk_size)]
+
+                print(f"  使用{num_workers}进程并行加载 {len(all_keys_list)} 只...")
+                import time
+                start_time = time.perf_counter()
+
+                results = Parallel(n_jobs=num_workers, backend='loky', verbose=0)(
+                    delayed(_load_data_chunk)(store.filename, prefix, chunk)
+                    for chunk in chunks
+                )
+
+                # 合并结果
+                for chunk_result in results:
+                    self._cache.update(chunk_result)
+
+                elapsed = time.perf_counter() - start_time
+                print(f"  ✓ 加载完成，耗时 {elapsed:.1f}秒")
+            else:
+                # 串行加载（带进度条）
+                for key in tqdm(all_keys_list, desc='  加载', ncols=80, ascii=True,
+                              bar_format='{desc}: {percentage:3.0f}%|{bar}| {n:4d}/{total:4d} [{elapsed}<{remaining}]'):
+                    try:
+                        self._cache[key] = self.store[f'{self.prefix}{key}']
+                    except KeyError:
+                        pass
 
     def __contains__(self, key):
         return key in self._all_keys
@@ -123,50 +179,81 @@ class StockData:
         self._stock_df = None
         self._current_idx = None
         self._bt_ctx = bt_ctx
+        self._data = None  # 延迟加载标记
+        self._cached_phase = None  # 缓存的phase,用于判断是否需要重新加载
+        self._cached_idx = None  # 缓存的idx,用于判断是否需要重新加载
 
         if bt_ctx and bt_ctx.stock_data_dict and stock in bt_ctx.stock_data_dict:
             self._stock_df = bt_ctx.stock_data_dict[stock]
-            if isinstance(self._stock_df, pd.DataFrame):
-                # 使用预计算的日期索引，避免每次过滤整个index
-                if bt_ctx.get_stock_date_index:
-                    date_dict, sorted_dates = bt_ctx.get_stock_date_index(stock)
-                    # 直接查找当前日期或最近的历史日期
-                    if current_date in date_dict:
-                        self._current_idx = date_dict[current_date]
-                    elif sorted_dates:
-                        # 二分查找最近的历史日期
-                        pos = bisect.bisect_left(sorted_dates, current_date)
-                        if pos > 0:
-                            self._current_idx = date_dict[sorted_dates[pos - 1]]
-                else:
-                    # 回退到原始方法
-                    try:
-                        self._current_idx = self._stock_df.index.get_loc(current_date)
-                    except KeyError:
-                        valid_dates = self._stock_df.index[self._stock_df.index < current_date]
-                        if len(valid_dates) > 0:
-                            self._current_idx = self._stock_df.index.get_loc(valid_dates[-1])
 
-        self._data = self._load_data()
+    def _ensure_data_loaded(self):
+        """确保数据已加载（延迟加载）"""
+        # 优化:只在phase或idx变化时重新加载
+        # 因为同一个Data对象在before_trading_start和handle_data之间共享
+        # 需要判断当前phase,如果phase变化则重新加载
+
+        # 首次访问时才计算_current_idx（此时phase已正确设置）
+        if self._stock_df is not None and isinstance(self._stock_df, pd.DataFrame):
+            if self._bt_ctx and self._bt_ctx.get_stock_date_index:
+                date_dict, sorted_dates = self._bt_ctx.get_stock_date_index(self.stock)
+                current_date_norm = self.current_date.normalize()
+
+                # 通过LifecycleController判断当前阶段
+                controller = self._bt_ctx.context._lifecycle_controller if self._bt_ctx.context else None
+                current_phase = controller.current_phase if controller else None
+
+                from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
+                is_before_trading = (current_phase == LifecyclePhase.BEFORE_TRADING_START)
+
+                if is_before_trading:
+                    # before_trading_start阶段：返回前一交易日数据
+                    pos = bisect.bisect_left(sorted_dates, current_date_norm)
+                    if pos > 0:
+                        self._current_idx = date_dict[sorted_dates[pos - 1]]
+                else:
+                    # handle_data阶段：返回当日数据
+                    if current_date_norm in date_dict:
+                        self._current_idx = date_dict[current_date_norm]
+
+                # 优化:只有phase或idx变化时才重新加载
+                if (self._cached_phase != current_phase or
+                    self._cached_idx != self._current_idx or
+                    self._data is None):
+                    self._data = self._load_data()
+                    self._cached_phase = current_phase
+                    self._cached_idx = self._current_idx
 
     def _load_data(self):
-        """加载股票当日数据"""
-        if self._current_idx is not None and self._stock_df is not None:
-            try:
-                row = self._stock_df.iloc[self._current_idx]
-                return {
-                    'close': row['close'],
-                    'open': row['open'],
-                    'high': row['high'],
-                    'low': row['low'],
-                    'volume': row['volume']
-                }
-            except:
-                pass
-        return {'close': np.nan, 'open': np.nan, 'high': np.nan, 'low': np.nan, 'volume': 0}
+        """加载股票当日数据并应用前复权"""
+        if self._current_idx is None or self._stock_df is None:
+            raise ValueError("股票 {} 在 {} 数据加载失败".format(self.stock, self.current_date))
 
+        row = self._stock_df.iloc[self._current_idx]
+        data = {
+            'close': row['close'],
+            'open': row['open'],
+            'high': row['high'],
+            'low': row['low'],
+            'volume': row['volume']
+        }
+
+        # 使用AdjustmentCalculator应用前复权
+        if self._bt_ctx and self._bt_ctx.data_context:
+            if not hasattr(self, '_adj_calculator'):
+                self._adj_calculator = AdjustmentCalculator(self._bt_ctx.data_context)
+
+            # 应用前复权到数据
+            data = self._adj_calculator.apply_pre_adjustment_to_data(
+                self.stock, data, self.current_date
+            )
+
+        return data
+
+    @ensure_data_loaded
     def __getitem__(self, key):
-        return self._data.get(key, np.nan)
+        if key not in self._data:
+            raise KeyError(f"股票 {self.stock} 数据中没有字段 {key}")
+        return self._data[key]
 
     @property
     def dt(self):
@@ -174,103 +261,97 @@ class StockData:
         return self.current_date
 
     @property
+    @ensure_data_loaded
     def open(self):
         """开盘价"""
         return self._data.get('open', np.nan)
 
     @property
+    @ensure_data_loaded
     def close(self):
         """收盘价"""
         return self._data.get('close', np.nan)
 
     @property
+    @ensure_data_loaded
     def price(self):
         """结束时价格（同close）"""
         return self._data.get('close', np.nan)
 
     @property
+    @ensure_data_loaded
     def low(self):
         """最低价"""
         return self._data.get('low', np.nan)
 
     @property
+    @ensure_data_loaded
     def high(self):
         """最高价"""
         return self._data.get('high', np.nan)
 
     @property
+    @ensure_data_loaded
     def volume(self):
         """成交量"""
         return self._data.get('volume', 0)
 
     @property
+    @ensure_data_loaded
     def money(self):
         """成交金额"""
-        return self._data.get('close', np.nan) * self._data.get('volume', 0)
+        return self._data['close'] * self._data['volume']
 
+    @ensure_data_loaded
     def mavg(self, window):
         """计算移动平均线（带全局缓存）"""
-        global _GLOBAL_MA_CACHE
-
         cache_key = (self.stock, self.current_date, window)
 
         # 检查全局缓存
-        if cache_key in _GLOBAL_MA_CACHE:
-            _GLOBAL_MA_CACHE.move_to_end(cache_key)  # LRU更新
-            return _GLOBAL_MA_CACHE[cache_key]
+        cached_value = cache_manager.get('ma_cache', cache_key)
+        if cached_value is not None:
+            return cached_value
 
         if self._current_idx is None or self._stock_df is None:
-            return np.nan
+            raise ValueError(f"股票 {self.stock} 无法计算mavg({window})")
 
-        try:
-            start_idx = max(0, self._current_idx - window + 1)
-            close_prices = self._stock_df.iloc[start_idx:self._current_idx + 1]['close'].values
-            # 使用 numpy 的 nanmean 直接处理 NaN
-            result = np.nanmean(close_prices) if len(close_prices) > 0 else np.nan
+        start_idx = max(0, self._current_idx - window + 1)
+        close_prices = self._stock_df.iloc[start_idx:self._current_idx + 1]['close'].values
+        result = np.nanmean(close_prices)
 
-            # 更新全局缓存
-            _GLOBAL_MA_CACHE[cache_key] = result
-            if len(_GLOBAL_MA_CACHE) > _MAX_GLOBAL_CACHE_SIZE:
-                _GLOBAL_MA_CACHE.popitem(last=False)  # LRU淘汰
+        # 更新全局缓存
+        cache_manager.put('ma_cache', cache_key, result)
 
-            return result
-        except:
-            return np.nan
+        return result
 
+    @ensure_data_loaded
     def vwap(self, window):
         """计算成交量加权平均价（带全局缓存）"""
-        global _GLOBAL_VWAP_CACHE
-
         cache_key = (self.stock, self.current_date, window)
 
         # 检查全局缓存
-        if cache_key in _GLOBAL_VWAP_CACHE:
-            _GLOBAL_VWAP_CACHE.move_to_end(cache_key)  # LRU更新
-            return _GLOBAL_VWAP_CACHE[cache_key]
+        cached_value = cache_manager.get('vwap_cache', cache_key)
+        if cached_value is not None:
+            return cached_value
 
         if self._current_idx is None or self._stock_df is None:
-            return np.nan
+            raise ValueError(f"股票 {self.stock} 无法计算vwap({window})")
 
-        try:
-            start_idx = max(0, self._current_idx - window + 1)
-            slice_df = self._stock_df.iloc[start_idx:self._current_idx + 1]
-            volumes = slice_df['volume'].values
-            closes = slice_df['close'].values
-            total_volume = np.sum(volumes)
+        start_idx = max(0, self._current_idx - window + 1)
+        slice_df = self._stock_df.iloc[start_idx:self._current_idx + 1]
+        volumes = slice_df['volume'].values
+        closes = slice_df['close'].values
+        total_volume = np.sum(volumes)
 
-            if total_volume > 0:
-                result = np.sum(closes * volumes) / total_volume
-            else:
-                result = closes[-1] if len(closes) > 0 else np.nan
+        if total_volume == 0:
+            raise ValueError(f"股票 {self.stock} 计算vwap({window})时成交量为0")
 
-            # 更新全局缓存
-            _GLOBAL_VWAP_CACHE[cache_key] = result
-            if len(_GLOBAL_VWAP_CACHE) > _MAX_GLOBAL_CACHE_SIZE:
-                _GLOBAL_VWAP_CACHE.popitem(last=False)  # LRU淘汰
+        result = np.sum(closes * volumes) / total_volume
 
-            return result
-        except:
-            return np.nan
+        # 更新全局缓存
+        cache_manager.put('vwap_cache', cache_key, result)
+
+        return result
 
 
 class Data(dict):
@@ -281,25 +362,24 @@ class Data(dict):
         super().__init__(*args, **kwargs)
         self.current_date = current_date
         self._bt_ctx = bt_ctx
-        self._access_order = []  # LRU跟踪
+        self._access_order = OrderedDict()  # 使用OrderedDict实现O(1) LRU
 
     def __getitem__(self, stock):
         """动态获取股票数据，返回StockData对象"""
         # 如果已经缓存，直接返回并更新LRU
         if stock in self:
             if stock in self._access_order:
-                self._access_order.remove(stock)
-            self._access_order.append(stock)
+                self._access_order.move_to_end(stock)  # O(1)操作
             return super().__getitem__(stock)
 
         # 创建StockData对象并缓存
         stock_data = StockData(stock, self.current_date, self._bt_ctx)
         super().__setitem__(stock, stock_data)
-        self._access_order.append(stock)
+        self._access_order[stock] = None
 
         # LRU淘汰：如果超过上限，删除最旧的
         if len(self) > self.MAX_CACHE_SIZE:
-            oldest = self._access_order.pop(0)
+            oldest, _ = self._access_order.popitem(last=False)
             if oldest in self:
                 super().__delitem__(oldest)
 
@@ -362,25 +442,23 @@ class Blotter:
         stock_data_cache = {}
         for order in self.open_orders:
             if order.stock not in stock_data_cache and self._bt_ctx and self._bt_ctx.stock_data_dict:
-                if order.stock in self._bt_ctx.stock_data_dict:
-                    stock_df = self._bt_ctx.stock_data_dict[order.stock]
-                    if isinstance(stock_df, pd.DataFrame):
-                        try:
-                            if self._bt_ctx.get_stock_date_index:
-                                date_dict, _ = self._bt_ctx.get_stock_date_index(order.stock)
-                                idx = date_dict.get(current_dt)
-                            else:
-                                idx = stock_df.index.get_loc(current_dt)
+                stock_df = self._bt_ctx.stock_data_dict.get(order.stock)
+                if not stock_df or not isinstance(stock_df, pd.DataFrame):
+                    continue
 
-                            if idx is not None:
-                                stock_data_cache[order.stock] = {
-                                    'df': stock_df,
-                                    'idx': idx,
-                                    'close': stock_df.iloc[idx]['close'],
-                                    'volume': stock_df.iloc[idx]['volume']
-                                }
-                        except:
-                            pass
+                if self._bt_ctx.get_stock_date_index:
+                    date_dict, _ = self._bt_ctx.get_stock_date_index(order.stock)
+                    idx = date_dict.get(current_dt)
+                else:
+                    idx = stock_df.index.get_loc(current_dt) if current_dt in stock_df.index else None
+
+                if idx is not None:
+                    stock_data_cache[order.stock] = {
+                        'df': stock_df,
+                        'idx': idx,
+                        'close': stock_df.iloc[idx]['close'],
+                        'volume': stock_df.iloc[idx]['volume']
+                    }
 
         # 处理订单
         for order in self.open_orders[:]:
@@ -638,7 +716,7 @@ class Portfolio:
 
         total = self._cash
 
-        # 持仓市值（使用昨天收盘价，避免未来函数）
+        # 持仓市值（使用当天收盘价）
         positions_value = 0.0
         for stock, position in self.positions.items():
             if position.amount > 0:
@@ -646,30 +724,11 @@ class Portfolio:
                 if self._bt_ctx and self._bt_ctx.stock_data_dict and stock in self._bt_ctx.stock_data_dict:
                     stock_df = self._bt_ctx.stock_data_dict[stock]
                     if isinstance(stock_df, pd.DataFrame) and self._context:
-                        try:
-                            # 使用预构建索引快速查找
-                            if self._bt_ctx.get_stock_date_index:
-                                date_dict, sorted_dates = self._bt_ctx.get_stock_date_index(stock)
-                                # 二分查找最近的历史日期
-                                import bisect
-                                pos = bisect.bisect_left(sorted_dates, self._context.current_dt)
-                                if pos > 0:
-                                    last_date = sorted_dates[pos - 1]
-                                    idx = date_dict[last_date]
-                                    current_price = stock_df.iloc[idx]['close']
-                                    if np.isnan(current_price) or current_price <= 0:
-                                        current_price = position.cost_basis
-                            else:
-                                # 回退到原始方法
-                                valid_dates = stock_df.index[stock_df.index < self._context.current_dt]
-                                if len(valid_dates) > 0:
-                                    last_date = valid_dates[-1]
-                                    idx = stock_df.index.get_loc(last_date)
-                                    current_price = stock_df.iloc[idx]['close']
-                                    if np.isnan(current_price) or current_price <= 0:
-                                        current_price = position.cost_basis
-                        except:
-                            pass
+                        # 直接使用当天收盘价
+                        if self._context.current_dt in stock_df.index:
+                            price = stock_df.loc[self._context.current_dt]['close']
+                            if not np.isnan(price) and price > 0:
+                                current_price = price
 
                 position.last_sale_price = current_price
                 position.market_value = position.amount * current_price

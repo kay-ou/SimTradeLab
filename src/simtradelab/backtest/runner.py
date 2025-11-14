@@ -14,12 +14,13 @@ import os
 from simtradelab.ptrade.context import Context
 from simtradelab.ptrade.object import Global, Portfolio, BacktestContext
 from simtradelab.backtest.stats import generate_backtest_report, generate_backtest_charts, print_backtest_report
-from simtradelab.ptrade.api import PtradeAPI, timing, get_current_elapsed_time
+from simtradelab.ptrade.api import PtradeAPI
 from simtradelab.service.data_server import DataServer, load_data_from_hdf5
 from simtradelab.backtest.config import BacktestConfig
 from simtradelab.backtest.stats_collector import StatsCollector
 from simtradelab.ptrade.strategy_engine import StrategyExecutionEngine
 from simtradelab.ptrade.strategy_validator import validate_strategy_file
+from simtradelab.utils.perf import timer, get_current_elapsed_time
 
 
 class BacktestRunner:
@@ -34,7 +35,7 @@ class BacktestRunner:
         """
         # 使用统一路径管理
         if data_path is None:
-            from simtradelab.paths import DATA_PATH
+            from simtradelab.utils.paths import DATA_PATH
             data_path = str(DATA_PATH)
 
         self.data_path = data_path
@@ -63,7 +64,7 @@ class BacktestRunner:
         # 注册信号处理
         signal.signal(signal.SIGINT, self._signal_handler)
 
-    @timing
+    @timer(name="总耗时（含数据加载）")
     def run(
         self,
         strategy_name: str,
@@ -98,13 +99,34 @@ class BacktestRunner:
         if not is_valid:
             print("\n策略验证失败:")
             for error in errors:
-                print(f"  - {error}")
+                print("  - {}".format(error))
             return {}
-        print("✓ 策略检查通过\n")
+        print("策略检查通过\n")
+
+        # 分析策略数据依赖
+        print("分析策略数据依赖...")
+        from simtradelab.ptrade.strategy_data_analyzer import (
+            analyze_strategy_data_requirements,
+            print_dependencies
+        )
+        deps = analyze_strategy_data_requirements(config.strategy_path)
+        print_dependencies(deps)
+        print("")
+
+        # 转换为数据加载参数
+        required_data = set()
+        if deps.needs_price_data:
+            required_data.add('price')
+        if deps.needs_valuation:
+            required_data.add('valuation')
+        if deps.needs_fundamentals:
+            required_data.add('fundamentals')
+        if deps.needs_exrights:
+            required_data.add('exrights')
 
         try:
             # 加载数据（仅首次或非服务器模式）
-            benchmark_df = self._load_data()
+            benchmark_df = self._load_data(required_data)
 
             # 初始化日志
             self._setup_logging(config)
@@ -152,32 +174,36 @@ class BacktestRunner:
                 stats_collector.stats,
                 config,
                 benchmark_df,
-                stats_collector.stats['positions_count']
+                stats_collector.stats['positions_count'],
+                context
             )
 
         finally:
             self._cleanup()
 
-    @timing
-    def _load_data(self) -> pd.DataFrame:
+    @timer(name="数据加载")
+    def _load_data(self, required_data=None) -> pd.DataFrame:
         """加载数据（仅首次或非服务器模式）
+
+        Args:
+            required_data: 需要加载的数据集合
 
         Returns:
             基准数据DataFrame
         """
         if self._data_loaded and self.use_data_server:
             # 数据已加载且使用服务器模式，直接返回
-            print("✓ 数据已在内存中，无需重新加载\n")
+            print("数据已在内存中，无需重新加载\n")
             return self.benchmark_data['000300.SS'] # type: ignore
 
         if self.use_data_server:
-            return self._load_data_server_mode()
+            return self._load_data_server_mode(required_data)
         else:
-            return self._load_traditional_mode()
+            return self._load_traditional_mode(required_data)
 
-    def _load_data_server_mode(self) -> pd.DataFrame:
+    def _load_data_server_mode(self, required_data=None) -> pd.DataFrame:
         """数据服务器模式加载"""
-        data_server = DataServer(self.data_path)
+        data_server = DataServer(self.data_path, required_data)
         self.stock_data_dict = data_server.stock_data_dict
         self.valuation_dict = data_server.valuation_dict
         self.fundamentals_dict = data_server.fundamentals_dict
@@ -193,7 +219,7 @@ class BacktestRunner:
         self._data_loaded = True
         return data_server.get_benchmark_data() # type: ignore
 
-    def _load_traditional_mode(self) -> pd.DataFrame:
+    def _load_traditional_mode(self, required_data=None) -> pd.DataFrame:
         """传统模式加载"""
 
         print("=" * 70)
@@ -205,7 +231,7 @@ class BacktestRunner:
             self.stock_data_dict, self.valuation_dict, self.fundamentals_dict, self.exrights_dict,
             self.benchmark_data, self.stock_metadata, self.index_constituents, self.stock_status_history,
             self.adj_pre_cache, self.dividend_cache
-        ) = load_data_from_hdf5(self.data_path)
+        ) = load_data_from_hdf5(self.data_path, required_data)
 
         self._data_loaded = True
         return self.benchmark_data['000300.SS'] # type: ignore
@@ -267,6 +293,9 @@ class BacktestRunner:
         portfolio = Portfolio(config.initial_capital)
         context = Context(portfolio=portfolio, current_dt=start_date)
 
+        # 设置portfolio的context引用
+        portfolio._context = context
+
         # 创建数据上下文
         data_context = DataContext(
             stock_data_dict=self.stock_data_dict,
@@ -296,7 +325,8 @@ class BacktestRunner:
             get_stock_date_index_func=api.get_stock_date_index,
             check_limit_func=api.check_limit,
             log_obj=self.log,
-            context_obj=context
+            context_obj=context,
+            data_context=data_context
         )
 
         # 绑定回测上下文
@@ -306,6 +336,7 @@ class BacktestRunner:
         self.context = context
         return context, api
 
+    @timer(name="回测执行")
     def _execute_backtest(self, engine: StrategyExecutionEngine, date_range) -> bool:
         """执行回测主循环
 
@@ -329,24 +360,42 @@ class BacktestRunner:
         stats: dict,
         config: BacktestConfig,
         benchmark_df: pd.DataFrame,
-        positions_count
+        positions_count,
+        context
     ) -> dict:
         """生成回测报告和图表
 
         Args:
             stats: 统计数据
             config: 回测配置
-            benchmark_df: 基准数据
+            benchmark_df: 基准数据（默认用于创建日期范围）
             positions_count: 持仓数量数组
+            context: 上下文对象（用于获取用户设置的benchmark）
 
         Returns:
             回测报告字典
         """
-        # 生成报告
-        report = generate_backtest_report(stats, config.start_date, config.end_date, benchmark_df)
+        # 获取用户设置的benchmark，如果未设置则使用默认的000300.SS
+        benchmark_code = context.benchmark if context.benchmark else '000300.SS'
 
-        # 获取总耗时（从timing装饰器保存的开始时间中计算）
-        time_str = get_current_elapsed_time(self, 'run')
+        # 根据benchmark_code获取对应的基准数据
+        # 优先从benchmark_data查找（指数），然后从stock_data_dict查找（普通股票）
+        if benchmark_code in self.benchmark_data:
+            actual_benchmark_df = self.benchmark_data[benchmark_code]
+            self.log.info(f"使用基准（指数）: {benchmark_code}")
+        elif benchmark_code in self.stock_data_dict:
+            actual_benchmark_df = self.stock_data_dict[benchmark_code]
+            self.log.info(f"使用基准（股票）: {benchmark_code}")
+        else:
+            # 如果指定的基准不存在，回退到000300.SS
+            actual_benchmark_df = self.benchmark_data.get('000300.SS', benchmark_df)
+            self.log.warning(f"基准 {benchmark_code} 不存在，使用默认基准 000300.SS")
+
+        # 生成报告
+        report = generate_backtest_report(stats, config.start_date, config.end_date, actual_benchmark_df)
+
+        # 获取总耗时（仅回测执行时间，不包括数据加载）
+        time_str = get_current_elapsed_time(self, '_execute_backtest')
 
         # 打印报告
         print_backtest_report(
@@ -356,11 +405,12 @@ class BacktestRunner:
             np.array(positions_count)
         )
 
-        # 生成图表
+        # 生成图表（传递实际使用的基准）
+        chart_benchmark_data = {benchmark_code: actual_benchmark_df}
         chart_filename = generate_backtest_charts(
             stats,
             config.start_date, config.end_date,
-            self.benchmark_data,
+            chart_benchmark_data,
             config.get_chart_filename()
         )
 

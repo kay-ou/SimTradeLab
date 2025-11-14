@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-策略静态验证器 - 在运行前检查生命周期错误
+策略静态验证器 - 在运行前检查生命周期错误和Python 3.5兼容性
 """
 
 import ast
 from typing import Dict, List
 from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
 from simtradelab.ptrade.lifecycle_config import API_LIFECYCLE_RESTRICTIONS
+from simtradelab.utils.py35_compat_checker import check_python35_compatibility
 
 
 class StrategyValidator:
@@ -20,15 +21,17 @@ class StrategyValidator:
         'after_trading_end': LifecyclePhase.AFTER_TRADING_END,
     }
 
-    def __init__(self, strategy_code: str):
+    def __init__(self, strategy_code: str, check_py35_compat: bool = True):
         """初始化验证器
 
         Args:
             strategy_code: 策略源代码
+            check_py35_compat: 是否检查Python 3.5兼容性（禁止使用3.6+特性）
         """
         self.strategy_code = strategy_code
         self.tree = None
         self.errors: List[str] = []
+        self.check_py35_compat = check_py35_compat
 
         try:
             self.tree = ast.parse(strategy_code)
@@ -67,6 +70,12 @@ class StrategyValidator:
                             "允许的阶段: {}".format(lineno, api_name, phase.value, allowed_phase_names)
                         )
 
+        # Python 3.5兼容性检查
+        if self.check_py35_compat:
+            is_compat, compat_errors = check_python35_compatibility(self.strategy_code)
+            if not is_compat:
+                self.errors.extend(compat_errors)
+
         return len(self.errors) == 0
 
     def _extract_api_calls(self) -> Dict[LifecyclePhase, List[tuple]]:
@@ -76,6 +85,9 @@ class StrategyValidator:
             {phase: [(api_name, lineno), ...]}
         """
         result = {}
+
+        if self.tree is None:
+            return result
 
         for node in ast.walk(self.tree):
             if isinstance(node, ast.FunctionDef):
@@ -108,11 +120,12 @@ class StrategyValidator:
         return self.errors
 
 
-def validate_strategy_file(strategy_path: str) -> tuple:
+def validate_strategy_file(strategy_path: str, check_py35_compat: bool = True) -> tuple:
     """验证策略文件
 
     Args:
         strategy_path: 策略文件路径
+        check_py35_compat: 是否检查Python 3.5兼容性
 
     Returns:
         (是否通过, 错误列表)
@@ -127,7 +140,7 @@ def validate_strategy_file(strategy_path: str) -> tuple:
     except Exception as e:
         return False, ["读取文件失败: {}".format(str(e))]
 
-    validator = StrategyValidator(strategy_code)
+    validator = StrategyValidator(strategy_code, check_py35_compat=check_py35_compat)
     is_valid = validator.validate()
 
     return is_valid, validator.get_errors()

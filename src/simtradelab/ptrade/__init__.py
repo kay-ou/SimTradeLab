@@ -50,11 +50,14 @@ from .object import (
     Portfolio,
     Position,
     StockData,
-    clear_daily_cache,
 )
 
 # API simulator
 from .api import PtradeAPI
+
+# Modern infrastructure
+from .cache_manager import cache_manager
+from .config_manager import config
 
 # Strategy execution engine
 from .strategy_engine import (
@@ -98,7 +101,9 @@ __all__ = [
     "Portfolio",
     "Position",
     "StockData",
-    "clear_daily_cache",
+    # Modern infrastructure
+    "config",
+    "cache_manager",
     # API simulator
     "PtradeAPI",
     # Strategy execution engine

@@ -5,7 +5,6 @@
 提供统一的路径访问，所有代码通过此模块获取项目路径
 """
 
-import os
 from pathlib import Path
 
 
@@ -27,7 +26,7 @@ def get_project_root() -> Path:
 
     # 如果找不到pyproject.toml，使用固定层级（当前文件在src/simtradelab/）
     return current.parent.parent.parent
-
+    
 
 def get_data_path() -> Path:
     """获取数据目录路径"""
@@ -46,3 +45,4 @@ STRATEGIES_PATH = get_strategies_path()
 
 # HDF5缓存文件路径
 ADJ_PRE_CACHE_PATH = DATA_PATH / 'ptrade_adj_pre.h5'
+DIVIDEND_CACHE_PATH = DATA_PATH / 'ptrade_dividend_cache.h5'

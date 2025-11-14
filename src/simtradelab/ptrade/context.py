@@ -12,6 +12,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
 from .lifecycle_controller import LifecycleController, LifecyclePhase
+from .config_manager import config
 from simtradelab.ptrade.object import (
     Blotter,
     Portfolio,
@@ -94,11 +95,56 @@ class Context:
 
     # === 内部配置属性 ===
     _parameters: Dict[str, Any] = field(default_factory=dict)  # 策略参数
-    _volume_ratio: float = 0.25  # 成交比例
-    _limit_mode: str = "volume"  # 限制模式
     _yesterday_position: Dict[str, Any] = field(default_factory=dict)  # 底仓
-    commission_ratio: float = 0.0003  # 佣金费率
-    slippage: float = 0.0  # 滑点
+
+    # 配置项通过config_manager管理，这里保留属性以兼容旧代码
+    @property
+    def commission_ratio(self) -> float:
+        return config.trading.commission_ratio
+
+    @commission_ratio.setter
+    def commission_ratio(self, value: float) -> None:
+        config.update_trading_config(commission_ratio=value)
+
+    @property
+    def slippage(self) -> float:
+        return config.trading.slippage
+
+    @slippage.setter
+    def slippage(self, value: float) -> None:
+        config.update_trading_config(slippage=value)
+
+    @property
+    def volume_ratio(self) -> float:
+        return config.trading.volume_ratio
+
+    @volume_ratio.setter
+    def volume_ratio(self, value: float) -> None:
+        config.update_trading_config(volume_ratio=value)
+
+    @property
+    def limit_mode(self) -> str:
+        return config.trading.limit_mode
+
+    @limit_mode.setter
+    def limit_mode(self, value: str) -> None:
+        config.update_trading_config(limit_mode=value)
+
+    @property
+    def commission_type(self) -> str:
+        return config.trading.commission_type
+
+    @commission_type.setter
+    def commission_type(self, value: str) -> None:
+        config.update_trading_config(commission_type=value)
+
+    @property
+    def fixed_slippage(self) -> float:
+        return config.trading.fixed_slippage
+
+    @fixed_slippage.setter
+    def fixed_slippage(self, value: float) -> None:
+        config.update_trading_config(fixed_slippage=value)
 
     # === 生命周期管理属性 ===
     _lifecycle_controller: Optional[LifecycleController] = None
@@ -240,11 +286,11 @@ class Context:
 
     def set_volume_ratio(self, ratio: float) -> None:
         """设置成交比例"""
-        self._volume_ratio = ratio
+        self.volume_ratio = ratio
 
     def set_limit_mode(self, mode: str) -> None:
         """设置成交限制模式"""
-        self._limit_mode = mode
+        self.limit_mode = mode
 
     def set_yesterday_position(self, positions: Dict[str, Any]) -> None:
         """设置底仓"""

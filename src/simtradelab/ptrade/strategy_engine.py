@@ -228,7 +228,8 @@ class StrategyExecutionEngine:
             是否成功完成所有交易日
         """
         from datetime import timedelta
-        from simtradelab.ptrade.object import clear_daily_cache, Data
+        from simtradelab.ptrade.object import Data
+        from simtradelab.ptrade.cache_manager import cache_manager
 
         for current_date in date_range:
             # 更新日期上下文
@@ -237,7 +238,7 @@ class StrategyExecutionEngine:
             self.context.blotter.current_dt = current_date
 
             # 清理全局缓存
-            clear_daily_cache()
+            cache_manager.clear_daily_cache(current_date)
 
             # 记录交易前状态
             prev_portfolio_value = self.context.portfolio.portfolio_value
