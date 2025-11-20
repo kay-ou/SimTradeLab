@@ -6,6 +6,8 @@
 """
 import pandas as pd
 import os
+import pickle
+from pathlib import Path
 from ..utils.paths import ADJ_PRE_CACHE_PATH, DIVIDEND_CACHE_PATH
 from ..utils.perf import timer
 from joblib import Parallel, delayed
@@ -13,6 +15,33 @@ import warnings
 from tables import NaturalNameWarning
 
 warnings.filterwarnings("ignore", category=NaturalNameWarning)
+
+
+def _get_cached_adj_keys():
+    """获取复权缓存文件的keys，优先使用缓存"""
+    # 缓存文件路径
+    cache_dir = Path(ADJ_PRE_CACHE_PATH).parent / '.keys_cache'
+    cache_dir.mkdir(exist_ok=True)
+    cache_file = cache_dir / 'adj_pre_cache_keys.pkl'
+
+    # H5文件修改时间
+    h5_mtime = Path(ADJ_PRE_CACHE_PATH).stat().st_mtime if os.path.exists(ADJ_PRE_CACHE_PATH) else 0
+
+    # 检查缓存是否有效
+    if cache_file.exists():
+        cache_mtime = cache_file.stat().st_mtime
+        if cache_mtime >= h5_mtime:
+            with open(cache_file, 'rb') as f:
+                return pickle.load(f)
+
+    # 重新读取并缓存
+    with pd.HDFStore(ADJ_PRE_CACHE_PATH, 'r') as store:
+        keys_list = list(store.keys())
+
+    with open(cache_file, 'wb') as f:
+        pickle.dump(keys_list, f)
+
+    return keys_list
 
 
 
@@ -123,8 +152,8 @@ def load_adj_pre_cache(data_context):
     from ..utils.performance_config import get_performance_config
     config = get_performance_config()
 
-    with pd.HDFStore(ADJ_PRE_CACHE_PATH, 'r') as store:
-        all_keys = list(store.keys())
+    # 使用缓存keys避免重复遍历HDF5
+    all_keys = _get_cached_adj_keys()
 
     if config.enable_multiprocessing and len(all_keys) >= config.min_batch_size:
         # 多进程加载

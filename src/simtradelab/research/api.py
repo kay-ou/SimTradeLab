@@ -41,7 +41,7 @@ def init_api(data_path=None, required_data=None):
     else:
         print(f"初始化API（按需加载模式）...")
 
-    _global_data_server = DataServer(data_path=data_path, required_data=required_data)
+    _global_data_server = DataServer(required_data=required_data)
 
     # 创建portfolio和context
     portfolio = Portfolio(initial_capital=1000000)

@@ -12,14 +12,14 @@ import os
 sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', buffering=1)
 
 from simtradelab.backtest.runner import BacktestRunner
-from simtradelab.paths import DATA_PATH, STRATEGIES_PATH
+from simtradelab.backtest.config import BacktestConfig
 
 
 if __name__ == '__main__':
     # ==================== 回测配置 ====================
 
     # 策略名称
-    strategy_name = '5mv'
+    strategy_name = 'upper_shadow'
 
     # 回测周期
     start_date = '2025-01-01'
@@ -27,10 +27,14 @@ if __name__ == '__main__':
 
     # ==================== 启动回测 ====================
 
-    runner = BacktestRunner(data_path=str(DATA_PATH))
-    report = runner.run(
+    # 创建配置
+    config = BacktestConfig(
         strategy_name=strategy_name,
         start_date=start_date,
         end_date=end_date,
-        strategies_path=str(STRATEGIES_PATH)
+        initial_capital=100000.0
     )
+
+    # 运行回测
+    runner = BacktestRunner()
+    report = runner.run(config=config)

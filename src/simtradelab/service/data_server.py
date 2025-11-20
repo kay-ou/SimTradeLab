@@ -11,145 +11,8 @@
 import pandas as pd
 import json
 import atexit
-from typing import Tuple, Dict
 from ..ptrade.object import LazyDataDict
-
-
-def load_data_from_hdf5(data_path: str, required_data=None) -> Tuple[
-    pd.HDFStore, pd.HDFStore,
-    LazyDataDict, LazyDataDict, LazyDataDict, LazyDataDict,
-    Dict, pd.DataFrame, Dict, Dict, object, Dict
-]:
-    """从HDF5文件加载所有数据（可复用的加载函数）
-
-    Args:
-        data_path: 数据目录路径
-        required_data: 需要加载的数据集合,可选值:{'price','valuation','fundamentals','exrights'}
-                      None表示加载全部
-
-    Returns:
-        元组包含: (
-            stock_data_store, fundamentals_store,
-            stock_data_dict, valuation_dict, fundamentals_dict, exrights_dict,
-            benchmark_data, stock_metadata, index_constituents, stock_status_history,
-            adj_pre_cache
-        )
-    """
-    # 默认加载全部
-    if required_data is None:
-        required_data = {'price', 'valuation', 'fundamentals', 'exrights'}
-
-    print("正在打开数据文件...")
-
-    stock_data_store = pd.HDFStore('{}/ptrade_data.h5'.format(data_path), 'r')
-    fundamentals_store = pd.HDFStore('{}/ptrade_fundamentals.h5'.format(data_path), 'r')
-
-    # 导入配置(统一在开头)
-    from simtradelab.ptrade.config_manager import config
-
-    # 只在需要时读取stock keys（这一步很慢，4-5秒）
-    if 'price' in required_data:
-        print("正在读取数据索引...")
-        all_stock_keys = [k.split('/')[-1] for k in stock_data_store.keys() if k.startswith('/stock_data/')]
-    else:
-        all_stock_keys = []  # 不需要price数据时跳过读取keys
-
-    # 股票价格数据
-    if 'price' in required_data:
-        print("\n[1] 股票价格（{}只）...".format(len(all_stock_keys)))
-        stock_data_dict = LazyDataDict(stock_data_store, '/stock_data/', all_stock_keys, preload=True)
-    else:
-        print("\n[1] 股票价格（跳过）")
-        stock_data_dict = LazyDataDict(stock_data_store, '/stock_data/', [], preload=False)
-
-    # 估值数据
-    if 'valuation' in required_data:
-        valuation_keys = [k.split('/')[-1] for k in fundamentals_store.keys() if k.startswith('/valuation/')]
-        print("[2] 估值数据（{}只）...".format(len(valuation_keys)))
-        valuation_dict = LazyDataDict(fundamentals_store, '/valuation/', valuation_keys, preload=True)
-    else:
-        print("[2] 估值数据（跳过）")
-        valuation_dict = LazyDataDict(fundamentals_store, '/valuation/', [], preload=False)
-
-    # 财务数据
-    if 'fundamentals' in required_data:
-        fundamentals_keys = [k.split('/')[-1] for k in fundamentals_store.keys() if k.startswith('/fundamentals/')]
-        print("[3] 财务数据（{}只，延迟加载）...".format(len(fundamentals_keys)))
-        fundamentals_dict = LazyDataDict(fundamentals_store, '/fundamentals/', fundamentals_keys,
-                                         max_cache_size=config.cache.fundamentals_cache_size)
-    else:
-        print("[3] 财务数据（跳过）")
-        fundamentals_dict = LazyDataDict(fundamentals_store, '/fundamentals/', [], preload=False)
-
-    # 除权数据
-    if 'exrights' in required_data:
-        exrights_keys = [k.split('/')[-1] for k in stock_data_store.keys() if k.startswith('/exrights/')]
-        print("[4] 除权数据（{}只，延迟加载）...".format(len(exrights_keys)))
-        exrights_dict = LazyDataDict(stock_data_store, '/exrights/', exrights_keys,
-                                    max_cache_size=config.cache.exrights_cache_size)
-    else:
-        print("[4] 除权数据（跳过）")
-        exrights_dict = LazyDataDict(stock_data_store, '/exrights/', [], preload=False)
-
-    print("\n已加载: {}".format(' | '.join(sorted(required_data))))
-    print("")
-
-    # 加载元数据和基准
-    stock_metadata = stock_data_store['/stock_metadata']
-    benchmark_df = stock_data_store['/benchmark']
-    metadata = stock_data_store['/metadata']
-
-    index_constituents = {}
-    stock_status_history = {}
-    if 'index_constituents' in metadata.index and pd.notna(metadata['index_constituents']): # type: ignore
-        index_constituents = json.loads(metadata['index_constituents']) # type: ignore
-    if 'stock_status_history' in metadata.index and pd.notna(metadata['stock_status_history']): # type: ignore
-        stock_status_history = json.loads(metadata['stock_status_history']) # type: ignore
-
-    # 构建benchmark_data字典，包含常用指数
-    benchmark_data = {
-        '000300.SS': benchmark_df,  # 沪深300（默认）
-    }
-
-    # 从stock_data中添加常见指数作为可选基准
-    common_indices = ['000001.SZ', '000905.SZ', '399001.SZ', '399006.SZ']
-    for index_code in common_indices:
-        if index_code in stock_data_dict:
-            benchmark_data[index_code] = stock_data_dict[index_code]
-
-    print(f"可用基准: {', '.join(benchmark_data.keys())}")
-
-    # 只有需要价格或除权数据时才加载复权缓存
-    adj_pre_cache = None
-    dividend_cache = None
-
-    if 'price' in required_data or 'exrights' in required_data:
-        from ..ptrade.adj_pre_cache import load_adj_pre_cache, create_dividend_cache
-        from ..ptrade.data_context import DataContext
-        temp_context = DataContext(
-            stock_data_dict=stock_data_dict,
-            valuation_dict=valuation_dict,
-            fundamentals_dict=fundamentals_dict,
-            exrights_dict=exrights_dict,
-            benchmark_data=benchmark_data,
-            stock_metadata=stock_metadata,
-            stock_data_store=stock_data_store,
-            fundamentals_store=fundamentals_store,
-            index_constituents=index_constituents,
-            stock_status_history=stock_status_history,
-            adj_pre_cache=None
-        )
-        adj_pre_cache = load_adj_pre_cache(temp_context)
-        dividend_cache = create_dividend_cache(temp_context)
-
-    print("✓ 数据加载完成\n")
-
-    return (
-        stock_data_store, fundamentals_store,
-        stock_data_dict, valuation_dict, fundamentals_dict, exrights_dict,
-        benchmark_data, stock_metadata, index_constituents, stock_status_history,
-        adj_pre_cache, dividend_cache
-    )
+from ..utils.paths import DATA_PATH
 
 
 class DataServer:
@@ -162,7 +25,7 @@ class DataServer:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, data_path=None, required_data=None):
+    def __init__(self, required_data=None):
         # 只初始化一次基础结构
         if DataServer._initialized:
             print("使用已加载的数据（常驻内存）")
@@ -171,16 +34,11 @@ class DataServer:
                 self._ensure_data_loaded(required_data)
             return
 
-        # 使用统一路径管理
-        if data_path is None:
-            from ..paths import DATA_PATH
-            data_path = str(DATA_PATH)
-
         print("=" * 70)
         print("首次加载 - 在jupyter notebook中数据将常驻内存")
         print("=" * 70)
 
-        self.data_path = data_path
+        self.data_path = str(DATA_PATH)
         self.stock_data_store = None
         self.fundamentals_store = None
 
@@ -191,12 +49,19 @@ class DataServer:
         self.benchmark_data = None
         self.stock_metadata = None
         self.adj_pre_cache = None
+        self.dividend_cache = None
 
         self.index_constituents = {}
         self.stock_status_history = {}
 
         # 记录已加载的数据类型
         self._loaded_data_types = set()
+
+        # 缓存keys避免重复读取
+        self._stock_keys_cache = None
+        self._valuation_keys_cache = None
+        self._fundamentals_keys_cache = None
+        self._exrights_keys_cache = None
 
         # 加载数据
         self._load_data(required_data)
@@ -206,15 +71,113 @@ class DataServer:
 
         DataServer._initialized = True
 
+    def _close_stores(self):
+        """关闭HDF5文件"""
+        if self.stock_data_store is not None:
+            self.stock_data_store.close()
+        if self.fundamentals_store is not None:
+            self.fundamentals_store.close()
+
+    def _clear_all_caches(self):
+        """清空所有缓存"""
+        for cache in [self.valuation_dict, self.fundamentals_dict,
+                      self.stock_data_dict, self.exrights_dict]:
+            if cache is not None:
+                cache.clear_cache()
+
+    def _create_lazy_dict(self, data_type):
+        """创建指定类型的LazyDataDict
+
+        Args:
+            data_type: 数据类型 ('price', 'valuation', 'fundamentals', 'exrights')
+
+        Returns:
+            LazyDataDict实例
+        """
+        from simtradelab.ptrade.config_manager import config
+
+        type_configs = {
+            'price': {
+                'store': self.stock_data_store,
+                'prefix': '/stock_data/',
+                'keys': self._stock_keys_cache,
+                'preload': True,
+                'cache_size': None
+            },
+            'valuation': {
+                'store': self.fundamentals_store,
+                'prefix': '/valuation/',
+                'keys': self._valuation_keys_cache,
+                'preload': True,
+                'cache_size': None
+            },
+            'fundamentals': {
+                'store': self.fundamentals_store,
+                'prefix': '/fundamentals/',
+                'keys': self._fundamentals_keys_cache,
+                'preload': False,
+                'cache_size': config.cache.fundamentals_cache_size
+            },
+            'exrights': {
+                'store': self.stock_data_store,
+                'prefix': '/exrights/',
+                'keys': self._exrights_keys_cache,
+                'preload': False,
+                'cache_size': config.cache.exrights_cache_size
+            }
+        }
+
+        cfg = type_configs[data_type]
+        if cfg['preload']:
+            return LazyDataDict(cfg['store'], cfg['prefix'], cfg['keys'], preload=True)
+        else:
+            return LazyDataDict(cfg['store'], cfg['prefix'], cfg['keys'],
+                              max_cache_size=cfg['cache_size'])
+
     def _cleanup_on_exit(self):
         """进程退出时清理资源"""
-        try:
-            if self.stock_data_store is not None:
-                self.stock_data_store.close()
-            if self.fundamentals_store is not None:
-                self.fundamentals_store.close()
-        except:
-            pass
+        self._close_stores()
+
+    def _get_cached_keys(self, store, store_name):
+        """获取HDF5文件的keys，优先使用缓存
+
+        Args:
+            store: HDFStore对象
+            store_name: 存储名称，用于缓存文件命名
+
+        Returns:
+            list: keys列表
+        """
+        import os
+        import pickle
+        from pathlib import Path
+
+        # 缓存文件路径
+        cache_dir = Path(self.data_path) / '.keys_cache'
+        cache_dir.mkdir(exist_ok=True)
+        cache_file = cache_dir / f'{store_name}_keys.pkl'
+
+        # H5文件路径和修改时间
+        h5_file = Path(store.filename)
+        h5_mtime = h5_file.stat().st_mtime if h5_file.exists() else 0
+
+        # 检查缓存是否有效
+        if cache_file.exists():
+            cache_mtime = cache_file.stat().st_mtime
+            if cache_mtime >= h5_mtime:
+                # 缓存有效，直接加载
+                with open(cache_file, 'rb') as f:
+                    return pickle.load(f)
+
+        # 缓存无效或不存在，重新读取并缓存
+        print(f"  首次读取{store_name}索引（下次将使用缓存）...")
+        keys_list = list(store.keys())
+
+        # 保存缓存
+        with open(cache_file, 'wb') as f:
+            pickle.dump(keys_list, f)
+
+        return keys_list
 
     def _load_data(self, required_data=None):
         """加载HDF5数据文件
@@ -229,12 +192,104 @@ class DataServer:
         # 记录需要加载的数据类型
         self._loaded_data_types = required_data
 
-        (
-            self.stock_data_store, self.fundamentals_store,
-            self.stock_data_dict, self.valuation_dict, self.fundamentals_dict, self.exrights_dict,
-            self.benchmark_data, self.stock_metadata, self.index_constituents, self.stock_status_history,
-            self.adj_pre_cache, self.dividend_cache
-        ) = load_data_from_hdf5(self.data_path, required_data)
+        # 打开HDF5文件
+        self.stock_data_store = pd.HDFStore(f'{self.data_path}/ptrade_data.h5', 'r')
+        self.fundamentals_store = pd.HDFStore(f'{self.data_path}/ptrade_fundamentals.h5', 'r')
+
+        # 一次性读取所有keys并缓存（避免重复遍历HDF5）
+        # 使用缓存keys索引文件，大幅提速
+        print("正在读取数据索引...")
+        stock_data_keys_all = self._get_cached_keys(self.stock_data_store, 'stock_data')
+        fundamentals_keys_all = self._get_cached_keys(self.fundamentals_store, 'fundamentals')
+
+        self._stock_keys_cache = [k.split('/')[-1] for k in stock_data_keys_all if k.startswith('/stock_data/')]
+        self._exrights_keys_cache = [k.split('/')[-1] for k in stock_data_keys_all if k.startswith('/exrights/')]
+        self._valuation_keys_cache = [k.split('/')[-1] for k in fundamentals_keys_all if k.startswith('/valuation/')]
+        self._fundamentals_keys_cache = [k.split('/')[-1] for k in fundamentals_keys_all if k.startswith('/fundamentals/')]
+
+        # 加载元数据
+        self.stock_metadata = self.stock_data_store['/stock_metadata']
+        benchmark_df = self.stock_data_store['/benchmark']
+        metadata = self.stock_data_store['/metadata']
+
+        self.index_constituents = json.loads(metadata['index_constituents']) # type: ignore
+        self.stock_status_history = json.loads(metadata['stock_status_history']) # type: ignore
+
+        # 构建benchmark_data
+        self.benchmark_data = {'000300.SS': benchmark_df}
+
+        # 加载指定的数据类型
+        self._load_data_by_types(required_data)
+
+    def _load_data_by_types(self, required_data):
+        """根据数据类型加载对应的LazyDataDict
+
+        Args:
+            required_data: 需要加载的数据类型集合
+        """
+        # 股票价格
+        if 'price' in required_data:
+            print(f"\n[1] 股票价格（{len(self._stock_keys_cache)}只）...") # type: ignore
+            self.stock_data_dict = self._create_lazy_dict('price')
+        else:
+            print("\n[1] 股票价格（跳过）")
+            self.stock_data_dict = LazyDataDict(self.stock_data_store, '/stock_data/', [], preload=False)
+
+        # 估值数据
+        if 'valuation' in required_data:
+            print(f"[2] 估值数据（{len(self._valuation_keys_cache)}只）...") # type: ignore
+            self.valuation_dict = self._create_lazy_dict('valuation')
+        else:
+            print("[2] 估值数据（跳过）")
+            self.valuation_dict = LazyDataDict(self.fundamentals_store, '/valuation/', [], preload=False)
+
+        # 财务数据
+        if 'fundamentals' in required_data:
+            print(f"[3] 财务数据（{len(self._fundamentals_keys_cache)}只，延迟加载）...") # type: ignore
+            self.fundamentals_dict = self._create_lazy_dict('fundamentals')
+        else:
+            print("[3] 财务数据（跳过）")
+            self.fundamentals_dict = LazyDataDict(self.fundamentals_store, '/fundamentals/', [], preload=False)
+
+        # 除权数据
+        if 'exrights' in required_data:
+            print(f"[4] 除权数据（{len(self._exrights_keys_cache)}只，延迟加载）...") # type: ignore
+            self.exrights_dict = self._create_lazy_dict('exrights')
+        else:
+            print("[4] 除权数据（跳过）")
+            self.exrights_dict = LazyDataDict(self.stock_data_store, '/exrights/', [], preload=False)
+
+        print(f"\n已加载: {' | '.join(sorted(required_data))}")
+
+        # 添加常见指数到benchmark_data
+        common_indices = ['000001.SZ', '000905.SZ', '399001.SZ', '399006.SZ']
+        for index_code in common_indices:
+            if index_code in self.stock_data_dict:
+                self.benchmark_data[index_code] = self.stock_data_dict[index_code] # type: ignore
+
+        print(f"可用基准: {', '.join(self.benchmark_data.keys())}") # type: ignore
+
+        # 加载复权缓存
+        if 'price' in required_data or 'exrights' in required_data:
+            from ..ptrade.adj_pre_cache import load_adj_pre_cache, create_dividend_cache
+            from ..ptrade.data_context import DataContext
+            temp_context = DataContext(
+                stock_data_dict=self.stock_data_dict,
+                valuation_dict=self.valuation_dict,
+                fundamentals_dict=self.fundamentals_dict,
+                exrights_dict=self.exrights_dict,
+                benchmark_data=self.benchmark_data,
+                stock_metadata=self.stock_metadata,
+                stock_data_store=self.stock_data_store,
+                fundamentals_store=self.fundamentals_store,
+                index_constituents=self.index_constituents,
+                stock_status_history=self.stock_status_history,
+                adj_pre_cache=None
+            )
+            self.adj_pre_cache = load_adj_pre_cache(temp_context)
+            self.dividend_cache = create_dividend_cache(temp_context)
+
+        print("✓ 数据加载完成\n")
 
     def _ensure_data_loaded(self, required_data):
         """确保所需数据已加载,动态补充缺失的数据
@@ -252,36 +307,27 @@ class DataServer:
 
         print("补充加载缺失数据: {}".format(', '.join(sorted(missing))))
 
-        # 导入配置
-        from simtradelab.ptrade.config_manager import config
+        # 使用缓存的keys加载缺失数据
+        if 'price' in missing and self._stock_keys_cache is not None:
+            print(f"  加载股票价格（{len(self._stock_keys_cache)}只）...")
+            self.stock_data_dict = self._create_lazy_dict('price')
 
-        # 只加载缺失的数据
-        if 'price' in missing:
-            all_stock_keys = [k.split('/')[-1] for k in self.stock_data_store.keys() if k.startswith('/stock_data/')]
-            print("  加载股票价格（{}只）...".format(len(all_stock_keys)))
-            self.stock_data_dict = LazyDataDict(self.stock_data_store, '/stock_data/', all_stock_keys, preload=True)
+        if 'valuation' in missing and self._valuation_keys_cache is not None:
+            print(f"  加载估值数据（{len(self._valuation_keys_cache)}只）...")
+            self.valuation_dict = self._create_lazy_dict('valuation')
 
-        if 'valuation' in missing:
-            valuation_keys = [k.split('/')[-1] for k in self.fundamentals_store.keys() if k.startswith('/valuation/')]
-            print("  加载估值数据（{}只）...".format(len(valuation_keys)))
-            self.valuation_dict = LazyDataDict(self.fundamentals_store, '/valuation/', valuation_keys, preload=True)
+        if 'fundamentals' in missing and self._fundamentals_keys_cache is not None:
+            print(f"  加载财务数据（{len(self._fundamentals_keys_cache)}只，延迟加载）...")
+            self.fundamentals_dict = self._create_lazy_dict('fundamentals')
 
-        if 'fundamentals' in missing:
-            fundamentals_keys = [k.split('/')[-1] for k in self.fundamentals_store.keys() if k.startswith('/fundamentals/')]
-            print("  加载财务数据（{}只，延迟加载）...".format(len(fundamentals_keys)))
-            self.fundamentals_dict = LazyDataDict(self.fundamentals_store, '/fundamentals/', fundamentals_keys,
-                                                 max_cache_size=config.cache.fundamentals_cache_size)
-
-        if 'exrights' in missing:
-            exrights_keys = [k.split('/')[-1] for k in self.stock_data_store.keys() if k.startswith('/exrights/')]
-            print("  加载除权数据（{}只，延迟加载）...".format(len(exrights_keys)))
-            self.exrights_dict = LazyDataDict(self.stock_data_store, '/exrights/', exrights_keys,
-                                            max_cache_size=config.cache.exrights_cache_size)
+        if 'exrights' in missing and self._exrights_keys_cache is not None:
+            print(f"  加载除权数据（{len(self._exrights_keys_cache)}只，延迟加载）...")
+            self.exrights_dict = self._create_lazy_dict('exrights')
 
         # 更新已加载记录
         self._loaded_data_types.update(missing)
 
-    def get_benchmark_data(self):
+    def get_benchmark_data(self) -> pd.DataFrame:
         """获取基准数据"""
         return self.benchmark_data['000300.SS'] # type: ignore
 
@@ -294,26 +340,13 @@ class DataServer:
 
         print("正在关闭数据服务器...")
 
-        # 关闭HDF5文件
-        if cls._instance.stock_data_store is not None:
-            try:
-                cls._instance.stock_data_store.close()
-                print("  ✓ 关闭股票数据文件")
-            except:
-                pass
-
-        if cls._instance.fundamentals_store is not None:
-            try:
-                cls._instance.fundamentals_store.close()
-                print("  ✓ 关闭基本面数据文件")
-            except:
-                pass
+        # 关闭HDF5文件并打印确认
+        cls._instance._close_stores()
+        print("  ✓ 关闭股票数据文件")
+        print("  ✓ 关闭基本面数据文件")
 
         # 清空缓存
-        if cls._instance.stock_data_dict is not None:
-            cls._instance.stock_data_dict.clear_cache()
-        if cls._instance.exrights_dict is not None:
-            cls._instance.exrights_dict.clear_cache()
+        cls._instance._clear_all_caches()
 
         # 重置单例
         cls._instance = None
@@ -344,10 +377,5 @@ class DataServer:
 
     def __del__(self):
         """析构时关闭文件句柄"""
-        try:
-            if self.stock_data_store is not None:
-                self.stock_data_store.close()
-            if self.fundamentals_store is not None:
-                self.fundamentals_store.close()
-        except:
-            pass
+        if hasattr(self, 'stock_data_store') or hasattr(self, 'fundamentals_store'):
+            self._close_stores()

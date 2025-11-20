@@ -17,19 +17,20 @@ API_LIFECYCLE_RESTRICTIONS: Dict[str, List[str]] = {
     # ==========================================
     # 设置函数 (12个) - 全部仅限initialize
     # ==========================================
-    "set_universe": ["initialize"],
     "set_benchmark": ["initialize"],
     "set_commission": ["initialize"],
     "set_fixed_slippage": ["initialize"],
     "set_slippage": ["initialize"],
     "set_volume_ratio": ["initialize"],
     "set_limit_mode": ["initialize"],
-    "set_yesterday_position": ["initialize"],
-    "set_parameters": ["initialize"],
     "run_daily": ["initialize"],
     "run_interval": ["initialize"],
-    "set_future_commission": ["initialize"],
-    "set_margin_rate": ["initialize"],
+    # 设置函数 (5个) - 限initialize和before_trading_start
+    "set_universe": ["initialize","before_trading_start"],
+    "set_parameters": ["initialize","before_trading_start"],
+    "set_yesterday_position": ["initialize","before_trading_start"],
+    "set_future_commission": ["initialize","before_trading_start"],
+    "set_margin_rate": ["initialize","before_trading_start"],
     # ==========================================
     # 交易相关函数 - 分不同使用场景
     # ==========================================

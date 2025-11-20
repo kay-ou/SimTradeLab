@@ -15,7 +15,7 @@ from simtradelab.ptrade.context import Context
 from simtradelab.ptrade.object import Global, Portfolio, BacktestContext
 from simtradelab.backtest.stats import generate_backtest_report, generate_backtest_charts, print_backtest_report
 from simtradelab.ptrade.api import PtradeAPI
-from simtradelab.service.data_server import DataServer, load_data_from_hdf5
+from simtradelab.service.data_server import DataServer
 from simtradelab.backtest.config import BacktestConfig
 from simtradelab.backtest.stats_collector import StatsCollector
 from simtradelab.ptrade.strategy_engine import StrategyExecutionEngine
@@ -26,20 +26,9 @@ from simtradelab.utils.perf import timer, get_current_elapsed_time
 class BacktestRunner:
     """回测执行器 - 负责编排整个回测流程"""
 
-    def __init__(self, data_path: str = None, use_data_server: bool = True):
+    def __init__(self):
         """初始化回测执行器
-
-        Args:
-            data_path: 数据文件路径，为None时使用默认路径
-            use_data_server: 是否使用数据服务器（常驻内存）
         """
-        # 使用统一路径管理
-        if data_path is None:
-            from simtradelab.utils.paths import DATA_PATH
-            data_path = str(DATA_PATH)
-
-        self.data_path = data_path
-        self.use_data_server = use_data_server
 
         # 数据容器（延迟加载）
         self._data_loaded = False
@@ -56,42 +45,23 @@ class BacktestRunner:
         self.adj_pre_cache = None
         self.dividend_cache = None
 
-        # 全局对象
-        self.g = Global()
-        self.log = None
-        self.context = None
-
-        # 注册信号处理
-        signal.signal(signal.SIGINT, self._signal_handler)
+        # 注册信号处理（仅在主线程）
+        try:
+            signal.signal(signal.SIGINT, self._signal_handler)
+        except ValueError:
+            # 在子进程中会失败，忽略
+            pass
 
     @timer(name="总耗时（含数据加载）")
-    def run(
-        self,
-        strategy_name: str,
-        start_date: str,
-        end_date: str,
-        initial_capital: float = 1000000.0
-    ) -> dict:
+    def run(self, config: BacktestConfig) -> dict:
         """运行回测
 
         Args:
-            strategy_name: 策略名称
-            start_date: 开始日期
-            end_date: 结束日期
-            initial_capital: 初始资金
+            config: 回测配置对象
 
         Returns:
             回测报告字典
         """
-        # 构建配置
-        config = BacktestConfig(
-            strategy_name=strategy_name,
-            start_date=start_date,
-            end_date=end_date,
-            data_path=self.data_path,
-            initial_capital=initial_capital,
-            use_data_server=self.use_data_server
-        )
 
         # 先验证策略，避免数据加载后才发现策略错误
         print("检查策略...")
@@ -125,27 +95,31 @@ class BacktestRunner:
             required_data.add('exrights')
 
         try:
-            # 加载数据（仅首次或非服务器模式）
+            # 加载数据
             benchmark_df = self._load_data(required_data)
+
+            # 创建全局对象（每次run都新建，避免状态污染）
+            g = Global()
 
             # 初始化日志
             self._setup_logging(config)
+            log = logging.getLogger('backtest')
 
-            self.log.info(f"开始运行回测, 策略名称: {strategy_name}")
-            self.log.info(f"回测周期: {config.start_date.date()} 至 {config.end_date.date()}")
+            log.info(f"开始运行回测, 策略名称: {config.strategy_name}")
+            log.info(f"回测周期: {config.start_date.date()} 至 {config.end_date.date()}")
 
             # 创建交易日序列
             date_range = self._create_date_range(benchmark_df, config.start_date, config.end_date)
 
             if len(date_range) == 0:
-                self.log.error(f"错误：交易日序列为空！请检查日期范围 {config.start_date.date()} - {config.end_date.date()}")
-                self.log.error(f"基准数据范围: {benchmark_df.index.min()} - {benchmark_df.index.max()}")
+                log.error(f"错误：交易日序列为空！请检查日期范围 {config.start_date.date()} - {config.end_date.date()}")
+                log.error(f"基准数据范围: {benchmark_df.index.min()} - {benchmark_df.index.max()}")
                 return {}
 
-            self.log.info(f"交易日数: {len(date_range)} 天\n")
+            log.info(f"交易日数: {len(date_range)} 天\n")
 
             # 初始化回测组件
-            context, api = self._initialize_context(config, config.start_date)
+            context, api = self._initialize_context(config, config.start_date, log)
             stats_collector = StatsCollector()
 
             # 创建策略执行引擎
@@ -153,12 +127,12 @@ class BacktestRunner:
                 context=context,
                 api=api,
                 stats_collector=stats_collector,
-                g=self.g,
-                log=self.log
+                g=g,
+                log=log
             )
 
             # 加载策略
-            engine.set_strategy_name(strategy_name)
+            engine.set_strategy_name(config.strategy_name)
             engine.load_strategy_from_file(config.strategy_path)
             print("✓ 策略加载完成\n")
 
@@ -166,7 +140,7 @@ class BacktestRunner:
             success = self._execute_backtest(engine, date_range)
 
             if not success:
-                self.log.error("回测中断")
+                log.error("回测中断")
                 return {}
 
             # 生成报告
@@ -175,7 +149,8 @@ class BacktestRunner:
                 config,
                 benchmark_df,
                 stats_collector.stats['positions_count'],
-                context
+                context,
+                log
             )
 
         finally:
@@ -183,7 +158,7 @@ class BacktestRunner:
 
     @timer(name="数据加载")
     def _load_data(self, required_data=None) -> pd.DataFrame:
-        """加载数据（仅首次或非服务器模式）
+        """加载数据
 
         Args:
             required_data: 需要加载的数据集合
@@ -191,19 +166,15 @@ class BacktestRunner:
         Returns:
             基准数据DataFrame
         """
-        if self._data_loaded and self.use_data_server:
-            # 数据已加载且使用服务器模式，直接返回
+        if self._data_loaded:
+            # 数据已加载，直接返回
             print("数据已在内存中，无需重新加载\n")
             return self.benchmark_data['000300.SS'] # type: ignore
 
-        if self.use_data_server:
-            return self._load_data_server_mode(required_data)
-        else:
-            return self._load_traditional_mode(required_data)
+        # 使用多进程安全的DataServer
+        data_server = DataServer(required_data)
 
-    def _load_data_server_mode(self, required_data=None) -> pd.DataFrame:
-        """数据服务器模式加载"""
-        data_server = DataServer(self.data_path, required_data)
+        # 绑定到runner实例
         self.stock_data_dict = data_server.stock_data_dict
         self.valuation_dict = data_server.valuation_dict
         self.fundamentals_dict = data_server.fundamentals_dict
@@ -217,24 +188,7 @@ class BacktestRunner:
         self.adj_pre_cache = data_server.adj_pre_cache
         self.dividend_cache = data_server.dividend_cache
         self._data_loaded = True
-        return data_server.get_benchmark_data() # type: ignore
-
-    def _load_traditional_mode(self, required_data=None) -> pd.DataFrame:
-        """传统模式加载"""
-
-        print("=" * 70)
-        print("加载本地数据...")
-        print("=" * 70)
-
-        (
-            self.stock_data_store, self.fundamentals_store,
-            self.stock_data_dict, self.valuation_dict, self.fundamentals_dict, self.exrights_dict,
-            self.benchmark_data, self.stock_metadata, self.index_constituents, self.stock_status_history,
-            self.adj_pre_cache, self.dividend_cache
-        ) = load_data_from_hdf5(self.data_path, required_data)
-
-        self._data_loaded = True
-        return self.benchmark_data['000300.SS'] # type: ignore
+        return data_server.get_benchmark_data()
 
     def _setup_logging(self, config: BacktestConfig):
         """配置日志系统
@@ -244,21 +198,21 @@ class BacktestRunner:
         """
         import sys
 
-        log_filename = config.get_log_filename()
-        os.makedirs(config.log_dir, exist_ok=True)
+        handlers = [logging.StreamHandler(sys.stdout)]
 
-        print(f"日志文件: {log_filename}")
+        # 仅在启用日志时创建文件handler
+        if config.enable_logging:
+            log_filename = config.get_log_filename()
+            os.makedirs(config.log_dir, exist_ok=True)
+            print(f"日志文件: {log_filename}")
+            handlers.append(logging.FileHandler(log_filename, mode='w', encoding='utf-8'))
 
         logging.basicConfig(
             level=logging.INFO,
             format='[%(levelname)s] %(message)s',
-            handlers=[
-                logging.StreamHandler(sys.stdout),
-                logging.FileHandler(log_filename, mode='w', encoding='utf-8')
-            ],
+            handlers=handlers,
             force=True
         )
-        self.log = logging.getLogger('backtest')
 
     def _create_date_range(self, benchmark_df: pd.DataFrame, start_date, end_date):
         """创建交易日序列
@@ -277,7 +231,7 @@ class BacktestRunner:
             (benchmark_df['volume'] > 0)
         ]
 
-    def _initialize_context(self, config: BacktestConfig, start_date) -> tuple:
+    def _initialize_context(self, config: BacktestConfig, start_date, log) -> tuple:
         """初始化上下文和API
 
         Args:
@@ -316,7 +270,7 @@ class BacktestRunner:
         api = PtradeAPI(
             data_context=data_context,
             context=context,
-            log=self.log
+            log=log
         )
 
         # 初始化回测上下文
@@ -324,7 +278,7 @@ class BacktestRunner:
             stock_data_dict=self.stock_data_dict,
             get_stock_date_index_func=api.get_stock_date_index,
             check_limit_func=api.check_limit,
-            log_obj=self.log,
+            log_obj=log,
             context_obj=context,
             data_context=data_context
         )
@@ -361,7 +315,8 @@ class BacktestRunner:
         config: BacktestConfig,
         benchmark_df: pd.DataFrame,
         positions_count,
-        context
+        context,
+        log
     ) -> dict:
         """生成回测报告和图表
 
@@ -382,14 +337,14 @@ class BacktestRunner:
         # 优先从benchmark_data查找（指数），然后从stock_data_dict查找（普通股票）
         if benchmark_code in self.benchmark_data:
             actual_benchmark_df = self.benchmark_data[benchmark_code]
-            self.log.info(f"使用基准（指数）: {benchmark_code}")
+            log.info(f"使用基准（指数）: {benchmark_code}")
         elif benchmark_code in self.stock_data_dict:
             actual_benchmark_df = self.stock_data_dict[benchmark_code]
-            self.log.info(f"使用基准（股票）: {benchmark_code}")
+            log.info(f"使用基准（股票）: {benchmark_code}")
         else:
             # 如果指定的基准不存在，回退到000300.SS
             actual_benchmark_df = self.benchmark_data.get('000300.SS', benchmark_df)
-            self.log.warning(f"基准 {benchmark_code} 不存在，使用默认基准 000300.SS")
+            log.warning(f"基准 {benchmark_code} 不存在，使用默认基准 000300.SS")
 
         # 生成报告
         report = generate_backtest_report(stats, config.start_date, config.end_date, actual_benchmark_df)
@@ -399,49 +354,36 @@ class BacktestRunner:
 
         # 打印报告
         print_backtest_report(
-            report, self.log,
+            report, log,
             config.start_date, config.end_date,
             time_str,
             np.array(positions_count)
         )
 
-        # 生成图表（传递实际使用的基准）
-        chart_benchmark_data = {benchmark_code: actual_benchmark_df}
-        chart_filename = generate_backtest_charts(
-            stats,
-            config.start_date, config.end_date,
-            chart_benchmark_data,
-            config.get_chart_filename()
-        )
+        # 生成图表
+        if config.enable_charts:
+            chart_benchmark_data = {benchmark_code: actual_benchmark_df}
+            chart_filename = generate_backtest_charts(
+                stats,
+                config.start_date, config.end_date,
+                chart_benchmark_data,
+                config.get_chart_filename()
+            )
+            print(f"图表已保存至: {chart_filename}")
 
-        log_filename = config.get_log_filename()
-        print(f"\n日志已保存至: {log_filename}")
-        print(f"图表已保存至: {chart_filename}")
+        if config.enable_logging:
+            log_filename = config.get_log_filename()
+            print(f"\n日志已保存至: {log_filename}")
 
         return report
 
     def _cleanup(self):
         """清理资源"""
-        if not self.use_data_server:
-            print("\n正在关闭数据文件...")
-            self._close_stores()
-        else:
-            print("\n数据保持常驻内存，下次在jupyter notebook中运行无需重新加载")
-
-    def _close_stores(self):
-        """关闭HDF5存储"""
-        if self.use_data_server:
-            return
-
-        for store in [self.stock_data_store, self.fundamentals_store]:
-            if store is not None:
-                try:
-                    store.close()
-                except Exception:
-                    pass
+        print("\n数据保持常驻内存，下次在jupyter notebook中运行无需重新加载")
 
     def _signal_handler(self, sig, frame):
         """处理Ctrl+C信号"""
+        _ = sig, frame  # 消除未使用参数警告
         print("\n\n收到中断信号...")
         self._cleanup()
         os._exit(0)
