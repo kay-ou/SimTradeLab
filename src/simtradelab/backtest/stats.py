@@ -6,9 +6,50 @@
 """
 
 import os
+import json
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+
+
+def _load_index_names():
+    """加载指数名称映射
+
+    Returns:
+        dict: 指数代码到名称的映射字典
+    """
+    indices_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'indices.json')
+    try:
+        with open(indices_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _get_benchmark_name(benchmark_code, use_english=False):
+    """获取基准名称
+
+    Args:
+        benchmark_code: 基准代码
+        use_english: 是否使用英文名称（用于图表显示）
+
+    Returns:
+        str: 基准名称，如果找不到则返回代码本身
+    """
+    if use_english:
+        english_names = {
+            '000300.SS': 'CSI 300',
+            '000905.SZ': 'CSI 500',
+            '000001.SZ': 'SZE Component',
+            '399001.SZ': 'SZE Component',
+            '399006.SZ': 'ChiNext',
+            '399101.SZ': 'SME Board',
+            '000001.SS': 'SSE Composite'
+        }
+        return english_names.get(benchmark_code, benchmark_code)
+
+    index_names = _load_index_names()
+    return index_names.get(benchmark_code, benchmark_code)
 
 
 def calculate_returns(portfolio_values):
@@ -183,7 +224,7 @@ def calculate_trade_stats(daily_returns):
     }
 
 
-def generate_backtest_report(backtest_stats, start_date, end_date, benchmark_df):
+def generate_backtest_report(backtest_stats, start_date, end_date, benchmark_df, benchmark_code='000300.SS'):
     """生成完整的回测报告
 
     Args:
@@ -191,6 +232,8 @@ def generate_backtest_report(backtest_stats, start_date, end_date, benchmark_df)
         start_date: 回测开始日期
         end_date: 回测结束日期
         benchmark_df: 基准数据DataFrame
+        benchmark_code: 基准代码
+
 
     Returns:
         dict: 完整的回测报告指标
@@ -233,10 +276,15 @@ def generate_backtest_report(backtest_stats, start_date, end_date, benchmark_df)
     # 交易统计
     trade_stats = calculate_trade_stats(returns_metrics['daily_returns'])
 
+    # 获取基准名称
+    benchmark_name = _get_benchmark_name(benchmark_code)
+
     # 合并所有指标
     report = {
         **returns_metrics,
         **risk_metrics,
+        'benchmark_code': benchmark_code,
+        'benchmark_name': benchmark_name,
         'benchmark_return': benchmark_return,
         'benchmark_annual_return': benchmark_annual_return,
         'excess_return': excess_return,
@@ -277,7 +325,7 @@ def _validate_chart_data(backtest_stats):
     return dates, portfolio_values, daily_pnl, daily_buy, daily_sell, daily_positions_val
 
 
-def _plot_nav_curve(ax, dates, portfolio_values, daily_buy, daily_sell, benchmark_data, start_date, end_date):
+def _plot_nav_curve(ax, dates, portfolio_values, daily_buy, daily_sell, benchmark_data, start_date, end_date, benchmark_code='000300.SS'):
     """绘制净值曲线子图
 
     Args:
@@ -289,14 +337,17 @@ def _plot_nav_curve(ax, dates, portfolio_values, daily_buy, daily_sell, benchmar
         benchmark_data: 基准数据字典
         start_date: 开始日期
         end_date: 结束日期
+        benchmark_code: 基准代码
+
     """
     # 策略净值曲线
     strategy_nav = portfolio_values / portfolio_values[0]
     ax.plot(dates, strategy_nav, linewidth=2, label='Strategy NAV', color='#1f77b4')
 
     # 基准净值曲线
-    if '000300.SS' in benchmark_data and not benchmark_data['000300.SS'].empty:
-        benchmark_df_data = benchmark_data['000300.SS']
+    benchmark_name = _get_benchmark_name(benchmark_code, use_english=True)
+    if benchmark_code in benchmark_data and not benchmark_data[benchmark_code].empty:
+        benchmark_df_data = benchmark_data[benchmark_code]
         benchmark_slice = benchmark_df_data.loc[
             (benchmark_df_data.index >= start_date) &
             (benchmark_df_data.index <= end_date)
@@ -304,7 +355,7 @@ def _plot_nav_curve(ax, dates, portfolio_values, daily_buy, daily_sell, benchmar
         if len(benchmark_slice) > 0:
             benchmark_nav = benchmark_slice['close'] / benchmark_slice['close'].iloc[0]
             ax.plot(benchmark_slice.index[:len(dates)], benchmark_nav[:len(dates)],
-                   linewidth=2, label='CSI 300', color='#ff7f0e', alpha=0.7)
+                   linewidth=2, label=benchmark_name, color='#ff7f0e', alpha=0.7)
 
     # 标注买卖点
     buy_dates = dates[daily_buy > 0]
@@ -373,7 +424,7 @@ def _plot_positions_value(ax, dates, daily_positions_val):
     ax.grid(True, alpha=0.3)
 
 
-def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_data, chart_filename):
+def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_data, chart_filename, benchmark_code='000300.SS'):
     """生成回测图表
 
     Args:
@@ -382,12 +433,13 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
         end_date: 回测结束日期
         benchmark_data: 基准数据字典
         chart_filename: 图表文件完整路径
+        benchmark_code: 基准代码
 
     Returns:
         str: 图表文件路径
     """
-    # 设置字体
-    plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+    # 设置字体 - 使用系统可用字体
+    plt.rcParams['font.sans-serif'] = ['Ubuntu', 'DejaVu Sans']
     plt.rcParams['axes.unicode_minus'] = False
 
     # 验证并提取数据
@@ -397,7 +449,7 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
     fig, axes = plt.subplots(4, 1, figsize=(16, 20), sharex=True)
 
     # 绘制4个子图
-    _plot_nav_curve(axes[0], dates, portfolio_values, daily_buy, daily_sell, benchmark_data, start_date, end_date)
+    _plot_nav_curve(axes[0], dates, portfolio_values, daily_buy, daily_sell, benchmark_data, start_date, end_date, benchmark_code)
     _plot_daily_pnl(axes[1], dates, daily_pnl)
     _plot_trade_amounts(axes[2], dates, daily_buy, daily_sell)
     _plot_positions_value(axes[3], dates, daily_positions_val)
@@ -450,7 +502,8 @@ def print_backtest_report(report, log, start_date, end_date, time_str, positions
 
     # 基准对比
     log.info("")
-    log.info(f"vs 沪深300: 超额收益 {report['excess_return']*100:+.2f}% | "
+    benchmark_name = report.get('benchmark_name', 'Benchmark')
+    log.info(f"vs {benchmark_name}: 超额收益 {report['excess_return']*100:+.2f}% | "
              f"Alpha {report['alpha']*100:+.2f}% | Beta {report['beta']:.3f}")
 
     # 交易统计

@@ -55,7 +55,8 @@ def init_api(data_path=None, required_data=None):
     )
 
     print(f"✓ API初始化完成")
-    print(f"✓ 可用基准: {', '.join(_global_data_server.benchmark_data.keys())}")
+    keys_list = list(_global_data_server.benchmark_data.keys()) # type: ignore
+    print(f"✓ 可用基准(共 {len(keys_list)} 个): {', '.join(keys_list[:10])} ...")
 
     return _global_api
 

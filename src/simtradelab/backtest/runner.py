@@ -169,7 +169,8 @@ class BacktestRunner:
         if self._data_loaded:
             # 数据已加载，直接返回
             print("数据已在内存中，无需重新加载\n")
-            return self.benchmark_data['000300.SS'] # type: ignore
+            # 从 benchmark_data 获取默认基准(会在后续根据 context.benchmark 重新选择)
+            return next(iter(self.benchmark_data.values())) # type: ignore
 
         # 使用多进程安全的DataServer
         data_server = DataServer(required_data)
@@ -347,7 +348,13 @@ class BacktestRunner:
             log.warning(f"基准 {benchmark_code} 不存在，使用默认基准 000300.SS")
 
         # 生成报告
-        report = generate_backtest_report(stats, config.start_date, config.end_date, actual_benchmark_df)
+        report = generate_backtest_report(
+            stats, 
+            config.start_date, 
+            config.end_date, 
+            actual_benchmark_df,
+            benchmark_code=benchmark_code
+        )
 
         # 获取总耗时（仅回测执行时间，不包括数据加载）
         time_str = get_current_elapsed_time(self, '_execute_backtest')
@@ -367,7 +374,8 @@ class BacktestRunner:
                 stats,
                 config.start_date, config.end_date,
                 chart_benchmark_data,
-                config.get_chart_filename()
+                config.get_chart_filename(),
+                benchmark_code=benchmark_code
             )
             print(f"图表已保存至: {chart_filename}")
 

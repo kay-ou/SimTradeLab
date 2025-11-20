@@ -261,13 +261,21 @@ class DataServer:
 
         print(f"\n已加载: {' | '.join(sorted(required_data))}")
 
-        # 添加常见指数到benchmark_data
-        common_indices = ['000001.SZ', '000905.SZ', '399001.SZ', '399006.SZ']
-        for index_code in common_indices:
-            if index_code in self.stock_data_dict:
-                self.benchmark_data[index_code] = self.stock_data_dict[index_code] # type: ignore
+        # 动态获取所有指数代码（从成分股数据中提取）
+        #index_codes={'000001.SZ', '000905.SZ', '399001.SZ', '399006.SZ', '000300.SS','399101.SZ'}
+        index_codes = set()
+        if self.index_constituents:
+            for date_data in self.index_constituents.values():
+                index_codes.update(date_data.keys())
 
-        print(f"可用基准: {', '.join(self.benchmark_data.keys())}") # type: ignore
+        # 将存在的指数添加到 benchmark_data (保留已有的000300.SS)
+        for code in index_codes:
+            if code in self.stock_data_dict:
+                self.benchmark_data[code] = self.stock_data_dict[code]
+
+        keys_list = list(self.benchmark_data.keys())
+        print(f"可用基准(共 {len(keys_list)} 个): {', '.join(keys_list[:5])} ...")
+
 
         # 加载复权缓存
         if 'price' in required_data or 'exrights' in required_data:
@@ -327,9 +335,39 @@ class DataServer:
         # 更新已加载记录
         self._loaded_data_types.update(missing)
 
-    def get_benchmark_data(self) -> pd.DataFrame:
-        """获取基准数据"""
-        return self.benchmark_data['000300.SS'] # type: ignore
+    def get_benchmark_data(self, benchmark_code='000300.SS') -> pd.DataFrame:
+        """获取基准数据,支持动态从stock_data_dict获取
+
+        Args:
+            benchmark_code: 基准代码,默认为沪深300('000300.SS')
+
+        Returns:
+            基准数据DataFrame
+
+        Raises:
+            KeyError: 如果指定的基准代码不存在于benchmark_data和stock_data_dict中
+        """
+        # 优先从 benchmark_data 获取
+        if self.benchmark_data and benchmark_code in self.benchmark_data:
+            return self.benchmark_data[benchmark_code] # type: ignore
+
+        # 尝试从 stock_data_dict 动态获取
+        if self.stock_data_dict and benchmark_code in self.stock_data_dict:
+            # 缓存到 benchmark_data 供后续使用
+            benchmark_df = self.stock_data_dict[benchmark_code]
+            if self.benchmark_data is None:
+                self.benchmark_data = {}
+            self.benchmark_data[benchmark_code] = benchmark_df
+            return benchmark_df
+
+        # 都找不到,抛出异常
+        available_benchmark = list(self.benchmark_data.keys())[:5] if self.benchmark_data else []
+        available_stock = list(self.stock_data_dict._all_keys)[:5] if self.stock_data_dict else []
+        raise KeyError(
+            f"基准 {benchmark_code} 不存在。\n"
+            f"可用指数基准: {', '.join(available_benchmark)}...\n"
+            f"可用股票数据: {', '.join(available_stock)}..."
+        )
 
     @classmethod
     def shutdown(cls):

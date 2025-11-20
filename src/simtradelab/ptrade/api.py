@@ -1152,17 +1152,19 @@ class PtradeAPI:
 
     @validate_lifecycle
     def set_benchmark(self, benchmark):
-        """设置基准（支持指数和普通股票）"""
+        """设置基准（支持指数和普通股票）,会自动添加到benchmark_data"""
         # 优先从benchmark_data中查找（指数）
         if benchmark in self.data_context.benchmark_data:
             self.context.benchmark = benchmark
             self.log.info(f"设置基准（指数）: {benchmark}")
             return
 
-        # 如果不在benchmark_data中，检查stock_data_dict（普通股票）
+        # 如果不在benchmark_data中，检查stock_data_dict（普通股票/指数）
         if benchmark in self.data_context.stock_data_dict:
             self.context.benchmark = benchmark
-            self.log.info(f"设置基准（股票）: {benchmark}")
+            # 动态添加到benchmark_data供后续使用
+            self.data_context.benchmark_data[benchmark] = self.data_context.stock_data_dict[benchmark]
+            self.log.info(f"设置基准（股票/指数）: {benchmark}")
             return
 
         # 都不存在，警告
