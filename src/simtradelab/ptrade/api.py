@@ -805,7 +805,11 @@ class PtradeAPI:
 
         # 获取所有可用日期并排序
         available_dates = sorted(self.data_context.index_constituents.keys())
-        
+
+        # 如果未指定日期，使用最新日期
+        if date is None:
+            date = available_dates[-1]
+
         # 使用 bisect 找到小于等于 date 的最近日期
         idx = bisect.bisect_right(available_dates, date)
         
