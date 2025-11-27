@@ -29,6 +29,9 @@ class AdjustmentCalculator:
 
         用于StockData对象加载数据时使用
 
+        注意：此方法暂时不应用复权，data[stock]返回未复权数据
+        只有get_history(fq='pre')才返回前复权数据
+
         Args:
             stock: 股票代码
             data: 包含价格字段的字典
@@ -37,25 +40,7 @@ class AdjustmentCalculator:
         Returns:
             应用复权后的数据字典
         """
-        if not self.data_context:
-            return data
-
-        # 检查是否有前复权缓存
-        if (hasattr(self.data_context, 'adj_pre_cache') and
-            self.data_context.adj_pre_cache and
-            stock in self.data_context.adj_pre_cache):
-
-            adj_factors = self.data_context.adj_pre_cache[stock]
-            # 使用策略当前日期而非数据实际日期
-            strategy_date_normalized = strategy_date.normalize()
-
-            if strategy_date_normalized in adj_factors.index:
-                factor = adj_factors.loc[strategy_date_normalized]
-                # 对价格字段应用复权因子
-                for price_field in ['close', 'open', 'high', 'low']:
-                    if price_field in data and not pd.isna(data[price_field]):
-                        data[price_field] = data[price_field] * factor
-
+        # data[stock]应该返回未复权数据，不做任何调整
         return data
 
     def get_adjusted_price(self, stock: str, date: pd.Timestamp,
@@ -100,10 +85,32 @@ class AdjustmentCalculator:
     def _get_pre_adjusted_price(self, stock: str, date: pd.Timestamp, price_type: str) -> float:
         """获取前复权价格
 
-        使用exrights_dict中的复权因子计算
+        使用adj_pre_cache中的累计未来分红计算
+        前复权价 = 未复权价 - 累计未来分红
         """
         import numpy as np
 
+        # 优先使用adj_pre_cache（累计分红方式）
+        if (hasattr(self.data_context, 'adj_pre_cache') and
+            self.data_context.adj_pre_cache and
+            stock in self.data_context.adj_pre_cache):
+
+            try:
+                stock_df = self.data_context.stock_data_dict[stock]
+                cum_dividend = self.data_context.adj_pre_cache[stock]
+
+                date_normalized = pd.Timestamp(date).normalize()
+                original_price = stock_df.loc[date_normalized, price_type]
+
+                if date_normalized in cum_dividend.index:
+                    dividend = cum_dividend.loc[date_normalized]
+                    return original_price - dividend
+                else:
+                    return original_price
+            except:
+                return np.nan
+
+        # 降级方案：使用旧的exrights方式
         if not hasattr(self.data_context, 'exrights_dict') or stock not in self.data_context.exrights_dict:
             return self._get_original_price(stock, date, price_type)
 

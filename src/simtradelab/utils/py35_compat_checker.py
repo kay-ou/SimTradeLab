@@ -3,6 +3,7 @@
 Python 3.5兼容性检查工具
 
 检查代码是否使用了Python 3.6+的特性，确保代码兼容Python 3.5
+支持自动修复f-string等兼容性问题
 """
 
 import ast
@@ -216,3 +217,44 @@ def check_file_python35_compatibility(filepath: str) -> Tuple[bool, List[str]]:
         return False, ["读取文件失败: {}".format(str(e))]
 
     return check_python35_compatibility(code)
+
+
+def check_and_fix_file(filepath: str, auto_fix: bool = True) -> Tuple[bool, List[str], str]:
+    """检查并自动修复文件的Python 3.5兼容性问题
+
+    Args:
+        filepath: Python文件路径
+        auto_fix: 是否自动修复f-string问题
+
+    Returns:
+        (是否兼容, 错误列表, 修复后的代码或空字符串)
+    """
+    # 先检查
+    is_compatible, errors = check_file_python35_compatibility(filepath)
+
+    if is_compatible:
+        return True, [], ""
+
+    # 检查是否有f-string错误
+    has_fstring_error = any('f-string' in error for error in errors)
+
+    if not has_fstring_error or not auto_fix:
+        return False, errors, ""
+
+    # 自动修复f-string
+    try:
+        from simtradelab.utils.fstring_fixer import fix_fstring_in_file
+        success, result = fix_fstring_in_file(filepath)
+    except ImportError as e:
+        errors.append("导入f-string修复工具失败: {}".format(str(e)))
+        return False, errors, ""
+
+    if not success:
+        errors.append("自动修复f-string失败: {}".format(result))
+        return False, errors, ""
+
+    # 检查修复后的代码
+    fixed_is_compatible, fixed_errors = check_python35_compatibility(result)
+
+    return fixed_is_compatible, fixed_errors, result
+

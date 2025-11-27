@@ -44,7 +44,7 @@ def init_api(data_path=None, required_data=None):
     _global_data_server = DataServer(required_data=required_data)
 
     # 创建portfolio和context
-    portfolio = Portfolio(initial_capital=1000000)
+    portfolio = Portfolio(initial_capital=100000)
     context = Context(portfolio=portfolio)
 
     # 创建API
@@ -70,6 +70,8 @@ def get_api():
     return _global_api
 
 
+def get_Ashares(date=None):
+    return get_api().get_Ashares(date)
 # 便捷函数
 def get_index_stocks(index_code, date=None):
     """获取指数成分股"""
@@ -106,8 +108,15 @@ def get_stock_status(stocks, query_type='ST', query_date=None):
     return get_api().get_stock_status(stocks, query_type, query_date)
 
 
-def get_fundamentals(stocks, table, fields, date):
-    """获取财务数据"""
+def get_fundamentals(stocks, table, fields, date=None):
+    """获取财务数据
+
+    Args:
+        stocks: 股票代码列表
+        table: 表名
+        fields: 字段列表
+        date: 查询日期（默认为当前日期）
+    """
     return get_api().get_fundamentals(stocks, table, fields, date)
 
 
@@ -125,6 +134,7 @@ def check_limit(stocks, date=None):
 __all__ = [
     'init_api',
     'get_api',
+    'get_Ashares',
     'get_index_stocks',
     'get_stock_info',
     'get_stock_name',

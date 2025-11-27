@@ -744,6 +744,11 @@ class Portfolio:
 
         return result
 
+    @property
+    def total_value(self):
+        """总资产（portfolio_value 的别名）"""
+        return self.portfolio_value
+
 class Position:
     """模拟持仓对象"""
     def __init__(self, stock, amount, cost_basis):

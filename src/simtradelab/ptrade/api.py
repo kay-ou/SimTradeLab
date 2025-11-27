@@ -11,6 +11,7 @@ import json
 import bisect
 import traceback
 from functools import wraps
+from typing import Optional, Union, List, Dict, Any, Tuple, Callable
 
 from .lifecycle_controller import PTradeLifecycleError
 from ..utils.paths import get_project_root
@@ -20,7 +21,7 @@ from .cache_manager import cache_manager
 from simtradelab.utils.perf import timer
 
 
-def validate_lifecycle(func):
+def validate_lifecycle(func: Callable) -> Callable:
     """生命周期验证装饰器
 
     自动检查API是否可以在当前生命周期阶段调用
@@ -46,7 +47,7 @@ def validate_lifecycle(func):
 class PtradeAPI:
     """ptrade API模拟器（面向对象封装）"""
 
-    def __init__(self, data_context, context, log):
+    def __init__(self, data_context: Any, context: Any, log: Any) -> None:
         """初始化API模拟器
 
         Args:
@@ -59,17 +60,17 @@ class PtradeAPI:
         self.log = log
 
         # 股票池管理
-        self.active_universe = set()
+        self.active_universe: set = set()
 
         # 缓存 - 使用统一缓存管理器
-        self._stock_status_cache = {}
-        self._stock_date_index = {}
-        self._prebuilt_index = False
-        self._sorted_status_dates = None
-        self._history_cache = cache_manager.get_namespace('history')._cache  # 使用LRUCache
-        self._fundamentals_cache = {}
+        self._stock_status_cache: Dict[Tuple, bool] = {}
+        self._stock_date_index: Dict[str, Tuple[Dict, List]] = {}
+        self._prebuilt_index: bool = False
+        self._sorted_status_dates: Optional[List[str]] = None
+        self._history_cache: Dict = cache_manager.get_namespace('history')._cache  # 使用LRUCache
+        self._fundamentals_cache: Dict[Tuple, Dict] = {}
 
-    def prebuild_date_index(self, stocks=None):
+    def prebuild_date_index(self, stocks: Optional[List[str]] = None) -> None:
         """预构建股票日期索引（显著提升性能）"""
         if self._prebuilt_index:
             return
@@ -92,7 +93,7 @@ class PtradeAPI:
         self._prebuilt_index = True
         print(f"  完成！已构建 {len(self._stock_date_index)} 只股票的索引")
 
-    def get_stock_date_index(self, stock):
+    def get_stock_date_index(self, stock: str) -> Tuple[Dict, List]:
         """获取股票日期索引，返回 (date_dict, sorted_dates) 元组"""
         if stock not in self._stock_date_index:
             # 延迟构建单只股票索引
@@ -111,7 +112,7 @@ class PtradeAPI:
                 self._stock_date_index[stock] = ({}, [])
         return self._stock_date_index.get(stock, ({}, []))
 
-    def get_adjusted_price(self, stock, date, price_type='close', fq='none'):
+    def get_adjusted_price(self, stock: str, date: str, price_type: str = 'close', fq: str = 'none') -> float:
         """获取复权后的价格
 
         Args:
@@ -166,16 +167,16 @@ class PtradeAPI:
         
     # ==================== 基础API ====================
 
-    def get_research_path(self):
+    def get_research_path(self) -> str:
         """返回研究目录路径"""
         return str(get_project_root()) + '/research/'
 
-    def get_Ashares(self, date=None):
+    def get_Ashares(self, date: str = None) -> List[str]:
         """返回A股代码列表，支持历史查询"""
         if date is None:
-            date = self.context.current_dt
-
-        target_date = pd.Timestamp(date)
+            target_date = self.context.current_dt
+        else:
+            target_date = pd.Timestamp(date)
 
         if self.data_context.stock_metadata.empty:
             return list(self.data_context.stock_data_dict.keys())
@@ -188,7 +189,7 @@ class PtradeAPI:
 
         return self.data_context.stock_metadata[listed & not_delisted].index.tolist()
 
-    def get_trade_days(self, start_date=None, end_date=None, count=None):
+    def get_trade_days(self, start_date: str = None, end_date: str = None, count: int = None) -> List[str]:
         """获取指定范围交易日列表
 
         Args:
@@ -202,7 +203,7 @@ class PtradeAPI:
         if end_date is None:
             end_dt = self.context.current_dt
         else:
-            end_dt = pd.Timestamp(str(end_date))
+            end_dt = pd.Timestamp(end_date)
 
         if count is not None:
             if start_date is not None:
@@ -217,12 +218,12 @@ class PtradeAPI:
             # 使用start_date和end_date范围
             trade_days = all_trade_days[all_trade_days <= end_dt]
             if start_date is not None:
-                start_dt = pd.Timestamp(str(start_date))
+                start_dt = pd.Timestamp(start_date)
                 trade_days = trade_days[trade_days >= start_dt]
 
         return [d.strftime('%Y-%m-%d') for d in trade_days]
 
-    def get_all_trades_days(self, date=None):
+    def get_all_trades_days(self, date: str = None) -> List[str]:
         """获取某日期之前的所有交易日列表
 
         Args:
@@ -230,7 +231,7 @@ class PtradeAPI:
         """
         return self.get_trade_days(end_date=date)
 
-    def get_trading_day(self, day=0):
+    def get_trading_day(self, day: int = 0) -> Optional[str]:
         """获取当前时间数天前或数天后的交易日期
 
         Args:
@@ -276,8 +277,18 @@ class PtradeAPI:
     }
 
     @timer()
-    def get_fundamentals(self, stocks, table, fields, date):
-        """获取基本面数据"""
+    def get_fundamentals(self, stocks: List[str], table: str, fields: List[str], date: str = None) -> pd.DataFrame:
+        """获取基本面数据（优化版：增量缓存）
+
+        重要：对于fundamentals表，使用publ_date（公告日期）进行过滤，而非end_date（报告期）
+        这样可以避免未来函数（look-ahead bias）
+
+        Args:
+            stocks: 股票代码列表
+            table: 表名
+            fields: 字段列表
+            date: 查询日期（默认为回测当前日期）
+        """
         if table == 'valuation':
             data_dict = self.data_context.valuation_dict
         else:
@@ -291,33 +302,59 @@ class PtradeAPI:
 
             data_dict = self.data_context.fundamentals_dict
 
-        query_ts = pd.Timestamp(date)
+        # 如果未指定date，使用回测当前日期
+        if date is None:
+            query_ts = self.context.current_dt
+        else:
+            query_ts = pd.Timestamp(date)
         cache_key = (table, query_ts)
 
-        # 检查日期缓存
+        # 获取或创建日期索引缓存（增量更新）
         if cache_key not in self._fundamentals_cache:
-            # 预计算所有股票在这个日期的索引
-            date_indices = {}
-            for stock in data_dict.keys():
+            self._fundamentals_cache[cache_key] = {}
+            # 限制缓存条目数量
+            if len(self._fundamentals_cache) > 500:
+                self._fundamentals_cache.pop(next(iter(self._fundamentals_cache)))
+
+        date_indices = self._fundamentals_cache[cache_key]
+
+        # 只为缓存中不存在的股票计算索引（增量更新）
+        stocks_to_index = [s for s in stocks if s not in date_indices and s in data_dict]
+
+        if stocks_to_index:
+            for stock in stocks_to_index:
                 try:
                     df = data_dict[stock]
                     if df is None or len(df) == 0:
                         continue
 
-                    idx = df.index.searchsorted(query_ts, side='right')
-                    if idx > 0:
-                        date_indices[stock] = idx - 1
-                    elif len(df.index) > 0:
-                        date_indices[stock] = 0
-                except:
-                    continue
+                    # 对于fundamentals表，使用publ_date过滤
+                    if table != 'valuation' and 'publ_date' in df.columns:
+                        # 过滤出查询日期前已公告的财报（不修改原DataFrame）
+                        publ_dates = pd.to_datetime(df['publ_date'], errors='coerce')
+                        valid_mask = publ_dates <= query_ts
+                        valid_indices = df.index[valid_mask]
 
-            # 限制缓存大小
-            if len(self._fundamentals_cache) > 500:
-                self._fundamentals_cache.pop(next(iter(self._fundamentals_cache)))
-            self._fundamentals_cache[cache_key] = date_indices
-        else:
-            date_indices = self._fundamentals_cache[cache_key]
+                        if len(valid_indices) > 0:
+                            # 选择最新的财报（最大的end_date）
+                            latest_end_date = valid_indices.max()
+                            idx = df.index.get_loc(latest_end_date)
+                            date_indices[stock] = idx
+                        else:
+                            # 没有已公告的财报，跳过
+                            continue
+                    else:
+                        # 对于valuation表，返回前一交易日数据（匹配ptrade平台行为）
+                        # 使用side='left'排除当日，确保返回的是已确定的前一交易日数据
+                        idx = df.index.searchsorted(query_ts, side='left')
+                        if idx > 0:
+                            date_indices[stock] = idx - 1
+                        elif len(df.index) > 0:
+                            # 如果查询日期早于所有数据，返回第一条
+                            date_indices[stock] = 0
+                except Exception as e:
+                    # 静默忽略错误，继续处理其他股票
+                    continue
 
         result_data = {}
 
@@ -352,11 +389,11 @@ class PtradeAPI:
 
     class PanelLike(dict):
         """模拟pandas.Panel"""
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, **kwargs) -> None:
             super().__init__(*args, **kwargs)
-            self._stock_list = None
+            self._stock_list: Optional[List[str]] = None
 
-        def __getitem__(self, key):
+        def __getitem__(self, key: str) -> Union[pd.DataFrame, Any]:
             if key in self:
                 return super().__getitem__(key)
 
@@ -374,19 +411,19 @@ class PtradeAPI:
             raise KeyError(key)
 
         @property
-        def empty(self):
+        def empty(self) -> bool:
             if not self:
                 return True
             return all(df.empty for df in self.values())
 
         @property
-        def columns(self):
+        def columns(self) -> pd.Index:
             if not self:
                 return pd.Index([])
             first_df = next(iter(self.values()))
             return first_df.columns
 
-    def get_price(self, security, start_date=None, end_date=None, frequency='1d', fields=None, fq=None, count=None):
+    def get_price(self, security: Union[str, List[str]], start_date: str = None, end_date: str = None, frequency: str = '1d', fields: Union[str, List[str]] = None, fq: str = None, count: int = None) -> Union[pd.DataFrame, 'PtradeAPI.PanelLike']:
         """获取历史行情数据"""
         if isinstance(fields, str):
             fields_list = [fields]
@@ -447,7 +484,8 @@ class PtradeAPI:
                     for col in price_cols:
                         if col in adjusted_df.columns:
                             for date_idx in adjusted_df.index:
-                                adjusted_price = self.get_adjusted_price(stock, date_idx, col, fq='pre')
+                                date_str = date_idx.strftime('%Y-%m-%d')
+                                adjusted_price = self.get_adjusted_price(stock, date_str, col, fq='pre')
                                 if not np.isnan(adjusted_price):
                                     adjusted_df.loc[date_idx, col] = adjusted_price
                     result[stock] = adjusted_df
@@ -474,7 +512,7 @@ class PtradeAPI:
         return self.PanelLike(panel_data)
 
     @timer()
-    def get_history(self, count, frequency='1d', field='close', security_list=None, fq=None, include=False, fill='nan', is_dict=False):
+    def get_history(self, count: int, frequency: str = '1d', field: Union[str, List[str]] = 'close', security_list: Union[str, List[str]] = None, fq: str = None, include: bool = False, fill: str = 'nan', is_dict: bool = False) -> Union[pd.DataFrame, Dict, 'PtradeAPI.PanelLike']:
         """模拟通用ptrade的get_history（优化批量处理+缓存）"""
         if isinstance(field, str):
             fields = [field]
@@ -493,7 +531,7 @@ class PtradeAPI:
 
         # 缓存键：使用frozen set避免列表顺序问题，但这里保持tuple更快
         field_key = tuple(fields) if len(fields) > 1 else fields[0]
-        cache_key = (tuple(sorted(stocks)), count, field_key, fq, current_dt, include)
+        cache_key = (tuple(sorted(stocks)), count, field_key, fq, current_dt, include, is_dict)
 
         # 检查缓存
         if cache_key in self._history_cache:
@@ -547,17 +585,19 @@ class PtradeAPI:
             if len(slice_df) == 0:
                 continue
 
-            # 复权处理: 直接numpy乘法,避免DataFrame.copy()
+            # 复权处理: ptrade前复权 = 未复权价 - 累计未来分红
+            # adj_pre_cache存储的是累计未来分红
             if needs_adj and stock in self.data_context.adj_pre_cache:
-                adj_factors = self.data_context.adj_pre_cache[stock]
-                aligned_factors = adj_factors.iloc[start_idx:end_idx]
+                cum_dividend = self.data_context.adj_pre_cache[stock]
+                slice_cum_div = cum_dividend.iloc[start_idx:end_idx].values
 
                 stock_result = {}
                 for field_name in fields:
                     if field_name not in slice_df.columns:
                         continue
                     if field_name in price_fields:
-                        stock_result[field_name] = slice_df[field_name].values * aligned_factors.values
+                        # 前复权价 = 未复权价 - 累计未来分红
+                        stock_result[field_name] = slice_df[field_name].values - slice_cum_div
                     else:
                         stock_result[field_name] = slice_df[field_name].values
             else:
@@ -572,6 +612,7 @@ class PtradeAPI:
         if not result:
             final_result = {} if is_dict else pd.DataFrame()
         elif is_dict:
+            # is_dict=True: 返回 {stock: {field: array}} 格式
             final_result = result
         else:
             is_single_stock = isinstance(security_list, str)
@@ -597,7 +638,7 @@ class PtradeAPI:
 
                 class _PanelLike(dict):
                     @property
-                    def empty(self):
+                    def empty(self) -> bool:
                         return not self or all(df.empty for df in self.values())
 
                 final_result = _PanelLike(panel_data)
@@ -609,7 +650,7 @@ class PtradeAPI:
 
     # ==================== 股票信息API ====================
 
-    def get_stock_blocks(self, stock):
+    def get_stock_blocks(self, stock: str) -> Dict:
         """获取股票所属板块"""
         if not self.data_context.stock_metadata.empty and stock in self.data_context.stock_metadata.index:
             try:
@@ -620,7 +661,7 @@ class PtradeAPI:
                 pass
         return {}
 
-    def get_stock_info(self, stocks, field=None):
+    def get_stock_info(self, stocks: Union[str, List[str]], field: Union[str, List[str]] = None) -> Dict[str, Dict]:
         """获取股票基础信息"""
         if isinstance(stocks, str):
             stocks = [stocks]
@@ -651,7 +692,7 @@ class PtradeAPI:
 
         return result
 
-    def get_stock_name(self, stocks):
+    def get_stock_name(self, stocks: Union[str, List[str]]) -> Union[str, Dict[str, str]]:
         """获取股票名称"""
         is_single = isinstance(stocks, str)
         if is_single:
@@ -666,12 +707,15 @@ class PtradeAPI:
 
         return result[stocks[0]] if is_single else result
 
-    def get_stock_status(self, stocks, query_type='ST', query_date=None):
+    def get_stock_status(self, stocks: Union[str, List[str]], query_type: str = 'ST', query_date: str = None) -> Dict[str, bool]:
         """获取股票状态"""
         if isinstance(stocks, str):
             stocks = [stocks]
 
-        query_dt = self.context.current_dt if query_date is None and self.context else pd.Timestamp(str(query_date or pd.Timestamp.now()))
+        if query_date is None:
+            query_dt = self.context.current_dt if self.context else pd.Timestamp.now()
+        else:
+            query_dt = pd.Timestamp(query_date)
         result = {}
 
         for stock in stocks:
@@ -734,13 +778,13 @@ class PtradeAPI:
 
         return result
 
-    def get_stock_exrights(self, stock_code, date=None):
+    def get_stock_exrights(self, stock_code: str, date: str = None) -> Optional[pd.DataFrame]:
         """获取股票除权除息信息"""
         try:
             exrights_df = self.data_context.stock_data_store[f'/exrights/{stock_code}']
 
             if date is not None:
-                query_date = pd.Timestamp(str(date))
+                query_date = pd.Timestamp(date)
                 if query_date in exrights_df.index:
                     return exrights_df.loc[[query_date]]
                 else:
@@ -754,24 +798,27 @@ class PtradeAPI:
 
     # ==================== 指数/行业API ====================
 
-    def get_index_stocks(self, index_code, date=None):
-        """获取指数成份股"""
+    def get_index_stocks(self, index_code: str, date: str = None) -> List[str]:
+        """获取指数成份股（支持向前回溯查找）"""
         if not self.data_context.index_constituents:
             return []
 
-        if date:
-            date_str = pd.Timestamp(str(date)).strftime('%Y%m%d')
-            if date_str in self.data_context.index_constituents and index_code in self.data_context.index_constituents[date_str]:
-                return self.data_context.index_constituents[date_str][index_code]
-        else:
-            if self.data_context.index_constituents:
-                latest_date = max(self.data_context.index_constituents.keys())
-                if index_code in self.data_context.index_constituents[latest_date]:
-                    return self.data_context.index_constituents[latest_date][index_code]
-
+        # 获取所有可用日期并排序
+        available_dates = sorted(self.data_context.index_constituents.keys())
+        
+        # 使用 bisect 找到小于等于 date 的最近日期
+        idx = bisect.bisect_right(available_dates, date)
+        
+        if idx > 0:
+            # 向前查找包含该指数数据的最近日期
+            for i in range(idx - 1, -1, -1):
+                nearest_date = available_dates[i]
+                if index_code in self.data_context.index_constituents[nearest_date]:
+                    return self.data_context.index_constituents[nearest_date][index_code]
+        
         return []
 
-    def get_industry_stocks(self, industry_code=None):
+    def get_industry_stocks(self, industry_code: str = None) -> Union[Dict, List[str]]:
         """推导行业成份股"""
         if self.data_context.stock_metadata.empty:
             return {} if industry_code is None else []
@@ -800,7 +847,7 @@ class PtradeAPI:
 
     # ==================== 涨跌停API ====================
 
-    def _get_price_limit_ratio(self, stock):
+    def _get_price_limit_ratio(self, stock: str) -> float:
         """获取股票涨跌停幅度"""
         if stock.startswith('688') and stock.endswith('.SS'):
             return 0.20
@@ -811,7 +858,7 @@ class PtradeAPI:
         else:
             return 0.10
 
-    def check_limit(self, security, query_date=None):
+    def check_limit(self, security: Union[str, List[str]], query_date: str = None) -> Dict[str, int]:
         """检查涨跌停状态"""
         if isinstance(security, str):
             securities = [security]
@@ -889,7 +936,7 @@ class PtradeAPI:
     # ==================== 交易API ====================
 
     @validate_lifecycle
-    def order(self, security, amount, limit_price=None):
+    def order(self, security: str, amount: int, limit_price: float = None) -> Optional[str]:
         """买卖指定数量的股票
 
         Args:
@@ -912,7 +959,7 @@ class PtradeAPI:
         return None
 
     @validate_lifecycle
-    def order_target(self, stock, amount, limit_price=None):
+    def order_target(self, stock: str, amount: int, limit_price: float = None) -> Optional[str]:
         """下单到目标数量
 
         Args:
@@ -968,7 +1015,7 @@ class PtradeAPI:
         return order.id if success else None
 
     @validate_lifecycle
-    def order_value(self, stock, value, limit_price=None):
+    def order_value(self, stock: str, value: float, limit_price: float = None) -> Optional[str]:
         """按金额下单
 
         Args:
@@ -992,33 +1039,52 @@ class PtradeAPI:
             self.log.warning(f"【下单失败】{stock} | 原因: 获取价格数据失败")
             return None
 
-        # 计算买入数量（向下取整到100股）
-        amount = int(value / current_price / 100) * 100
-        if amount <= 0:
-            self.log.warning(f"【下单失败】{stock} | 原因: 金额不足 (分配{value:.2f}元, 价格{current_price:.2f}元, 不足100股)")
-            return None
-
-        # 科创板最小申报数量为200股
-        if stock.startswith('688') and amount < 200:
-            self.log.warning(f"取消下单，科创板单笔申报数量应不小于200股")
-            return None
-
         # 检查涨停
         limit_status = self.check_limit(stock, self.context.current_dt)[stock]
-        if not self._order_processor.check_limit_status(stock, amount, limit_status):
+        if limit_status == 1:
+            self.log.warning(f"【买入失败】{stock} | 原因: 涨停")
             return None
 
-        # 检查现金是否充足，不足则自动调整数量
-        cost = amount * current_price
-        commission = self._order_processor.calculate_commission(amount, current_price, is_sell=False)
-        total_cost = cost + commission
+        # 确定最小交易单位
+        min_lot = 200 if stock.startswith('688') else 100
 
-        if total_cost > self.context.portfolio._cash:
-            # 现金不足，自动调整数量
-            available_cash = self.context.portfolio._cash
+        # 先按目标value计算数量
+        target_amount = int(value / current_price / min_lot) * min_lot
+        available_cash = self.context.portfolio._cash
 
-            # 估算可买数量（考虑手续费，迭代计算）
-            min_lot = 200 if stock.startswith('688') else 100
+        # 如果目标数量 >= 最小单位，尝试按目标买入
+        if target_amount >= min_lot:
+            # 检查现金是否足够（含手续费）
+            cost = target_amount * current_price
+            commission = self._order_processor.calculate_commission(target_amount, current_price, is_sell=False)
+            total_cost = cost + commission
+
+            if total_cost <= available_cash:
+                # 现金足够，按目标数量买入
+                amount = target_amount
+            else:
+                # 现金不足目标金额，自动调整到可买的最大数量
+                max_affordable_amount = int(available_cash / current_price / min_lot) * min_lot
+
+                # 迭代调整，确保包含手续费后不超预算
+                while max_affordable_amount >= min_lot:
+                    test_cost = max_affordable_amount * current_price
+                    test_commission = self._order_processor.calculate_commission(max_affordable_amount, current_price, is_sell=False)
+                    test_total = test_cost + test_commission
+
+                    if test_total <= available_cash:
+                        break
+                    max_affordable_amount -= min_lot
+
+                if max_affordable_amount < min_lot:
+                    self.log.warning("【买入失败】{} | 原因: 现金不足 (需要{:.2f}, 可用{:.2f})".format(stock, total_cost, available_cash))
+                    return None
+
+                self.log.warning("当前账户资金不足，调整{}下单数量为{}股（目标{:.2f}元，实际{:.2f}元）".format(
+                    stock, max_affordable_amount, value, max_affordable_amount * current_price))
+                amount = max_affordable_amount
+        else:
+            # 目标数量 < 最小单位，用所有可用现金尝试买入（匹配ptrade行为）
             max_affordable_amount = int(available_cash / current_price / min_lot) * min_lot
 
             # 迭代调整，确保包含手续费后不超预算
@@ -1031,11 +1097,14 @@ class PtradeAPI:
                     break
                 max_affordable_amount -= min_lot
 
+            # 如果可用现金仍不足最小单位，失败
             if max_affordable_amount < min_lot:
-                self.log.warning("【买入失败】{} | 原因: 现金不足 (需要{:.2f}, 可用{:.2f})".format(stock, total_cost, available_cash))
+                self.log.warning("【下单失败】{} | 原因: 金额不足 (分配{:.2f}元, 价格{:.2f}元, 可用现金{:.2f}元, 不足{}股)".format(
+                    stock, value, current_price, available_cash, min_lot))
                 return None
 
-            self.log.warning("当前账户资金不足，调整{}下单数量为{}".format(stock, max_affordable_amount))
+            self.log.warning("分配金额不足{}股，改用所有可用现金买入{}股（{:.2f}元）".format(
+                min_lot, max_affordable_amount, max_affordable_amount * current_price))
             amount = max_affordable_amount
 
         # 创建订单
@@ -1053,7 +1122,7 @@ class PtradeAPI:
         return order.id if success else None
 
     @validate_lifecycle
-    def order_target_value(self, stock, value, limit_price=None):
+    def order_target_value(self, stock: str, value: float, limit_price: float = None) -> Optional[str]:
         """调整股票持仓市值到目标价值
 
         Args:
@@ -1079,13 +1148,13 @@ class PtradeAPI:
         # 使用 order_value 下单
         return self.order_value(stock, delta_value, limit_price)
 
-    def get_open_orders(self):
+    def get_open_orders(self) -> List:
         """获取未成交订单"""
         if self.context and self.context.blotter:
             return self.context.blotter.open_orders
         return []
 
-    def get_orders(self, security=None):
+    def get_orders(self, security: str = None) -> List:
         """获取当日全部订单
 
         Args:
@@ -1102,7 +1171,7 @@ class PtradeAPI:
         else:
             return [o for o in self.context.blotter.open_orders if o.symbol == security]
 
-    def get_order(self, order_id):
+    def get_order(self, order_id: str) -> Optional[Any]:
         """获取指定订单
 
         Args:
@@ -1119,7 +1188,7 @@ class PtradeAPI:
                 return order
         return None
 
-    def get_trades(self):
+    def get_trades(self) -> List:
         """获取当日成交订单
 
         Returns:
@@ -1129,7 +1198,7 @@ class PtradeAPI:
         # 这里简化实现，返回空列表
         return []
 
-    def get_position(self, security):
+    def get_position(self, security: str) -> Optional[Position]:
         """获取持仓信息
 
         Args:
@@ -1142,7 +1211,7 @@ class PtradeAPI:
             return self.context.portfolio.positions.get(security)
         return None
 
-    def cancel_order(self, order):
+    def cancel_order(self, order: Any) -> bool:
         """取消订单"""
         if self.context and self.context.blotter:
             return self.context.blotter.cancel_order(order)
@@ -1151,7 +1220,7 @@ class PtradeAPI:
     # ==================== 配置API ====================
 
     @validate_lifecycle
-    def set_benchmark(self, benchmark):
+    def set_benchmark(self, benchmark: str) -> None:
         """设置基准（支持指数和普通股票）,会自动添加到benchmark_data"""
         # 优先从benchmark_data中查找（指数）
         if benchmark in self.data_context.benchmark_data:
@@ -1172,7 +1241,7 @@ class PtradeAPI:
         return
 
     @validate_lifecycle
-    def set_universe(self, stocks):
+    def set_universe(self, stocks: Union[str, List[str]]) -> None:
         """设置股票池并预加载数据"""
         if isinstance(stocks, list):
             new_stocks = set(stocks)
@@ -1187,19 +1256,19 @@ class PtradeAPI:
         else:
             self.log.debug(f"设置股票池: {stocks}")
 
-    def is_trade(self):
+    def is_trade(self) -> bool:
         """是否实盘"""
         return False
 
     @validate_lifecycle
-    def set_commission(self, commission_ratio=0.0003, min_commission=5.0, type="STOCK"):
+    def set_commission(self, commission_ratio: float = 0.0003, min_commission: float = 5.0, type: str = "STOCK") -> None:
         """设置交易佣金"""
         # 验证ptrade平台限制：佣金费率和最低交易佣金不能小于或者等于0
         if commission_ratio is not None and commission_ratio <= 0:
             raise ValueError("IQInvalidArgument: 佣金费率和最低交易佣金不能小于或者等于0,请核对后重新输入")
         if min_commission is not None and min_commission <= 0:
             raise ValueError("IQInvalidArgument: 佣金费率和最低交易佣金不能小于或者等于0,请核对后重新输入")
-            
+
         if commission_ratio is not None:
             self.context.commission_ratio = commission_ratio
         if min_commission is not None:
@@ -1208,24 +1277,24 @@ class PtradeAPI:
             self.context.commission_type = type
 
     @validate_lifecycle
-    def set_slippage(self, slippage=0.0):
+    def set_slippage(self, slippage: float = 0.0) -> None:
         """设置滑点"""
         if slippage is not None:
             self.context.slippage = slippage
 
     @validate_lifecycle
-    def set_fixed_slippage(self, fixedslippage=0.001):
+    def set_fixed_slippage(self, fixedslippage: float = 0.001) -> None:
         """设置固定滑点"""
         if fixedslippage is not None:
             self.context.fixed_slippage = fixedslippage
 
     @validate_lifecycle
-    def set_limit_mode(self, limit_mode='LIMIT'):
+    def set_limit_mode(self, limit_mode: str = 'LIMIT') -> None:
         """设置下单限制模式"""
         self.context.limit_mode = limit_mode
 
     @validate_lifecycle
-    def set_volume_ratio(self, volume_ratio=0.25):
+    def set_volume_ratio(self, volume_ratio: float = 0.25) -> None:
         """设置成交比例
 
         Args:
@@ -1234,7 +1303,7 @@ class PtradeAPI:
         self.context.volume_ratio = volume_ratio
 
     @validate_lifecycle
-    def set_yesterday_position(self, poslist):
+    def set_yesterday_position(self, poslist: List[Dict]) -> None:
         """设置底仓（回测用）
 
         Args:
@@ -1253,7 +1322,7 @@ class PtradeAPI:
                 self.context.portfolio.positions[security] = Position(security, amount, cost_basis)
                 self.log.info(f"设置底仓: {security}, 数量:{amount}, 成本价:{cost_basis}")
 
-    def run_interval(self, context, func, seconds=10):
+    def run_interval(self, context: Any, func: Callable, seconds: int = 10) -> None:
         """定时运行函数（秒级，仅实盘）
 
         Args:
@@ -1264,7 +1333,7 @@ class PtradeAPI:
         _ = (context, func, seconds)  # 回测中不执行
         pass
 
-    def run_daily(self, context, func, time='9:31'):
+    def run_daily(self, context: Any, func: Callable, time: str = '9:31') -> None:
         """定时运行函数
 
         Args:

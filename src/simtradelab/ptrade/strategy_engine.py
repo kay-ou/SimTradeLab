@@ -186,8 +186,11 @@ class StrategyExecutionEngine:
         Returns:
             bool: 是否成功完成
         """
+        # 验证必选函数
         if not self._strategy_functions.get("initialize"):
             raise StrategyExecutionError("Strategy must have an initialize function")
+        if not self._strategy_functions.get("handle_data"):
+            raise StrategyExecutionError("Strategy must have a handle_data function")
 
         self._is_running = True
 
@@ -234,8 +237,15 @@ class StrategyExecutionEngine:
         for current_date in date_range:
             # 更新日期上下文
             self.context.current_dt = current_date
-            self.context.previous_date = (current_date - timedelta(days=1)).date()
             self.context.blotter.current_dt = current_date
+
+            # 使用API获取真正的前一交易日（而非简单减1天）
+            prev_trade_day = self.api.get_trading_day(-1)
+            if prev_trade_day:
+                self.context.previous_date = prev_trade_day
+            else:
+                # 回退方案：简单减1天
+                self.context.previous_date = (current_date - timedelta(days=1)).date()
 
             # 清理全局缓存
             cache_manager.clear_daily_cache(current_date)
@@ -308,11 +318,19 @@ class StrategyExecutionEngine:
         Returns:
             是否成功执行
         """
-        if func_name not in self._strategy_functions:
-            return True  # 函数不存在，跳过
-
+        # 始终设置生命周期阶段，即使函数不存在
         try:
             self.lifecycle_controller.set_phase(phase)
+        except Exception as e:
+            self.log.error(f"设置生命周期阶段 {phase} 失败: {e}")
+            return False
+
+        # 如果函数不存在，阶段已设置，直接返回成功
+        if func_name not in self._strategy_functions:
+            return True
+
+        # 执行策略函数
+        try:
             self._strategy_functions[func_name](self.context, data)
             return True
         except Exception as e:

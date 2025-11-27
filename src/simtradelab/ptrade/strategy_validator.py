@@ -120,27 +120,44 @@ class StrategyValidator:
         return self.errors
 
 
-def validate_strategy_file(strategy_path: str, check_py35_compat: bool = True) -> tuple:
+def validate_strategy_file(strategy_path: str, check_py35_compat: bool = True, auto_fix: bool = True) -> tuple:
     """验证策略文件
 
     Args:
         strategy_path: 策略文件路径
         check_py35_compat: 是否检查Python 3.5兼容性
+        auto_fix: 是否自动修复f-string等兼容性问题
 
     Returns:
-        (是否通过, 错误列表)
+        (是否通过, 错误列表, 修复后的代码或None)
     """
     try:
         with open(strategy_path, 'r', encoding='utf-8') as f:
             strategy_code = f.read()
     except FileNotFoundError:
-        return False, ["文件不存在: {}".format(strategy_path)]
+        return False, ["文件不存在: {}".format(strategy_path)], None
     except PermissionError:
-        return False, ["无权限读取文件: {}".format(strategy_path)]
+        return False, ["无权限读取文件: {}".format(strategy_path)], None
     except Exception as e:
-        return False, ["读取文件失败: {}".format(str(e))]
+        return False, ["读取文件失败: {}".format(str(e))], None
+
+    # 如果需要检查兼容性且启用自动修复，先尝试修复
+    fixed_code = None
+    if check_py35_compat and auto_fix:
+        from simtradelab.utils.py35_compat_checker import check_and_fix_file
+        is_compat, errors, fixed = check_and_fix_file(strategy_path, auto_fix=True)
+
+        if fixed:
+            # 有修复内容，写回文件
+            try:
+                with open(strategy_path, 'w', encoding='utf-8') as f:
+                    f.write(fixed)
+                strategy_code = fixed
+                fixed_code = fixed
+            except Exception as e:
+                return False, ["写入修复后的代码失败: {}".format(str(e))], None
 
     validator = StrategyValidator(strategy_code, check_py35_compat=check_py35_compat)
     is_valid = validator.validate()
 
-    return is_valid, validator.get_errors()
+    return is_valid, validator.get_errors(), fixed_code

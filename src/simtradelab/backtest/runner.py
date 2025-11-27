@@ -65,12 +65,14 @@ class BacktestRunner:
 
         # 先验证策略，避免数据加载后才发现策略错误
         print("检查策略...")
-        is_valid, errors = validate_strategy_file(config.strategy_path)
+        is_valid, errors, fixed_code = validate_strategy_file(config.strategy_path)
         if not is_valid:
             print("\n策略验证失败:")
             for error in errors:
                 print("  - {}".format(error))
             return {}
+        if fixed_code:
+            print("已自动修复Python 3.5兼容性问题")
         print("策略检查通过\n")
 
         # 分析策略数据依赖
