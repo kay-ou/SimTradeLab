@@ -180,8 +180,8 @@ poetry run python run_backtest.py
 **配置参数** (`run_backtest.py`)：
 ```python
 strategy_name = 'my_strategy'    # 策略目录名
-start_date = '2024-01-01'        # 开始日期
-end_date = '2024-12-31'          # 结束日期
+start_date = '2025-01-01'        # 开始日期
+end_date = '2025-12-31'          # 结束日期
 initial_capital = 1000000.0      # 初始资金
 ```
 
@@ -194,8 +194,8 @@ initial_capital = 1000000.0      # 初始资金
 回测完成后，在策略目录下生成：
 ```
 strategies/my_strategy/stats/
-├── backtest_240101_241231_*.log    # 详细日志
-└── backtest_240101_241231_*.png    # 4图可视化
+├── backtest_250101_251231_*.log    # 详细日志
+└── backtest_250101_251231_*.png    # 4图可视化
 ```
 
 **报告包含：**
