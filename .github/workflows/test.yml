@@ -43,6 +43,23 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
 
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install hdf5 ta-lib
+          echo "HDF5_DIR=$(brew --prefix hdf5)" >> $GITHUB_ENV
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libhdf5-dev libta-lib-dev
+
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install hdf5 -y
+
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v4
@@ -105,6 +122,11 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libhdf5-dev libta-lib-dev
+
       - name: Install dependencies
         run: |
           poetry install --no-interaction
@@ -140,6 +162,11 @@ jobs:
           version: latest
           virtualenvs-create: true
           virtualenvs-in-project: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libhdf5-dev libta-lib-dev
 
       - name: Install dependencies
         run: poetry install --no-interaction

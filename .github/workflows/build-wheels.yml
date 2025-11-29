@@ -30,6 +30,23 @@ jobs:
         pip install build wheel setuptools
         pip install poetry
 
+    - name: Install system dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install hdf5 ta-lib
+        echo "HDF5_DIR=$(brew --prefix hdf5)" >> $GITHUB_ENV
+
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libhdf5-dev libta-lib-dev
+
+    - name: Install system dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        choco install hdf5 -y
+
     - name: Build wheel with Poetry
       run: |
         poetry build
@@ -134,6 +151,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install build wheel setuptools twine
         pip install poetry
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libhdf5-dev libta-lib-dev
 
     - name: Build distribution
       run: |
