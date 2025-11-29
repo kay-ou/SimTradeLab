@@ -7,18 +7,19 @@
 
 import ast
 from typing import Set
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class DataDependencies:
+class DataDependencies(BaseModel):
     """策略数据依赖项"""
     needs_price_data: bool = False
     needs_valuation: bool = False
     needs_fundamentals: bool = False
     needs_exrights: bool = False
 
-    fundamental_tables: Set[str] = field(default_factory=set)
+    fundamental_tables: Set[str] = Field(default_factory=set)
+
+    model_config = {"arbitrary_types_allowed": True}
 
 
 class StrategyDataAnalyzer(ast.NodeVisitor):

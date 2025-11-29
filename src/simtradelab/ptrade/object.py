@@ -12,14 +12,18 @@ import numpy as np
 from functools import wraps
 from joblib import Parallel, delayed
 from tqdm import tqdm
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional, Dict, Any, Union
+from datetime import datetime
 
 from ..utils.performance_config import get_performance_config
 from .cache_manager import cache_manager
 from .adjustment_calculator import AdjustmentCalculator
+from .config_manager import config
 
 
 # ==================== 多进程worker函数 ====================
-def _load_data_chunk(hdf5_filename, prefix, keys_chunk):
+def _load_data_chunk(hdf5_filename, prefix, keys_chunk) -> Dict[str, Any]:
     """多进程worker：加载一批数据
 
     Args:
@@ -30,7 +34,7 @@ def _load_data_chunk(hdf5_filename, prefix, keys_chunk):
     Returns:
         dict: {key: dataframe}
     """
-    result = {}
+    result: Dict[str, Any] = {}
     store = pd.HDFStore(hdf5_filename, 'r')
     try:
         for key in keys_chunk:
@@ -179,7 +183,7 @@ class StockData:
         self._stock_df = None
         self._current_idx = None
         self._bt_ctx = bt_ctx
-        self._data = None  # 延迟加载标记
+        self._data: Optional[Dict[str, Any]] = None  # 延迟加载标记
         self._cached_phase = None  # 缓存的phase,用于判断是否需要重新加载
         self._cached_idx = None  # 缓存的idx,用于判断是否需要重新加载
 
@@ -415,10 +419,11 @@ class Blotter:
         """创建订单"""
         self._order_id_counter += 1
         order = Order(
-            order_id=self._order_id_counter,
-            stock=stock,
+            id=self._order_id_counter,
+            symbol=stock,
             amount=amount,
-            created_dt=self.current_dt
+            dt=self.current_dt,
+            limit=None
         )
         self.open_orders.append(order)
         return order
@@ -472,11 +477,11 @@ class Blotter:
 
             # 检查成交量限制（LIMIT模式）
             actual_amount = order.amount
-            if self._bt_ctx and self._bt_ctx.context and self._bt_ctx.context.limit_mode == 'LIMIT':
+            if config.trading.limit_mode == 'LIMIT':
                 if order.stock in stock_data_cache:
                     daily_volume = stock_data_cache[order.stock]['volume']
                     # 应用成交比例限制
-                    volume_ratio = getattr(self._bt_ctx.context, 'volume_ratio', 0.25)
+                    volume_ratio = config.trading.volume_ratio
                     max_allowed = int(daily_volume * volume_ratio)
 
                     if abs(order.amount) > max_allowed:
@@ -549,19 +554,25 @@ class Blotter:
 
         return executed_orders
 
-class Order:
+class Order(BaseModel):
     """订单对象"""
-    def __init__(self, order_id, stock, amount, created_dt=None, price=None):
-        self.id = order_id  # 订单号
-        self.dt = created_dt  # 订单产生时间，datetime.datetime类型
-        self.limit = price  # 指定价格（API字段）
-        self.symbol = stock  #  标的代码(备注：标的代码尾缀为四位，上证为XSHG，深圳为XSHE，如需对应到代码请做代码尾缀兼容)
-        self.amount = amount  # 下单数量（正数=买入，负数=卖出）
-        self.created = created_dt  # 订单生成时间，datetime.datetime类型
-        self.filled = 0  # 成交数量，买入时为正数，卖出时为负数
-        self.entrust_no = ''  # 委托编号
-        self.priceGear = None # 盘口档位
-        self.status = '0'  # 订单状态：'0'未报, '1'待报, '2'已报
+    id: Union[int, str] = Field(..., description="订单号（支持整数或UUID字符串）")
+    dt: Optional[datetime] = Field(None, description="订单产生时间")
+    symbol: str = Field(..., description="标的代码")
+    amount: int = Field(..., description="下单数量（正数=买入，负数=卖出）")
+    limit: Optional[float] = Field(None, description="指定价格")
+    filled: int = Field(default=0, description="成交数量")
+    entrust_no: str = Field(default='', description="委托编号")
+    priceGear: Optional[int] = Field(default=None, description="盘口档位")
+    status: str = Field(default='0', description="订单状态：'0'未报, '1'待报, '2'已报")
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    @property
+    def created(self) -> Optional[datetime]:
+        """订单生成时间（dt的别名，保持API兼容性）"""
+        return self.dt
+
 
 class Portfolio:
     """模拟portfolio对象"""
@@ -751,9 +762,9 @@ class Portfolio:
 
 class Position:
     """模拟持仓对象"""
-    def __init__(self, stock, amount, cost_basis):
-        self.sid = stock
+    def __init__(self, stock: str, amount: float, cost_basis: float):
         self.stock = stock
+        self.sid = stock  # 别名，保持兼容
         self.amount = amount
         self.cost_basis = cost_basis
         self.enable_amount = amount
@@ -761,6 +772,8 @@ class Position:
         self.today_amount = 0
         self.business_type = 'STOCK'
         self.market_value = amount * cost_basis
+
+
 
 class Global:
     """模拟全局变量g（策略可用于存储自定义数据）"""

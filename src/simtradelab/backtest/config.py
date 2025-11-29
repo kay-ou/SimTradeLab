@@ -3,10 +3,10 @@
 回测配置类
 """
 
-from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Union, Optional
+from typing import Optional, Union
 import pandas as pd
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def _default_data_path():
@@ -21,37 +21,44 @@ def _default_strategies_path():
     return str(STRATEGIES_PATH)
 
 
-@dataclass
-class BacktestConfig:
+class BacktestConfig(BaseModel):
     """回测配置参数"""
 
     strategy_name: str
     start_date: Union[str, pd.Timestamp]
     end_date: Union[str, pd.Timestamp]
-    data_path: str = field(default_factory=_default_data_path)
-    strategies_path: str = field(default_factory=_default_strategies_path)
-    initial_capital: float = 100000.0
+    data_path: str = Field(default_factory=_default_data_path)
+    strategies_path: str = Field(default_factory=_default_strategies_path)
+    initial_capital: float = Field(default=100000.0, gt=0, description="初始资金必须大于0")
     use_data_server: bool = True
 
     # 性能优化配置
-    enable_multiprocessing: bool = True  # 是否启用多进程数据加载
-    num_workers: Optional[int] = None  # 多进程worker数量（None=自动）
-    enable_charts: bool = True  # 是否生成图表（禁用可节省300秒）
-    enable_logging: bool = True  # 是否输出日志文件
+    enable_multiprocessing: bool = True
+    num_workers: Optional[int] = Field(default=None, ge=1, description="多进程worker数量")
+    enable_charts: bool = True
+    enable_logging: bool = True
 
-    def __post_init__(self):
-        """验证并转换参数"""
-        # 转换日期类型
-        if isinstance(self.start_date, str):
-            self.start_date = pd.Timestamp(self.start_date)
-        if isinstance(self.end_date, str):
-            self.end_date = pd.Timestamp(self.end_date)
+    model_config = {"arbitrary_types_allowed": True}
 
-        if self.start_date >= self.end_date:
+    @field_validator('start_date', 'end_date', mode='before')
+    @classmethod
+    def convert_to_timestamp(cls, v) -> pd.Timestamp:
+        """转换日期为pd.Timestamp"""
+        if isinstance(v, str):
+            return pd.Timestamp(v)
+        if isinstance(v, pd.Timestamp):
+            return v
+        raise ValueError(f"日期必须是str或pd.Timestamp类型，得到: {type(v)}")
+
+    @model_validator(mode='after')
+    def validate_date_range(self):
+        """验证日期范围
+
+        此时start_date和end_date已被field_validator转换为pd.Timestamp
+        """
+        if self.start_date >= self.end_date:  # type: ignore
             raise ValueError("start_date必须早于end_date")
-
-        if self.initial_capital <= 0:
-            raise ValueError("initial_capital必须大于0")
+        return self
 
     @property
     def strategy_path(self) -> str:

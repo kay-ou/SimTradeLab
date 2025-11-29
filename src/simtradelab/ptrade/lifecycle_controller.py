@@ -6,16 +6,15 @@ PTrade 生命周期控制器
 """
 
 import logging
-from dataclasses import dataclass
 from enum import Enum
 from threading import RLock
 from typing import Any, Callable, Dict, List, Optional, Set
+from pydantic import BaseModel, Field
 
 from .lifecycle_config import get_api_allowed_phases, is_api_allowed_in_phase
 
 
-@dataclass
-class LifecycleValidationResult:
+class LifecycleValidationResult(BaseModel):
     """生命周期验证结果"""
 
     is_valid: bool
@@ -40,17 +39,18 @@ class PTradeLifecycleError(Exception):
     pass
 
 
-@dataclass
-class APICallRecord:
+class APICallRecord(BaseModel):
     """API调用记录"""
 
     api_name: str
     phase: str
     timestamp: float
-    args: tuple
-    kwargs: dict
+    args: tuple = Field(default_factory=tuple)
+    kwargs: dict = Field(default_factory=dict)
     success: bool
     error: Optional[str] = None
+
+    model_config = {"arbitrary_types_allowed": True}
 
 
 class LifecycleController:

@@ -50,15 +50,7 @@ class TradingConfig(BaseModel):
         description="佣金类型"
     )
 
-    model_config = {"frozen": False}  # 允许修改
-
-    @field_validator('commission_ratio', 'min_commission')
-    @classmethod
-    def validate_positive(cls, v: float, info) -> float:
-        """验证佣金相关参数必须大于0"""
-        if v <= 0:
-            raise ValueError("{}必须大于0".format(info.field_name))
-        return v
+    model_config = {"frozen": True}  # 配置不可变，确保线程安全
 
 
 class CacheConfig(BaseModel):
@@ -94,7 +86,7 @@ class CacheConfig(BaseModel):
         description="历史数据缓存大小（单股票粒度，约10000只×25天×8字节≈2MB）"
     )
 
-    model_config = {"frozen": False}
+    model_config = {"frozen": True}
 
 
 class PerformanceConfig(BaseModel):
@@ -117,7 +109,7 @@ class PerformanceConfig(BaseModel):
         description="是否预加载所有股票"
     )
 
-    model_config = {"frozen": False}
+    model_config = {"frozen": True}
 
 
 class ConfigurationManager:
@@ -146,21 +138,17 @@ class ConfigurationManager:
     def update_trading_config(self, **kwargs) -> None:
         """更新交易配置
 
-        自动验证参数有效性
+        自动验证参数有效性。配置不可变，创建新实例。
         """
-        # 先验证新值，再更新
-        validated = TradingConfig(**{**self.trading.model_dump(), **kwargs})
-        self.trading = validated
+        self.trading = TradingConfig(**{**self.trading.model_dump(), **kwargs})
 
     def update_cache_config(self, **kwargs) -> None:
         """更新缓存配置"""
-        validated = CacheConfig(**{**self.cache.model_dump(), **kwargs})
-        self.cache = validated
+        self.cache = CacheConfig(**{**self.cache.model_dump(), **kwargs})
 
     def update_performance_config(self, **kwargs) -> None:
         """更新性能配置"""
-        validated = PerformanceConfig(**{**self.performance.model_dump(), **kwargs})
-        self.performance = validated
+        self.performance = PerformanceConfig(**{**self.performance.model_dump(), **kwargs})
 
     def reset_to_defaults(self) -> None:
         """重置为默认配置"""

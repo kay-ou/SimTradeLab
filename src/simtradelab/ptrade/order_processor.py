@@ -133,11 +133,11 @@ class OrderProcessor:
 
         order_id = str(uuid.uuid4()).replace('-', '')
         order = Order(
-            order_id=order_id,
-            stock=stock,
+            id=order_id,
+            symbol=stock,
             amount=amount,
-            created_dt=self.context.current_dt,
-            price=price
+            dt=self.context.current_dt,
+            limit=price
         )
         return order_id, order
 

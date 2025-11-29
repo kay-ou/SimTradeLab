@@ -18,6 +18,7 @@ from ..utils.paths import get_project_root
 from simtradelab.ptrade.object import Position
 from .order_processor import OrderProcessor
 from .cache_manager import cache_manager
+from .config_manager import config
 from simtradelab.utils.perf import timer
 
 
@@ -1274,28 +1275,32 @@ class PtradeAPI:
             raise ValueError("IQInvalidArgument: 佣金费率和最低交易佣金不能小于或者等于0,请核对后重新输入")
 
         if commission_ratio is not None:
-            self.context.commission_ratio = commission_ratio
+            kwargs = {'commission_ratio': commission_ratio}
+        else:
+            kwargs = {}
         if min_commission is not None:
-            self.context.min_commission = min_commission
+            kwargs['min_commission'] = min_commission
         if type is not None:
-            self.context.commission_type = type
+            kwargs['commission_type'] = type
+        if kwargs:
+            config.update_trading_config(**kwargs)
 
     @validate_lifecycle
     def set_slippage(self, slippage: float = 0.0) -> None:
         """设置滑点"""
         if slippage is not None:
-            self.context.slippage = slippage
+            config.update_trading_config(slippage=slippage)
 
     @validate_lifecycle
     def set_fixed_slippage(self, fixedslippage: float = 0.001) -> None:
         """设置固定滑点"""
         if fixedslippage is not None:
-            self.context.fixed_slippage = fixedslippage
+            config.update_trading_config(fixed_slippage=fixedslippage)
 
     @validate_lifecycle
     def set_limit_mode(self, limit_mode: str = 'LIMIT') -> None:
         """设置下单限制模式"""
-        self.context.limit_mode = limit_mode
+        config.update_trading_config(limit_mode=limit_mode)
 
     @validate_lifecycle
     def set_volume_ratio(self, volume_ratio: float = 0.25) -> None:
@@ -1304,7 +1309,7 @@ class PtradeAPI:
         Args:
             volume_ratio: 成交比例，默认0.25，即单笔最大成交量为当日成交量的1/4
         """
-        self.context.volume_ratio = volume_ratio
+        config.update_trading_config(volume_ratio=volume_ratio)
 
     @validate_lifecycle
     def set_yesterday_position(self, poslist: List[Dict]) -> None:
