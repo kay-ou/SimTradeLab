@@ -5,6 +5,158 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
 项目遵循 [语义化版本](https://semver.org/spec/v2.0.0.html) 规范。
 
+## [1.2.0] - 2025-11-30
+
+### 🎉 重要更新
+
+本版本主要修复了依赖缺失和CI/CD问题，完善了项目文档和API实现状态说明。
+
+### ✨ 新增功能
+
+#### 📦 依赖管理
+- **添加核心依赖**
+  - `cachetools ^5.3.0` - LRU缓存支持，提升性能
+  - `joblib ^1.3.0` - 并行处理支持
+  - `matplotlib ^3.7.0` - 图表绘制功能
+  - `optuna ^3.0.0` - 参数优化器（可选依赖）
+
+#### 📚 文档完善
+- **新增PyPI发布指南** - 详细的发布流程和配置说明（`docs/PYPI_PUBLISHING_GUIDE.md`）
+- **新增快速发布指南** - 简化的发布操作步骤（`RELEASE.md`）
+- **完善README** - 添加详细的功能对比和项目状态说明
+  - PTrade有的我们也有：52个核心API详细列表
+  - PTrade没有我们有：独特的性能优化和智能功能
+  - PTrade有我们还没有：99个待实现API清单
+
+### 🔧 改进
+
+#### 🏗️ 项目结构
+- **版本号统一** - 同步`pyproject.toml`和`src/simtradelab/__init__.py`的版本号
+- **添加`__version__`** - 在包根目录导出版本号
+- **修正API数量** - 从56个修正为52个（移除未实现的API）
+
+#### 📊 API实现状态
+- **更新完成度统计**
+  - 总体完成度：34%（52/151个API）
+  - 回测场景：75%（49/65个API）
+  - 研究场景：60%（35/58个API）
+  - 交易场景：22%（15/67个API）
+- **详细功能对比**
+  - 核心交易功能：4个基础API
+  - 数据查询功能：完整支持
+  - 技术指标计算：100%完成（4个指标）
+  - 策略配置：75%完成
+
+#### 🎨 README优化
+- **新增项目状态章节** - 清晰展示已完成和正在进行的工作
+- **新增功能对比章节** - 详细对比PTrade和SimTradeLab的功能
+- **新增待改进章节** - 坦诚说明已知问题和改进计划
+  - 命令行/UI优化需求
+  - 内存优化方案（8-12GB占用问题）
+  - SimTradeData性能问题
+  - 测试覆盖不全面的说明
+- **更新项目结构** - 反映实际的代码组织
+- **精简冗余内容** - 移除重复的示例和API列表
+
+### 🐛 Bug修复
+
+#### 🔨 GitHub Actions CI/CD
+- **修复系统依赖安装问题**
+  - Linux: 从源码编译安装ta-lib（Ubuntu仓库无libta-lib-dev包）
+  - macOS: 添加TA_LIBRARY_PATH和TA_INCLUDE_PATH环境变量
+  - Windows: 暂时跳过ta-lib安装（编译复杂）
+- **简化CI矩阵** - 仅在Linux上运行自动CI（移除macOS/Windows以提升速度）
+- **修复publish workflow逻辑** - 修正`release-build` job的条件判断
+  - 之前：`if: ${{ !inputs.skip_tests || success() }}`（逻辑错误）
+  - 现在：`if: ${{ always() && (inputs.skip_tests == true || needs.test.result == 'success') }}`
+- **修复导入测试** - 使用正确的模块路径
+  - 错误：`from simtradelab import BacktestEngine, Context`
+  - 正确：`from simtradelab.backtest.runner import BacktestRunner`
+
+#### 📝 文件修复
+- **修复`__init__.py`编码问题** - 解决中文注释乱码（UTF-8编码）
+- **更新poetry.lock** - 同步依赖锁文件
+
+### 🚀 性能优化
+
+#### ⚡ 缓存系统
+- **LRU缓存优化** - 通过cachetools实现高效缓存管理
+- **并行处理** - 通过joblib支持多进程并行计算
+
+### 📖 文档
+
+#### 新增文档
+- `docs/PYPI_PUBLISHING_GUIDE.md` - 完整的PyPI发布指南
+  - Trusted Publishing配置
+  - 发布流程详解
+  - 常见问题排查
+- `RELEASE.md` - 快速发布操作指南
+- `docs/PTrade_API_Implementation_Status.md` - API实现状态更新
+
+#### 更新文档
+- `README.md` - 大幅更新，增加功能对比和项目状态
+- 各workflow文件的注释和说明
+
+### ⚠️ 已知问题
+
+- **测试覆盖不全** - 由于时间限制，主要通过实际策略发现和修复问题
+- **内存占用较大** - 全量加载5000+股票需要8-12GB内存
+- **SimTradeData性能** - 数据获取项目存在性能问题，需要优化
+- **部分API未实现** - 还有99个PTrade API待实现
+  - 融资融券：19个API
+  - 期货交易：7个API
+  - 期权交易：15个API
+  - 实时交易：高级交易、盘后交易、IPO申购等
+
+### 💡 贡献指南
+
+欢迎社区参与：
+- 报告bug和问题
+- 实现缺失的API
+- 优化性能和内存
+- 完善文档和示例
+- 分享策略和使用经验
+
+详见：`docs/CONTRIBUTING.md`
+
+### 📦 升级指南
+
+从1.1.x升级到1.2.0：
+
+```bash
+# 升级到新版本
+pip install --upgrade simtradelab==1.2.0
+
+# 如需参数优化功能
+pip install simtradelab[optimizer]==1.2.0
+```
+
+**重要变更：**
+- 新增必需依赖：cachetools, joblib, matplotlib
+- 版本号统一管理
+- API数量从56个修正为52个
+
+**兼容性：**
+- ✅ 向后兼容 - 策略代码无需修改
+- ✅ 数据格式兼容
+- ✅ 配置文件兼容
+
+---
+
+## [1.1.1] - 2025-07-07
+
+### 🐛 Bug修复
+- 修复依赖错误
+
+---
+
+## [1.1.0] - 2025-07-07
+
+### ✨ 新增功能
+- 功能更新
+
+---
+
 ## [1.0.0] - 2025-07-05
 
 ### 🎉 SimTradeLab 正式发布
