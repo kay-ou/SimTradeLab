@@ -13,8 +13,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # 仅在Linux上构建，避免macOS/Windows编译依赖耗时
+        os: [ubuntu-latest]
         python-version: ['3.10', '3.11', '3.12']
+        # 如需其他平台wheel，使用workflow_dispatch手动触发
+        # os: [ubuntu-latest, macos-latest]
 
     steps:
     - uses: actions/checkout@v4
@@ -30,22 +33,20 @@ jobs:
         pip install build wheel setuptools
         pip install poetry
 
-    - name: Install system dependencies (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        brew install hdf5 ta-lib
-        echo "HDF5_DIR=$(brew --prefix hdf5)" >> $GITHUB_ENV
-
-    - name: Install system dependencies (Linux)
-      if: runner.os == 'Linux'
+    - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libhdf5-dev libta-lib-dev
+        sudo apt-get install -y libhdf5-dev
 
-    - name: Install system dependencies (Windows)
-      if: runner.os == 'Windows'
-      run: |
-        choco install hdf5 -y
+        # 从源码编译安装ta-lib
+        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+        tar -xzf ta-lib-0.4.0-src.tar.gz
+        cd ta-lib/
+        ./configure --prefix=/usr
+        make
+        sudo make install
+        cd ..
+        rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
 
     - name: Build wheel with Poetry
       run: |
@@ -94,7 +95,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest]
         python-version: ['3.10', '3.12']
 
     steps:
