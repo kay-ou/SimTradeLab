@@ -77,38 +77,21 @@ jobs:
           path: dist/
 
   pypi-publish:
-    runs-on: ubuntu-latest
-    needs:
-      - release-build
-    permissions:
-      # IMPORTANT: this permission is mandatory for trusted publishing
-      id-token: write
+  runs-on: ubuntu-latest
+  steps:
+    - name: Retrieve release distributions
+      uses: actions/download-artifact@v4
+      with:
+        name: release-dists
+        path: dist/
 
-    # Dedicated environments with protections for publishing are strongly recommended.
-    environment:
-      name: pypi
-      url: https://pypi.org/project/simtradelab/${{ github.event.release.tag_name }}
-      TWINE_USERNAME: __token__
-      TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-
-    steps:
-      - name: Retrieve release distributions
-        uses: actions/download-artifact@v4
-        with:
-          name: release-dists
-          path: dist/
-
-      - name: Verify distributions
-        run: |
-          ls -la dist/
-          echo "Publishing the following packages:"
-          find dist/ -name "*.whl" -o -name "*.tar.gz"
-
-      - name: Publish release distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist/
-          verbose: true
+    - name: Publish release distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        user: __token__
+        password: ${{ secrets.PYPI_TOKEN }}
+        packages-dir: dist/
+        verbose: true
 
   post-publish:
     runs-on: ubuntu-latest
