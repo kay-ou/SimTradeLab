@@ -203,7 +203,11 @@ jobs:
           pip install simtradelab==${{ github.event.release.tag_name }}
 
           # 验证安装
-          python -c "import simtradelab; print(f'✅ SimTradeLab {simtradelab.__version__} installed successfully')"
+          python -c "
+          import simtradelab
+          from simtradelab.backtest.runner import BacktestRunner
+          print(f'✅ SimTradeLab {simtradelab.__version__} installed successfully')
+          "
 
       - name: Generate Release Notes
         id: release_notes

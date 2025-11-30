@@ -208,7 +208,11 @@ jobs:
             source test_env/bin/activate
             python -m pip install "$WHEEL_FILE"
           fi
-          python -c "import simtradelab; print(f'✅ Package installation test passed: {simtradelab.__version__}')"
+          python -c "
+          import simtradelab
+          from simtradelab.backtest.runner import BacktestRunner
+          print(f'✅ Package installation test passed: {simtradelab.__version__}')
+          "
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

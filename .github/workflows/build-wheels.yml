@@ -79,9 +79,11 @@ jobs:
       run: |
         python -c "
         import simtradelab
-        from simtradelab import BacktestEngine, Context
-        print('Basic imports successful')
-        print(f'Version: {simtradelab.__version__}')
+        from simtradelab.backtest.runner import BacktestRunner
+        from simtradelab.ptrade.context import Context
+        print('✅ Basic imports successful')
+        print(f'📦 Version: {simtradelab.__version__}')
+        print('🎯 Core modules loaded successfully')
         "
 
     - name: Upload wheels as artifacts
@@ -117,8 +119,9 @@ jobs:
         python -m pip install "$WHEEL_FILE"
         python -c "
         import simtradelab
-        print('Wheel installation test passed')
-        print(f'Installed version: {simtradelab.__version__}')
+        from simtradelab.backtest.runner import BacktestRunner
+        print('✅ Wheel installation test passed')
+        print(f'📦 Installed version: {simtradelab.__version__}')
         "
 
     - name: Test optional dependencies
