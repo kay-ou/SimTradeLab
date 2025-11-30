@@ -96,8 +96,10 @@ jobs:
 
       - name: Publish release distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
           packages-dir: dist/
           verbose: true
 
