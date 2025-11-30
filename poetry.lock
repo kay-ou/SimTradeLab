@@ -5489,4 +5489,4 @@ optimizer = ["optuna"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.9"
-content-hash = "430de1c44da368545586ccbee324151cc3d0b82b2db018837b4313026edf064e"
+content-hash = "84145f7a751e5b5ebab475a666907a0e08d3bf15672fa01b8dd26772dabb5c35"
