@@ -1,6 +1,6 @@
 services:
   simtradelab-web:
-    build: 
+    build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: simtradelab-web

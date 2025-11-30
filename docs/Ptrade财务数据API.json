@@ -1,0 +1,2564 @@
+{
+  "title": "财务数据的API接口说明",
+  "sections": [
+    {
+      "heading": "valuation-估值数据",
+      "level": 2,
+      "content": [
+        {
+          "type": "code",
+          "text": "get_fundamentals(security, 'valuation', fields=None, date=None)"
+        },
+        {
+          "type": "paragraph",
+          "text": "注意事项："
+        },
+        {
+          "type": "paragraph",
+          "text": "一、该接口只支持按天查询模式，返回查询日期对应股票相关数据。查询此表不支持输入的参数有：start_year, end_year, report_types, date_type, merge_type。"
+        },
+        {
+          "type": "paragraph",
+          "text": "二、换手率（turnover_rate）和滚动股息率（dividend_ratio）两个字段数据源返回的是带%的字符串。比如turnover_rate：20%，用户需要自行转换成0.2的float格式。"
+        },
+        {
+          "type": "paragraph",
+          "text": "关于date字段的说明"
+        },
+        {
+          "type": "paragraph",
+          "text": "场景一：date字段不入参。回测中默认是获取context.blotter.current_dt交易日收盘后更新的数据，因此会产生未来函数，交易和研究会返回当日数据，若在盘中时间由于数据未更新将返回字段为NAN的数据，因此建议获取最新数据的场景都使用date参数入参上一个交易日日期。"
+        },
+        {
+          "type": "paragraph",
+          "text": "场景二：date字段入参日期。回测和交易中若date为非交易日，将返回字段为NAN的数据；研究中若date为非交易日，将返回往前最近一个交易日的数据，注意回测和交易中是可以取到未来的数据，需要规避。"
+        },
+        {
+          "type": "code",
+          "text": "turnover_rate     pb    total_value   trading_day    pe_dynamic\nsecu_code\n600570.SS         4.20%        11.89   3.748224e+10   2018-04-24      163.38\n000001.SZ         0.86%         0.91   2.036411e+11   2018-04-24        7.72"
+        }
+      ]
+    },
+    {
+      "heading": "示例",
+      "level": 3,
+      "content": [
+        {
+          "type": "code",
+          "text": "# 获取股票池\nstocks = get_index_stocks('000906.XBHS')\n# 指定股票池\nstocks = ['600570.SS','000001.SZ']\n\n# 获取估值数据，默认会返回context.blotter.current_dt前一交易日的数据(在实际生活中，我们只能看到前一交易日的估值数据)。仅在回测中返回前一交易日的估值数据，在研究和交易中返回当前时间的估值数据。\nget_fundamentals(stocks, 'valuation')\n\n#获取股票池中对应上市公司2018年04月10日前一交易日的市净率\nget_fundamentals(stocks, 'valuation', date = '20180410', fields = 'pb')\n\n# 获取股票池中对应上市公司2018年04月24日前一交易日的A股总市值(元)、动态市盈率、换手率和市净率数据\nget_fundamentals(stocks, 'valuation', date = '2018-04-24', fields = ['total_value', 'pe_dynamic', 'turnover_rate', 'pb'])"
+        },
+        {
+          "type": "paragraph",
+          "text": "估值数据valuation具体字段"
+        },
+        {
+          "type": "table",
+          "rows": [
+            {
+              "字段名称": "trading_day",
+              "字段类型": "str",
+              "字段说明": "交易日期",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "total_value",
+              "字段类型": "str",
+              "字段说明": "A股总市值(元)",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "float_value",
+              "字段类型": "str",
+              "字段说明": "A股流通市值(元)",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "naps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股净资产/(元/股)",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "pcf",
+              "字段类型": "str",
+              "字段说明": "市现率",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "secu_abbr",
+              "字段类型": "str",
+              "字段说明": "证券简称",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "secu_code",
+              "字段类型": "str",
+              "字段说明": "证券代码",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "ps",
+              "字段类型": "numpy.float64",
+              "字段说明": "市销率PS",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "ps_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "市销率PS(TTM)",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "pe_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "市盈率PE(TTM)",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "a_shares",
+              "字段类型": "str",
+              "字段说明": "A股股本",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "a_floats",
+              "字段类型": "numpy.float64",
+              "字段说明": "可流通A股",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "pe_dynamic",
+              "字段类型": "str",
+              "字段说明": "动态市盈率",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "pe_static",
+              "字段类型": "str",
+              "字段说明": "静态市盈率",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "b_floats",
+              "字段类型": "str",
+              "字段说明": "可流通B股",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "b_shares",
+              "字段类型": "numpy.float64",
+              "字段说明": "B股股本",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "h_shares",
+              "字段类型": "numpy.float64",
+              "字段说明": "H股股本",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "total_shares",
+              "字段类型": "int",
+              "字段说明": "总股本",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "turnover_rate",
+              "字段类型": "str",
+              "字段说明": "换手率",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "dividend_ratio",
+              "字段类型": "str",
+              "字段说明": "滚动股息率",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "pb",
+              "字段类型": "numpy.float64",
+              "字段说明": "市净率",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "roe",
+              "字段类型": "numpy.float64",
+              "字段说明": "净资产收益率",
+              "属性": "自选返回"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "balance_statement-资产负债表",
+      "level": 2,
+      "content": [
+        {
+          "type": "code",
+          "text": "get_fundamentals(security, 'balance_statement',fields, date = None, start_year = None, end_year = None, report_types = None, date_type = None, merge_type = None)"
+        },
+        {
+          "type": "code",
+          "text": "company_type   publ_date   secu_abbr    total_assets\nend_date\n2013-03-31            1       2013-04-19   恒生电子     1.76795e+09\n2014-03-31            1       2014-04-29   恒生电子     2.20999e+09\n2015-03-31            1       2015-04-25   恒生电子     3.09674e+09"
+        }
+      ]
+    },
+    {
+      "heading": "示例",
+      "level": 3,
+      "content": [
+        {
+          "type": "code",
+          "text": "# 获取数据的两种模式\n# 1. 按日期查询模式（默认以发布日期为参考时间）：返回输入日期之前对应的财务数据\n# 在回测中获取单一股票中对应回测日期资产负债表中资产总计（total_assets）数据\nget_fundamentals('600570.SS','balance_statement','total_assets','20160628')\n\n# 2. 按年份查询模式：返回输入年份范围内对应季度的财务数据\n# 获取恒生电子(600570.SS)从2013年至2015年第一季度资产负债表中资产总计\n#（total_assets）数据\nget_fundamentals('600570.SS','balance_statement','total_assets',start_year='2013',end_year='2015', report_types='1')"
+        },
+        {
+          "type": "paragraph",
+          "text": "资产负债表- balance_statement具体字段"
+        },
+        {
+          "type": "table",
+          "rows": [
+            {
+              "字段名称": "secu_code",
+              "字段类型": "str",
+              "字段说明": "股票代码"
+            },
+            {
+              "字段名称": "secu_abbr",
+              "字段类型": "str",
+              "字段说明": "股票简称"
+            },
+            {
+              "字段名称": "company_type",
+              "字段类型": "str",
+              "字段说明": "公司类型"
+            },
+            {
+              "字段名称": "end_date",
+              "字段类型": "str",
+              "字段说明": "截止日期"
+            },
+            {
+              "字段名称": "publ_date",
+              "字段类型": "str",
+              "字段说明": "公告日期"
+            },
+            {
+              "字段名称": "total_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "资产总计"
+            },
+            {
+              "字段名称": "total_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "负债合计"
+            },
+            {
+              "字段名称": "total_liability_and_equity",
+              "字段类型": "numpy.float64",
+              "字段说明": "负债和股东权益总计"
+            },
+            {
+              "字段名称": "settlement_provi",
+              "字段类型": "numpy.float64",
+              "字段说明": "结算备付金"
+            },
+            {
+              "字段名称": "client_provi",
+              "字段类型": "numpy.float64",
+              "字段说明": "客户备付金"
+            },
+            {
+              "字段名称": "deposit_in_interbank",
+              "字段类型": "numpy.float64",
+              "字段说明": "存放同业款项"
+            },
+            {
+              "字段名称": "r_metal",
+              "字段类型": "numpy.float64",
+              "字段说明": "贵金属"
+            },
+            {
+              "字段名称": "lend_capital",
+              "字段类型": "numpy.float64",
+              "字段说明": "拆出资金"
+            },
+            {
+              "字段名称": "derivative_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "衍生金融资产"
+            },
+            {
+              "字段名称": "bought_sellback_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "买入返售金融资产"
+            },
+            {
+              "字段名称": "loan_and_advance",
+              "字段类型": "numpy.float64",
+              "字段说明": "发放贷款和垫款"
+            },
+            {
+              "字段名称": "insurance_receivables",
+              "字段类型": "numpy.float64",
+              "字段说明": "应收保费"
+            },
+            {
+              "字段名称": "receivable_subrogation_fee",
+              "字段类型": "numpy.float64",
+              "字段说明": "应收代位追偿款"
+            },
+            {
+              "字段名称": "reinsurance_receivables",
+              "字段类型": "numpy.float64",
+              "字段说明": "应收分保账款"
+            },
+            {
+              "字段名称": "receivable_unearned_r",
+              "字段类型": "numpy.float64",
+              "字段说明": "应收分保未到期责任准备金"
+            },
+            {
+              "字段名称": "receivable_claims_r",
+              "字段类型": "numpy.float64",
+              "字段说明": "应收分保未决赔款准备金"
+            },
+            {
+              "字段名称": "receivable_life_r",
+              "字段类型": "numpy.float64",
+              "字段说明": "应收分保寿险责任准备金"
+            },
+            {
+              "字段名称": "receivable_lt_health_r",
+              "字段类型": "numpy.float64",
+              "字段说明": "应收分保长期健康险责任准备金"
+            },
+            {
+              "字段名称": "insurer_impawn_loan",
+              "字段类型": "numpy.float64",
+              "字段说明": "保户质押贷款"
+            },
+            {
+              "字段名称": "fixed_deposit",
+              "字段类型": "numpy.float64",
+              "字段说明": "定期存款"
+            },
+            {
+              "字段名称": "refundable_capital_deposit",
+              "字段类型": "numpy.float64",
+              "字段说明": "存出资本保证金"
+            },
+            {
+              "字段名称": "refundable_deposit",
+              "字段类型": "numpy.float64",
+              "字段说明": "存出保证金"
+            },
+            {
+              "字段名称": "independence_account_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "独立账户资产"
+            },
+            {
+              "字段名称": "other_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "其他资产"
+            },
+            {
+              "字段名称": "borrowing_from_centralbank",
+              "字段类型": "numpy.float64",
+              "字段说明": "向中央银行借款"
+            },
+            {
+              "字段名称": "deposit_of_interbank",
+              "字段类型": "numpy.float64",
+              "字段说明": "同业及其他金融机构存放款项"
+            },
+            {
+              "字段名称": "borrowing_capital",
+              "字段类型": "numpy.float64",
+              "字段说明": "拆入资金"
+            },
+            {
+              "字段名称": "derivative_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "衍生金融负债"
+            },
+            {
+              "字段名称": "sold_buyback_secu_proceeds",
+              "字段类型": "numpy.float64",
+              "字段说明": "卖出回购金融资产款"
+            },
+            {
+              "字段名称": "deposit",
+              "字段类型": "numpy.float64",
+              "字段说明": "吸收存款"
+            },
+            {
+              "字段名称": "proxy_secu_proceeds",
+              "字段类型": "numpy.float64",
+              "字段说明": "代理买卖证券款"
+            },
+            {
+              "字段名称": "sub_issue_secu_proceeds",
+              "字段类型": "numpy.float64",
+              "字段说明": "代理承销证券款"
+            },
+            {
+              "字段名称": "deposits_received",
+              "字段类型": "numpy.float64",
+              "字段说明": "存入保证金"
+            },
+            {
+              "字段名称": "advance_insurance",
+              "字段类型": "numpy.float64",
+              "字段说明": "预收保费"
+            },
+            {
+              "字段名称": "commission_payable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应付手续费及佣金"
+            },
+            {
+              "字段名称": "reinsurance_payables",
+              "字段类型": "numpy.float64",
+              "字段说明": "应付分保账款"
+            },
+            {
+              "字段名称": "compensation_payable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应付赔付款"
+            },
+            {
+              "字段名称": "policy_dividend_payable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应付保单红利"
+            },
+            {
+              "字段名称": "insurer_deposit_investment",
+              "字段类型": "numpy.float64",
+              "字段说明": "保户储金及投资款"
+            },
+            {
+              "字段名称": "unearned_premium_reserve",
+              "字段类型": "numpy.float64",
+              "字段说明": "未到期责任准备金"
+            },
+            {
+              "字段名称": "outstanding_claim_reserve",
+              "字段类型": "numpy.float64",
+              "字段说明": "未决赔款准备金"
+            },
+            {
+              "字段名称": "life_insurance_reserve",
+              "字段类型": "numpy.float64",
+              "字段说明": "寿险责任准备金"
+            },
+            {
+              "字段名称": "lt_health_insurance_lr",
+              "字段类型": "numpy.float64",
+              "字段说明": "长期健康险责任准备金"
+            },
+            {
+              "字段名称": "independence_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "独立账户负债"
+            },
+            {
+              "字段名称": "other_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "其他负债"
+            },
+            {
+              "字段名称": "cash_equivalents",
+              "字段类型": "numpy.float64",
+              "字段说明": "货币资金"
+            },
+            {
+              "字段名称": "client_deposit",
+              "字段类型": "numpy.float64",
+              "字段说明": "客户资金存款"
+            },
+            {
+              "字段名称": "trading_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "交易性金融资产"
+            },
+            {
+              "字段名称": "bill_receivable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应收票据"
+            },
+            {
+              "字段名称": "dividend_receivable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应收股利"
+            },
+            {
+              "字段名称": "interest_receivable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应收利息"
+            },
+            {
+              "字段名称": "account_receivable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应收账款"
+            },
+            {
+              "字段名称": "other_receivable",
+              "字段类型": "numpy.float64",
+              "字段说明": "其他应收款"
+            },
+            {
+              "字段名称": "advance_payment",
+              "字段类型": "numpy.float64",
+              "字段说明": "预付款项"
+            },
+            {
+              "字段名称": "inventories",
+              "字段类型": "numpy.float64",
+              "字段说明": "存货"
+            },
+            {
+              "字段名称": "non_current_asset_in_one_year",
+              "字段类型": "numpy.float64",
+              "字段说明": "一年内到期的非流动资产"
+            },
+            {
+              "字段名称": "other_current_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "其他流动资产"
+            },
+            {
+              "字段名称": "total_current_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "流动资产合计"
+            },
+            {
+              "字段名称": "shortterm_loan",
+              "字段类型": "numpy.float64",
+              "字段说明": "短期借款"
+            },
+            {
+              "字段名称": "impawned_loan",
+              "字段类型": "numpy.float64",
+              "字段说明": "质押借款"
+            },
+            {
+              "字段名称": "trading_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "交易性金融负债"
+            },
+            {
+              "字段名称": "notes_payable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应付票据"
+            },
+            {
+              "字段名称": "accounts_payable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应付账款"
+            },
+            {
+              "字段名称": "advance_receipts",
+              "字段类型": "numpy.float64",
+              "字段说明": "预收款项"
+            },
+            {
+              "字段名称": "salaries_payable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应付职工薪酬"
+            },
+            {
+              "字段名称": "dividend_payable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应付股利"
+            },
+            {
+              "字段名称": "taxs_payable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应交税费"
+            },
+            {
+              "字段名称": "interest_payable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应付利息"
+            },
+            {
+              "字段名称": "other_payable",
+              "字段类型": "numpy.float64",
+              "字段说明": "其他应付款"
+            },
+            {
+              "字段名称": "non_current_liability_in_one_year",
+              "字段类型": "numpy.float64",
+              "字段说明": "一年内到期的非流动负债"
+            },
+            {
+              "字段名称": "other_current_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "其他流动负债"
+            },
+            {
+              "字段名称": "total_current_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "流动负债合计"
+            },
+            {
+              "字段名称": "hold_for_sale_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "可供出售金融资产"
+            },
+            {
+              "字段名称": "hold_to_maturity_investments",
+              "字段类型": "numpy.float64",
+              "字段说明": "持有至到期投资"
+            },
+            {
+              "字段名称": "investment_property",
+              "字段类型": "numpy.float64",
+              "字段说明": "投资性房地产"
+            },
+            {
+              "字段名称": "longterm_equity_invest",
+              "字段类型": "numpy.float64",
+              "字段说明": "长期股权投资"
+            },
+            {
+              "字段名称": "longterm_receivable_account",
+              "字段类型": "numpy.float64",
+              "字段说明": "长期应收款"
+            },
+            {
+              "字段名称": "fixed_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "固定资产"
+            },
+            {
+              "字段名称": "construction_materials",
+              "字段类型": "numpy.float64",
+              "字段说明": "工程物资"
+            },
+            {
+              "字段名称": "constru_in_process",
+              "字段类型": "numpy.float64",
+              "字段说明": "在建工程"
+            },
+            {
+              "字段名称": "fixed_assets_liquidation",
+              "字段类型": "numpy.float64",
+              "字段说明": "固定资产清理"
+            },
+            {
+              "字段名称": "biological_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "生产性生物资产"
+            },
+            {
+              "字段名称": "oil_gas_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "油气资产"
+            },
+            {
+              "字段名称": "intangible_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "无形资产"
+            },
+            {
+              "字段名称": "seat_costs",
+              "字段类型": "numpy.float64",
+              "字段说明": "交易席位费"
+            },
+            {
+              "字段名称": "development_expenditure",
+              "字段类型": "numpy.float64",
+              "字段说明": "开发支出"
+            },
+            {
+              "字段名称": "good_will",
+              "字段类型": "numpy.float64",
+              "字段说明": "商誉"
+            },
+            {
+              "字段名称": "long_deferred_expense",
+              "字段类型": "numpy.float64",
+              "字段说明": "长期待摊费用"
+            },
+            {
+              "字段名称": "deferred_tax_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "递延所得税资产"
+            },
+            {
+              "字段名称": "other_non_current_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "其他非流动资产"
+            },
+            {
+              "字段名称": "total_non_current_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "非流动资产合计"
+            },
+            {
+              "字段名称": "longterm_loan",
+              "字段类型": "numpy.float64",
+              "字段说明": "长期借款"
+            },
+            {
+              "字段名称": "bonds_payable",
+              "字段类型": "numpy.float64",
+              "字段说明": "应付债券"
+            },
+            {
+              "字段名称": "longterm_account_payable",
+              "字段类型": "numpy.float64",
+              "字段说明": "长期应付款"
+            },
+            {
+              "字段名称": "long_salaries_pay",
+              "字段类型": "numpy.float64",
+              "字段说明": "长期应付职工薪酬"
+            },
+            {
+              "字段名称": "specific_account_payable",
+              "字段类型": "numpy.float64",
+              "字段说明": "专项应付款"
+            },
+            {
+              "字段名称": "estimate_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "预计负债"
+            },
+            {
+              "字段名称": "deferred_tax_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "递延所得税负债"
+            },
+            {
+              "字段名称": "long_defer_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "长期递延收益"
+            },
+            {
+              "字段名称": "other_non_current_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "其他非流动负债"
+            },
+            {
+              "字段名称": "total_non_current_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "非流动负债合计"
+            },
+            {
+              "字段名称": "paidin_capital",
+              "字段类型": "numpy.float64",
+              "字段说明": "实收资本（或股本）"
+            },
+            {
+              "字段名称": "other_equityinstruments",
+              "字段类型": "numpy.float64",
+              "字段说明": "其他权益工具"
+            },
+            {
+              "字段名称": "capital_reserve_fund",
+              "字段类型": "numpy.float64",
+              "字段说明": "资本公积"
+            },
+            {
+              "字段名称": "surplus_reserve_fund",
+              "字段类型": "numpy.float64",
+              "字段说明": "盈余公积"
+            },
+            {
+              "字段名称": "retained_profit",
+              "字段类型": "numpy.float64",
+              "字段说明": "未分配利润"
+            },
+            {
+              "字段名称": "treasury_stock",
+              "字段类型": "numpy.float64",
+              "字段说明": "减：库存股"
+            },
+            {
+              "字段名称": "other_composite_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "其他综合收益"
+            },
+            {
+              "字段名称": "ordinary_risk_reserve_fund",
+              "字段类型": "numpy.float64",
+              "字段说明": "一般风险准备"
+            },
+            {
+              "字段名称": "foreign_currency_report_conv_diff",
+              "字段类型": "numpy.float64",
+              "字段说明": "外币报表折算差额"
+            },
+            {
+              "字段名称": "specific_reserves",
+              "字段类型": "numpy.float64",
+              "字段说明": "专项储备"
+            },
+            {
+              "字段名称": "se_without_mi",
+              "字段类型": "numpy.float64",
+              "字段说明": "归属母公司股东权益合计"
+            },
+            {
+              "字段名称": "minority_interests",
+              "字段类型": "numpy.float64",
+              "字段说明": "少数股东权益"
+            },
+            {
+              "字段名称": "total_shareholder_equity",
+              "字段类型": "numpy.float64",
+              "字段说明": "所有者权益合计"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "income_statement-利润表",
+      "level": 2,
+      "content": [
+        {
+          "type": "code",
+          "text": "get_fundamentals(security, 'income_statement',fields, date = None, start_year = None, end_year = None, report_types = None, date_type = None, merge_type = None)"
+        },
+        {
+          "type": "code",
+          "text": "company_type   net_profit   publ_date      secu_abbr\nend_date\n2013-03-31            1        3.71658e+07  2013-04-19      恒生电子\n2014-03-31            1        5.38395e+07  2014-04-29      恒生电子\n2015-03-31            1           7.22e+07  2015-04-25      恒生电子"
+        }
+      ]
+    },
+    {
+      "heading": "示例",
+      "level": 3,
+      "content": [
+        {
+          "type": "code",
+          "text": "# 获取数据的两种模式\n# 1. 按日期查询模式（默认以发布日期为参考时间）：返回输入日期之前对应的财务数据\n# 在回测中获取单一股票中对应回测日期第一季度利润表中净利润（net_profit）数据\nget_fundamentals('600570.SS','income_statement','net_profit','20160628')\n\n# 2. 按年份查询模式：返回输入年份范围内对应季度的财务数据\n# 获取恒生电子(600570.SS)从2013年至2015年第一季度利润表中净利润（net_profit）# 数据\nget_fundamentals('600570.SS','income_statement','net_profit',start_year='2013',end_year='2015', report_types='1')"
+        },
+        {
+          "type": "paragraph",
+          "text": "利润表- income_statement具体字段"
+        },
+        {
+          "type": "table",
+          "rows": [
+            {
+              "字段名称": "secu_code",
+              "字段类型": "str",
+              "字段说明": "股票代码"
+            },
+            {
+              "字段名称": "secu_abbr",
+              "字段类型": "str",
+              "字段说明": "股票简称"
+            },
+            {
+              "字段名称": "company_type",
+              "字段类型": "str",
+              "字段说明": "公司类型"
+            },
+            {
+              "字段名称": "end_date",
+              "字段类型": "str",
+              "字段说明": "截止日期"
+            },
+            {
+              "字段名称": "publ_date",
+              "字段类型": "str",
+              "字段说明": "公告日期"
+            },
+            {
+              "字段名称": "basic_eps",
+              "字段类型": "numpy.float64",
+              "字段说明": "基本每股收益"
+            },
+            {
+              "字段名称": "diluted_eps",
+              "字段类型": "numpy.float64",
+              "字段说明": "稀释每股收益"
+            },
+            {
+              "字段名称": "net_profit",
+              "字段类型": "numpy.float64",
+              "字段说明": "净利润"
+            },
+            {
+              "字段名称": "np_parent_company_owners",
+              "字段类型": "numpy.float64",
+              "字段说明": "归属于母公司所有者的净利润"
+            },
+            {
+              "字段名称": "minority_profit",
+              "字段类型": "numpy.float64",
+              "字段说明": "少数股东损益"
+            },
+            {
+              "字段名称": "total_operating_cost",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业总成本"
+            },
+            {
+              "字段名称": "operating_payout",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业支出"
+            },
+            {
+              "字段名称": "refunded_premiums",
+              "字段类型": "numpy.float64",
+              "字段说明": "退保金"
+            },
+            {
+              "字段名称": "compensation_expense",
+              "字段类型": "numpy.float64",
+              "字段说明": "赔付支出"
+            },
+            {
+              "字段名称": "amortization_expense",
+              "字段类型": "numpy.float64",
+              "字段说明": "减:摊回赔付支出"
+            },
+            {
+              "字段名称": "premium_reserve",
+              "字段类型": "numpy.float64",
+              "字段说明": "提取保险责任准备金"
+            },
+            {
+              "字段名称": "amortization_premium_reserve",
+              "字段类型": "numpy.float64",
+              "字段说明": "减:摊回保险责任准备金"
+            },
+            {
+              "字段名称": "policy_dividend_payout",
+              "字段类型": "numpy.float64",
+              "字段说明": "保单红利支出"
+            },
+            {
+              "字段名称": "reinsurance_cost",
+              "字段类型": "numpy.float64",
+              "字段说明": "分保费用"
+            },
+            {
+              "字段名称": "amortization_reinsurance_cost",
+              "字段类型": "numpy.float64",
+              "字段说明": "减:摊回分保费用"
+            },
+            {
+              "字段名称": "insurance_commission_expense",
+              "字段类型": "numpy.float64",
+              "字段说明": "保险手续费及佣金支出"
+            },
+            {
+              "字段名称": "other_operating_cost",
+              "字段类型": "numpy.float64",
+              "字段说明": "其他营业成本"
+            },
+            {
+              "字段名称": "operating_cost",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业成本"
+            },
+            {
+              "字段名称": "operating_tax_surcharges",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业税金及附加"
+            },
+            {
+              "字段名称": "operating_expense",
+              "字段类型": "numpy.float64",
+              "字段说明": "销售费用"
+            },
+            {
+              "字段名称": "administration_expense",
+              "字段类型": "numpy.float64",
+              "字段说明": "管理费用"
+            },
+            {
+              "字段名称": "financial_expense",
+              "字段类型": "numpy.float64",
+              "字段说明": "财务费用"
+            },
+            {
+              "字段名称": "asset_impairment_loss",
+              "字段类型": "numpy.float64",
+              "字段说明": "资产减值损失"
+            },
+            {
+              "字段名称": "operating_profit",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业利润"
+            },
+            {
+              "字段名称": "non_operating_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "加：营业收入"
+            },
+            {
+              "字段名称": "non_operating_expense",
+              "字段类型": "numpy.float64",
+              "字段说明": "减：营业外支出"
+            },
+            {
+              "字段名称": "non_current_assetss_deal_loss",
+              "字段类型": "numpy.float64",
+              "字段说明": "其中：非流动资产处置净损失"
+            },
+            {
+              "字段名称": "total_operating_revenue",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业总收入"
+            },
+            {
+              "字段名称": "operating_revenue",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业收入"
+            },
+            {
+              "字段名称": "net_interest_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "利息净收入"
+            },
+            {
+              "字段名称": "interest_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "其中：利息收入"
+            },
+            {
+              "字段名称": "interest_expense",
+              "字段类型": "numpy.float64",
+              "字段说明": "其中:利息支出"
+            },
+            {
+              "字段名称": "net_commission_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "手续费及佣金净收入"
+            },
+            {
+              "字段名称": "commission_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "其中：手续费及佣金收入"
+            },
+            {
+              "字段名称": "commission_expense",
+              "字段类型": "numpy.float64",
+              "字段说明": "其中：手续费及佣金支出"
+            },
+            {
+              "字段名称": "net_proxy_secu_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "其中：代理买卖证券业务净收入"
+            },
+            {
+              "字段名称": "net_subissue_secu_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "其中：证券承销业务净收入"
+            },
+            {
+              "字段名称": "net_trust_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "其中:受托客户资产管理业务净收入"
+            },
+            {
+              "字段名称": "premiums_earned",
+              "字段类型": "numpy.float64",
+              "字段说明": "已赚保费"
+            },
+            {
+              "字段名称": "premiums_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "保险业务收入"
+            },
+            {
+              "字段名称": "reinsurance_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "其中：分保费收入"
+            },
+            {
+              "字段名称": "reinsurance",
+              "字段类型": "numpy.float64",
+              "字段说明": "减：分出保费"
+            },
+            {
+              "字段名称": "unearned_premium_reserve",
+              "字段类型": "numpy.float64",
+              "字段说明": "提取未到期责任准备金"
+            },
+            {
+              "字段名称": "other_operating_revenue",
+              "字段类型": "numpy.float64",
+              "字段说明": "其他营业收入"
+            },
+            {
+              "字段名称": "other_net_revenue",
+              "字段类型": "numpy.float64",
+              "字段说明": "非营业性收入"
+            },
+            {
+              "字段名称": "fair_value_change_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "公允价值变动净收益"
+            },
+            {
+              "字段名称": "invest_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "投资净收益"
+            },
+            {
+              "字段名称": "invest_income_associates",
+              "字段类型": "numpy.float64",
+              "字段说明": "其中:对联营合营企业的投资收益"
+            },
+            {
+              "字段名称": "exchange_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "汇兑收益"
+            },
+            {
+              "字段名称": "total_profit",
+              "字段类型": "numpy.float64",
+              "字段说明": "利润总额"
+            },
+            {
+              "字段名称": "income_tax_cost",
+              "字段类型": "numpy.float64",
+              "字段说明": "减：所得税费用"
+            },
+            {
+              "字段名称": "total_composite_income",
+              "字段类型": "numpy.float64",
+              "字段说明": "综合收益总额"
+            },
+            {
+              "字段名称": "ci_parent_company_owners",
+              "字段类型": "numpy.float64",
+              "字段说明": "归属于母公司所有者的综合收益总额"
+            },
+            {
+              "字段名称": "ci_minority_owners",
+              "字段类型": "numpy.float64",
+              "字段说明": "归属于少数股东的综合收益总额"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "cashflow_statement-现金流量表",
+      "level": 2,
+      "content": [
+        {
+          "type": "code",
+          "text": "get_fundamentals(security,'cashflow_statement',fields, date = None, start_year = None, end_year = None, report_types = None, date_type = None, merge_type = None)"
+        },
+        {
+          "type": "code",
+          "text": "company_type invest_cash_paid   publ_date      secu_abbr\nend_date\n2013-03-31            1        5.271e+08       2013-04-19      恒生电子\n2014-03-31            1       3.9488e+08       2014-04-29      恒生电子\n2015-03-31            1      9.92432e+08       2015-04-25      恒生电子"
+        }
+      ]
+    },
+    {
+      "heading": "示例",
+      "level": 3,
+      "content": [
+        {
+          "type": "code",
+          "text": "# 获取数据的两种模式\n# 1. 按日期查询模式（默认以发布日期为参考时间）：返回输入日期之前对应的财务数据\n# 在回测中获取单一股票中对应回测日期第一季度现金流量表中投资支付的现金\n#（invest_cash_paid）数据\nget_fundamentals('600570.SS','cashflow_statement','invest_cash_paid','20160628')\n\n# 2. 按年份查询模式：返回输入年份范围内对应季度的财务数据\n# 获取恒生电子(600570.SS)从2013年至2015年第一季度现金流量表中投资支付的现金#（invest_cash_paid）数据\nget_fundamentals('600570.SS','cashflow_statement','invest_cash_paid',start_year='2013',end_year='2015', report_types='1')"
+        },
+        {
+          "type": "paragraph",
+          "text": "现金流量表- income_statement具体字段"
+        },
+        {
+          "type": "table",
+          "rows": [
+            {
+              "字段名称": "secu_code",
+              "字段类型": "str",
+              "字段说明": "股票代码"
+            },
+            {
+              "字段名称": "secu_abbr",
+              "字段类型": "str",
+              "字段说明": "股票简称"
+            },
+            {
+              "字段名称": "company_type",
+              "字段类型": "str",
+              "字段说明": "公司类型"
+            },
+            {
+              "字段名称": "end_date",
+              "字段类型": "str",
+              "字段说明": "截止日期"
+            },
+            {
+              "字段名称": "publ_date",
+              "字段类型": "str",
+              "字段说明": "公告日期"
+            },
+            {
+              "字段名称": "goods_sale_service_render_cash",
+              "字段类型": "numpy.float64",
+              "字段说明": "销售商品、提供劳务收到的现金"
+            },
+            {
+              "字段名称": "tax_levy_refund",
+              "字段类型": "numpy.float64",
+              "字段说明": "收到的税费返还"
+            },
+            {
+              "字段名称": "net_deposit_increase",
+              "字段类型": "numpy.float64",
+              "字段说明": "客户存款和同业存放款项净增加额"
+            },
+            {
+              "字段名称": "net_borrowing_from_central_bank",
+              "字段类型": "numpy.float64",
+              "字段说明": "向中央银行借款净增加额"
+            },
+            {
+              "字段名称": "net_borrowing_from_finance_co",
+              "字段类型": "numpy.float64",
+              "字段说明": "向其他金融机构拆入资金净增加额"
+            },
+            {
+              "字段名称": "interest_and_commission_cashin",
+              "字段类型": "numpy.float64",
+              "字段说明": "收取利息、手续费及佣金的现金"
+            },
+            {
+              "字段名称": "net_deal_trading_assets",
+              "字段类型": "numpy.float64",
+              "字段说明": "处置交易性金融资产净增加额"
+            },
+            {
+              "字段名称": "net_buyback",
+              "字段类型": "numpy.float64",
+              "字段说明": "回购业务资金净增加额"
+            },
+            {
+              "字段名称": "net_original_insurance_cash",
+              "字段类型": "numpy.float64",
+              "字段说明": "收到原保险合同保费取得的现金"
+            },
+            {
+              "字段名称": "net_reinsurance_cash",
+              "字段类型": "numpy.float64",
+              "字段说明": "收到再保业务现金净额"
+            },
+            {
+              "字段名称": "net_insurer_deposit_investment",
+              "字段类型": "numpy.float64",
+              "字段说明": "保户储金及投资款净增加额"
+            },
+            {
+              "字段名称": "other_cashin_related_operate",
+              "字段类型": "numpy.float64",
+              "字段说明": "收到其他与经营活动有关的现金"
+            },
+            {
+              "字段名称": "subtotal_operate_cash_inflow",
+              "字段类型": "numpy.float64",
+              "字段说明": "经营活动现金流入小计"
+            },
+            {
+              "字段名称": "goods_and_services_cash_paid",
+              "字段类型": "numpy.float64",
+              "字段说明": "购买商品、接受劳务支付的现金"
+            },
+            {
+              "字段名称": "staff_behalf_paid",
+              "字段类型": "numpy.float64",
+              "字段说明": "支付给职工以及为职工支付的现金"
+            },
+            {
+              "字段名称": "all_taxes_paid",
+              "字段类型": "numpy.float64",
+              "字段说明": "支付的各项税费"
+            },
+            {
+              "字段名称": "net_loan_and_advance_increase",
+              "字段类型": "numpy.float64",
+              "字段说明": "客户贷款及垫款净增加额"
+            },
+            {
+              "字段名称": "net_deposit_in_cb_and_ib",
+              "字段类型": "numpy.float64",
+              "字段说明": "存放中央银行和同业款项净增加额"
+            },
+            {
+              "字段名称": "net_lend_capital",
+              "字段类型": "numpy.float64",
+              "字段说明": "拆出资金净增加额"
+            },
+            {
+              "字段名称": "commission_cash_paid",
+              "字段类型": "numpy.float64",
+              "字段说明": "支付手续费及佣金的现金"
+            },
+            {
+              "字段名称": "original_compensation_paid",
+              "字段类型": "numpy.float64",
+              "字段说明": "支付原保险合同赔付款项的现金"
+            },
+            {
+              "字段名称": "net_cash_for_reinsurance",
+              "字段类型": "numpy.float64",
+              "字段说明": "支付再保业务现金净额"
+            },
+            {
+              "字段名称": "policy_dividend_cash_paid",
+              "字段类型": "numpy.float64",
+              "字段说明": "支付保单红利的现金"
+            },
+            {
+              "字段名称": "other_operate_cash_paid",
+              "字段类型": "numpy.float64",
+              "字段说明": "支付其他与经营活动有关的现金"
+            },
+            {
+              "字段名称": "subtotal_operate_cash_outflow",
+              "字段类型": "numpy.float64",
+              "字段说明": "经营活动现金流出小计"
+            },
+            {
+              "字段名称": "net_operate_cash_flow",
+              "字段类型": "numpy.float64",
+              "字段说明": "经营活动产生的现金流量净额"
+            },
+            {
+              "字段名称": "invest_withdrawal_cash",
+              "字段类型": "numpy.float64",
+              "字段说明": "收回投资收到的现金"
+            },
+            {
+              "字段名称": "invest_proceeds",
+              "字段类型": "numpy.float64",
+              "字段说明": "取得投资收益收到的现金"
+            },
+            {
+              "字段名称": "fix_intan_other_asset_dispo_cash",
+              "字段类型": "numpy.float64",
+              "字段说明": "处置固定资产、无形资产和其他长期资产收回的现金净额"
+            },
+            {
+              "字段名称": "net_cash_deal_sub_company",
+              "字段类型": "numpy.float64",
+              "字段说明": "处置子公司及其他营业单位收到的现金净额"
+            },
+            {
+              "字段名称": "other_cash_from_invest_act",
+              "字段类型": "numpy.float64",
+              "字段说明": "收到其他与投资活动有关的现金"
+            },
+            {
+              "字段名称": "subtotal_invest_cash_inflow",
+              "字段类型": "numpy.float64",
+              "字段说明": "投资活动现金流入小计"
+            },
+            {
+              "字段名称": "fix_intan_other_asset_acqui_cash",
+              "字段类型": "numpy.float64",
+              "字段说明": "购建固定资产、无形资产和其他长期资产支付的现金"
+            },
+            {
+              "字段名称": "invest_cash_paid",
+              "字段类型": "numpy.float64",
+              "字段说明": "投资支付的现金"
+            },
+            {
+              "字段名称": "net_cash_from_sub_company",
+              "字段类型": "numpy.float64",
+              "字段说明": "取得子公司及其他营业单位支付的现金净额"
+            },
+            {
+              "字段名称": "impawned_loan_net_increase",
+              "字段类型": "numpy.float64",
+              "字段说明": "质押贷款净增加额"
+            },
+            {
+              "字段名称": "other_cash_to_invest_act",
+              "字段类型": "numpy.float64",
+              "字段说明": "支付其他与投资活动有关的现金"
+            },
+            {
+              "字段名称": "subtotal_invest_cash_outflow",
+              "字段类型": "numpy.float64",
+              "字段说明": "投资活动现金流出小计"
+            },
+            {
+              "字段名称": "net_invest_cash_flow",
+              "字段类型": "numpy.float64",
+              "字段说明": "投资活动产生的现金流量净额"
+            },
+            {
+              "字段名称": "cash_from_invest",
+              "字段类型": "numpy.float64",
+              "字段说明": "吸收投资收到的现金"
+            },
+            {
+              "字段名称": "cash_from_bonds_issue",
+              "字段类型": "numpy.float64",
+              "字段说明": "发行债券收到的现金"
+            },
+            {
+              "字段名称": "cash_from_borrowing",
+              "字段类型": "numpy.float64",
+              "字段说明": "取得借款收到的现金"
+            },
+            {
+              "字段名称": "other_finance_act_cash",
+              "字段类型": "numpy.float64",
+              "字段说明": "收到其他与筹资活动有关的现金"
+            },
+            {
+              "字段名称": "subtotal_finance_cash_inflow",
+              "字段类型": "numpy.float64",
+              "字段说明": "筹资活动现金流入小计"
+            },
+            {
+              "字段名称": "borrowing_repayment",
+              "字段类型": "numpy.float64",
+              "字段说明": "偿还债务支付的现金"
+            },
+            {
+              "字段名称": "dividend_interest_payment",
+              "字段类型": "numpy.float64",
+              "字段说明": "分配股利、利润或偿付利息支付的现金"
+            },
+            {
+              "字段名称": "other_finance_act_payment",
+              "字段类型": "numpy.float64",
+              "字段说明": "支付其他与筹资活动有关的现金"
+            },
+            {
+              "字段名称": "subtotal_finance_cash_outflow",
+              "字段类型": "numpy.float64",
+              "字段说明": "筹资活动现金流出小计"
+            },
+            {
+              "字段名称": "net_finance_cash_flow",
+              "字段类型": "numpy.float64",
+              "字段说明": "筹资活动产生的现金流量净额"
+            },
+            {
+              "字段名称": "exchan_rate_change_effect",
+              "字段类型": "numpy.float64",
+              "字段说明": "汇率变动对现金及现金等价物的影响"
+            },
+            {
+              "字段名称": "cash_equivalent_increase",
+              "字段类型": "numpy.float64",
+              "字段说明": "现金及现金等价物净增加额"
+            },
+            {
+              "字段名称": "begin_period_cash",
+              "字段类型": "numpy.float64",
+              "字段说明": "加：期初现金及现金等价物余额"
+            },
+            {
+              "字段名称": "end_period_cash_equivalent",
+              "字段类型": "numpy.float64",
+              "字段说明": "期末现金及现金等价物余额"
+            },
+            {
+              "字段名称": "net_profit",
+              "字段类型": "numpy.float64",
+              "字段说明": "净利润"
+            },
+            {
+              "字段名称": "minority_profit",
+              "字段类型": "numpy.float64",
+              "字段说明": "加:少数股东损益"
+            },
+            {
+              "字段名称": "assets_depreciation_reserves",
+              "字段类型": "numpy.float64",
+              "字段说明": "加:资产减值准备"
+            },
+            {
+              "字段名称": "fixed_asset_depreciation",
+              "字段类型": "numpy.float64",
+              "字段说明": "固定资产折旧"
+            },
+            {
+              "字段名称": "intangible_asset_amortization",
+              "字段类型": "numpy.float64",
+              "字段说明": "收无形资产摊销"
+            },
+            {
+              "字段名称": "deferred_expense_amort",
+              "字段类型": "numpy.float64",
+              "字段说明": "长期待摊费用摊销"
+            },
+            {
+              "字段名称": "deferred_expense_decreased",
+              "字段类型": "numpy.float64",
+              "字段说明": "待摊费用减少(减:增加)"
+            },
+            {
+              "字段名称": "accrued_expense_added",
+              "字段类型": "numpy.float64",
+              "字段说明": "预提费用增加(减:减少)"
+            },
+            {
+              "字段名称": "fix_intanther_asset_dispo_loss",
+              "字段类型": "numpy.float64",
+              "字段说明": "处置固定资产、无形资产和其他长期资产的损失"
+            },
+            {
+              "字段名称": "fixed_asset_scrap_loss",
+              "字段类型": "numpy.float64",
+              "字段说明": "固定资产报废损失"
+            },
+            {
+              "字段名称": "loss_from_fair_value_changes",
+              "字段类型": "numpy.float64",
+              "字段说明": "公允价值变动损失"
+            },
+            {
+              "字段名称": "financial_expense",
+              "字段类型": "numpy.float64",
+              "字段说明": "财务费用"
+            },
+            {
+              "字段名称": "invest_loss",
+              "字段类型": "numpy.float64",
+              "字段说明": "投资损失"
+            },
+            {
+              "字段名称": "defered_tax_asset_decrease",
+              "字段类型": "numpy.float64",
+              "字段说明": "递延所得税资产减少"
+            },
+            {
+              "字段名称": "defered_tax_liability_increase",
+              "字段类型": "numpy.float64",
+              "字段说明": "递延所得税负债增加"
+            },
+            {
+              "字段名称": "inventory_decrease",
+              "字段类型": "numpy.float64",
+              "字段说明": "存货的减少"
+            },
+            {
+              "字段名称": "operate_receivable_decrease",
+              "字段类型": "numpy.float64",
+              "字段说明": "经营性应收项目的减少"
+            },
+            {
+              "字段名称": "operate_payable_increase",
+              "字段类型": "numpy.float64",
+              "字段说明": "经营性应付项目的增加"
+            },
+            {
+              "字段名称": "others",
+              "字段类型": "numpy.float64",
+              "字段说明": "其他"
+            },
+            {
+              "字段名称": "net_operate_cash_flow_notes",
+              "字段类型": "numpy.float64",
+              "字段说明": "经营活动产生的现金流量净额"
+            },
+            {
+              "字段名称": "debt_to_captical",
+              "字段类型": "numpy.float64",
+              "字段说明": "债务转为资本"
+            },
+            {
+              "字段名称": "cbs_expiring_within_one_year",
+              "字段类型": "numpy.float64",
+              "字段说明": "一年内到期的可转换公司债券"
+            },
+            {
+              "字段名称": "fixed_assets_finance_leases",
+              "字段类型": "numpy.float64",
+              "字段说明": "融资租入固定资产"
+            },
+            {
+              "字段名称": "cash_at_end_of_year",
+              "字段类型": "numpy.float64",
+              "字段说明": "现金的期末余额"
+            },
+            {
+              "字段名称": "cash_at_beginning_of_year",
+              "字段类型": "numpy.float64",
+              "字段说明": "减:现金的期初余额"
+            },
+            {
+              "字段名称": "cash_equivalents_at_end_of_year",
+              "字段类型": "numpy.float64",
+              "字段说明": "加:现金等价物的期末余额"
+            },
+            {
+              "字段名称": "cash_equivalents_at_beginning",
+              "字段类型": "numpy.float64",
+              "字段说明": "减:现金等价物的期初余额"
+            },
+            {
+              "字段名称": "net_incr_in_cash_and_equivalents",
+              "字段类型": "numpy.float64",
+              "字段说明": "现金及现金等价物净增加额"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "growth_ability-成长能力",
+      "level": 2,
+      "content": [
+        {
+          "type": "code",
+          "text": "get_fundamentals(security,'growth_ability',fields, date = None, start_year = None, end_year = None, report_types = None, date_type = None)"
+        },
+        {
+          "type": "code",
+          "text": "oper_profit_grow_rate   publ_date      secu_abbr\nend_date\n2013-03-31               124.705       2013-04-19      恒生电子\n2014-03-31                9.1946       2014-04-29      恒生电子\n2015-03-31               14.2251       2015-04-25      恒生电子"
+        },
+        {
+          "type": "paragraph",
+          "text": "注意: 获取此表中数据，不支持输入的参数有：merge_type"
+        }
+      ]
+    },
+    {
+      "heading": "示例",
+      "level": 3,
+      "content": [
+        {
+          "type": "code",
+          "text": "# 获取数据的两种模式\n# 1. 按日期查询模式（默认以发布日期为参考时间）：返回输入日期之前对应的财务数据\n# 在回测中获取单一股票中对应回测日期第一季度成长能力指标中营业利润同比增长\n#（oper_profit_grow_rate）数据\nget_fundamentals('600570.SS','growth_ability','oper_profit_grow_rate','20160628')\n\n# 2. 按年份查询模式：返回输入年份范围内对应季度的财务数据\n# 获取恒生电子(600570.SS)从2013年至2015年第一季度成长能力指标中营业利润同比# 增长（oper_profit_grow_rate）数据\nget_fundamentals('600570.SS','growth_ability','oper_profit_grow_rate',start_year='2013',end_year='2015', report_types='1')"
+        },
+        {
+          "type": "paragraph",
+          "text": "成长能力- growth_ability具体字段"
+        },
+        {
+          "type": "table",
+          "rows": [
+            {
+              "字段名称": "secu_code",
+              "字段类型": "str",
+              "字段说明": "股票代码",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "secu_abbr",
+              "字段类型": "str",
+              "字段说明": "股票简称",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "publ_date",
+              "字段类型": "str",
+              "字段说明": "公告日期",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "end_date",
+              "字段类型": "str",
+              "字段说明": "截止日期",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "basic_eps_yoy",
+              "字段类型": "numpy.float64",
+              "字段说明": "基本每股收益同比增长（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "diluted_eps_yoy",
+              "字段类型": "numpy.float64",
+              "字段说明": "稀释每股收益同比增长（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "operating_revenue_grow_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业收入同比增长（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "np_parent_company_yoy",
+              "字段类型": "numpy.float64",
+              "字段说明": "归属母公司股东的净利润同比增长（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "net_operate_cash_flow_yoy",
+              "字段类型": "numpy.float64",
+              "字段说明": "经营活动产生的现金流量净额同比增长（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "oper_profit_grow_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业利润同比增长（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "total_profit_grow_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "利润总额同比增长（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "eps_grow_rate_ytd",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股净资产相对年初增长率（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "se_without_mi_grow_rate_ytd",
+              "字段类型": "numpy.float64",
+              "字段说明": "归属母公司股东的权益相对年初增长率（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "ta_grow_rate_ytd",
+              "字段类型": "numpy.float64",
+              "字段说明": "资产总计相对年初增长率（%)",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "np_parent_company_cut_yoy",
+              "字段类型": "numpy.float64",
+              "字段说明": "归属母公司股东的净利润(扣除)同比增长（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "avg_np_yoy_past_five_year",
+              "字段类型": "numpy.float64",
+              "字段说明": "过去五年同期归属母公司净利润平均增幅（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "oper_cash_ps_grow_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股经营活动产生的现金流量净额同比增长（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "naor_yoy",
+              "字段类型": "numpy.float64",
+              "字段说明": "净资产收益率(摊薄)同比增（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "net_asset_grow_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "净资产同比增长（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "total_asset_grow_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "总资产同比增长（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "sustainable_grow_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "可持续增长率（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "net_profit_grow_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "净利润同比增长（%）",
+              "属性": "自选返回"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "profit_ability-盈利能力",
+      "level": 2,
+      "content": [
+        {
+          "type": "code",
+          "text": "get_fundamentals(security,'profit_ability',fields, date = None, start_year = None, end_year = None, report_types = None, date_type = None)"
+        },
+        {
+          "type": "code",
+          "text": "publ_date     roe     secu_abbr\nend_date\n2013-03-31  2013-04-19  2.8127      恒生电子\n2014-03-31  2014-04-29  3.3056      恒生电子\n2015-03-31  2015-04-25  3.4869      恒生电子"
+        },
+        {
+          "type": "paragraph",
+          "text": "注意: 获取此表中数据，不支持输入的参数有：merge_type"
+        }
+      ]
+    },
+    {
+      "heading": "示例",
+      "level": 3,
+      "content": [
+        {
+          "type": "code",
+          "text": "# 获取数据的两种模式\n# 1. 按日期查询模式（默认以发布日期为参考时间）：返回输入日期之前对应的财务数据\n# 在回测中获取单一股票中对应回测日期第一季度盈利能力指标中净资产收益率（roe）数据\nget_fundamentals('600570.SS','profit_ability','roe','20160628')\n\n# 2. 按年份查询模式：返回输入年份范围内对应季度的财务数据\n# 获取恒生电子(600570.SS)从2013年至2015年第一季度盈利能力指标中净资产收益率\n#（roe）数据\nget_fundamentals('600570.SS','profit_ability','roe',start_year='2013',end_year='2015',report_types='1')"
+        },
+        {
+          "type": "paragraph",
+          "text": "盈利能力- profit_ability具体字段"
+        },
+        {
+          "type": "table",
+          "rows": [
+            {
+              "字段名称": "secu_code",
+              "字段类型": "str",
+              "字段说明": "股票代码",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "secu_abbr",
+              "字段类型": "str",
+              "字段说明": "股票简称",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "publ_date",
+              "字段类型": "str",
+              "字段说明": "公告日期",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "end_date",
+              "字段类型": "str",
+              "字段说明": "截止日期",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "roe_avg",
+              "字段类型": "numpy.float64",
+              "字段说明": "净资产收益率%平均计算值（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "roe_weighted",
+              "字段类型": "numpy.float64",
+              "字段说明": "净资产收益率%加权公布值（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "roe",
+              "字段类型": "numpy.float64",
+              "字段说明": "净资产收益率%摊薄公布值（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "roe_cut",
+              "字段类型": "numpy.float64",
+              "字段说明": "净资产收益率%扣除摊薄（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "roe_cut_weighted",
+              "字段类型": "numpy.float64",
+              "字段说明": "净资产收益率%扣除加权（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "roe_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "净资产收益率_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "roa_ebit",
+              "字段类型": "numpy.float64",
+              "字段说明": "总资产报酬率（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "roa_ebit_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "总资产报酬率_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "roa",
+              "字段类型": "numpy.float64",
+              "字段说明": "总资产净利率（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "roa_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "总资产净利率_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "roic",
+              "字段类型": "numpy.float64",
+              "字段说明": "投入资本回报率（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "net_profit_ratio",
+              "字段类型": "numpy.float64",
+              "字段说明": "销售净利率（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "net_profit_ratio_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "销售净利率_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "gross_income_ratio",
+              "字段类型": "numpy.float64",
+              "字段说明": "销售毛利率（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "gross_income_ratio_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "销售毛利率_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "sales_cost_ratio",
+              "字段类型": "numpy.float64",
+              "字段说明": "销售成本率（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "period_costs_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "销售期间费用率（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "period_costs_rate_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "销售期间费用率_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "np_to_tor",
+              "字段类型": "numpy.float64",
+              "字段说明": "净利润／营业总收入（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "np_to_tor_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "净利润／营业总收入_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "operating_profit_to_tor",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业利润／营业总收入（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "operating_profit_to_tor_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业利润／营业总收入_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "ebit_to_tor",
+              "字段类型": "numpy.float64",
+              "字段说明": "息税前利润／营业总收入（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "ebit_to_tor_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "息税前利润／营业总收入_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "t_operating_cost_to_tor",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业总成本／营业总收入（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "t_operating_cost_to_tor_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业总成本／营业总收入_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "operating_expense_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "销售费用／营业总收入（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "operating_expense_rate_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "销售费用／营业总收入_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "admini_expense_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "管理费用／营业总收入（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "admini_expense_rate_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "管理费用／营业总收入_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "financial_expense_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "财务费用／营业总收入（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "financial_expense_rate_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "财务费用／营业总收入_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "asset_impa_loss_to_tor",
+              "字段类型": "numpy.float64",
+              "字段说明": "资产减值损失／营业总收入（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "asset_impa_loss_to_tor_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "资产减值损失／营业总收入_TTM（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "net_profit",
+              "字段类型": "numpy.float64",
+              "字段说明": "归属母公司净利润（元）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "net_profit_cut",
+              "字段类型": "numpy.float64",
+              "字段说明": "扣除非经常性损益后的净利润（元）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "ebit",
+              "字段类型": "numpy.float64",
+              "字段说明": "息税前利润（元）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "ebitda",
+              "字段类型": "numpy.float64",
+              "字段说明": "息税折旧摊销前利润（元）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "operating_profit_ratio",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业利润率（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "total_profit_cost_ratio",
+              "字段类型": "numpy.float64",
+              "字段说明": "成本费用利润率",
+              "属性": "自选返回"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "eps-每股指标",
+      "level": 2,
+      "content": [
+        {
+          "type": "code",
+          "text": "get_fundamentals(security,'eps',fields, date = None, start_year = None, end_year = None, report_types = None, date_type = None)"
+        },
+        {
+          "type": "paragraph",
+          "text": "注意: 获取此表中数据，不支持输入的参数有：merge_type"
+        },
+        {
+          "type": "code",
+          "text": "basic_eps   publ_date      secu_abbr\nend_date\n2013-03-31      0.06   2013-04-19      恒生电子\n2014-03-31      0.09   2014-04-29      恒生电子\n2015-03-31      0.11   2015-04-25      恒生电子"
+        }
+      ]
+    },
+    {
+      "heading": "示例",
+      "level": 3,
+      "content": [
+        {
+          "type": "code",
+          "text": "# 获取数据的两种模式\n# 1. 按日期查询模式（默认以发布日期为参考时间）：返回输入日期之前对应的财务数据\n# 在回测中获取单一股票中对应回测日期第一季度每股指标中基本每股收益（basic_eps）# 数据\nget_fundamentals('600570.SS','eps','basic_eps','20160628')\n\n# 2. 按年份查询模式：返回输入年份范围内对应季度的财务数据\n# 获取恒生电子(600570.SS)从2013年至2015年第一季度每股指标中基本每股收益\n#（basic_eps）数据\nget_fundamentals('600570.SS','eps','basic_eps',start_year='2013',end_year='2015',report_types='1')"
+        },
+        {
+          "type": "paragraph",
+          "text": "每股指标- eps具体字段"
+        },
+        {
+          "type": "table",
+          "rows": [
+            {
+              "字段名称": "secu_code",
+              "字段类型": "str",
+              "字段说明": "股票代码",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "secu_abbr",
+              "字段类型": "str",
+              "字段说明": "股票简称",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "publ_date",
+              "字段类型": "str",
+              "字段说明": "公告日期",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "end_date",
+              "字段类型": "str",
+              "字段说明": "截止日期",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "basic_eps",
+              "字段类型": "numpy.float64",
+              "字段说明": "基本每股收益（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "diluted_eps",
+              "字段类型": "numpy.float64",
+              "字段说明": "稀释每股收益（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "eps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股收益_期末股本摊薄（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "eps_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股收益_TTM（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "naps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股净资产（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "total_operating_revenue_ps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股营业总收入（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "main_income_ps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股营业收入（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "operating_revenue_ps_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股营业收入_TTM（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "oper_profit_ps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股营业利润（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "ebitps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股息税前利润（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "capital_surplus_fund_ps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股资本公积金（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "surplus_reserve_fund_ps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股盈余公积（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "accumulation_fund_ps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股公积金（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "undivided_profit",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股未分配利润（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "retained_earnings_ps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股留存收益（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "net_operate_cash_flow_ps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股经营活动产生的现金流量净额（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "net_operate_cash_flow_ps_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股经营活动产生的现金流量净额_TTM（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "cash_flow_ps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股现金流量净额（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "cash_flow_ps_ttm",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股现金流量净额_TTM（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "enterprise_fcf_ps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股企业自由现金流量（元/股）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "shareholder_fcf_ps",
+              "字段类型": "numpy.float64",
+              "字段说明": "每股股东自由现金流量（元/股）",
+              "属性": "自选返回"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "operating_ability-营运能力",
+      "level": 2,
+      "content": [
+        {
+          "type": "code",
+          "text": "get_fundamentals(security,'operating_ability',fields, date = None, start_year = None, end_year = None, report_types = None, date_type = None)"
+        },
+        {
+          "type": "paragraph",
+          "text": "注意: 获取此表中数据，不支持输入的参数有：merge_type"
+        },
+        {
+          "type": "code",
+          "text": "current_assets_turnover_rate   publ_date     secu_abbr\nend_date\n2013-03-31                       0.1803   2013-04-19     恒生电子\n2014-03-31                       0.1518   2014-04-29     恒生电子\n2015-03-31                       0.1568   2015-04-25     恒生电子"
+        }
+      ]
+    },
+    {
+      "heading": "示例",
+      "level": 3,
+      "content": [
+        {
+          "type": "code",
+          "text": "# 获取数据的两种模式\n# 1. 按日期查询模式（默认以发布日期为参考时间）：返回输入日期之前对应的财务数据\n# 在回测中获取单一股票中对应回测日期第一季度营运能力指标中流动资产周转率\n#（current_assets_turnover_rate）数据\nget_fundamentals('600570.SS','operating_ability','current_assets_turnover_rate','20160628')\n\n# 2. 按年份查询模式：返回输入年份范围内对应季度的财务数据\n# 获取恒生电子(600570.SS)从2013年至2015年第一季度营运能力指标中流动资产周转# 率（current_assets_turnover_rate）数据\nget_fundamentals('600570.SS','operating_ability','current_assets_turnover_rate',start_year='2013',end_year='2015', report_types='1')"
+        },
+        {
+          "type": "paragraph",
+          "text": "营运能力- operating_ability具体字段"
+        },
+        {
+          "type": "table",
+          "rows": [
+            {
+              "字段名称": "secu_code",
+              "字段类型": "str",
+              "字段说明": "股票代码",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "secu_abbr",
+              "字段类型": "str",
+              "字段说明": "股票简称",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "publ_date",
+              "字段类型": "str",
+              "字段说明": "公告日期",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "end_date",
+              "字段类型": "str",
+              "字段说明": "截止日期",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "oper_cycle",
+              "字段类型": "numpy.float64",
+              "字段说明": "营业周期（天/次）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "inventory_turnover_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "存货周转率（次）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "inventory_turnover_days",
+              "字段类型": "numpy.float64",
+              "字段说明": "存货周转天数（天/次）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "accounts_receivables_turnover_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "应收帐款周转率（次）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "accounts_receivables_turnover_days",
+              "字段类型": "numpy.float64",
+              "字段说明": "应收帐款周转天数（天/次）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "accounts_payables_turnover_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "应付帐款周转率（次）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "accounts_payables_turnover_days",
+              "字段类型": "numpy.float64",
+              "字段说明": "应付帐款周转天数（天/次）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "current_assets_turnover_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "流动资产周转率（次）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "fixed_asset_turnover_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "固定资产周转率（次）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "equity_turnover_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "股东权益周转率（次）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "total_asset_turnover_rate",
+              "字段类型": "numpy.float64",
+              "字段说明": "总资产周转率（次）",
+              "属性": "自选返回"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "debt_paying_ability-偿债能力",
+      "level": 2,
+      "content": [
+        {
+          "type": "code",
+          "text": "get_fundamentals(security,'debt_paying_ability',fields, date = None, start_year = None, end_year = None, report_types = None, date_type = None)"
+        },
+        {
+          "type": "paragraph",
+          "text": "注意: 获取此表中数据，不支持输入的参数有：merge_type"
+        },
+        {
+          "type": "code",
+          "text": "current_ratio   publ_date      secu_abbr\nend_date\n2013-03-31        3.4234   2013-04-19      恒生电子\n2014-03-31        3.4941   2014-04-29      恒生电子\n2015-03-31        1.8332   2015-04-25      恒生电子"
+        }
+      ]
+    },
+    {
+      "heading": "示例",
+      "level": 3,
+      "content": [
+        {
+          "type": "code",
+          "text": "# 获取数据的两种模式\n# 1. 按日期查询模式（默认以发布日期为参考时间）：返回输入日期之前对应的财务数据\n# 在回测中获取单一股票中对应回测日期第一季度偿债能力指标中流动比率（current_ratio）\n# 数据\nget_fundamentals('600570.SS','debt_paying_ability','current_ratio','20160628')\n\n# 2. 按年份查询模式：返回输入年份范围内对应季度的财务数据\n# 获取恒生电子(600570.SS)从2013年至2015年第一季度偿债能力指标中流动比率\n#（current_ratio）数据\nget_fundamentals('600570.SS','debt_paying_ability','current_ratio',start_year='2013',end_year='2015', report_types='1')"
+        },
+        {
+          "type": "paragraph",
+          "text": "偿债能力- debt_paying_ability具体字段"
+        },
+        {
+          "type": "table",
+          "rows": [
+            {
+              "字段名称": "secu_code",
+              "字段类型": "str",
+              "字段说明": "股票代码",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "secu_abbr",
+              "字段类型": "str",
+              "字段说明": "股票简称",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "publ_date",
+              "字段类型": "str",
+              "字段说明": "公告日期",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "end_date",
+              "字段类型": "str",
+              "字段说明": "截止日期",
+              "属性": "固定返回"
+            },
+            {
+              "字段名称": "current_ratio",
+              "字段类型": "numpy.float64",
+              "字段说明": "流动比率",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "quick_ratio",
+              "字段类型": "numpy.float64",
+              "字段说明": "速动比率",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "super_quick_ratio",
+              "字段类型": "numpy.float64",
+              "字段说明": "超速动比率",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "debt_equity_ratio",
+              "字段类型": "numpy.float64",
+              "字段说明": "产权比率（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "sewmi_to_total_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "归属母公司股东的权益／负债合计（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "sewmi_to_interest_bear_debt",
+              "字段类型": "numpy.float64",
+              "字段说明": "归属母公司股东的权益／带息债务（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "debt_tangible_equity_ratio",
+              "字段类型": "numpy.float64",
+              "字段说明": "有形净值债务率（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "tangible_a_to_interest_bear_debt",
+              "字段类型": "numpy.float64",
+              "字段说明": "有形净值／带息债务（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "tangible_a_to_net_debt",
+              "字段类型": "numpy.float64",
+              "字段说明": "有形净值／净债务（%）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "ebitda_to_t_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "息税折旧摊销前利润／负债合计",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "nocf_to_t_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "经营活动产生现金流量净额/负债合计",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "nocf_to_interest_bear_debt",
+              "字段类型": "numpy.float64",
+              "字段说明": "经营活动产生现金流量净额/带息债务",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "nocf_to_current_liability",
+              "字段类型": "numpy.float64",
+              "字段说明": "经营活动产生现金流量净额/流动负债",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "nocf_to_net_debt",
+              "字段类型": "numpy.float64",
+              "字段说明": "经营活动产生现金流量净额/净债务",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "interest_cover",
+              "字段类型": "numpy.float64",
+              "字段说明": "利息保障倍数（倍）",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "long_debt_to_working_capital",
+              "字段类型": "numpy.float64",
+              "字段说明": "长期负债与营运资金比率",
+              "属性": "自选返回"
+            },
+            {
+              "字段名称": "opercashinto_current_debt",
+              "字段类型": "numpy.float64",
+              "字段说明": "现金流动负债比",
+              "属性": "自选返回"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        }
+      ]
+    }
+  ]
+}

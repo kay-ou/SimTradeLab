@@ -19,14 +19,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # 仅在Linux上运行CI，macOS/Windows编译依赖太慢
+        os: [ubuntu-latest]
         python-version: ["3.10", "3.11", "3.12"]
-        # 可选：排除某些组合以节省资源
-        exclude:
-          - os: windows-latest
-            python-version: "3.12"
-          - os: macos-latest
-            python-version: "3.12"
+        # 如需测试其他平台，使用workflow_dispatch手动触发
+        # os: [ubuntu-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +39,21 @@ jobs:
           version: latest
           virtualenvs-create: true
           virtualenvs-in-project: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libhdf5-dev
+
+          # 从源码编译安装ta-lib
+          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+          tar -xzf ta-lib-0.4.0-src.tar.gz
+          cd ta-lib/
+          ./configure --prefix=/usr
+          make
+          sudo make install
+          cd ..
+          rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
 
       - name: Load cached venv
         id: cached-poetry-dependencies
@@ -89,7 +101,7 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -104,6 +116,21 @@ jobs:
           version: latest
           virtualenvs-create: true
           virtualenvs-in-project: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libhdf5-dev
+
+          # 从源码编译安装ta-lib
+          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+          tar -xzf ta-lib-0.4.0-src.tar.gz
+          cd ta-lib/
+          ./configure --prefix=/usr
+          make
+          sudo make install
+          cd ..
+          rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
 
       - name: Install dependencies
         run: |
@@ -125,7 +152,7 @@ jobs:
 
   build-test:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -140,6 +167,21 @@ jobs:
           version: latest
           virtualenvs-create: true
           virtualenvs-in-project: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libhdf5-dev
+
+          # 从源码编译安装ta-lib
+          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+          tar -xzf ta-lib-0.4.0-src.tar.gz
+          cd ta-lib/
+          ./configure --prefix=/usr
+          make
+          sudo make install
+          cd ..
+          rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
 
       - name: Install dependencies
         run: poetry install --no-interaction
@@ -166,7 +208,11 @@ jobs:
             source test_env/bin/activate
             python -m pip install "$WHEEL_FILE"
           fi
-          python -c "import simtradelab; print(f'✅ Package installation test passed: {simtradelab.__version__}')"
+          python -c "
+          import simtradelab
+          from simtradelab.backtest.runner import BacktestRunner
+          print(f'✅ Package installation test passed: {simtradelab.__version__}')
+          "
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

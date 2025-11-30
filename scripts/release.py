@@ -11,15 +11,13 @@ simtradelab 发布脚本
 5. 生成发布说明
 """
 
-import os
-import sys
-import subprocess
-import json
-import re
 import argparse
+import os
+import re
 import shutil
+import subprocess
+import sys
 from pathlib import Path
-from datetime import datetime
 
 
 def run_command(cmd, cwd=None, check=True):
@@ -27,8 +25,14 @@ def run_command(cmd, cwd=None, check=True):
     print(f"执行命令: {cmd}")
     try:
         result = subprocess.run(
-            cmd, shell=True, cwd=cwd, check=check,
-            capture_output=True, text=True, encoding='utf-8', errors='replace'
+            cmd,
+            shell=True,
+            cwd=cwd,
+            check=check,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         if result.stdout:
             print(result.stdout)
@@ -45,37 +49,37 @@ def get_version_from_pyproject():
     pyproject_path = Path("pyproject.toml")
     if not pyproject_path.exists():
         raise FileNotFoundError("找不到 pyproject.toml 文件")
-    
-    content = pyproject_path.read_text(encoding='utf-8')
+
+    content = pyproject_path.read_text(encoding="utf-8")
     version_match = re.search(r'version\s*=\s*"([^"]+)"', content)
     if not version_match:
         raise ValueError("无法从 pyproject.toml 中提取版本号")
-    
+
     return version_match.group(1)
 
 
 def check_git_status():
     """检查Git状态"""
     print("检查Git状态...")
-    
+
     # 检查是否有未提交的更改
     result = run_command("git status --porcelain")
     if result.stdout.strip():
         print("发现未提交的更改:")
         print(result.stdout)
-        response = 'y' # 自动回答 'y'
-        if response.lower() != 'y':
+        response = "y"  # 自动回答 'y'
+        if response.lower() != "y":
             print("发布已取消")
             sys.exit(1)
-    
+
     # 检查当前分支
     result = run_command("git branch --show-current")
     current_branch = result.stdout.strip()
     print(f"当前分支: {current_branch}")
-    
+
     if current_branch != "main":
-        response = 'y' # 自动回答 'y'
-        if response.lower() != 'y':
+        response = "y"  # 自动回答 'y'
+        if response.lower() != "y":
             print("发布已取消")
             sys.exit(1)
 
@@ -88,15 +92,15 @@ def run_tests():
         print("所有测试通过")
     except subprocess.CalledProcessError:
         print("测试失败")
-        response = 'y' # 自动回答 'y'
-        if response.lower() != 'y':
+        response = "y"  # 自动回答 'y'
+        if response.lower() != "y":
             sys.exit(1)
 
 
 def build_package():
     """构建包"""
     print("构建包...")
-    
+
     # 清理之前的构建
     for path in ["dist", "build"]:
         if Path(path).exists():
@@ -107,15 +111,15 @@ def build_package():
                 os.remove(f)
             elif f.is_dir():
                 shutil.rmtree(f)
-    
+
     # 构建包
     run_command("poetry build")
-    
+
     # 检查构建结果
     dist_path = Path("dist")
     if not dist_path.exists() or not list(dist_path.glob("*")):
         raise RuntimeError("构建失败，没有生成分发文件")
-    
+
     print("包构建成功")
     for file in dist_path.glob("*"):
         print(f"   {file.name}")
@@ -124,23 +128,23 @@ def build_package():
 def create_git_tag(version):
     """创建Git标签"""
     print(f"创建Git标签 v{version}...")
-    
+
     # 检查标签是否已存在
     result = run_command(f"git tag -l v{version}", check=False)
     if result.stdout.strip():
         print(f"标签 v{version} 已存在")
-        response = 'y' # 自动回答 'y'
-        if response.lower() == 'y':
+        response = "y"  # 自动回答 'y'
+        if response.lower() == "y":
             run_command(f"git tag -d v{version}")
             run_command(f"git push origin :refs/tags/v{version}", check=False)
         else:
             print("发布已取消")
             sys.exit(1)
-    
+
     # 创建标签
     tag_message = f"Release v{version}\n\nSee CHANGELOG.md for details."
     run_command(f'git tag -a v{version} -m "{tag_message}"')
-    
+
     print(f"标签 v{version} 创建成功")
 
 
@@ -161,7 +165,7 @@ def generate_release_notes(version):
                 # 读取生成的内容
                 temp_file = Path(f"release-notes-{tag}.md")
                 if temp_file.exists():
-                    notes = temp_file.read_text(encoding='utf-8')
+                    notes = temp_file.read_text(encoding="utf-8")
                     temp_file.unlink()  # 删除临时文件
                     return notes
         except Exception as e:
@@ -174,7 +178,7 @@ def generate_release_notes(version):
         print("找不到CHANGELOG.md文件")
         return "请查看项目文档了解更新内容。"
 
-    content = changelog_path.read_text(encoding='utf-8')
+    content = changelog_path.read_text(encoding="utf-8")
 
     # 提取当前版本的内容
     version_pattern = rf"## \[{re.escape(version)}\].*?(?=## \[|\Z)"
@@ -198,22 +202,18 @@ def create_release_notes_file(version, notes):
 def parse_arguments():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(
-        description='SimTradeLab 发布脚本',
+        description="SimTradeLab 发布脚本",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
   python scripts/release.py                    # 完整发布流程
   python scripts/release.py --skip-tests       # 跳过测试
   python scripts/release.py --dry-run          # 预览模式，不执行实际操作
-        """
+        """,
     )
 
-    parser.add_argument('--skip-tests',
-                       action='store_true',
-                       help='跳过测试步骤')
-    parser.add_argument('--dry-run',
-                       action='store_true',
-                       help='预览模式，显示将要执行的操作但不实际执行')
+    parser.add_argument("--skip-tests", action="store_true", help="跳过测试步骤")
+    parser.add_argument("--dry-run", action="store_true", help="预览模式，显示将要执行的操作但不实际执行")
 
     return parser.parse_args()
 
@@ -279,20 +279,20 @@ def main():
         print(f"版本: v{version}")
         if not args.dry_run:
             print(f"发布说明: {notes_file}")
-            print(f"分发文件: dist/")
+            print("分发文件: dist/")
 
         print("\n下一步操作:")
         print("1. 推送标签到远程仓库:")
         print(f"   git push origin v{version}")
         print("\n2. 在GitHub上创建Release:")
-        print(f"   - 访问: https://github.com/kay-ou/SimTradeLab/releases/new")
+        print("   - 访问: https://github.com/kay-ou/SimTradeLab/releases/new")
         print(f"   - 选择标签: v{version}")
         print(f"   - 复制发布说明: {notes_file}")
         if not args.dry_run:
-            print(f"   - 上传分发文件: dist/*")
+            print("   - 上传分发文件: dist/*")
         print("\n3. 发布到PyPI (可选):")
         print("   poetry publish")
-        
+
     except Exception as e:
         print(f"\n发布失败: {e}")
         sys.exit(1)

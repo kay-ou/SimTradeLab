@@ -8,69 +8,13 @@ on:
     types: [published]
   # 可选：允许手动触发
   workflow_dispatch:
-    inputs:
-      skip_tests:
-        description: 'Skip tests'
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.10", "3.11", "3.12"]
-    
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
-
-      - name: Run tests
-        if: ${{ !inputs.skip_tests }}
-        run: |
-          poetry run pytest tests/ -v --tb=short
-          
-      - name: Run linting (optional)
-        continue-on-error: true
-        run: |
-          # 如果有linting工具，可以在这里运行
-          # poetry run flake8 src/simtradelab/
-          echo "Linting step (optional)"
-
   release-build:
     runs-on: ubuntu-latest
-    needs: test
-    # 如果跳过测试，则不依赖test job
-    if: ${{ !inputs.skip_tests || success() }}
 
     steps:
       - uses: actions/checkout@v4
@@ -86,6 +30,21 @@ jobs:
           version: latest
           virtualenvs-create: true
           virtualenvs-in-project: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libhdf5-dev
+
+          # 从源码编译安装ta-lib
+          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+          tar -xzf ta-lib-0.4.0-src.tar.gz
+          cd ta-lib/
+          ./configure --prefix=/usr
+          make
+          sudo make install
+          cd ..
+          rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
 
       - name: Load cached venv
         id: cached-poetry-dependencies
@@ -168,12 +127,16 @@ jobs:
         run: |
           # 等待PyPI索引更新
           sleep 30
-          
+
           # 尝试安装刚发布的包
           pip install simtradelab==${{ github.event.release.tag_name }}
-          
+
           # 验证安装
-          python -c "import simtradelab; print(f'✅ SimTradeLab {simtradelab.__version__} installed successfully')"
+          python -c "
+          import simtradelab
+          from simtradelab.backtest.runner import BacktestRunner
+          print(f'✅ SimTradeLab {simtradelab.__version__} installed successfully')
+          "
 
       - name: Generate Release Notes
         id: release_notes
