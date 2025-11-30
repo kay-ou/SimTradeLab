@@ -52,12 +52,149 @@ SimTradeLab（深测Lab） 是一个由社区独立开发的开源策略回测�
 
 ### 📦 安装
 
+#### 方式1：PyPI安装（推荐，适合普通用户）
+
+```bash
+# 安装最新版本
+pip install simtradelab
+
+# 安装指定版本
+pip install simtradelab==1.2.0
+
+# 包含优化器（可选）
+pip install simtradelab[optimizer]
+```
+
+**安装后设置工作目录：**
+
+```bash
+# 1. 创建工作目录
+mkdir -p ~/simtrade_workspace
+cd ~/simtrade_workspace
+
+# 2. 创建必要的子目录
+mkdir -p data          # 存放数据文件
+mkdir -p strategies    # 存放策略文件
+mkdir -p notebooks     # 存放Jupyter notebooks
+
+# 3. 下载示例策略（可选）
+# 从GitHub获取示例文件
+wget https://raw.githubusercontent.com/kay-ou/SimTradeLab/main/strategies/simple/backtest.py -P strategies/simple/
+```
+
+**准备数据文件：**
+
+```bash
+# 方式A: 使用SimTradeData项目获取数据
+# 访问：https://github.com/kay-ou/SimTradeData
+
+# 方式B: 使用自己的数据（HDF5格式）
+# 将数据文件放到 data/ 目录：
+# - data/ptrade_data.h5
+# - data/ptrade_fundamentals.h5
+```
+
+**创建并运行策略：**
+
+```python
+# strategies/my_strategy/backtest.py
+from simtradelab.ptrade.api import *
+
+def initialize(context):
+    set_benchmark('000300.SS')
+    context.stocks = ['600519.SS', '000858.SZ']
+
+def handle_data(context, data):
+    for stock in context.stocks:
+        hist = get_history(20, '1d', 'close', [stock], is_dict=True)
+        if stock in hist:
+            prices = hist[stock]
+            ma5 = sum(prices[-5:]) / 5
+            ma20 = sum(prices[-20:]) / 20
+
+            if ma5 > ma20 and stock not in context.portfolio.positions:
+                order_value(stock, context.portfolio.portfolio_value * 0.3)
+            elif ma5 < ma20 and stock in context.portfolio.positions:
+                order_target(stock, 0)
+```
+
+**运行回测：**
+
+```python
+# run_backtest.py
+from simtradelab.backtest.runner import BacktestRunner
+from pathlib import Path
+
+# 配置路径
+data_path = Path.home() / 'simtrade_workspace' / 'data'
+strategy_path = Path.home() / 'simtrade_workspace' / 'strategies' / 'my_strategy'
+
+# 运行回测
+runner = BacktestRunner(
+    data_path=str(data_path),
+    strategies_path=str(strategy_path.parent)
+)
+
+runner.run(
+    strategy_name='my_strategy',
+    start_date='2024-01-01',
+    end_date='2024-12-31',
+    initial_capital=1000000.0
+)
+```
+
+**Research模式（Jupyter Notebook）：**
+
+```python
+# notebooks/research.ipynb
+from simtradelab.research.api import init_api, get_price, get_history
+from pathlib import Path
+
+# 初始化API，指定数据路径
+data_path = Path.home() / 'simtrade_workspace' / 'data'
+api = init_api(data_path=str(data_path))
+
+# 获取数据
+df = get_price('600519.SS', start_date='2024-01-01', end_date='2024-12-31')
+print(df.head())
+```
+
+**系统依赖：**
+- macOS用户需要先安装：
+  ```bash
+  brew install hdf5 ta-lib
+  export HDF5_DIR=$(brew --prefix hdf5)
+  ```
+- Linux用户需要先安装：
+  ```bash
+  sudo apt-get install libhdf5-dev
+  # ta-lib需要从源码编译（见下方源码安装说明）
+  ```
+
+#### 方式2：源码安装（适合开发者）
+
 ```bash
 # 克隆项目
 git clone https://github.com/kay-ou/SimTradeLab.git
 cd SimTradeLab
 
-# 安装依赖（使用Poetry）
+# 安装系统依赖
+# macOS:
+brew install hdf5 ta-lib
+export HDF5_DIR=$(brew --prefix hdf5)
+
+# Linux:
+sudo apt-get install libhdf5-dev
+# 编译安装ta-lib
+wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+tar -xzf ta-lib-0.4.0-src.tar.gz
+cd ta-lib/
+./configure --prefix=/usr
+make
+sudo make install
+
+# 安装Python依赖（使用Poetry）
+cd SimTradeLab
 poetry install
 ```
 
