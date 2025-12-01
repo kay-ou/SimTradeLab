@@ -98,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - pypi-publish
-    if: success()
+    if: github.event_name == 'release'
 
     steps:
       - uses: actions/checkout@v4
