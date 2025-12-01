@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write  # PyPI 可信发布必需
 
 jobs:
   release-build:
