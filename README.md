@@ -823,8 +823,8 @@ SimTradeLab是社区驱动的开源项目，我们在实际策略开发中不断
 
 如果这个项目对您有帮助，欢迎赞助支持开发！
 
-<img src="https://github.com/kay-ou/SimTradeLab/blob/main/sponsor/WechatPay.png?raw=true" alt="微信赞助" width="200">
-<img src="https://github.com/kay-ou/SimTradeLab/blob/main/sponsor/AliPay.png?raw=true" alt="支付宝赞助" width="200">
+<img src="https://github.com/kay-ou/SimTradeLab/blob/main/docs/sponsor/WechatPay.png?raw=true" alt="微信赞助" width="200">
+<img src="https://github.com/kay-ou/SimTradeLab/blob/main/docs/sponsor/AliPay.png?raw=true" alt="支付宝赞助" width="200">
 
 **您的支持是我们持续改进的动力！**
 
