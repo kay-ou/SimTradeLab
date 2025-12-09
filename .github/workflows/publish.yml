@@ -110,15 +110,19 @@ jobs:
           # 等待PyPI索引更新
           sleep 30
 
+          # 获取不带v前缀的版本号
+          VERSION=${{ github.event.release.tag_name }}
+          VERSION=${VERSION#v}
+
           # 尝试安装刚发布的包
-          pip install simtradelab==${{ github.event.release.tag_name }}
+          pip install simtradelab==$VERSION
 
           # 验证安装
-          python -c "
-          import simtradelab
-          from simtradelab.backtest.runner import BacktestRunner
-          print(f'✅ SimTradeLab {simtradelab.__version__} installed successfully')
-          "
+          python -c 'import simtradelab; from simtradelab.backtest.runner import BacktestRunner; print("✅ SimTradeLab " + simtradelab.__version__ + " installed successfully")'
+
+      - name: Install script dependencies
+        run: |
+          pip install gitpython
 
       - name: Generate Release Notes
         id: release_notes
@@ -150,18 +154,21 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const tagName = '${{ github.event.release.tag_name }}';
+            const version = tagName.replace(/^v/, '');
+            
             github.rest.issues.createComment({
               issue_number: context.payload.release.id,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🎉 SimTradeLab ${{ github.event.release.tag_name }} has been successfully published to PyPI!
+              body: `🎉 SimTradeLab ${tagName} has been successfully published to PyPI!
 
               📦 **Installation:**
               \`\`\`bash
-              pip install simtradelab==${{ github.event.release.tag_name }}
+              pip install simtradelab==${version}
               \`\`\`
 
-              🔗 **PyPI Link:** https://pypi.org/project/simtradelab/${{ github.event.release.tag_name }}/
+              🔗 **PyPI Link:** https://pypi.org/project/simtradelab/${version}/
 
               ✅ **Verification:** Package installation verified successfully.
 
