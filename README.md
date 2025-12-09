@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.2.1-orange.svg)](#)
+[![Version](https://img.shields.io/badge/Version-1.2.2-orange.svg)](#)
 
 *完整模拟PTrade平台API，策略可无缝迁移*
 
@@ -63,7 +63,7 @@ venv\Scripts\activate      # Windows
 pip install simtradelab
 
 # 安装指定版本
-pip install simtradelab==1.2.1
+pip install simtradelab==1.2.2
 
 # 包含优化器（可选）
 pip install simtradelab[optimizer]
@@ -79,7 +79,7 @@ cd ~/simtrade_workspace
 # 2. 创建必要的子目录
 mkdir -p data          # 存放数据文件
 mkdir -p strategies    # 存放策略文件
-mkdir -p notebooks     # 存放Jupyter notebooks
+mkdir -p research      # 存放Jupyter notebooks
 
 # 3. 下载示例策略（可选）
 # 从GitHub获取示例文件
