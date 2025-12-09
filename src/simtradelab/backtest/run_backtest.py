@@ -19,7 +19,7 @@ if __name__ == '__main__':
     # ==================== 回测配置 ====================
 
     # 策略名称
-    strategy_name = 'upper_shadow'
+    strategy_name = '5mv'
 
     # 回测周期
     start_date = '2025-01-01'
