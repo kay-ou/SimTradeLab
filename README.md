@@ -55,6 +55,10 @@ SimTradeLab（深测Lab） 是一个由社区独立开发的开源策略回测�
 #### 方式1：PyPI安装（推荐，适合普通用户）
 
 ```bash
+python -m venv venv
+source venv/bin/activate   # Linux/Mac
+venv\Scripts\activate      # Windows
+
 # 安装最新版本
 pip install simtradelab
 
