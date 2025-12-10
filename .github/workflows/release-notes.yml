@@ -84,6 +84,7 @@ jobs:
         if: steps.generate.outputs.success == 'true' && (github.event_name == 'push' || inputs.create_release)
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             const tagName = '${{ steps.tag.outputs.tag_name }}';
@@ -142,6 +143,7 @@ jobs:
         if: steps.generate.outputs.success == 'true'
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const tagName = '${{ steps.tag.outputs.tag_name }}';
 
