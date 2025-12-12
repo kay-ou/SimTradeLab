@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.2.0-orange.svg)](#)
+[![Version](https://img.shields.io/badge/Version-1.2.2-orange.svg)](#)
 
 *完整模拟PTrade平台API，策略可无缝迁移*
 
@@ -16,7 +16,7 @@ SimTradeLab（深测Lab） 是一个由社区独立开发的开源策略回测�
 
 ### 📊 项目状态
 
-**当前版本**: v1.2.0
+**当前版本**: v1.2.2
 **开发状态**: Beta - 核心功能完善，正在策略实战中持续优化
 
 已完成：
@@ -55,11 +55,15 @@ SimTradeLab（深测Lab） 是一个由社区独立开发的开源策略回测�
 #### 方式1：PyPI安装（推荐，适合普通用户）
 
 ```bash
+python -m venv venv
+source venv/bin/activate   # Linux/Mac
+venv\Scripts\activate      # Windows
+
 # 安装最新版本
 pip install simtradelab
 
 # 安装指定版本
-pip install simtradelab==1.2.0
+pip install simtradelab==1.2.2
 
 # 包含优化器（可选）
 pip install simtradelab[optimizer]
@@ -75,7 +79,7 @@ cd ~/simtrade_workspace
 # 2. 创建必要的子目录
 mkdir -p data          # 存放数据文件
 mkdir -p strategies    # 存放策略文件
-mkdir -p notebooks     # 存放Jupyter notebooks
+mkdir -p research      # 存放Jupyter notebooks
 
 # 3. 下载示例策略（可选）
 # 从GitHub获取示例文件
@@ -823,8 +827,8 @@ SimTradeLab是社区驱动的开源项目，我们在实际策略开发中不断
 
 如果这个项目对您有帮助，欢迎赞助支持开发！
 
-<img src="https://github.com/kay-ou/SimTradeLab/blob/main/sponsor/WechatPay.png?raw=true" alt="微信赞助" width="200">
-<img src="https://github.com/kay-ou/SimTradeLab/blob/main/sponsor/AliPay.png?raw=true" alt="支付宝赞助" width="200">
+<img src="docs/sponsor/WechatPay.png?raw=true" alt="微信赞助" width="200">
+<img src="docs/sponsor/AliPay.png?raw=true" alt="支付宝赞助" width="200">
 
 **您的支持是我们持续改进的动力！**
 

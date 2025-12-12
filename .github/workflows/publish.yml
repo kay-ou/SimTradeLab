@@ -9,9 +9,6 @@ on:
   # 可选：允许手动触发
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
   release-build:
     runs-on: ubuntu-latest
@@ -78,16 +75,11 @@ jobs:
 
   pypi-publish:
     runs-on: ubuntu-latest
-    needs:
-      - release-build
+    needs: release-build
+    environment: pypi
     permissions:
-      # IMPORTANT: this permission is mandatory for trusted publishing
       id-token: write
-
-    # Dedicated environments with protections for publishing are strongly recommended.
-    environment:
-      name: pypi
-      url: https://pypi.org/project/simtradelab/${{ github.event.release.tag_name }}
+      contents: read
 
     steps:
       - name: Retrieve release distributions
@@ -96,24 +88,16 @@ jobs:
           name: release-dists
           path: dist/
 
-      - name: Verify distributions
-        run: |
-          ls -la dist/
-          echo "Publishing the following packages:"
-          find dist/ -name "*.whl" -o -name "*.tar.gz"
-
       - name: Publish release distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist/
-          # 可选：添加详细输出
-          verbose: true
 
   post-publish:
     runs-on: ubuntu-latest
     needs:
       - pypi-publish
-    if: success()
+    if: github.event_name == 'release'
+    permissions:
+      contents: write 
 
     steps:
       - uses: actions/checkout@v4
@@ -128,15 +112,19 @@ jobs:
           # 等待PyPI索引更新
           sleep 30
 
+          # 获取不带v前缀的版本号
+          VERSION=${{ github.event.release.tag_name }}
+          VERSION=${VERSION#v}
+
           # 尝试安装刚发布的包
-          pip install simtradelab==${{ github.event.release.tag_name }}
+          pip install simtradelab==$VERSION
 
           # 验证安装
-          python -c "
-          import simtradelab
-          from simtradelab.backtest.runner import BacktestRunner
-          print(f'✅ SimTradeLab {simtradelab.__version__} installed successfully')
-          "
+          python -c 'import simtradelab; from simtradelab.backtest.runner import BacktestRunner; print("✅ SimTradeLab " + simtradelab.__version__ + " installed successfully")'
+
+      - name: Install script dependencies
+        run: |
+          pip install gitpython
 
       - name: Generate Release Notes
         id: release_notes
@@ -152,6 +140,7 @@ jobs:
       - name: Update Release with Generated Notes
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             const releaseNotes = fs.readFileSync('release_notes.md', 'utf8');
@@ -167,19 +156,23 @@ jobs:
       - name: Create success comment
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const tagName = '${{ github.event.release.tag_name }}';
+            const version = tagName.replace(/^v/, '');
+            
             github.rest.issues.createComment({
               issue_number: context.payload.release.id,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🎉 SimTradeLab ${{ github.event.release.tag_name }} has been successfully published to PyPI!
+              body: `🎉 SimTradeLab ${tagName} has been successfully published to PyPI!
 
               📦 **Installation:**
               \`\`\`bash
-              pip install simtradelab==${{ github.event.release.tag_name }}
+              pip install simtradelab==${version}
               \`\`\`
 
-              🔗 **PyPI Link:** https://pypi.org/project/simtradelab/${{ github.event.release.tag_name }}/
+              🔗 **PyPI Link:** https://pypi.org/project/simtradelab/${version}/
 
               ✅ **Verification:** Package installation verified successfully.
 

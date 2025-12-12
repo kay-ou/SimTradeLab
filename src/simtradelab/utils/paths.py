@@ -12,19 +12,29 @@ def get_project_root() -> Path:
     """获取项目根目录
 
     从任何位置调用都能正确返回项目根目录
+    优先查找data目录（更可靠），然后查找pyproject.toml
 
     Returns:
         项目根目录的Path对象
     """
-    # 从当前文件向上查找项目根目录（包含pyproject.toml的目录）
     current = Path(__file__).resolve()
 
-    # 向上查找pyproject.toml
+    # 方法1: 向上查找data目录（最可靠的方式）
+    for parent in [current] + list(current.parents):
+        data_dir = parent / 'data'
+        # 检查data目录是否存在且包含HDF5文件（验证是正确的项目目录）
+        if data_dir.exists() and data_dir.is_dir():
+            # 进一步验证：检查是否有预期的数据文件
+            has_data_files = any(data_dir.glob('*.h5'))
+            if has_data_files or (parent / 'strategies').exists():
+                return parent
+
+    # 方法2: 向上查找pyproject.toml（备选方案）
     for parent in [current] + list(current.parents):
         if (parent / 'pyproject.toml').exists():
             return parent
 
-    # 如果找不到pyproject.toml，使用固定层级（当前文件在src/simtradelab/）
+    # 方法3: 如果都找不到，使用固定层级（当前文件在src/simtradelab/utils/）
     return current.parent.parent.parent
     
 
