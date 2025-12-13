@@ -349,7 +349,7 @@ class PtradeAPI:
                         # 使用side='left'排除当日，确保返回的是已确定的前一交易日数据
                         idx = df.index.searchsorted(query_ts, side='left')
                         if idx > 0:
-                            date_indices[stock] = idx - 1
+                            date_indices[stock] = idx
                         elif len(df.index) > 0:
                             # 如果查询日期早于所有数据，返回第一条
                             date_indices[stock] = 0
