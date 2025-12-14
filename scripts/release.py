@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-simtradelab 发布脚本
+SimTradeLab 发布脚本
 
-自动化版本发布流程，包括：
-1. 版本检查和验证
-2. 构建和测试
-3. 创建Git标签
-4. 构建分发包
-5. 生成发布说明
+根据 docs/RELEASE.md 的流程自动化版本发布：
+1. 更新版本号（可选）
+2. 提交版本更新
+3. 创建 Git 标签
+4. 构建包（可选）
+5. 推送到远程（可选）
 """
 
 import argparse
@@ -58,6 +58,70 @@ def get_version_from_pyproject():
     return version_match.group(1)
 
 
+def update_version_in_files(version):
+    """更新所有文件中的版本号"""
+    print(f"更新版本号至: {version}")
+
+    # 1. 更新 pyproject.toml
+    pyproject_path = Path("pyproject.toml")
+    if not pyproject_path.exists():
+        raise FileNotFoundError("找不到 pyproject.toml 文件")
+
+    content = pyproject_path.read_text(encoding="utf-8")
+
+    # 替换版本号（只在 [tool.poetry] 部分）
+    new_content = re.sub(
+        r'(\[tool\.poetry\].*?^name\s*=\s*"[^"]+"\s*^version\s*=\s*")[^"]+(")',
+        rf'\g<1>{version}\g<2>',
+        content,
+        flags=re.MULTILINE | re.DOTALL
+    )
+
+    pyproject_path.write_text(new_content, encoding="utf-8")
+    print("  ✓ pyproject.toml")
+
+    # 2. 更新 README.md
+    readme_path = Path("README.md")
+    if readme_path.exists():
+        content = readme_path.read_text(encoding="utf-8")
+
+        # Badge 版本号
+        content = re.sub(
+            r'(!\[Version\]\(https://img\.shields\.io/badge/Version-)[^-]+(-orange\.svg\)\]\(#\))',
+            rf'\g<1>{version}\g<2>',
+            content
+        )
+
+        # 当前版本
+        content = re.sub(
+            r'(\*\*当前版本\*\*:\s+v)[0-9]+\.[0-9]+\.[0-9]+',
+            rf'\g<1>{version}',
+            content
+        )
+
+        # pip install 示例
+        content = re.sub(
+            r'(pip install simtradelab==)[0-9]+\.[0-9]+\.[0-9]+',
+            rf'\g<1>{version}',
+            content
+        )
+
+        readme_path.write_text(content, encoding="utf-8")
+        print("  ✓ README.md")
+
+    print("版本号更新完成")
+
+
+def commit_version_update(version):
+    """提交版本更新"""
+    print("提交版本更新...")
+    run_command("git add scripts/release.py pyproject.toml README.md")
+
+    commit_msg = f"chore: bump version to {version}"
+    run_command(f'git commit -m "{commit_msg}"')
+    print("版本更新已提交")
+
+
 def check_git_status():
     """检查Git状态"""
     print("检查Git状态...")
@@ -65,12 +129,8 @@ def check_git_status():
     # 检查是否有未提交的更改
     result = run_command("git status --porcelain")
     if result.stdout.strip():
-        print("发现未提交的更改:")
+        print("警告：发现未提交的更改")
         print(result.stdout)
-        response = "y"  # 自动回答 'y'
-        if response.lower() != "y":
-            print("发布已取消")
-            sys.exit(1)
 
     # 检查当前分支
     result = run_command("git branch --show-current")
@@ -78,10 +138,7 @@ def check_git_status():
     print(f"当前分支: {current_branch}")
 
     if current_branch != "main":
-        response = "y"  # 自动回答 'y'
-        if response.lower() != "y":
-            print("发布已取消")
-            sys.exit(1)
+        print("警告：当前不在 main 分支")
 
 
 def run_tests():
@@ -92,9 +149,7 @@ def run_tests():
         print("所有测试通过")
     except subprocess.CalledProcessError:
         print("测试失败")
-        response = "y"  # 自动回答 'y'
-        if response.lower() != "y":
-            sys.exit(1)
+        sys.exit(1)
 
 
 def build_package():
@@ -133,87 +188,79 @@ def create_git_tag(version):
     result = run_command(f"git tag -l v{version}", check=False)
     if result.stdout.strip():
         print(f"标签 v{version} 已存在")
-        response = "y"  # 自动回答 'y'
-        if response.lower() == "y":
-            run_command(f"git tag -d v{version}")
-            run_command(f"git push origin :refs/tags/v{version}", check=False)
-        else:
-            print("发布已取消")
-            sys.exit(1)
+        print("删除旧标签...")
+        run_command(f"git tag -d v{version}")
+        run_command(f"git push origin :refs/tags/v{version}", check=False)
 
     # 创建标签
-    tag_message = f"Release v{version}\n\nSee CHANGELOG.md for details."
-    run_command(f'git tag -a v{version} -m "{tag_message}"')
+    tag_message = "Release v{}"
+    run_command(f'git tag -a v{version} -m \"{tag_message}\"')
 
     print(f"标签 v{version} 创建成功")
 
 
-def generate_release_notes(version):
-    """生成发布说明"""
-    print("生成发布说明...")
+def push_to_remote(version, push_tag_only=False):
+    """推送到远程仓库"""
+    if not push_tag_only:
+        print("推送代码到远程...")
+        run_command("git push origin main")
 
-    # 尝试使用自动生成脚本
-    tag = f"v{version}"
-    generate_script = Path("scripts/generate_release_notes.py")
-
-    if generate_script.exists():
-        try:
-            print("使用自动生成脚本...")
-            result = run_command(f"python {generate_script} {tag}")
-            if result:
-                print("自动生成Release Notes成功")
-                # 读取生成的内容
-                temp_file = Path(f"release-notes-{tag}.md")
-                if temp_file.exists():
-                    notes = temp_file.read_text(encoding="utf-8")
-                    temp_file.unlink()  # 删除临时文件
-                    return notes
-        except Exception as e:
-            print(f"自动生成失败，回退到CHANGELOG模式: {e}")
-
-    # 回退到从CHANGELOG.md提取内容
-    print("从CHANGELOG.md提取发布说明...")
-    changelog_path = Path("CHANGELOG.md")
-    if not changelog_path.exists():
-        print("找不到CHANGELOG.md文件")
-        return "请查看项目文档了解更新内容。"
-
-    content = changelog_path.read_text(encoding="utf-8")
-
-    # 提取当前版本的内容
-    version_pattern = rf"## \[{re.escape(version)}\].*?(?=## \[|\Z)"
-    match = re.search(version_pattern, content, re.DOTALL)
-
-    if match:
-        return match.group(0).strip()
-    else:
-        print(f"在CHANGELOG.md中找不到版本 {version} 的内容")
-        return f"Release v{version}\n\n请查看CHANGELOG.md了解详细更新内容。"
-
-
-def create_release_notes_file(version, notes):
-    """创建发布说明文件"""
-    release_notes_path = Path(f"release-notes-v{version}.md")
-    release_notes_path.write_text(notes)
-    print(f"发布说明已保存到: {release_notes_path}")
-    return release_notes_path
+    print("推送标签到远程...")
+    run_command(f"git push origin v{version}")
+    print("推送完成")
 
 
 def parse_arguments():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(
-        description="SimTradeLab 发布脚本",
+        description="SimTradeLab 发布脚本（根据 docs/RELEASE.md）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
-  python scripts/release.py                    # 完整发布流程
-  python scripts/release.py --skip-tests       # 跳过测试
-  python scripts/release.py --dry-run          # 预览模式，不执行实际操作
+  python scripts/release.py --version 1.2.3              # 更新版本号、提交、打标签
+  python scripts/release.py --version 1.2.3 --push       # 更新版本号、提交、打标签并推送
+  python scripts/release.py --version 1.2.3 --build      # 更新版本号、提交、打标签、构建
+  python scripts/release.py --build                       # 仅构建（使用当前版本号）
+  python scripts/release.py --tag-only                    # 仅创建标签（使用当前版本号）
+
+发布流程（根据 docs/RELEASE.md）：
+  1. 运行脚本更新版本并创建标签
+  2. 检查本地构建是否成功
+  3. 推送到远程：git push origin main && git push origin v1.2.3
+  4. 在 GitHub 网页手动创建 Release（填写 release notes）
+  5. GitHub Actions 自动构建并发布到 PyPI
         """,
     )
 
-    parser.add_argument("--skip-tests", action="store_true", help="跳过测试步骤")
-    parser.add_argument("--dry-run", action="store_true", help="预览模式，显示将要执行的操作但不实际执行")
+    parser.add_argument(
+        "--version",
+        help="新版本号（格式：x.y.z），会自动更新文件并提交"
+    )
+    parser.add_argument(
+        "--skip-tests",
+        action="store_true",
+        help="跳过测试步骤"
+    )
+    parser.add_argument(
+        "--build",
+        action="store_true",
+        help="构建包"
+    )
+    parser.add_argument(
+        "--push",
+        action="store_true",
+        help="推送到远程仓库（包括代码和标签）"
+    )
+    parser.add_argument(
+        "--tag-only",
+        action="store_true",
+        help="仅创建并推送标签（不更新版本号）"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="预览模式，不执行实际操作"
+    )
 
     return parser.parse_args()
 
@@ -222,79 +269,147 @@ def main():
     """主发布流程"""
     args = parse_arguments()
 
-    print("SimTradeLab 发布流程开始")
-    print("=" * 50)
+    print("SimTradeLab 发布流程")
+    print("=" * 60)
 
     if args.dry_run:
         print("预览模式 - 不会执行实际操作")
-    if args.skip_tests:
-        print("跳过测试步骤")
     print()
 
     try:
-        # 1. 获取版本信息
-        version = get_version_from_pyproject()
-        print(f"准备发布版本: v{version}")
+        current_version = get_version_from_pyproject()
 
-        # 2. 检查Git状态
-        if not args.dry_run:
-            check_git_status()
-        else:
-            print("[预览] 检查Git状态")
+        # 模式1: 仅创建标签
+        if args.tag_only:
+            print("模式：仅创建标签")
+            print(f"当前版本: {current_version}")
+            print()
 
-        # 3. 运行测试 (可选)
-        if not args.skip_tests:
             if not args.dry_run:
-                run_tests()
+                check_git_status()
+                create_git_tag(current_version)
+                if args.push:
+                    push_to_remote(current_version, push_tag_only=True)
+                else:
+                    print()
+                    print("下一步：推送标签")
+                    print(f"  git push origin v{current_version}")
             else:
-                print("[预览] 运行测试")
-        else:
-            print("跳过测试步骤")
+                print(f"[预览] 创建标签 v{current_version}")
 
-        # 4. 构建包
-        if not args.dry_run:
-            build_package()
-        else:
-            print("[预览] 构建包")
+            return
 
-        # 5. 创建Git标签
-        if not args.dry_run:
-            create_git_tag(version)
-        else:
-            print("[预览] 创建Git标签")
+        # 模式2: 更新版本号并发布
+        if args.version:
+            # 验证版本号格式
+            if not re.match(r'^\d+\.\d+\.\d+$', args.version):
+                print("错误：版本号格式无效，应为 x.y.z 格式（如 1.2.3）")
+                sys.exit(1)
 
-        # 6. 生成发布说明
-        if not args.dry_run:
-            release_notes = generate_release_notes(version)
-            notes_file = create_release_notes_file(version, release_notes)
-        else:
-            print("[预览] 生成发布说明")
-            notes_file = f"release-notes-v{version}.md"
+            print("模式：更新版本并发布")
+            print(f"当前版本: {current_version}")
+            print(f"目标版本: {args.version}")
+            print()
 
-        print("\n" + "=" * 50)
+            if not args.dry_run:
+                # 1. 更新版本号
+                update_version_in_files(args.version)
+
+                # 2. 提交版本更新
+                commit_version_update(args.version)
+                print()
+
+                # 3. 检查状态
+                check_git_status()
+
+                # 4. 运行测试（可选）
+                if not args.skip_tests:
+                    run_tests()
+                else:
+                    print("跳过测试")
+
+                # 5. 构建包（可选）
+                if args.build:
+                    build_package()
+
+                # 6. 创建标签
+                create_git_tag(args.version)
+
+                # 7. 推送（可选）
+                if args.push:
+                    push_to_remote(args.version)
+
+                version = args.version
+            else:
+                print("[预览] 更新版本号")
+                print("[预览] 提交更改")
+                print("[预览] 创建标签")
+                if args.build:
+                    print("[预览] 构建包")
+                if args.push:
+                    print("[预览] 推送到远程")
+                version = args.version
+
+        # 模式3: 仅构建
+        elif args.build:
+            print("模式：仅构建")
+            print(f"当前版本: {current_version}")
+            print()
+
+            if not args.dry_run:
+                build_package()
+            else:
+                print("[预览] 构建包")
+
+            version = current_version
+
+        else:
+            print("错误：请指定操作模式")
+            print()
+            print("示例:")
+            print("  --version 1.2.3        更新版本号并创建标签")
+            print("  --tag-only             仅创建标签")
+            print("  --build                仅构建包")
+            print()
+            print("运行 --help 查看详细说明")
+            sys.exit(1)
+
+        # 显示完成信息
+        print()
+        print("=" * 60)
         if args.dry_run:
-            print("预览完成! (未执行实际操作)")
+            print("预览完成！")
         else:
-            print("发布准备完成!")
+            print("完成！")
+        print()
         print(f"版本: v{version}")
-        if not args.dry_run:
-            print(f"发布说明: {notes_file}")
-            print("分发文件: dist/")
 
-        print("\n下一步操作:")
-        print("1. 推送标签到远程仓库:")
-        print(f"   git push origin v{version}")
-        print("\n2. 在GitHub上创建Release:")
-        print("   - 访问: https://github.com/kay-ou/SimTradeLab/releases/new")
-        print(f"   - 选择标签: v{version}")
-        print(f"   - 复制发布说明: {notes_file}")
-        if not args.dry_run:
-            print("   - 上传分发文件: dist/*")
-        print("\n3. 发布到PyPI (可选):")
-        print("   poetry publish")
+        if args.build and not args.dry_run:
+            print("构建文件: dist/")
+            for file in Path("dist").glob("*"):
+                print(f"  - {file.name}")
+
+        if not args.push:
+            print()
+            print("下一步操作（根据 docs/RELEASE.md）：")
+            print()
+            print("1. 推送到远程仓库：")
+            print("   git push origin main")
+            print(f"   git push origin v{version}")
+            print()
+            print("2. 在 GitHub 创建 Release：")
+            print("   https://github.com/kay-ou/SimTradeLab/releases/new")
+            print(f"   - 选择标签: v{version}")
+            print("   - 填写 Release 标题和说明")
+            print()
+            print("3. GitHub Actions 会自动构建并发布到 PyPI")
+            print()
+            print("4. 验证发布：")
+            print("   https://pypi.org/project/simtradelab/")
 
     except Exception as e:
-        print(f"\n发布失败: {e}")
+        print()
+        print(f"发布失败: {e}")
         sys.exit(1)
 
 
