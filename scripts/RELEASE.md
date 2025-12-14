@@ -130,8 +130,18 @@ python scripts/release.py --help
 2. ✅ **构建** - 安装系统依赖（HDF5, TA-Lib）→ 构建 wheel 和 tar.gz
 3. ✅ **发布** - 使用 Trusted Publishing 发布到 PyPI
 4. ✅ **验证** - 从 PyPI 安装并测试
+5. ✅ **更新 Release Notes** - 自动生成并更新（使用 `scripts/generate_release_notes.py`）
 
 监控进度：https://github.com/kay-ou/SimTradeLab/actions/workflows/publish.yml
+
+### 自动生成 Release Notes
+
+GitHub Actions 会自动调用 `scripts/generate_release_notes.py` 基于提交历史生成 Release Notes：
+- 自动分类提交（新功能、Bug修复、文档更新等）
+- 提取贡献者列表
+- 生成统计信息
+
+详细说明：`scripts/AUTO_RELEASE_NOTES_GUIDE.md`
 
 ## ✅ 发布后验证
 
