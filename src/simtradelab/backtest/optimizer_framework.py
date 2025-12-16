@@ -166,6 +166,9 @@ class StrategyOptimizer:
         self.results_dir = self.optimization_dir / "results"
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
+        # 创建共享的BacktestRunner实例（重用数据缓存）
+        self._runner = None
+
     def create_strategy_code(self, params: Dict[str, Any]) -> str:
         """基于参数创建策略代码"""
         import re
@@ -217,7 +220,10 @@ class StrategyOptimizer:
             from contextlib import redirect_stdout, redirect_stderr
             from io import StringIO
 
-            runner = BacktestRunner()
+            # 首次创建或重用runner实例（数据缓存）
+            if self._runner is None:
+                self._runner = BacktestRunner()
+
             config = BacktestConfig(
                 strategy_name=temp_strategy_name,
                 start_date=self.start_date,
@@ -228,7 +234,7 @@ class StrategyOptimizer:
             )
 
             with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
-                report = runner.run(config=config)
+                report = self._runner.run(config=config)
 
             if not report:
                 return -999.0, {}
@@ -273,23 +279,25 @@ class StrategyOptimizer:
 
         return score
 
-    def optimize(self, n_trials: int = DEFAULT_N_TRIALS, resume: bool = True) -> optuna.Study:
-        """执行参数优化
-        
+    def optimize(self, n_trials: int = DEFAULT_N_TRIALS, resume: bool = True,
+                 early_stopping_rounds: int = 20) -> optuna.Study:
+        """执行智能参数优化
+
         Args:
             n_trials: 总共要运行的试验次数
             resume: 是否从上次中断处继续（默认 True）
-            
+            early_stopping_rounds: 无改进轮数后提前停止（0表示禁用）
+
         Returns:
             optuna.Study: 优化研究对象
         """
         # 使用 SQLite 持久化存储
         storage_path = self.results_dir / "optuna_study.db"
         storage = f"sqlite:///{storage_path}"
-        
+
         # 固定的 study 名称，用于断点续传
         study_name = f"{self.strategy_path.parent.name}_optimization"
-        
+
         # 尝试加载或创建 study
         try:
             if resume:
@@ -301,7 +309,7 @@ class StrategyOptimizer:
                 completed_trials = len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE])
                 print(f"\n发现已有优化进度: {completed_trials} 个已完成试验")
                 print(f"将继续优化至 {n_trials} 个试验...")
-                
+
                 # 计算还需要运行多少次
                 remaining_trials = max(0, n_trials - completed_trials)
                 if remaining_trials == 0:
@@ -309,29 +317,69 @@ class StrategyOptimizer:
                     return study
             else:
                 raise optuna.exceptions.DuplicatedStudyError  # 强制创建新 study
-                
+
         except (optuna.exceptions.DuplicatedStudyError, KeyError):
             # 创建新的 study
             print(f"\n创建新的优化任务: {study_name}")
+
+            # 使用更智能的采样器和剪枝器
+            sampler = optuna.samplers.TPESampler(
+                seed=42,
+                n_startup_trials=10,  # 前10次随机探索
+                multivariate=True,     # 考虑参数间相关性
+                warn_independent_sampling=False
+            )
+
+            # 更激进的剪枝策略
+            pruner = optuna.pruners.HyperbandPruner(
+                min_resource=1,
+                max_resource=10,
+                reduction_factor=3
+            )
+
             study = optuna.create_study(
                 study_name=study_name,
                 storage=storage,
                 direction='maximize',
-                sampler=optuna.samplers.TPESampler(seed=42),
-                pruner=optuna.pruners.MedianPruner(),
-                load_if_exists=False  # 不加载已有的
+                sampler=sampler,
+                pruner=pruner,
+                load_if_exists=False
             )
             remaining_trials = n_trials
 
         # 静默模式
         optuna.logging.set_verbosity(optuna.logging.WARNING)
 
+        # 创建智能回调
+        callbacks = []
+
+        # 早期停止回调（静默模式，不打印）
+        if early_stopping_rounds > 0:
+            best_score = -float('inf')
+            no_improve_count = [0]
+
+            def early_stopping_callback(study, trial):
+                nonlocal best_score
+                if trial.value > best_score:
+                    best_score = trial.value
+                    no_improve_count[0] = 0
+                else:
+                    no_improve_count[0] += 1
+
+                if no_improve_count[0] >= early_stopping_rounds:
+                    study.stop()
+
+            callbacks.append(early_stopping_callback)
+
         # 执行优化（单线程）
-        print(f"开始优化，将运行 {remaining_trials} 个新试验...\n")
+        print(f"开始智能优化，将运行最多 {remaining_trials} 个试验...")
+        print(f"策略: TPE贝叶斯优化 + Hyperband剪枝 + 早期停止({early_stopping_rounds}轮)\n")
+
         study.optimize(
             self.objective,
             n_trials=remaining_trials,
             n_jobs=1,
+            callbacks=callbacks,
             show_progress_bar=True
         )
 

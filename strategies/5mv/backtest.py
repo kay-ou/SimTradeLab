@@ -18,12 +18,14 @@ def initialize(context):
     ]
 
     context.max_position = 2  # 最多持仓2只
+    context.rotation_period = 2  # 轮换周期（天）
     context.day_count = 0     # 交易日计数
 
     log.info("=" * 60)
     log.info("简化版5均线策略 - 每日交易测试")
     log.info("股票池: {}".format(context.stocks))
     log.info("最大持仓: {} 只".format(context.max_position))
+    log.info("轮换周期: {} 天".format(context.rotation_period))
     log.info("=" * 60)
 
 
@@ -41,8 +43,8 @@ def handle_data(context, data):
     positions = context.portfolio.positions
     current_stocks = [stock for stock, pos in positions.items() if pos.amount > 0]
 
-    # 策略：每2天轮换一次持仓
-    if context.day_count % 2 == 1:
+    # 策略：按轮换周期轮换持仓
+    if context.day_count % context.rotation_period == 1:
         # 奇数日：清空所有持仓
         if len(current_stocks) > 0:
             log.info("[Day {}] 清空持仓".format(context.day_count))
