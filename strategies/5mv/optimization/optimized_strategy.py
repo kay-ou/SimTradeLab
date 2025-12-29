@@ -17,8 +17,8 @@ def initialize(context):
         '000651.SZ',  # 格力电器
     ]
 
-    context.max_position = 3 # 最多持仓（只）
-    context.rotation_period = 6 # 轮换周期（天）
+    context.max_position = 3# 最多持仓2只
+    context.rotation_period = 6# 轮换周期（天）
     context.day_count = 0     # 交易日计数
     context.last_trade_day = -999  # 上次交易日期
 
