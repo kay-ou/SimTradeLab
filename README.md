@@ -83,7 +83,7 @@ mkdir -p research      # 存放Jupyter notebooks
 
 # 3. 下载示例策略（可选）
 # 从GitHub获取示例文件
-wget https://raw.githubusercontent.com/kay-ou/SimTradeLab/main/strategies/simple/backtest.py -P strategies/simple/
+wget https://raw.githubusercontent.com/kay-ou/SimTradeLab/main/strategies/5mv/backtest.py -P strategies/5mv/
 ```
 
 **准备数据文件：**
@@ -92,7 +92,7 @@ wget https://raw.githubusercontent.com/kay-ou/SimTradeLab/main/strategies/simple
 # 方式A: 使用SimTradeData项目获取数据
 # 访问：https://github.com/kay-ou/SimTradeData
 
-# 方式B: 使用自己的数据（HDF5格式）
+# 方式B: 使用自己的数据（HDF5格式，也可从SimTradeData获取云盘链接）
 # 将数据文件放到 data/ 目录：
 # - data/ptrade_data.h5
 # - data/ptrade_fundamentals.h5
@@ -102,7 +102,6 @@ wget https://raw.githubusercontent.com/kay-ou/SimTradeLab/main/strategies/simple
 
 ```python
 # strategies/my_strategy/backtest.py
-from simtradelab.ptrade.api import *
 
 def initialize(context):
     set_benchmark('000300.SS')
