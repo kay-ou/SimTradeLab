@@ -6,43 +6,15 @@ name: Publish SimTradeLab Package
 on:
   release:
     types: [published]
-  # 允许手动触发
+  # 可选：允许手动触发
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to publish (e.g., v1.2.4)'
-        required: true
-        type: string
-  # 允许其他工作流触发
-  workflow_call:
-    inputs:
-      tag:
-        description: 'Tag to publish'
-        required: true
-        type: string
 
 jobs:
   release-build:
     runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.tag.outputs.tag }}
 
     steps:
-      - name: Determine tag
-        id: tag
-        run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
-          fi
-          echo "Publishing tag: $(cat $GITHUB_OUTPUT | grep tag=)"
-
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.tag.outputs.tag }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -122,15 +94,13 @@ jobs:
   post-publish:
     runs-on: ubuntu-latest
     needs:
-      - release-build
       - pypi-publish
+    if: github.event_name == 'release'
     permissions:
-      contents: write
+      contents: write 
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.release-build.outputs.tag }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -143,7 +113,7 @@ jobs:
           sleep 30
 
           # 获取不带v前缀的版本号
-          VERSION=${{ needs.release-build.outputs.tag }}
+          VERSION=${{ github.event.release.tag_name }}
           VERSION=${VERSION#v}
 
           # 尝试安装刚发布的包
@@ -160,7 +130,7 @@ jobs:
         id: release_notes
         run: |
           # 生成Release Notes
-          python scripts/generate_release_notes.py ${{ needs.release-build.outputs.tag }} --output release_notes.md
+          python scripts/generate_release_notes.py ${{ github.event.release.tag_name }} --output release_notes.md
 
           # 读取生成的内容并设置为输出
           echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
@@ -168,7 +138,6 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Update Release with Generated Notes
-        if: github.event_name == 'release'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -185,14 +154,13 @@ jobs:
             });
 
       - name: Create success comment
-        if: github.event_name == 'release'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const tagName = '${{ needs.release-build.outputs.tag }}';
+            const tagName = '${{ github.event.release.tag_name }}';
             const version = tagName.replace(/^v/, '');
-
+            
             github.rest.issues.createComment({
               issue_number: context.payload.release.id,
               owner: context.repo.owner,
