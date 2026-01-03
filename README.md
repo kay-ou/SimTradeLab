@@ -440,7 +440,8 @@ strategies/my_strategy/stats/
 - ❌ 期权交易：15个API（权利/义务仓开平仓、备兑、行权等）
 
 **其他功能**
-- ❌ 用户环境：get_user_name, get_deliver, get_fundjour, get_research_path
+- ✅ 用户环境：get_research_path
+- ❌ 用户环境：get_user_name, get_deliver, get_fundjour
 - ❌ 通知功能：send_email, send_qywx
 - ❌ 数据文件：get_trades_file, convert_position_from_csv
 
@@ -468,8 +469,7 @@ SimTradeLab/
 │   │   ├── lifecycle_config.py     # API阶段限制配置
 │   │   ├── order_processor.py      # 订单处理器
 │   │   ├── cache_manager.py        # 缓存管理器
-│   │   ├── adjustment_calculator.py # 复权计算
-│   │   ├── adj_pre_cache.py        # 前复权缓存
+│   │   ├── adj_pre_cache.py        # 前复权缓存（向量化优化）
 │   │   ├── strategy_validator.py   # 策略兼容性验证
 │   │   ├── strategy_data_analyzer.py # 策略数据分析
 │   │   └── config_manager.py       # 配置管理
@@ -478,6 +478,7 @@ SimTradeLab/
 │   │   ├── config.py               # 回测配置（Pydantic）
 │   │   ├── stats.py                # 统计和图表
 │   │   ├── stats_collector.py      # 数据收集
+│   │   ├── optimizer_framework.py  # 参数优化框架（Optuna）
 │   │   └── run_backtest.py         # 入口脚本
 │   ├── research/                   # Research模式
 │   │   └── api.py                  # 无生命周期限制的API
@@ -519,6 +520,47 @@ poetry run python extract_sample_data.py
 - `data/ptrade_data_sample.h5` - 样本价格数据
 - `data/ptrade_fundamentals_sample.h5` - 样本基本面数据
 
+### 参数优化框架
+
+SimTradeLab提供基于Optuna的智能参数优化框架，支持贝叶斯优化和自动剪枝：
+
+```bash
+# 安装优化器依赖
+pip install simtradelab[optimizer]
+
+# 运行参数优化
+poetry run python strategies/5mv/optimization/optimize_params.py
+```
+
+**核心特性：**
+- ✅ **贝叶斯采样** - TPE算法智能搜索参数空间
+- ✅ **自动剪枝** - Hyperband剪枝器提前终止无效trial
+- ✅ **断点续传** - 支持中断后继续优化
+- ✅ **早停机制** - 可配置的early stopping
+- ✅ **数据共享** - 复用BacktestRunner实例减少内存占用
+- ✅ **进度追踪** - 实时显示优化进度和最优结果
+
+**示例：5mv策略参数优化**
+```python
+from simtradelab.backtest.optimizer_framework import StrategyOptimizer
+
+optimizer = StrategyOptimizer(
+    strategy_path='strategies/5mv',
+    data_path='data',
+    start_date='2020-01-01',
+    end_date='2024-12-31'
+)
+
+# 定义参数空间
+def objective(trial):
+    max_position = trial.suggest_int('max_position', 5, 30)
+    rotation_period = trial.suggest_int('rotation_period', 10, 60)
+    return optimizer.evaluate(trial, max_position, rotation_period)
+
+# 运行优化（200次trial）
+best_params = optimizer.optimize(objective, n_trials=200)
+```
+
 ---
 
 ## ⚙️ 核心设计
@@ -540,7 +582,8 @@ DataServer(data_path)  # 秒级启动，数据常驻
 
 #### 2. 多级智能缓存系统
 - **全局MA/VWAP缓存** - cachetools.LRUCache，自动淘汰最旧项
-- **复权因子预计算** - 向量化批量计算，HDF5持久化（blosc压缩）
+- **前复权向量化优化** - 重构复权计算逻辑，移除冗余adjustment_calculator.py，直接在adj_pre_cache.py中实现向量化批量计算
+- **复权因子预计算** - HDF5持久化（blosc压缩），避免重复计算
 - **分红事件缓存** - joblib并行构建，避免重复解析
 - **历史数据缓存** - LazyDataDict延迟加载，LRU策略管理内存
 - **日期索引缓存** - 预构建bisect索引，O(log n)查找
