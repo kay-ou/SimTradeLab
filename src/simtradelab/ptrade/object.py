@@ -18,7 +18,6 @@ from datetime import datetime
 
 from ..utils.performance_config import get_performance_config
 from .cache_manager import cache_manager
-from .adjustment_calculator import AdjustmentCalculator
 from .config_manager import config
 
 
@@ -240,16 +239,6 @@ class StockData:
             'low': row['low'],
             'volume': row['volume']
         }
-
-        # 使用AdjustmentCalculator应用前复权
-        if self._bt_ctx and self._bt_ctx.data_context:
-            if not hasattr(self, '_adj_calculator'):
-                self._adj_calculator = AdjustmentCalculator(self._bt_ctx.data_context)
-
-            # 应用前复权到数据
-            data = self._adj_calculator.apply_pre_adjustment_to_data(
-                self.stock, data, self.current_date
-            )
 
         return data
 

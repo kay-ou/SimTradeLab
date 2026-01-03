@@ -5,6 +5,7 @@
 负责预计算和缓存所有股票的复权因子,以提升get_history性能
 """
 import pandas as pd
+import numpy as np
 import os
 import pickle
 from pathlib import Path
@@ -46,11 +47,13 @@ def _get_cached_adj_keys():
 
 
 
-def _calculate_cumulative_dividend_single(stock, stock_df, exrights_df):
-    """计算单只股票的累计未来分红(joblib worker)
+def _calculate_adj_factors_single(stock, stock_df, exrights_df):
+    """计算单只股票的前复权因子序列(joblib worker)
 
-    ptrade前复权逻辑: 前复权价 = 未复权价 - 累计未来分红
-    对于日期d，累计未来分红 = 所有严格在d之后发生的分红之和
+    ptrade前复权逻辑: 前复权价 = 未复权价 * exer_forward_a + exer_forward_b
+
+    对于每个交易日，需要找到该日期之前最近的除权事件对应的因子。
+    如果没有除权事件，因子为 (1.0, 0.0) 表示不复权。
 
     Args:
         stock: 股票代码
@@ -58,7 +61,7 @@ def _calculate_cumulative_dividend_single(stock, stock_df, exrights_df):
         exrights_df: 除权数据
 
     Returns:
-        cumulative_dividend_series 或 None
+        DataFrame with columns ['adj_a', 'adj_b'] 或 None
     """
     if stock_df is None or stock_df.empty:
         return None
@@ -69,41 +72,51 @@ def _calculate_cumulative_dividend_single(stock, stock_df, exrights_df):
     all_dates = stock_df.index
 
     try:
-        if 'bonus_ps' not in exrights_df.columns:
-            return None
-
-        # 筛选有分红的记录
-        dividend_mask = exrights_df['bonus_ps'] > 0
-        if not dividend_mask.any():
+        if 'exer_forward_a' not in exrights_df.columns or 'exer_forward_b' not in exrights_df.columns:
             return None
 
         # 将除权日期转换为datetime
-        dividend_records = exrights_df[dividend_mask]['bonus_ps']
-        ex_dates_int = dividend_records.index.tolist()
+        ex_dates_int = exrights_df.index.tolist()
         ex_dates_dt = pd.to_datetime(ex_dates_int, format='%Y%m%d')
-        dividend_amounts = dividend_records.values
+        adj_a_values = exrights_df['exer_forward_a'].values
+        adj_b_values = exrights_df['exer_forward_b'].values
 
-        # 对于每个交易日，计算其之后的累计分红
-        # 使用向量化方式：对于日期d，累计未来分红 = sum(分红日期 > d 的分红)
-        cumsum_future = pd.Series(index=all_dates, dtype='float64')
+        # 对于每个交易日，找到其所在的复权区间对应的因子
+        # 除权日当天及之后使用该除权事件的因子
+        adj_factors = pd.DataFrame(index=all_dates, columns=['adj_a', 'adj_b'], dtype='float32')
 
         for i, trade_date in enumerate(all_dates):
-            # 计算trade_date之后的所有分红之和
-            future_mask = ex_dates_dt > trade_date
-            cumsum_future.iloc[i] = dividend_amounts[future_mask].sum()
+            # 找到trade_date当天或之前最近的除权事件
+            past_or_equal_mask = ex_dates_dt <= trade_date
 
-        return cumsum_future
-    except:
+            if past_or_equal_mask.any():
+                # 使用最近的除权因子
+                last_idx = np.where(past_or_equal_mask)[0][-1]
+                adj_factors.iloc[i] = [adj_a_values[last_idx], adj_b_values[last_idx]]
+            else:
+                # trade_date早于所有除权事件
+                # 如果有未来除权事件，使用第一个
+                if len(adj_a_values) > 0:
+                    adj_factors.iloc[i] = [adj_a_values[0], adj_b_values[0]]
+                else:
+                    # 完全没有除权数据，使用单位因子
+                    adj_factors.iloc[i] = [1.0, 0.0]
+
+        return adj_factors
+    except Exception as e:
+        print(f"计算 {stock} 前复权因子失败: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
-@timer(threshold=0.1, name="累计分红缓存创建")
+@timer(threshold=0.1, name="前复权因子缓存创建")
 def create_adj_pre_cache(data_context):
-    """创建并保存所有股票的累计未来分红缓存(使用joblib并行)
+    """创建并保存所有股票的前复权因子缓存(使用joblib并行)
 
-    ptrade前复权逻辑: 前复权价 = 未复权价 - 累计未来分红
+    ptrade前复权逻辑: 前复权价 = 未复权价 * exer_forward_a + exer_forward_b
     """
-    print("正在创建累计分红缓存...")
+    print("正在创建前复权因子缓存...")
 
     all_stocks = list(data_context.stock_data_dict.keys())
     total_stocks = len(all_stocks)
@@ -120,7 +133,7 @@ def create_adj_pre_cache(data_context):
     print(f"  并行计算({num_workers if num_workers > 0 else 'auto'}进程)...")
 
     results = Parallel(n_jobs=num_workers, backend='loky', verbose=0)(
-        delayed(_calculate_cumulative_dividend_single)(
+        delayed(_calculate_adj_factors_single)(
             stock, stock_data_cache.get(stock), exrights_cache.get(stock)
         ) for stock in all_stocks
     )
@@ -129,29 +142,28 @@ def create_adj_pre_cache(data_context):
     print("  正在保存到HDF5...")
     saved_count = 0
     with pd.HDFStore(ADJ_PRE_CACHE_PATH, 'w', complevel=9, complib='blosc') as store:
-        for stock, cum_div in zip(all_stocks, results):
-            if cum_div is not None:
-                cum_div = cum_div.astype('float32')
-                store.put(stock, cum_div, format='fixed')
+        for stock, adj_factors in zip(all_stocks, results):
+            if adj_factors is not None:
+                store.put(stock, adj_factors, format='fixed')
                 saved_count += 1
 
-    print(f"✓ 累计分红缓存创建完成！")
+    print(f"✓ 前复权因子缓存创建完成！")
     print(f"  处理: {total_stocks} 只股票")
-    print(f"  保存: {saved_count} 只（有分红数据）")
+    print(f"  保存: {saved_count} 只（有除权数据）")
     print(f"  文件: {ADJ_PRE_CACHE_PATH}")
 
 
-@timer(threshold=0.1, name="累计分红缓存加载")
+@timer(threshold=0.1, name="前复权因子缓存加载")
 def load_adj_pre_cache(data_context):
-    """加载累计分红缓存（支持多进程加速）
+    """加载前复权因子缓存（支持多进程加速）
 
-    返回的是累计未来分红，运行时用于计算前复权价格。
-    前复权价 = 未复权价 - 累计未来分红
+    返回的是前复权因子DataFrame(columns=['adj_a', 'adj_b'])，运行时用于计算前复权价格。
+    前复权价 = 未复权价 * adj_a + adj_b
     """
     if not os.path.exists(ADJ_PRE_CACHE_PATH):
         create_adj_pre_cache(data_context)
 
-    print("正在加载累计分红缓存...")
+    print("正在加载前复权因子缓存...")
 
     # 判断是否使用多进程
     from ..utils.performance_config import get_performance_config
@@ -184,7 +196,7 @@ def load_adj_pre_cache(data_context):
                 stock = key.strip('/')
                 adj_factors_cache[stock] = store[key]
 
-    print(f"✓ 累计分红缓存加载完成！共 {len(adj_factors_cache)} 只股票")
+    print(f"✓ 前复权因子缓存加载完成！共 {len(adj_factors_cache)} 只股票")
     return adj_factors_cache
 
 

@@ -121,8 +121,6 @@ class PtradeAPI:
             date: 日期
             price_type: 价格类型 (close/open/high/low)
             fq: 复权类型 ('none'-不复权, 'pre'-前复权, 'post'-后复权)
-            stock_data_dict: 股票数据字典
-            exrights_dict: 除权数据字典
 
         Returns:
             复权后价格
@@ -135,27 +133,24 @@ class PtradeAPI:
             except:
                 return np.nan
 
-        if fq == 'pre' and stock in self.data_context.exrights_dict:
-            # 前复权
+        if fq == 'pre':
+            # 前复权：仅使用adj_pre_cache
             try:
                 stock_df = self.data_context.stock_data_dict[stock]
-                exrights_df = self.data_context.exrights_dict[stock]
-
                 original_price = stock_df.loc[date, price_type]
 
-                # 找到该日期对应的复权因子
-                date_ts = pd.Timestamp(date)
-                date_str = date_ts.strftime('%Y%m%d')
+                # 使用预计算的复权因子缓存
+                if self.data_context.adj_pre_cache and stock in self.data_context.adj_pre_cache:
+                    adj_factors = self.data_context.adj_pre_cache[stock]
+                    date_ts = pd.Timestamp(date)
+                    if date_ts in adj_factors.index:
+                        adj_a = adj_factors.loc[date_ts, 'adj_a']
+                        adj_b = adj_factors.loc[date_ts, 'adj_b']
+                        # ptrade前复权公式: 前复权价 = 未复权价 * adj_a + adj_b
+                        return original_price * adj_a + adj_b
 
-                # exrights的index是字符串格式YYYYMMDD
-                if date_str in exrights_df.index:
-                    exer_a = exrights_df.loc[date_str, 'exer_backward_a']
-                    exer_b = exrights_df.loc[date_str, 'exer_backward_b']
-                    # 前复权公式: 复权价 = (原始价 - b) / a
-                    return (original_price - exer_b) / exer_a if exer_a != 0 else original_price
-                else:
-                    # 该日期没有除权，返回原始价
-                    return original_price
+                # 缓存不存在或无对应日期，返回原始价
+                return original_price
             except:
                 return np.nan
 
@@ -349,7 +344,7 @@ class PtradeAPI:
                         # 使用side='left'排除当日，确保返回的是已确定的前一交易日数据
                         idx = df.index.searchsorted(query_ts, side='left')
                         if idx > 0:
-                            date_indices[stock] = idx
+                            date_indices[stock] = idx - 1
                         elif len(df.index) > 0:
                             # 如果查询日期早于所有数据，返回第一条
                             date_indices[stock] = 0
@@ -586,19 +581,22 @@ class PtradeAPI:
             if len(slice_df) == 0:
                 continue
 
-            # 复权处理: ptrade前复权 = 未复权价 - 累计未来分红
-            # adj_pre_cache存储的是累计未来分红
+            # 复权处理: ptrade前复权 = 未复权价 * adj_a + adj_b
+            # adj_pre_cache存储的是前复权因子DataFrame(columns=['adj_a', 'adj_b'])
             if needs_adj and stock in self.data_context.adj_pre_cache:
-                cum_dividend = self.data_context.adj_pre_cache[stock]
-                slice_cum_div = cum_dividend.iloc[start_idx:end_idx].values
+                adj_factors = self.data_context.adj_pre_cache[stock]
+                slice_adj = adj_factors.iloc[start_idx:end_idx]
+
+                adj_a = slice_adj['adj_a'].values
+                adj_b = slice_adj['adj_b'].values
 
                 stock_result = {}
                 for field_name in fields:
                     if field_name not in slice_df.columns:
                         continue
                     if field_name in price_fields:
-                        # 前复权价 = 未复权价 - 累计未来分红
-                        stock_result[field_name] = slice_df[field_name].values - slice_cum_div
+                        # 前复权价 = 未复权价 * adj_a + adj_b
+                        stock_result[field_name] = slice_df[field_name].values * adj_a + adj_b
                     else:
                         stock_result[field_name] = slice_df[field_name].values
             else:
@@ -807,12 +805,14 @@ class PtradeAPI:
         # 获取所有可用日期并排序
         available_dates = sorted(self.data_context.index_constituents.keys())
 
-        # 如果未指定日期，使用最新日期
+        # 如果未指定日期，使用回测当前日期
         if date is None:
-            date = available_dates[-1]
+            query_date = str(self.context.current_dt.date())
+        else:
+            query_date = date
 
         # 使用 bisect 找到小于等于 date 的最近日期
-        idx = bisect.bisect_right(available_dates, date)
+        idx = bisect.bisect_right(available_dates, query_date)
         
         if idx > 0:
             # 向前查找包含该指数数据的最近日期
@@ -1089,28 +1089,10 @@ class PtradeAPI:
                     stock, max_affordable_amount, value, max_affordable_amount * current_price))
                 amount = max_affordable_amount
         else:
-            # 目标数量 < 最小单位，用所有可用现金尝试买入（匹配ptrade行为）
-            max_affordable_amount = int(available_cash / current_price / min_lot) * min_lot
-
-            # 迭代调整，确保包含手续费后不超预算
-            while max_affordable_amount >= min_lot:
-                test_cost = max_affordable_amount * current_price
-                test_commission = self._order_processor.calculate_commission(max_affordable_amount, current_price, is_sell=False)
-                test_total = test_cost + test_commission
-
-                if test_total <= available_cash:
-                    break
-                max_affordable_amount -= min_lot
-
-            # 如果可用现金仍不足最小单位，失败
-            if max_affordable_amount < min_lot:
-                self.log.warning("【下单失败】{} | 原因: 金额不足 (分配{:.2f}元, 价格{:.2f}元, 可用现金{:.2f}元, 不足{}股)".format(
-                    stock, value, current_price, available_cash, min_lot))
-                return None
-
-            self.log.warning("分配金额不足{}股，改用所有可用现金买入{}股（{:.2f}元）".format(
-                min_lot, max_affordable_amount, max_affordable_amount * current_price))
-            amount = max_affordable_amount
+            # 目标数量 < 最小单位，直接取消交易（避免资金分配失衡）
+            self.log.warning("【下单失败】{} | 原因: 分配金额不足{}股 (分配{:.2f}元, 价格{:.2f}元, 可用现金{:.2f}元)".format(
+                stock, min_lot, value, current_price, available_cash))
+            return None
 
         # 创建订单
         order_id, order = self._order_processor.create_order(stock, amount, current_price)
