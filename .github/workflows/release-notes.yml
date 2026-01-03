@@ -197,19 +197,7 @@ jobs:
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📋 **使用方法**:" >> $GITHUB_STEP_SUMMARY
-          echo "1. 下载生成的Release Notes文件" >> $GITHUB_STEP_SUMMARY
-          echo "2. 在GitHub Release中使用生成的内容" >> $GITHUB_STEP_SUMMARY
-          echo "3. 根据需要手动调整内容" >> $GITHUB_STEP_SUMMARY
-
-  # 触发PyPI发布
-  trigger-publish:
-    needs: generate-release-notes
-    if: github.event_name == 'push' || inputs.create_release
-    permissions:
-      id-token: write
-      contents: write
-    uses: ./.github/workflows/publish.yml
-    with:
-      tag: ${{ needs.generate-release-notes.outputs.tag_name || github.ref_name }}
-    secrets: inherit
+          echo "📋 **下一步**:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Release已创建，请手动触发Publish workflow发布到PyPI" >> $GITHUB_STEP_SUMMARY
+          echo "2. 访问: https://github.com/${{ github.repository }}/actions/workflows/publish.yml" >> $GITHUB_STEP_SUMMARY
+          echo "3. 点击 'Run workflow'，输入tag: ${{ steps.tag.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
