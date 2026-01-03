@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.2.3-orange.svg)](#)
+[![Version](https://img.shields.io/badge/Version-1.2.4-orange.svg)](#)
 
 *完整模拟PTrade平台API，策略可无缝迁移*
 
@@ -16,7 +16,7 @@ SimTradeLab（深测Lab） 是一个由社区独立开发的开源策略回测�
 
 ### 📊 项目状态
 
-**当前版本**: v1.2.3
+**当前版本**: v1.2.4
 **开发状态**: Beta - 核心功能完善，正在策略实战中持续优化
 
 已完成：
@@ -63,7 +63,7 @@ venv\Scripts\activate      # Windows
 pip install simtradelab
 
 # 安装指定版本
-pip install simtradelab==1.2.3
+pip install simtradelab==1.2.4
 
 # 包含优化器（可选）
 pip install simtradelab[optimizer]
