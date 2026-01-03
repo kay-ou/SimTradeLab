@@ -28,6 +28,8 @@ permissions:
 jobs:
   generate-release-notes:
     runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.tag.outputs.tag_name }}
 
     steps:
       - uses: actions/checkout@v4
@@ -199,3 +201,12 @@ jobs:
           echo "1. 下载生成的Release Notes文件" >> $GITHUB_STEP_SUMMARY
           echo "2. 在GitHub Release中使用生成的内容" >> $GITHUB_STEP_SUMMARY
           echo "3. 根据需要手动调整内容" >> $GITHUB_STEP_SUMMARY
+
+  # 触发PyPI发布
+  trigger-publish:
+    needs: generate-release-notes
+    if: github.event_name == 'push' || inputs.create_release
+    uses: ./.github/workflows/publish.yml
+    with:
+      tag: ${{ needs.generate-release-notes.outputs.tag_name || github.ref_name }}
+    secrets: inherit
