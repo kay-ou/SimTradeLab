@@ -206,6 +206,9 @@ jobs:
   trigger-publish:
     needs: generate-release-notes
     if: github.event_name == 'push' || inputs.create_release
+    permissions:
+      id-token: write
+      contents: write
     uses: ./.github/workflows/publish.yml
     with:
       tag: ${{ needs.generate-release-notes.outputs.tag_name || github.ref_name }}
