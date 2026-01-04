@@ -346,23 +346,53 @@ strategies/my_strategy/stats/
 
 ---
 
-## 🛠️ VS Code 代码片段
+## 🛠️ IDE 开发配置（可选）
 
-为了提高策略开发效率，我们提供了 PTrade API 的 VS Code 代码片段配置：
+为提高策略开发效率，项目提供了完整的 IDE 智能提示支持：
+
+### 1️⃣ 类型提示（函数签名、参数补全）
+
+本项目提供了 `typings/builtins.pyi` 存根文件，让编辑器能识别 PTrade API 函数定义。
+
+**VS Code 配置**：
+
+在 `.vscode/settings.json` 中添加：
+
+```json
+{
+  "python.analysis.stubPath": "typings",
+  "python.analysis.extraPaths": ["typings"],
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportUndefinedVariable": "none"
+  }
+}
+```
+
+**效果**：
+- ✅ 鼠标悬停显示完整函数签名和文档
+- ✅ 输入函数名自动显示参数提示
+- ✅ 支持跳转到定义（stub 文件）
+- 示例：悬停 `get_history` 显示 `get_history(count, frequency='1d', field='close', ...)`
+
+**其他 IDE**：
+- PyCharm：自动识别 `typings/` 目录
+- 其他编辑器：参考对应 IDE 的 Python 类型存根配置文档
+
+### 2️⃣ 代码片段（快速插入）
+
+快捷代码片段让你快速插入常用 API 调用模板。
 
 📎 [下载 ptrade-api.code-snippets](https://gist.github.com/kay-ou/8fb6dc68279bc40828a2f9fdf527fe90)
 
-**安装方法：**
-将此文件放到项目的 `.vscode/` 目录（如果没有则创建），即可在编写策略时使用自动补全。
+**安装**：将文件放到 `.vscode/` 目录
 
-**包含的快捷代码片段：**
-- 📊 **数据获取**：`get_history`, `get_fundamentals`, `get_price`, `get_index_stocks`
-- 💰 **交易操作**：`order_value`, `order_target`
-- 🔍 **市场分析**：`check_limit`
-- ⚙️ **策略配置**：`set_benchmark`, `set_slippage`, `set_fixed_slippage`
+**包含的片段**：
+- 📊 数据获取：`get_history`, `get_fundamentals`, `get_price`, `get_index_stocks`
+- 💰 交易操作：`order_value`, `order_target`
+- 🔍 市场分析：`check_limit`
+- ⚙️ 策略配置：`set_benchmark`, `set_slippage`, `set_fixed_slippage`
 
-**使用示例：**
-在 VS Code 中输入 `get_h` 即可自动补全为 `get_history()` 并显示参数提示。
+**效果**：输入 `get_h` 自动补全为 `get_history()` 并插入参数占位符
 
 ---
 
