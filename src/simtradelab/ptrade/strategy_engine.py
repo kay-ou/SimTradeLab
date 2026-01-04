@@ -5,9 +5,11 @@ PTrade 策略执行框架
 提供完整的策略执行环境，整合生命周期控制、API验证和Context管理
 """
 
+from __future__ import annotations
+
 import logging
 import traceback
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 from .context import Context
 
@@ -58,7 +60,7 @@ class StrategyExecutionEngine:
         self.lifecycle_controller = self.context._lifecycle_controller
 
         # 策略相关
-        self._strategy_functions: Dict[str, Callable[..., Any]] = {}
+        self._strategy_functions: dict[str, Callable[..., Any]] = {}
         self._strategy_name: Optional[str] = None
         self._is_running = False
     # ==========================================

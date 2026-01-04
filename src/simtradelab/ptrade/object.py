@@ -5,6 +5,8 @@
 包含Portfolio, Position, Order, Context等核心对象
 """
 
+from __future__ import annotations
+
 from collections import OrderedDict
 import bisect
 import pandas as pd
@@ -12,8 +14,8 @@ import numpy as np
 from functools import wraps
 from joblib import Parallel, delayed
 from tqdm import tqdm
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional, Dict, Any, Union
+from pydantic import BaseModel, Field
+from typing import Optional, Any
 from datetime import datetime
 
 from ..utils.performance_config import get_performance_config
@@ -22,7 +24,7 @@ from .config_manager import config
 
 
 # ==================== 多进程worker函数 ====================
-def _load_data_chunk(hdf5_filename, prefix, keys_chunk) -> Dict[str, Any]:
+def _load_data_chunk(hdf5_filename, prefix, keys_chunk) -> dict[str, Any]:
     """多进程worker：加载一批数据
 
     Args:
@@ -33,7 +35,7 @@ def _load_data_chunk(hdf5_filename, prefix, keys_chunk) -> Dict[str, Any]:
     Returns:
         dict: {key: dataframe}
     """
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     store = pd.HDFStore(hdf5_filename, 'r')
     try:
         for key in keys_chunk:
@@ -182,7 +184,7 @@ class StockData:
         self._stock_df = None
         self._current_idx = None
         self._bt_ctx = bt_ctx
-        self._data: Optional[Dict[str, Any]] = None  # 延迟加载标记
+        self._data: Optional[dict[str, Any]] = None  # 延迟加载标记
         self._cached_phase = None  # 缓存的phase,用于判断是否需要重新加载
         self._cached_idx = None  # 缓存的idx,用于判断是否需要重新加载
 
@@ -545,7 +547,7 @@ class Blotter:
 
 class Order(BaseModel):
     """订单对象"""
-    id: Union[int, str] = Field(..., description="订单号（支持整数或UUID字符串）")
+    id: int | str = Field(..., description="订单号（支持整数或UUID字符串）")
     dt: Optional[datetime] = Field(None, description="订单产生时间")
     symbol: str = Field(..., description="标的代码")
     amount: int = Field(..., description="下单数量（正数=买入，负数=卖出）")

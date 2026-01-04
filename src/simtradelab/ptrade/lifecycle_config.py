@@ -5,11 +5,11 @@ PTrade API 生命周期限制配置
 根据PTrade_API_Summary.md官方文档定义每个API函数的生命周期使用限制
 """
 
-from typing import Dict, List
+from __future__ import annotations
 
 # PTrade API 生命周期限制配置
 # 基于PTrade_API_Summary.md中的完整API限制规范
-API_LIFECYCLE_RESTRICTIONS: Dict[str, List[str]] = {
+API_LIFECYCLE_RESTRICTIONS: dict[str, list[str]] = {
     # ==========================================
     # 策略生命周期函数 (7个) - 框架级实现
     # ==========================================
@@ -180,7 +180,7 @@ ALL_PHASES_APIS = {
 }
 
 
-def get_api_allowed_phases(api_name: str) -> List[str]:
+def get_api_allowed_phases(api_name: str) -> list[str]:
     """获取API允许调用的生命周期阶段"""
     phases = API_LIFECYCLE_RESTRICTIONS.get(api_name, ["all"])
     if phases == ["all"]:
@@ -205,7 +205,7 @@ def is_api_allowed_in_phase(api_name: str, current_phase: str) -> bool:
     return current_phase in allowed_phases
 
 
-def get_phase_apis(phase: str) -> List[str]:
+def get_phase_apis(phase: str) -> list[str]:
     """获取指定生命周期阶段可调用的所有API"""
     phase_apis = []
     for api_name, allowed_phases in API_LIFECYCLE_RESTRICTIONS.items():
@@ -228,7 +228,7 @@ EXCLUSIVE_PHASE_APIS = {
 
 # PTrade API 模式限制配置
 # 定义每个API在不同策略模式下的支持情况
-API_MODE_RESTRICTIONS: Dict[str, List[str]] = {
+API_MODE_RESTRICTIONS: dict[str, list[str]] = {
     # === 数据获取API的模式限制 ===
     "get_history": ["backtest", "trading"],  # [回测/交易] - 根据PTrade官方文档
     "get_price": ["research", "backtest", "trading"],  # [研究/回测/交易]
@@ -303,14 +303,14 @@ API_MODE_RESTRICTIONS: Dict[str, List[str]] = {
 }
 
 
-def get_api_supported_modes(api_name: str) -> List[str]:
+def get_api_supported_modes(api_name: str) -> list[str]:
     """获取API支持的策略模式列表
 
     Args:
         api_name: API函数名
 
     Returns:
-        List[str]: 支持的模式列表，如果未配置则返回空列表
+        list[str]: 支持的模式列表，如果未配置则返回空列表
     """
     return API_MODE_RESTRICTIONS.get(api_name, [])
 

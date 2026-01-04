@@ -5,10 +5,12 @@ PTrade 生命周期控制器
 负责管理策略的生命周期执行和API调用验证
 """
 
+from __future__ import annotations
+
 import logging
 from enum import Enum
 from threading import RLock
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Optional
 from pydantic import BaseModel, Field
 
 from .lifecycle_config import get_api_allowed_phases, is_api_allowed_in_phase
@@ -78,18 +80,18 @@ class LifecycleController:
         self._lock = RLock()
 
         # API调用历史记录
-        self._call_history: List[APICallRecord] = []
+        self._call_history: list[APICallRecord] = []
         self._max_history_size = 1000
 
         # 阶段执行状态
-        self._phase_executed: Set[LifecyclePhase] = set()
-        self._phase_callbacks: Dict[LifecyclePhase, List[Callable]] = {
+        self._phase_executed: set[LifecyclePhase] = set()
+        self._phase_callbacks: dict[LifecyclePhase, list[Callable]] = {
             phase: [] for phase in LifecyclePhase
         }
 
         # 统计信息
-        self._api_call_count: Dict[str, int] = {}
-        self._phase_duration: Dict[LifecyclePhase, float] = {}
+        self._api_call_count: dict[str, int] = {}
+        self._phase_duration: dict[LifecyclePhase, float] = {}
 
         self._logger.debug(f"LifecycleController initialized for {strategy_mode} mode")
 
@@ -203,14 +205,14 @@ class LifecycleController:
             if not success:
                 self._logger.warning(f"API call failed: {api_name} - {error}")
 
-    def get_phase_apis(self, phase: Optional[LifecyclePhase] = None) -> List[str]:
+    def get_phase_apis(self, phase: Optional[LifecyclePhase] = None) -> list[str]:
         """获取指定阶段可调用的API列表
 
         Args:
             phase: 生命周期阶段，为None时使用当前阶段
 
         Returns:
-            List[str]: 可调用的API列表
+            list[str]: 可调用的API列表
         """
         target_phase = phase or self._current_phase
         if target_phase is None:
@@ -237,11 +239,11 @@ class LifecycleController:
             self._phase_callbacks[phase].append(callback)
             self._logger.debug(f"Registered callback for phase {phase}")
 
-    def get_call_statistics(self) -> Dict[str, Any]:
+    def get_call_statistics(self) -> dict[str, Any]:
         """获取API调用统计信息
 
         Returns:
-            Dict[str, Any]: 统计信息
+            dict[str, Any]: 统计信息
         """
         with self._lock:
             total_calls = sum(self._api_call_count.values())
@@ -257,14 +259,14 @@ class LifecycleController:
                 "history_size": len(self._call_history),
             }
 
-    def get_recent_calls(self, limit: int = 10) -> List[APICallRecord]:
+    def get_recent_calls(self, limit: int = 10) -> list[APICallRecord]:
         """获取最近的API调用记录
 
         Args:
             limit: 返回记录数量限制
 
         Returns:
-            List[APICallRecord]: 最近的调用记录
+            list[APICallRecord]: 最近的调用记录
         """
         with self._lock:
             return self._call_history[-limit:] if self._call_history else []
@@ -370,7 +372,7 @@ def set_global_lifecycle_controller(controller: LifecycleController) -> None:
     _global_controller = controller
 
 
-def validate_api_call(api_name: str) -> "LifecycleValidationResult":
+def validate_api_call(api_name: str) -> LifecycleValidationResult:
     """便捷函数：验证API调用"""
     return get_lifecycle_controller().validate_api_call(api_name)
 

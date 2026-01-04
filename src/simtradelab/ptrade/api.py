@@ -5,13 +5,15 @@ ptrade API 模拟层
 模拟ptrade平台的所有API函数，用于本地回测
 """
 
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 import json
 import bisect
 import traceback
 from functools import wraps
-from typing import Optional, Union, List, Dict, Any, Tuple, Callable
+from typing import Optional, Any, Callable
 
 from .lifecycle_controller import PTradeLifecycleError
 from ..utils.paths import get_project_root
@@ -64,14 +66,14 @@ class PtradeAPI:
         self.active_universe: set = set()
 
         # 缓存 - 使用统一缓存管理器
-        self._stock_status_cache: Dict[Tuple, bool] = {}
-        self._stock_date_index: Dict[str, Tuple[Dict, List]] = {}
+        self._stock_status_cache: dict[tuple, bool] = {}
+        self._stock_date_index: dict[str, tuple[dict, list]] = {}
         self._prebuilt_index: bool = False
-        self._sorted_status_dates: Optional[List[str]] = None
-        self._history_cache: Dict = cache_manager.get_namespace('history')._cache  # 使用LRUCache
-        self._fundamentals_cache: Dict[Tuple, Dict] = {}
+        self._sorted_status_dates: Optional[list[str]] = None
+        self._history_cache: dict = cache_manager.get_namespace('history')._cache  # 使用LRUCache
+        self._fundamentals_cache: dict = cache_manager.get_namespace('fundamentals')._cache  # 使用全局缓存
 
-    def prebuild_date_index(self, stocks: Optional[List[str]] = None) -> None:
+    def prebuild_date_index(self, stocks: Optional[list[str]] = None) -> None:
         """预构建股票日期索引（显著提升性能）"""
         if self._prebuilt_index:
             return
@@ -94,7 +96,7 @@ class PtradeAPI:
         self._prebuilt_index = True
         print(f"  完成！已构建 {len(self._stock_date_index)} 只股票的索引")
 
-    def get_stock_date_index(self, stock: str) -> Tuple[Dict, List]:
+    def get_stock_date_index(self, stock: str) -> tuple[dict, list]:
         """获取股票日期索引，返回 (date_dict, sorted_dates) 元组"""
         if stock not in self._stock_date_index:
             # 延迟构建单只股票索引
@@ -167,7 +169,7 @@ class PtradeAPI:
         """返回研究目录路径"""
         return str(get_project_root()) + '/research/'
 
-    def get_Ashares(self, date: str = None) -> List[str]:
+    def get_Ashares(self, date: str = None) -> list[str]:
         """返回A股代码列表，支持历史查询"""
         if date is None:
             target_date = self.context.current_dt
@@ -185,7 +187,7 @@ class PtradeAPI:
 
         return self.data_context.stock_metadata[listed & not_delisted].index.tolist()
 
-    def get_trade_days(self, start_date: str = None, end_date: str = None, count: int = None) -> List[str]:
+    def get_trade_days(self, start_date: str = None, end_date: str = None, count: int = None) -> list[str]:
         """获取指定范围交易日列表
 
         Args:
@@ -219,7 +221,7 @@ class PtradeAPI:
 
         return [d.strftime('%Y-%m-%d') for d in trade_days]
 
-    def get_all_trades_days(self, date: str = None) -> List[str]:
+    def get_all_trades_days(self, date: str = None) -> list[str]:
         """获取某日期之前的所有交易日列表
 
         Args:
@@ -273,7 +275,7 @@ class PtradeAPI:
     }
 
     @timer()
-    def get_fundamentals(self, stocks: List[str], table: str, fields: List[str], date: str = None) -> pd.DataFrame:
+    def get_fundamentals(self, stocks: list[str], table: str, fields: list[str], date: str = None) -> pd.DataFrame:
         """获取基本面数据（优化版：增量缓存）
 
         重要：对于fundamentals表，使用publ_date（公告日期）进行过滤，而非end_date（报告期）
@@ -387,9 +389,9 @@ class PtradeAPI:
         """模拟pandas.Panel"""
         def __init__(self, *args, **kwargs) -> None:
             super().__init__(*args, **kwargs)
-            self._stock_list: Optional[List[str]] = None
+            self._stock_list: Optional[list[str]] = None
 
-        def __getitem__(self, key: str) -> Union[pd.DataFrame, Any]:
+        def __getitem__(self, key: str) -> pd.DataFrame | Any:
             if key in self:
                 return super().__getitem__(key)
 
@@ -419,7 +421,7 @@ class PtradeAPI:
             first_df = next(iter(self.values()))
             return first_df.columns
 
-    def get_price(self, security: Union[str, List[str]], start_date: str = None, end_date: str = None, frequency: str = '1d', fields: Union[str, List[str]] = None, fq: str = None, count: int = None) -> Union[pd.DataFrame, 'PtradeAPI.PanelLike']:
+    def get_price(self, security: str | list[str], start_date: str = None, end_date: str = None, frequency: str = '1d', fields: str | list[str] = None, fq: str = None, count: int = None) -> pd.DataFrame | PtradeAPI.PanelLike:
         """获取历史行情数据"""
         if isinstance(fields, str):
             fields_list = [fields]
@@ -508,7 +510,7 @@ class PtradeAPI:
         return self.PanelLike(panel_data)
 
     @timer()
-    def get_history(self, count: int, frequency: str = '1d', field: Union[str, List[str]] = 'close', security_list: Union[str, List[str]] = None, fq: str = None, include: bool = False, fill: str = 'nan', is_dict: bool = False) -> Union[pd.DataFrame, Dict, 'PtradeAPI.PanelLike']:
+    def get_history(self, count: int, frequency: str = '1d', field: str | list[str] = 'close', security_list: str | list[str] = None, fq: str = None, include: bool = False, fill: str = 'nan', is_dict: bool = False) -> pd.DataFrame | dict | PtradeAPI.PanelLike:
         """模拟通用ptrade的get_history（优化批量处理+缓存）"""
         if isinstance(field, str):
             fields = [field]
@@ -649,7 +651,7 @@ class PtradeAPI:
 
     # ==================== 股票信息API ====================
 
-    def get_stock_blocks(self, stock: str) -> Dict:
+    def get_stock_blocks(self, stock: str) -> dict:
         """获取股票所属板块"""
         if not self.data_context.stock_metadata.empty and stock in self.data_context.stock_metadata.index:
             try:
@@ -660,7 +662,7 @@ class PtradeAPI:
                 pass
         return {}
 
-    def get_stock_info(self, stocks: Union[str, List[str]], field: Union[str, List[str]] = None) -> Dict[str, Dict]:
+    def get_stock_info(self, stocks: str | list[str], field: str | list[str] = None) -> dict[str, dict]:
         """获取股票基础信息"""
         if isinstance(stocks, str):
             stocks = [stocks]
@@ -691,7 +693,7 @@ class PtradeAPI:
 
         return result
 
-    def get_stock_name(self, stocks: Union[str, List[str]]) -> Union[str, Dict[str, str]]:
+    def get_stock_name(self, stocks: str | list[str]) -> str | dict[str, str]:
         """获取股票名称"""
         is_single = isinstance(stocks, str)
         if is_single:
@@ -706,7 +708,7 @@ class PtradeAPI:
 
         return result[stocks[0]] if is_single else result
 
-    def get_stock_status(self, stocks: Union[str, List[str]], query_type: str = 'ST', query_date: str = None) -> Dict[str, bool]:
+    def get_stock_status(self, stocks: str | list[str], query_type: str = 'ST', query_date: str = None) -> dict[str, bool]:
         """获取股票状态"""
         if isinstance(stocks, str):
             stocks = [stocks]
@@ -797,7 +799,7 @@ class PtradeAPI:
 
     # ==================== 指数/行业API ====================
 
-    def get_index_stocks(self, index_code: str, date: str = None) -> List[str]:
+    def get_index_stocks(self, index_code: str, date: str = None) -> list[str]:
         """获取指数成份股（支持向前回溯查找）"""
         if not self.data_context.index_constituents:
             return []
@@ -823,7 +825,7 @@ class PtradeAPI:
         
         return []
 
-    def get_industry_stocks(self, industry_code: str = None) -> Union[Dict, List[str]]:
+    def get_industry_stocks(self, industry_code: str = None) -> dict | list[str]:
         """推导行业成份股"""
         if self.data_context.stock_metadata.empty:
             return {} if industry_code is None else []
@@ -863,7 +865,7 @@ class PtradeAPI:
         else:
             return 0.10
 
-    def check_limit(self, security: Union[str, List[str]], query_date: str = None) -> Dict[str, int]:
+    def check_limit(self, security: str | list[str], query_date: str = None) -> dict[str, int]:
         """检查涨跌停状态"""
         if isinstance(security, str):
             securities = [security]
@@ -1135,13 +1137,13 @@ class PtradeAPI:
         # 使用 order_value 下单
         return self.order_value(stock, delta_value, limit_price)
 
-    def get_open_orders(self) -> List:
+    def get_open_orders(self) -> list:
         """获取未成交订单"""
         if self.context and self.context.blotter:
             return self.context.blotter.open_orders
         return []
 
-    def get_orders(self, security: str = None) -> List:
+    def get_orders(self, security: str = None) -> list:
         """获取当日全部订单
 
         Args:
@@ -1175,7 +1177,7 @@ class PtradeAPI:
                 return order
         return None
 
-    def get_trades(self) -> List:
+    def get_trades(self) -> list:
         """获取当日成交订单
 
         Returns:
@@ -1228,7 +1230,7 @@ class PtradeAPI:
         return
 
     @validate_lifecycle
-    def set_universe(self, stocks: Union[str, List[str]]) -> None:
+    def set_universe(self, stocks: str | list[str]) -> None:
         """设置股票池并预加载数据"""
         if isinstance(stocks, list):
             new_stocks = set(stocks)
@@ -1294,7 +1296,7 @@ class PtradeAPI:
         config.update_trading_config(volume_ratio=volume_ratio)
 
     @validate_lifecycle
-    def set_yesterday_position(self, poslist: List[Dict]) -> None:
+    def set_yesterday_position(self, poslist: list[dict]) -> None:
         """设置底仓（回测用）
 
         Args:

@@ -16,13 +16,15 @@
 5. 运行: poetry run python strategies/{strategy_name}/optimization/optimize_params.py
 """
 
+from __future__ import annotations
+
 import json
 import optuna
 import pickle
 import numpy as np
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Tuple, List, Optional, Type
+from typing import Any, Optional, Type
 from tqdm import tqdm
 
 from simtradelab.backtest.runner import BacktestRunner
@@ -56,14 +58,14 @@ class ParameterSpace:
     """参数空间定义基类 - 支持类属性和方法两种定义方式"""
 
     @classmethod
-    def get_parameter_choices(cls) -> Dict[str, List[Any]]:
+    def get_parameter_choices(cls) -> dict[str, list[Any]]:
         """自动从类属性提取参数候选值（框架自动实现）
 
         返回所有非私有、非方法的类属性作为参数空间
         支持list、tuple、numpy.ndarray类型
 
         Returns:
-            Dict[str, List]: {'param_name': [choice1, choice2, ...]}
+            dict[str, list]: {'param_name': [choice1, choice2, ...]}
         """
         choices = {}
         for attr_name in dir(cls):
@@ -95,7 +97,7 @@ class ParameterSpace:
         return size
 
     @classmethod
-    def suggest_parameters(cls, trial: optuna.Trial) -> Dict[str, Any]:
+    def suggest_parameters(cls, trial: optuna.Trial) -> dict[str, Any]:
         """基于get_parameter_choices自动生成参数（框架实现，子类无需覆盖）
 
         Args:
@@ -509,7 +511,7 @@ class StrategyOptimizer:
 
         except Exception as e:
             if self.verbose:
-                tqdm.write(f"回测执行失败: {e}")
+                tqdm.write(f"回测执行失败: {e}")  # type: ignore[attr-defined]
             return -999.0, {}
         finally:
             # 清理临时文件
@@ -519,19 +521,18 @@ class StrategyOptimizer:
                     shutil.rmtree(temp_strategy_dir)
                 except Exception as cleanup_error:
                     if self.verbose:
-                        tqdm.write(f"警告：临时目录清理失败 {temp_strategy_dir}: {cleanup_error}")
+                        tqdm.write(f"警告：临时目录清理失败 {temp_strategy_dir}: {cleanup_error}")  # type: ignore[attr-defined]
 
-    def _generate_time_windows(self) -> List[Tuple[str, str, str, str]]:
+    def _generate_time_windows(self) -> list[tuple[str, str, str, str]]:
         """生成Walk-Forward时间窗口
 
         Returns:
             List[Tuple]: [(train_start, train_end, test_start, test_end), ...]
         """
         from dateutil.relativedelta import relativedelta
-        from datetime import datetime as dt
 
-        start = dt.strptime(self.start_date, '%Y-%m-%d')
-        end = dt.strptime(self.end_date, '%Y-%m-%d')
+        start = datetime.strptime(self.start_date, '%Y-%m-%d')  # type: ignore[misc]
+        end = datetime.strptime(self.end_date, '%Y-%m-%d')  # type: ignore[misc]
 
         windows = []
         current_start = start
@@ -742,10 +743,10 @@ class StrategyOptimizer:
                         optimizer_self._no_improvement_count += 1
                         # 检查是否达到patience
                         if optimizer_self._no_improvement_count >= optimizer_self.patience:
-                            tqdm.write(f"\n" + "="*60)
-                            tqdm.write(f"早停触发！连续{optimizer_self.patience}次trial无改进（含剪枝）")
-                            tqdm.write(f"最佳得分: {optimizer_self._best_score:.4f}")
-                            tqdm.write("="*60)
+                            tqdm.write(f"\n" + "="*60)  # type: ignore[attr-defined]
+                            tqdm.write(f"早停触发！连续{optimizer_self.patience}次trial无改进（含剪枝）")  # type: ignore[attr-defined]
+                            tqdm.write(f"最佳得分: {optimizer_self._best_score:.4f}")  # type: ignore[attr-defined]
+                            tqdm.write("="*60)  # type: ignore[attr-defined]
                             study.stop()
                         return
 
@@ -755,19 +756,19 @@ class StrategyOptimizer:
                         improvement = trial.value - optimizer_self._best_score
                         optimizer_self._best_score = trial.value
                         optimizer_self._no_improvement_count = 0
-                        tqdm.write(f"\n✓ 找到更优解: {trial.value:.4f} (改进 +{improvement:.4f})")
-                        tqdm.write(f"  无改进计数器重置: 0/{optimizer_self.patience}")
+                        tqdm.write(f"\n✓ 找到更优解: {trial.value:.4f} (改进 +{improvement:.4f})")  # type: ignore[attr-defined]
+                        tqdm.write(f"  无改进计数器重置: 0/{optimizer_self.patience}")  # type: ignore[attr-defined]
                     else:
                         # 无改进：增加计数器
                         optimizer_self._no_improvement_count += 1
-                        tqdm.write(f"  无改进 ({optimizer_self._no_improvement_count}/{optimizer_self.patience}): 当前={trial.value:.4f}, 最佳={optimizer_self._best_score:.4f}")
+                        tqdm.write(f"  无改进 ({optimizer_self._no_improvement_count}/{optimizer_self.patience}): 当前={trial.value:.4f}, 最佳={optimizer_self._best_score:.4f}")  # type: ignore[attr-defined]
 
                         # 检查是否达到patience
                         if optimizer_self._no_improvement_count >= optimizer_self.patience:
-                            tqdm.write(f"\n" + "="*60)
-                            tqdm.write(f"早停触发！连续{optimizer_self.patience}次trial无改进")
-                            tqdm.write(f"最佳得分: {optimizer_self._best_score:.4f}")
-                            tqdm.write("="*60)
+                            tqdm.write(f"\n" + "="*60)  # type: ignore[attr-defined]
+                            tqdm.write(f"早停触发！连续{optimizer_self.patience}次trial无改进")  # type: ignore[attr-defined]
+                            tqdm.write(f"最佳得分: {optimizer_self._best_score:.4f}")  # type: ignore[attr-defined]
+                            tqdm.write("="*60)  # type: ignore[attr-defined]
                             study.stop()
 
             callbacks.append(EarlyStoppingCallback())
@@ -818,7 +819,7 @@ class StrategyOptimizer:
 
     def save_optimization_results(self, study: optuna.Study):
         """保存优化结果"""
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')  # type: ignore[misc]
 
         # 保存最佳参数
         best_params_file = self.results_dir / f"best_params_{timestamp}.json"

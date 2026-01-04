@@ -3,7 +3,8 @@
 回测统计收集器
 """
 
-from typing import Dict, List
+from __future__ import annotations
+
 from simtradelab.ptrade.context import Context
 
 
@@ -11,7 +12,7 @@ class StatsCollector:
     """回测统计数据收集器"""
 
     def __init__(self):
-        self._stats: Dict[str, List] = {
+        self._stats: dict[str, list] = {
             'portfolio_values': [],
             'positions_count': [],
             'daily_pnl': [],
@@ -22,7 +23,7 @@ class StatsCollector:
         }
 
     @property
-    def stats(self) -> Dict[str, List]:
+    def stats(self) -> dict[str, list]:
         """获取统计数据"""
         return self._stats
 

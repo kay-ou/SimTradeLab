@@ -3,8 +3,9 @@
 策略静态验证器 - 在运行前检查生命周期错误和Python 3.5兼容性
 """
 
+from __future__ import annotations
+
 import ast
-from typing import Dict, List
 from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
 from simtradelab.ptrade.lifecycle_config import API_LIFECYCLE_RESTRICTIONS
 from simtradelab.utils.py35_compat_checker import check_python35_compatibility
@@ -30,7 +31,7 @@ class StrategyValidator:
         """
         self.strategy_code = strategy_code
         self.tree = None
-        self.errors: List[str] = []
+        self.errors: list[str] = []
         self.check_py35_compat = check_py35_compat
 
         try:
@@ -78,7 +79,7 @@ class StrategyValidator:
 
         return len(self.errors) == 0
 
-    def _extract_api_calls(self) -> Dict[LifecyclePhase, List[tuple]]:
+    def _extract_api_calls(self) -> dict[LifecyclePhase, list[tuple]]:
         """提取每个阶段函数中的API调用
 
         Returns:
@@ -115,7 +116,7 @@ class StrategyValidator:
             return node.attr
         return ""
 
-    def get_errors(self) -> List[str]:
+    def get_errors(self) -> list[str]:
         """获取验证错误列表"""
         return self.errors
 

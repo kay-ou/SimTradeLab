@@ -4,7 +4,8 @@ PTrade 全局 API 类型定义
 扩展 Python builtins，将 ptrade API 注入全局作用域
 """
 
-from typing import Any, Callable, Dict, List, Optional, Union
+from __future__ import annotations
+from typing import Any, Callable, Optional
 import pandas as pd
 
 # ==================== 基础 API ====================
@@ -13,7 +14,7 @@ def get_research_path() -> str:
     """返回研究目录路径"""
     ...
 
-def get_Ashares(date: Optional[str] = ...) -> List[str]:
+def get_Ashares(date: Optional[str] = ...) -> list[str]:
     """返回A股代码列表，支持历史查询
 
     Args:
@@ -21,7 +22,7 @@ def get_Ashares(date: Optional[str] = ...) -> List[str]:
     """
     ...
 
-def get_trade_days(start_date: Optional[str] = ..., end_date: Optional[str] = ..., count: Optional[int] = ...) -> List[str]:
+def get_trade_days(start_date: Optional[str] = ..., end_date: Optional[str] = ..., count: Optional[int] = ...) -> list[str]:
     """获取指定范围交易日列表
 
     Args:
@@ -31,7 +32,7 @@ def get_trade_days(start_date: Optional[str] = ..., end_date: Optional[str] = ..
     """
     ...
 
-def get_all_trades_days(date: Optional[str] = ...) -> List[str]:
+def get_all_trades_days(date: Optional[str] = ...) -> list[str]:
     """获取某日期之前的所有交易日列表
 
     Args:
@@ -52,7 +53,7 @@ def get_trading_day(day: int = ...) -> Optional[str]:
 
 # ==================== 基本面 API ====================
 
-def get_fundamentals(stocks: List[str], table: str, fields: List[str], date: Optional[str] = ...) -> pd.DataFrame:
+def get_fundamentals(stocks: list[str], table: str, fields: list[str], date: Optional[str] = ...) -> pd.DataFrame:
     """获取基本面数据
 
     Args:
@@ -69,14 +70,14 @@ def get_fundamentals(stocks: List[str], table: str, fields: List[str], date: Opt
 # ==================== 行情 API ====================
 
 def get_price(
-    security: Union[str, List[str]],
+    security: str | list[str],
     start_date: Optional[str] = ...,
     end_date: Optional[str] = ...,
     frequency: str = ...,
-    fields: Optional[Union[str, List[str]]] = ...,
+    fields: Optional[str | list[str]] = ...,
     fq: Optional[str] = ...,
     count: Optional[int] = ...
-) -> Union[pd.DataFrame, Dict]:
+) -> pd.DataFrame | dict:
     """获取历史行情数据
 
     Args:
@@ -93,13 +94,13 @@ def get_price(
 def get_history(
     count: int,
     frequency: str = ...,
-    field: Union[str, List[str]] = ...,
-    security_list: Optional[Union[str, List[str]]] = ...,
+    field: str | list[str] = ...,
+    security_list: Optional[str | list[str]] = ...,
     fq: Optional[str] = ...,
     include: bool = ...,
     fill: str = ...,
     is_dict: bool = ...
-) -> Union[pd.DataFrame, Dict]:
+) -> pd.DataFrame | dict:
     """获取历史数据
 
     Args:
@@ -116,7 +117,7 @@ def get_history(
 
 # ==================== 股票信息 API ====================
 
-def get_stock_blocks(stock: str) -> Dict:
+def get_stock_blocks(stock: str) -> dict:
     """获取股票所属板块
 
     Args:
@@ -124,7 +125,7 @@ def get_stock_blocks(stock: str) -> Dict:
     """
     ...
 
-def get_stock_info(stocks: Union[str, List[str]], field: Optional[Union[str, List[str]]] = ...) -> Dict[str, Dict]:
+def get_stock_info(stocks: str | list[str], field: Optional[str | list[str]] = ...) -> dict[str, dict]:
     """获取股票基础信息
 
     Args:
@@ -133,7 +134,7 @@ def get_stock_info(stocks: Union[str, List[str]], field: Optional[Union[str, Lis
     """
     ...
 
-def get_stock_name(stocks: Union[str, List[str]]) -> Union[str, Dict[str, str]]:
+def get_stock_name(stocks: str | list[str]) -> str | dict[str, str]:
     """获取股票名称
 
     Args:
@@ -144,7 +145,7 @@ def get_stock_name(stocks: Union[str, List[str]]) -> Union[str, Dict[str, str]]:
     """
     ...
 
-def get_stock_status(stocks: Union[str, List[str]], query_type: str = ..., query_date: Optional[str] = ...) -> Dict[str, bool]:
+def get_stock_status(stocks: str | list[str], query_type: str = ..., query_date: Optional[str] = ...) -> dict[str, bool]:
     """获取股票状态
 
     Args:
@@ -165,7 +166,7 @@ def get_stock_exrights(stock_code: str, date: Optional[str] = ...) -> Optional[p
 
 # ==================== 指数/行业 API ====================
 
-def get_index_stocks(index_code: str, date: Optional[str] = ...) -> List[str]:
+def get_index_stocks(index_code: str, date: Optional[str] = ...) -> list[str]:
     """获取指数成份股
 
     Args:
@@ -174,7 +175,7 @@ def get_index_stocks(index_code: str, date: Optional[str] = ...) -> List[str]:
     """
     ...
 
-def get_industry_stocks(industry_code: Optional[str] = ...) -> Union[Dict, List[str]]:
+def get_industry_stocks(industry_code: Optional[str] = ...) -> dict | list[str]:
     """获取行业成份股
 
     Args:
@@ -184,7 +185,7 @@ def get_industry_stocks(industry_code: Optional[str] = ...) -> Union[Dict, List[
 
 # ==================== 涨跌停 API ====================
 
-def check_limit(security: Union[str, List[str]], query_date: Optional[str] = ...) -> Dict[str, int]:
+def check_limit(security: str | list[str], query_date: Optional[str] = ...) -> dict[str, int]:
     """检查涨跌停状态
 
     Args:
@@ -241,11 +242,11 @@ def order_target_value(stock: str, value: float, limit_price: Optional[float] = 
     """
     ...
 
-def get_open_orders() -> List:
+def get_open_orders() -> list:
     """获取未成交订单"""
     ...
 
-def get_orders(security: Optional[str] = ...) -> List:
+def get_orders(security: Optional[str] = ...) -> list:
     """获取当日全部订单
 
     Args:
@@ -261,7 +262,7 @@ def get_order(order_id: str) -> Optional[Any]:
     """
     ...
 
-def get_trades() -> List:
+def get_trades() -> list:
     """获取当日成交订单"""
     ...
 
@@ -291,7 +292,7 @@ def set_benchmark(benchmark: str) -> None:
     """
     ...
 
-def set_universe(stocks: Union[str, List[str]]) -> None:
+def set_universe(stocks: str | list[str]) -> None:
     """设置股票池并预加载数据
 
     Args:
@@ -349,7 +350,7 @@ def set_volume_ratio(volume_ratio: float = ...) -> None:
     """
     ...
 
-def set_yesterday_position(poslist: List[Dict]) -> None:
+def set_yesterday_position(poslist: list[dict]) -> None:
     """设置底仓（回测用）
 
     Args:
@@ -399,7 +400,7 @@ class _Context:
 
 class _Data:
     """市场数据对象"""
-    def __getitem__(self, key: str) -> Dict[str, Any]: ...
+    def __getitem__(self, key: str) -> dict[str, Any]: ...
 
 g: _Global
 log: _Log

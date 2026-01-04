@@ -3,8 +3,10 @@
 回测配置类
 """
 
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Optional, Union
+from typing import Optional
 import pandas as pd
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -25,8 +27,8 @@ class BacktestConfig(BaseModel):
     """回测配置参数"""
 
     strategy_name: str
-    start_date: Union[str, pd.Timestamp]
-    end_date: Union[str, pd.Timestamp]
+    start_date: str | pd.Timestamp
+    end_date: str | pd.Timestamp
     data_path: str = Field(default_factory=_default_data_path)
     strategies_path: str = Field(default_factory=_default_strategies_path)
     initial_capital: float = Field(default=100000.0, gt=0, description="初始资金必须大于0")

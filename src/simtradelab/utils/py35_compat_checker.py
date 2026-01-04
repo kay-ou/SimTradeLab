@@ -6,9 +6,10 @@ Python 3.5兼容性检查工具
 支持自动修复f-string等兼容性问题
 """
 
+from __future__ import annotations
+
 import ast
 import re
-from typing import List, Tuple
 
 
 class Python35CompatChecker:
@@ -62,7 +63,7 @@ class Python35CompatChecker:
         except Exception as e:
             self.errors.append("解析失败: {}".format(str(e)))
 
-    def check(self) -> Tuple[bool, List[str]]:
+    def check(self) -> tuple[bool, list[str]]:
         """执行兼容性检查
 
         Returns:

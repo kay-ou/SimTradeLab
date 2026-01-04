@@ -6,8 +6,10 @@ PTrade统一配置管理器
 使用pydantic提供数据验证和类型安全
 """
 
-from typing import Dict, Any
-from pydantic import BaseModel, Field, field_validator
+from __future__ import annotations
+
+from typing import Any
+from pydantic import BaseModel, Field
 
 
 class TradingConfig(BaseModel):
@@ -156,7 +158,7 @@ class ConfigurationManager:
         self.cache = CacheConfig()
         self.performance = PerformanceConfig()
 
-    def export_config(self) -> Dict[str, Any]:
+    def export_config(self) -> dict[str, Any]:
         """导出所有配置为字典
 
         使用pydantic的model_dump方法
@@ -167,7 +169,7 @@ class ConfigurationManager:
             'performance': self.performance.model_dump(),
         }
 
-    def load_config(self, config_dict: Dict[str, Any]) -> None:
+    def load_config(self, config_dict: dict[str, Any]) -> None:
         """从字典加载配置
 
         使用pydantic的model_validate方法

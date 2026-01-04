@@ -5,7 +5,9 @@
 整合订单创建、验证、执行的完整流程
 """
 
-from typing import Optional, Tuple
+from __future__ import annotations
+
+from typing import Optional
 import uuid
 import pandas as pd
 
@@ -118,7 +120,7 @@ class OrderProcessor:
             return False
         return True
 
-    def create_order(self, stock: str, amount: int, price: float) -> Tuple[str, object]:
+    def create_order(self, stock: str, amount: int, price: float) -> tuple[str, object]:
         """创建订单对象
 
         Args:

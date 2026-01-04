@@ -5,8 +5,9 @@
 通过静态分析策略代码,识别数据API调用,判断需要加载哪些数据
 """
 
+from __future__ import annotations
+
 import ast
-from typing import Set
 from pydantic import BaseModel, Field
 
 
@@ -17,7 +18,7 @@ class DataDependencies(BaseModel):
     needs_fundamentals: bool = False
     needs_exrights: bool = False
 
-    fundamental_tables: Set[str] = Field(default_factory=set)
+    fundamental_tables: set[str] = Field(default_factory=set)
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -27,8 +28,8 @@ class StrategyDataAnalyzer(ast.NodeVisitor):
 
     def __init__(self):
         self.dependencies = DataDependencies()
-        self.api_calls: Set[str] = set()
-        self.fundamental_tables: Set[str] = set()
+        self.api_calls: set[str] = set()
+        self.fundamental_tables: set[str] = set()
 
     def visit_Call(self, node):
         """访问函数调用节点"""

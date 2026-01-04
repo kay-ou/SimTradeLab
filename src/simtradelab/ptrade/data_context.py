@@ -3,7 +3,7 @@
 数据上下文 - 封装所有数据源
 """
 
-from typing import Dict
+from __future__ import annotations
 
 
 class DataContext:
@@ -19,8 +19,8 @@ class DataContext:
         stock_metadata,
         stock_data_store,
         fundamentals_store,
-        index_constituents: Dict,
-        stock_status_history: Dict,
+        index_constituents: dict,
+        stock_status_history: dict,
         adj_pre_cache,
         dividend_cache=None
     ):

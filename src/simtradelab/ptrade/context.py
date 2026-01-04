@@ -5,11 +5,13 @@ PTrade上下文和模式定义
 完全符合PTrade官方API规范的Context对象实现
 """
 
+from __future__ import annotations
+
 import types
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Optional
 
 from .lifecycle_controller import LifecycleController, LifecyclePhase
 from .config_manager import config
@@ -36,14 +38,14 @@ class StrategyLifecycleManager:
 
     def __init__(self, lifecycle_controller: LifecycleController):
         self._lifecycle_controller = lifecycle_controller
-        self._strategy_functions: Dict[str, Callable] = {}
+        self._strategy_functions: dict[str, Callable] = {}
 
     def register_strategy_function(self, phase: str, func: Callable) -> None:
         """注册策略生命周期函数"""
         self._strategy_functions[phase] = func
 
     def execute_lifecycle_phase(
-        self, phase: str, context: "Context", data: Optional[Any] = None
+        self, phase: str, context: Context, data: Optional[Any] = None
     ) -> Any:
         """执行指定的生命周期阶段"""
         # 设置当前阶段
@@ -86,16 +88,16 @@ class Context:
     previous_date: Optional[datetime] = None  # 前一个交易日
     initialized: bool = False  # 是否执行初始化
     blotter: Optional[Blotter] = None
-    recorded_vars: Dict[str, Any] = field(default_factory=dict)  # 收益曲线值
+    recorded_vars: dict[str, Any] = field(default_factory=dict)  # 收益曲线值
 
     # === 策略配置属性 ===
-    universe: List[str] = field(default_factory=list)  # 股票池
+    universe: list[str] = field(default_factory=list)  # 股票池
     benchmark: Optional[str] = None  # 基准
     current_dt: Optional[datetime] = None  # 当前时间
 
     # === 内部配置属性 ===
-    _parameters: Dict[str, Any] = field(default_factory=dict)  # 策略参数
-    _yesterday_position: Dict[str, Any] = field(default_factory=dict)  # 底仓
+    _parameters: dict[str, Any] = field(default_factory=dict)  # 策略参数
+    _yesterday_position: dict[str, Any] = field(default_factory=dict)  # 底仓
 
     # 配置通过全局config管理，不再通过context转发
     # 策略代码应使用: from simtradelab.ptrade.config_manager import config
@@ -105,8 +107,8 @@ class Context:
     _lifecycle_manager: Optional[StrategyLifecycleManager] = None
 
     # === 调度任务属性 ===
-    _daily_tasks: List[Dict[str, Any]] = field(default_factory=list)  # 日级任务
-    _interval_tasks: List[Dict[str, Any]] = field(default_factory=list)  # 间隔任务
+    _daily_tasks: list[dict[str, Any]] = field(default_factory=list)  # 日级任务
+    _interval_tasks: list[dict[str, Any]] = field(default_factory=list)  # 间隔任务
 
     def __post_init__(self) -> None:
         """初始化后处理"""
@@ -136,40 +138,40 @@ class Context:
     # 策略生命周期函数注册接口
     # ==========================================
 
-    def register_initialize(self, func: Callable[["Context"], None]) -> None:
+    def register_initialize(self, func: Callable[[Context], None]) -> None:
         """注册initialize函数"""
         self._lifecycle_manager.register_strategy_function("initialize", func)
 
     def register_handle_data(
-        self, func: Callable[["Context", Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> None:
         """注册handle_data函数"""
         self._lifecycle_manager.register_strategy_function("handle_data", func)
 
     def register_before_trading_start(
-        self, func: Callable[["Context", Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> None:
         """注册before_trading_start函数"""
         self._lifecycle_manager.register_strategy_function("before_trading_start", func)
 
     def register_after_trading_end(
-        self, func: Callable[["Context", Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> None:
         """注册after_trading_end函数"""
         self._lifecycle_manager.register_strategy_function("after_trading_end", func)
 
-    def register_tick_data(self, func: Callable[["Context", Any], None]) -> None:
+    def register_tick_data(self, func: Callable[[Context, Any], None]) -> None:
         """注册tick_data函数"""
         self._lifecycle_manager.register_strategy_function("tick_data", func)
 
     def register_on_order_response(
-        self, func: Callable[["Context", Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> None:
         """注册on_order_response函数"""
         self._lifecycle_manager.register_strategy_function("on_order_response", func)
 
     def register_on_trade_response(
-        self, func: Callable[["Context", Any], None]
+        self, func: Callable[[Context, Any], None]
     ) -> None:
         """注册on_trade_response函数"""
         self._lifecycle_manager.register_strategy_function("on_trade_response", func)
@@ -222,7 +224,7 @@ class Context:
     # 策略配置管理接口
     # ==========================================
 
-    def set_universe(self, securities: List[str]) -> None:
+    def set_universe(self, securities: list[str]) -> None:
         """设置股票池"""
         self.universe = securities
 
@@ -246,11 +248,11 @@ class Context:
         """设置成交限制模式"""
         config.update_trading_config(limit_mode=mode)
 
-    def set_yesterday_position(self, positions: Dict[str, Any]) -> None:
+    def set_yesterday_position(self, positions: dict[str, Any]) -> None:
         """设置底仓"""
         self._yesterday_position = positions
 
-    def set_parameters(self, params: Dict[str, Any]) -> None:
+    def set_parameters(self, params: dict[str, Any]) -> None:
         """设置策略参数"""
         self._parameters.update(params)
 
@@ -276,7 +278,7 @@ class Context:
         """获取当前生命周期阶段"""
         return self._lifecycle_controller.current_phase_name
 
-    def get_lifecycle_statistics(self) -> Dict[str, Any]:
+    def get_lifecycle_statistics(self) -> dict[str, Any]:
         """获取生命周期统计信息"""
         return self._lifecycle_controller.get_call_statistics()
 

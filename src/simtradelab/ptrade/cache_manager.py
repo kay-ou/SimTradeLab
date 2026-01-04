@@ -6,7 +6,9 @@ PTrade统一缓存管理器
 使用cachetools提供高性能LRU缓存实现
 """
 
-from typing import Any, Optional, Dict
+from __future__ import annotations
+
+from typing import Any, Optional
 from datetime import datetime
 from cachetools import LRUCache
 
@@ -62,7 +64,7 @@ class CacheNamespace:
         """最大缓存数量"""
         return self._cache.maxsize
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """获取统计信息"""
         total_requests = self._stats['hits'] + self._stats['misses']
         hit_rate = self._stats['hits'] / total_requests if total_requests > 0 else 0
@@ -102,7 +104,7 @@ class UnifiedCacheManager:
         from .config_manager import config
 
         # 创建各个缓存命名空间，使用cachetools.LRUCache
-        self._namespaces: Dict[str, CacheNamespace] = {
+        self._namespaces: dict[str, CacheNamespace] = {
             'ma_cache': CacheNamespace('MA计算', config.cache.global_ma_vwap_cache_size),
             'vwap_cache': CacheNamespace('VWAP计算', config.cache.global_ma_vwap_cache_size),
             'history': CacheNamespace('历史数据', config.cache.history_cache_size),
