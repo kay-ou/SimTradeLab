@@ -352,31 +352,15 @@ strategies/my_strategy/stats/
 
 ### 1️⃣ 类型提示（函数签名、参数补全）
 
-本项目提供了 `typings/builtins.pyi` 存根文件，让编辑器能识别 PTrade API 函数定义。
+项目内置 `typings/builtins.pyi` 存根文件，**VS Code / PyCharm 会自动识别**，无需额外配置！
 
-**VS Code 配置**：
-
-在 `.vscode/settings.json` 中添加：
-
-```json
-{
-  "python.analysis.stubPath": "typings",
-  "python.analysis.extraPaths": ["typings"],
-  "python.analysis.diagnosticSeverityOverrides": {
-    "reportUndefinedVariable": "none"
-  }
-}
-```
-
-**效果**：
+**开箱即用的效果**：
 - ✅ 鼠标悬停显示完整函数签名和文档
 - ✅ 输入函数名自动显示参数提示
 - ✅ 支持跳转到定义（stub 文件）
-- 示例：悬停 `get_history` 显示 `get_history(count, frequency='1d', field='close', ...)`
+- ✅ 覆盖 52 个 PTrade API 函数
 
-**其他 IDE**：
-- PyCharm：自动识别 `typings/` 目录
-- 其他编辑器：参考对应 IDE 的 Python 类型存根配置文档
+**示例**：悬停 `get_history` 显示 `get_history(count, frequency='1d', field='close', stocks, fq='pre', ...)`
 
 ### 2️⃣ 代码片段（快速插入）
 
