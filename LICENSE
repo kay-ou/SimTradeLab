@@ -1,49 +1,3 @@
-================================================================================
-                    SimTradeLab 开源许可证 - 双语版本
-                    SimTradeLab Open Source License - Bilingual Version
-================================================================================
-
-                    GNU AFFERO GENERAL PUBLIC LICENSE
-                       Version 3, 19 November 2007
-
-================================================================================
-                        中文导言 / Chinese Introduction
-================================================================================
-
-版权所有 (C) 2025 Kay
-
-本项目采用双许可证模式：
-
-1. 开源使用：GNU Affero 通用公共许可证第3版 (AGPL-3.0)
-   - 免费用于开源项目
-   - 网络使用（SaaS等）需按相同许可证开源
-   - 本文件下方为完整许可证英文原文
-
-2. 商业使用：需购买商业许可证
-   - 允许闭源商业使用
-   - 无需开源网络服务代码
-   - 详见 LICENSE-COMMERCIAL.md 或联系: kayou@duck.com
-
-================================================================================
-                          English Preamble
-================================================================================
-
-Copyright (C) 2025 Kay
-
-This project uses a dual-license model:
-
-1. Open Source Use: GNU Affero General Public License v3.0 (AGPL-3.0)
-   - Free for open source projects
-   - Network use (SaaS, etc.) requires source disclosure under same license
-   - Full license text in English follows below
-
-2. Commercial Use: Commercial license required
-   - Allows proprietary commercial use
-   - No source disclosure required for network services
-   - See LICENSE-COMMERCIAL.md or contact: kayou@duck.com
-
-================================================================================
-
                      GNU AFFERO GENERAL PUBLIC LICENSE
                         Version 3, 19 November 2007
 
@@ -602,9 +556,9 @@ GNU Affero General Public License, you may choose any version ever
 published by the Free Software Foundation.
 
   If the Program specifies that a proxy can decide which future
-versions of the GNU Affero General Public License can be used, that
-proxy's public statement of acceptance of a version permanently
-authorizes you to choose that version for the Program.
+versions of the GNU Affero General Public License can be used, that proxy's
+public statement of acceptance of a version permanently authorizes you
+to choose that version for the Program.
 
   Later license versions may give you additional or different
 permissions.  However, no additional obligations are imposed on any
@@ -618,9 +572,9 @@ APPLICABLE LAW.  EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
 HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY
 OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO,
 THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE
-PROGRAM IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME
-THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM
+IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
+ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
 
   16. Limitation of Liability.
 
@@ -629,10 +583,10 @@ WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MODIFIES AND/OR CONVEYS
 THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY
 GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE
 USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED TO LOSS OF
-DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR
-THIRD PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER
-PROGRAMS), EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE
-POSSIBILITY OF SUCH DAMAGES.
+DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD
+PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS),
+EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGES.
 
   17. Interpretation of Sections 15 and 16.
 
@@ -645,56 +599,16 @@ copy of the Program in return for a fee.
 
                      END OF TERMS AND CONDITIONS
 
-================================================================================
-                     中文术语对照表 / Chinese Glossary
-================================================================================
+            How to Apply These Terms to Your New Programs
 
-  术语 / Term                    含义 / Meaning
-  ─────────────────────────────────────────────────────────────────────────────
-  Source Code                    源代码
-  Object Code                    目标代码
-  Corresponding Source           对应源代码
-  Propagate                      传播
-  Convey                         转让/分发
-  Covered Work                   受保护作品
-  User Product                   用户产品
-  Installation Information       安装信息
-  Warranty                       担保/保修
-  Liability                      责任
-  License                        许可证
-  Contributor                    贡献者
-  Patent License                 专利许可证
-  Copyright                      版权
-  Sovereign Immunity             主权豁免
+  If you develop a new program, and you want it to be of the greatest
+possible use to the public, the best way to achieve this is to make it
+free software which everyone can redistribute and change under these terms.
 
-================================================================================
-            如何将本许可证应用于您的新程序 / How to Apply These Terms
-================================================================================
-
-  如果您开发了新程序，并希望它能够最大限度地服务于公众，最好的方式是
-  使它成为自由软件，每个人都可以在遵守这些条款的前提下重新分发和修改。
-
-  为此，请在每个源文件的开头附加以下声明。最有效地声明排除保修的
-  方式是在每个文件内至少包含"版权"行和指向完整声明的链接。
-
-  --------------------------------------------------------------
-  Chinese:
-
-    <一行说明程序名称和功能>
-    版权所有 (C) <年份> <作者名>
-
-    本程序是自由软件：您可以按照 GNU Affero 通用公共许可证第3版的条款
-    重新分发和/或修改它。您可以選擇遵守本许可证的條款，或選擇遵守稍後
-    版本（如果有的話）的條款。
-
-    本程序按"原樣"分發，不提供任何明示或暗示的擔保，包括但不限於對
-    適銷性或特定用途適用性的暗示擔保。有關更多詳情，請參閱
-    GNU Affero 通用公共許可證。
-
-    您應該已收到本程序附帶的 GNU Affero 通用公共許可證副本。如果沒有，
-    請參閱 <https://www.gnu.org/licenses/>。
-
-  English:
+  To do so, attach the following notices to the program.  It is safest
+to attach them to the start of each source file to most effectively
+state the exclusion of warranty; and each file should have at least
+the "copyright" line and a pointer to where the full notice is found.
 
     <one line to give the program's name and a brief idea of what it does.>
     Copyright (C) <year>  <name of author>
@@ -712,15 +626,17 @@ copy of the Program in return for a fee.
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-  --------------------------------------------------------------
+Also add information on how to contact you by electronic and paper mail.
 
-  如果您的软件可以通过计算机网络与用户交互，您还应该确保它提供一种
-  让用户获取其源代码的方法。例如，如果您的程序是一个Web应用程序，
-  其界面可以显示一个指向代码存档的"源代码"链接。
+  If your software can interact with users remotely through a computer
+network, you should also make sure that it provides a way for users to
+get its source.  For example, if your program is a web application, its
+interface could display a "Source" link that leads users to an archive
+of the code.  There are many ways you could offer source, and different
+solutions will be better for different programs; see section 13 for the
+specific requirements.
 
-  您还应该让您的雇主（如果您是程序员）或学校（如有）签署一份"版权
-  放弃声明书"，以放弃该程序的相关版权。更多信息请参阅
-  <https://www.gnu.org/licenses/>。
-
-================================================================================
-
+  You should also get your employer (if you work as a programmer) or school,
+if any, to sign a "copyright disclaimer" for the program, if necessary.
+For more information on this, and how to apply and follow the GNU AGPL, see
+<https://www.gnu.org/licenses/>.

@@ -187,13 +187,13 @@ stocks = api.get_index_stocks('000300.SS', date='2024-01-01')
 本项目采用 **双许可证** 模式：
 
 ### 🆓 开源使用
-- **GNU Affero General Public License v3.0 (AGPL-3.0)** - 查看 [LICENSE](LICENSE)
+- **GNU Affero General Public License v3.0 (AGPL-3.0)** - 查看 [LICENSE](LICENSE) | [中文说明](LICENSE.zh-CN)
 - ✅ 免费用于开源项目
 - ✅ 个人学习和研究
 - ⚠️ 网络使用需开源（AGPL要求）
 
 ### 💼 商业使用
-- **商业许可证** - 查看 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)
+- **商业许可证** - 查看 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md) | [中文说明](LICENSE-COMMERCIAL.zh-CN.md)
 - ✅ 用于商业/闭源产品
 - ✅ 提供技术支持和定制服务
 - 📧 联系: [kayou@duck.com](mailto:kayou@duck.com)
