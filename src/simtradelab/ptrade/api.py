@@ -282,18 +282,24 @@ class PtradeAPI:
     }
 
     @timer()
-    def get_fundamentals(self, stocks: list[str], table: str, fields: list[str], date: str = None) -> pd.DataFrame:
+    def get_fundamentals(self, security: str | list[str], table: str, fields: list[str], date: str = None) -> pd.DataFrame:
         """获取基本面数据（优化版：增量缓存）
 
         重要：对于fundamentals表，使用publ_date（公告日期）进行过滤，而非end_date（报告期）
         这样可以避免未来函数（look-ahead bias）
 
         Args:
-            stocks: 股票代码列表
+            security: 股票代码或股票代码列表
             table: 表名
             fields: 字段列表
             date: 查询日期（默认为回测当前日期）
         """
+        # 统一处理：将单个股票代码转换为列表
+        if isinstance(security, str):
+            stocks = [security]
+        else:
+            stocks = security
+
         if table == 'valuation':
             data_dict = self.data_context.valuation_dict
         else:
@@ -973,11 +979,11 @@ class PtradeAPI:
         return None
 
     @validate_lifecycle
-    def order_target(self, stock: str, amount: int, limit_price: float = None) -> Optional[str]:
+    def order_target(self, security: str, amount: int, limit_price: float = None) -> Optional[str]:
         """下单到目标数量
 
         Args:
-            stock: 股票代码
+            security: 股票代码
             amount: 期望的最终数量
             limit_price: 买卖限价
 
@@ -985,8 +991,8 @@ class PtradeAPI:
             订单id或None
         """
         current_amount = 0
-        if stock in self.context.portfolio.positions:
-            current_amount = self.context.portfolio.positions[stock].amount
+        if security in self.context.portfolio.positions:
+            current_amount = self.context.portfolio.positions[security].amount
 
         delta = amount - current_amount
 
@@ -1002,25 +1008,25 @@ class PtradeAPI:
 
         # 获取执行价格（根据买卖方向计算滑点）
         is_buy = delta > 0
-        execution_price = self._order_processor.get_execution_price(stock, limit_price, is_buy)
+        execution_price = self._order_processor.get_execution_price(security, limit_price, is_buy)
         if execution_price is None:
-            self.log.warning("订单失败 {} | 原因: 无法获取价格".format(stock))
+            self.log.warning("订单失败 {} | 原因: 无法获取价格".format(security))
             return None
 
         # 检查涨跌停
-        limit_status = self.check_limit(stock, self.context.current_dt)[stock]
-        if not self._order_processor.check_limit_status(stock, delta, limit_status):
+        limit_status = self.check_limit(security, self.context.current_dt)[security]
+        if not self._order_processor.check_limit_status(security, delta, limit_status):
             return None
 
         # 创建订单
-        order_id, order = self._order_processor.create_order(stock, delta, execution_price)
+        order_id, order = self._order_processor.create_order(security, delta, execution_price)
 
         if delta > 0:
-            self.log.info("生成订单，订单号:{}，股票代码：{}，数量：买入{}股".format(order_id, stock, delta))
-            success = self._order_processor.execute_buy(stock, delta, execution_price)
+            self.log.info("生成订单，订单号:{}，股票代码：{}，数量：买入{}股".format(order_id, security, delta))
+            success = self._order_processor.execute_buy(security, delta, execution_price)
         else:
-            self.log.info("生成订单，订单号:{}，股票代码：{}，数量：卖出{}股".format(order_id, stock, abs(delta)))
-            success = self._order_processor.execute_sell(stock, abs(delta), execution_price)
+            self.log.info("生成订单，订单号:{}，股票代码：{}，数量：卖出{}股".format(order_id, security, abs(delta)))
+            success = self._order_processor.execute_sell(security, abs(delta), execution_price)
 
         if success:
             order.status = '8'
@@ -1029,11 +1035,11 @@ class PtradeAPI:
         return order.id if success else None
 
     @validate_lifecycle
-    def order_value(self, stock: str, value: float, limit_price: float = None) -> Optional[str]:
+    def order_value(self, security: str, value: float, limit_price: float = None) -> Optional[str]:
         """按金额下单
 
         Args:
-            stock: 股票代码
+            security: 股票代码
             value: 股票价值
             limit_price: 买卖限价
 
@@ -1048,19 +1054,19 @@ class PtradeAPI:
             )
 
         # 获取执行价格
-        current_price = self._order_processor.get_execution_price(stock, limit_price)
+        current_price = self._order_processor.get_execution_price(security, limit_price)
         if current_price is None:
-            self.log.warning(f"【下单失败】{stock} | 原因: 获取价格数据失败")
+            self.log.warning(f"【下单失败】{security} | 原因: 获取价格数据失败")
             return None
 
         # 检查涨停
-        limit_status = self.check_limit(stock, self.context.current_dt)[stock]
+        limit_status = self.check_limit(security, self.context.current_dt)[security]
         if limit_status == 1:
-            self.log.warning(f"【买入失败】{stock} | 原因: 涨停")
+            self.log.warning(f"【买入失败】{security} | 原因: 涨停")
             return None
 
         # 确定最小交易单位
-        min_lot = 200 if stock.startswith('688') else 100
+        min_lot = 200 if security.startswith('688') else 100
 
         # 先按目标value计算数量
         target_amount = int(value / current_price / min_lot) * min_lot
@@ -1091,25 +1097,25 @@ class PtradeAPI:
                     max_affordable_amount -= min_lot
 
                 if max_affordable_amount < min_lot:
-                    self.log.warning("【买入失败】{} | 原因: 现金不足 (需要{:.2f}, 可用{:.2f})".format(stock, total_cost, available_cash))
+                    self.log.warning("【买入失败】{} | 原因: 现金不足 (需要{:.2f}, 可用{:.2f})".format(security, total_cost, available_cash))
                     return None
 
                 self.log.warning("当前账户资金不足，调整{}下单数量为{}股（目标{:.2f}元，实际{:.2f}元）".format(
-                    stock, max_affordable_amount, value, max_affordable_amount * current_price))
+                    security, max_affordable_amount, value, max_affordable_amount * current_price))
                 amount = max_affordable_amount
         else:
             # 目标数量 < 最小单位，直接取消交易（避免资金分配失衡）
             self.log.warning("【下单失败】{} | 原因: 分配金额不足{}股 (分配{:.2f}元, 价格{:.2f}元, 可用现金{:.2f}元)".format(
-                stock, min_lot, value, current_price, available_cash))
+                security, min_lot, value, current_price, available_cash))
             return None
 
         # 创建订单
-        order_id, order = self._order_processor.create_order(stock, amount, current_price)
+        order_id, order = self._order_processor.create_order(security, amount, current_price)
 
-        self.log.info("生成订单，订单号:{}，股票代码：{}，数量：买入{}股".format(order_id, stock, amount))
+        self.log.info("生成订单，订单号:{}，股票代码：{}，数量：买入{}股".format(order_id, security, amount))
 
         # 执行订单
-        success = self._order_processor.execute_buy(stock, amount, current_price)
+        success = self._order_processor.execute_buy(security, amount, current_price)
 
         if success:
             order.status = '8'
@@ -1118,11 +1124,11 @@ class PtradeAPI:
         return order.id if success else None
 
     @validate_lifecycle
-    def order_target_value(self, stock: str, value: float, limit_price: float = None) -> Optional[str]:
+    def order_target_value(self, security: str, value: float, limit_price: float = None) -> Optional[str]:
         """调整股票持仓市值到目标价值
 
         Args:
-            stock: 股票代码
+            security: 股票代码
             value: 期望的股票最终价值
             limit_price: 买卖限价
 
@@ -1131,8 +1137,8 @@ class PtradeAPI:
         """
         # 获取当前持仓市值
         current_value = 0.0
-        if stock in self.context.portfolio.positions:
-            position = self.context.portfolio.positions[stock]
+        if security in self.context.portfolio.positions:
+            position = self.context.portfolio.positions[security]
             current_value = position.amount * position.last_sale_price
 
         # 计算需要调整的价值
@@ -1142,7 +1148,7 @@ class PtradeAPI:
             return None
 
         # 使用 order_value 下单
-        return self.order_value(stock, delta_value, limit_price)
+        return self.order_value(security, delta_value, limit_price)
 
     def get_open_orders(self) -> list:
         """获取未成交订单"""
