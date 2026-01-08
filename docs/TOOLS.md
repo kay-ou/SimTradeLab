@@ -1,0 +1,382 @@
+# 工具脚本说明
+
+SimTradeLab 提供了一系列实用工具脚本，用于数据处理、参数优化、性能监控等任务。
+
+---
+
+## 目录
+
+- [参数优化框架](#参数优化框架)
+- [性能监控工具](#性能监控工具)
+- [策略分析工具](#策略分析工具)
+
+---
+
+## 参数优化框架
+
+SimTradeLab 提供基于 Optuna 的智能参数优化框架，支持贝叶斯优化和自动剪枝。
+
+### 功能特性
+
+- ✅ **贝叶斯采样** - TPE算法智能搜索参数空间
+- ✅ **自动剪枝** - Hyperband剪枝器提前终止无效trial
+- ✅ **断点续传** - 支持中断后继续优化
+- ✅ **早停机制** - 可配置的early stopping
+- ✅ **数据共享** - 复用BacktestRunner实例减少内存占用
+- ✅ **进度追踪** - 实时显示优化进度和最优结果
+
+### 快速开始
+
+#### 1. 安装依赖
+
+```bash
+# PyPI安装
+pip install simtradelab[optimizer]
+
+# Poetry安装
+poetry install -E optimizer
+```
+
+#### 2. 编写优化脚本
+
+创建 `strategies/my_strategy/optimization/optimize_params.py`：
+
+```python
+from simtradelab.backtest.optimizer_framework import StrategyOptimizer
+
+# 创建优化器
+optimizer = StrategyOptimizer(
+    strategy_path='strategies/my_strategy',
+    data_path='data',
+    start_date='2020-01-01',
+    end_date='2024-12-31'
+)
+
+# 定义参数空间
+def objective(trial):
+    # 定义要优化的参数
+    max_position = trial.suggest_int('max_position', 5, 30)
+    rotation_period = trial.suggest_int('rotation_period', 10, 60)
+    stop_loss = trial.suggest_float('stop_loss', 0.05, 0.20)
+
+    # 运行回测并返回目标值（年化收益率）
+    return optimizer.evaluate(trial, max_position, rotation_period, stop_loss)
+
+# 运行优化（200次trial）
+best_params = optimizer.optimize(objective, n_trials=200)
+
+print(f"最优参数: {best_params}")
+```
+
+#### 3. 运行优化
+
+```bash
+poetry run python strategies/my_strategy/optimization/optimize_params.py
+```
+
+### 参数类型
+
+Optuna 支持多种参数类型：
+
+```python
+def objective(trial):
+    # 整数参数
+    max_position = trial.suggest_int('max_position', 5, 30)
+
+    # 浮点数参数
+    stop_loss = trial.suggest_float('stop_loss', 0.05, 0.20)
+
+    # 分类参数
+    ma_type = trial.suggest_categorical('ma_type', ['SMA', 'EMA', 'WMA'])
+
+    # 对数尺度参数（适合学习率等）
+    learning_rate = trial.suggest_float('lr', 1e-5, 1e-1, log=True)
+
+    # 离散参数（指定步长）
+    window = trial.suggest_int('window', 10, 100, step=5)
+```
+
+### 高级配置
+
+#### 自定义优化目标
+
+```python
+def objective(trial):
+    # ... 参数定义 ...
+
+    # 运行回测
+    stats = optimizer.run_backtest_with_params(
+        max_position=max_position,
+        rotation_period=rotation_period
+    )
+
+    # 自定义目标函数
+    annual_return = stats['annual_return']
+    max_drawdown = stats['max_drawdown']
+    sharpe_ratio = stats['sharpe_ratio']
+
+    # 多目标优化：最大化收益/回撤比
+    return annual_return / abs(max_drawdown)
+```
+
+#### 早停机制
+
+```python
+# 配置早停：连续20次trial无改进则停止
+best_params = optimizer.optimize(
+    objective,
+    n_trials=200,
+    early_stopping_rounds=20
+)
+```
+
+#### 断点续传
+
+```python
+# 使用SQLite存储优化历史
+import optuna
+
+study = optuna.create_study(
+    study_name='my_strategy_optimization',
+    storage='sqlite:///optimization.db',
+    load_if_exists=True,  # 断点续传
+    direction='maximize'
+)
+
+study.optimize(objective, n_trials=200)
+```
+
+#### 并行优化
+
+```python
+# 使用多进程并行优化
+study.optimize(objective, n_trials=200, n_jobs=4)
+```
+
+### 可视化结果
+
+```python
+import optuna
+
+# 加载优化历史
+study = optuna.load_study(
+    study_name='my_strategy_optimization',
+    storage='sqlite:///optimization.db'
+)
+
+# 可视化优化历史
+optuna.visualization.plot_optimization_history(study).show()
+
+# 参数重要性分析
+optuna.visualization.plot_param_importances(study).show()
+
+# 参数关系图
+optuna.visualization.plot_parallel_coordinate(study).show()
+
+# 切片图
+optuna.visualization.plot_slice(study).show()
+```
+
+### 实战案例：5mv策略优化
+
+完整示例见 `strategies/5mv/optimization/optimize_params.py`：
+
+```python
+from simtradelab.backtest.optimizer_framework import StrategyOptimizer
+
+optimizer = StrategyOptimizer(
+    strategy_path='strategies/5mv',
+    data_path='data',
+    start_date='2020-01-01',
+    end_date='2024-12-31'
+)
+
+def objective(trial):
+    # 定义参数空间
+    max_position = trial.suggest_int('max_position', 5, 30)
+    rotation_period = trial.suggest_int('rotation_period', 10, 60)
+    min_market_cap = trial.suggest_float('min_market_cap', 50, 200)  # 亿
+    filter_st = trial.suggest_categorical('filter_st', [True, False])
+
+    # 运行回测
+    return optimizer.evaluate(
+        trial,
+        max_position=max_position,
+        rotation_period=rotation_period,
+        min_market_cap=min_market_cap,
+        filter_st=filter_st
+    )
+
+# 运行优化
+best_params = optimizer.optimize(objective, n_trials=200)
+
+print(f"""
+最优参数：
+- 最大持仓数: {best_params['max_position']}
+- 轮动周期: {best_params['rotation_period']}天
+- 最小市值: {best_params['min_market_cap']}亿
+- 过滤ST: {best_params['filter_st']}
+""")
+```
+
+---
+
+## 性能监控工具
+
+### @timer 装饰器
+
+精准测量函数执行时间，定位性能瓶颈。
+
+#### 基础用法
+
+```python
+from simtradelab.utils.perf import timer
+
+@timer()
+def slow_function():
+    # 函数实现...
+    pass
+
+# 调用时自动打印执行时间
+slow_function()
+# 输出: [PERF] slow_function: 0.1234s (123.4ms)
+```
+
+#### 高级用法
+
+**自定义名称：**
+```python
+@timer(name='数据加载')
+def load_data():
+    pass
+
+# 输出: 数据加载: 2.35秒
+```
+
+**条件记录：**
+```python
+@timer(threshold=0.1)  # 只记录超过100ms的调用
+def maybe_slow_function():
+    pass
+```
+
+**实际示例：**
+```python
+from simtradelab.utils.perf import timer
+
+@timer(threshold=0.5, name='加载股票数据')
+def load_stock_data(count):
+    # 函数实现...
+    pass
+
+# 只有当函数执行超过0.5秒时才会输出
+load_stock_data(5000)
+# 输出: 加载股票数据: 1.23秒
+```
+
+---
+
+## 策略分析工具
+
+### 策略代码静态分析
+
+自动分析策略代码，识别使用的API和需要的数据。
+
+#### 用法
+
+```python
+from simtradelab.ptrade.strategy_data_analyzer import StrategyDataAnalyzer
+
+# 分析策略文件
+analyzer = StrategyDataAnalyzer('strategies/my_strategy/backtest.py')
+required_data = analyzer.analyze()
+
+print(f"需要的数据集: {required_data}")
+# 输出: {'price', 'exrights', 'valuation'}
+
+print(f"使用的API: {analyzer.api_calls}")
+# 输出: ['get_history', 'get_fundamentals', 'order_value']
+```
+
+#### 应用场景
+
+**按需加载数据：**
+```python
+# 只加载策略实际使用的数据
+from simtradelab.service.data_server import DataServer
+
+required_data = StrategyDataAnalyzer('backtest.py').analyze()
+data_server = DataServer(required_data=required_data)
+```
+
+**兼容性检查：**
+```python
+# 检查是否使用了PTrade不支持的语法
+from simtradelab.utils.py35_compat_checker import check_strategy_compatibility
+
+issues = check_strategy_compatibility('strategies/my_strategy/backtest.py')
+
+if issues:
+    print("发现兼容性问题:")
+    for issue in issues:
+        print(f"  - {issue}")
+```
+
+### Python 3.5 兼容性检查
+
+自动检查策略代码是否使用了PTrade不支持的语法。
+
+#### 检查项目
+
+- ❌ f-string（f"..."）
+- ❌ 变量类型注解（x: int = 1）
+- ❌ 海象运算符（:=）
+- ❌ 禁用模块导入（io、sys等）
+- ❌ async/await语法
+
+#### 用法
+
+```python
+from simtradelab.utils.py35_compat_checker import Py35CompatChecker
+
+# 检查策略文件
+checker = Py35CompatChecker('strategies/my_strategy/backtest.py')
+issues = checker.check()
+
+if issues:
+    print("发现兼容性问题:")
+    for issue in issues:
+        print(f"  行{issue.line}: {issue.message}")
+        print(f"     {issue.code}")
+```
+
+#### 自动修复
+
+```python
+from simtradelab.utils.fstring_fixer import FStringFixer
+
+# 自动修复f-string
+fixer = FStringFixer('strategies/my_strategy/backtest.py')
+fixer.fix_and_save()
+```
+
+---
+
+## 工具脚本列表
+
+| 脚本 | 功能 | 路径 |
+|------|------|------|
+| 参数优化框架 | 基于Optuna的参数优化 | `backtest/optimizer_framework.py` |
+| 性能监控 | 函数执行时间/内存监控 | `utils/perf.py` |
+| 策略分析 | 静态分析策略代码 | `ptrade/strategy_data_analyzer.py` |
+| 兼容性检查 | Python 3.5兼容性检查 | `utils/py35_compat_checker.py` |
+| f-string修复 | 自动修复f-string语法 | `utils/fstring_fixer.py` |
+
+---
+
+## 下一步
+
+- 📖 阅读 [架构设计文档](ARCHITECTURE.md)
+- 🔧 配置 [IDE开发环境](IDE_SETUP.md)
+- 💻 参考 [开发规范](DEVELOPMENT_RULES.md)
+- 🤝 贡献代码 [贡献指南](CONTRIBUTING.md)

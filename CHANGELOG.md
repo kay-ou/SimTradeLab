@@ -5,6 +5,218 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
 项目遵循 [语义化版本](https://semver.org/spec/v2.0.0.html) 规范。
 
+## [2.0.0] - 2026-01-08
+
+### ⚠️ 重大变更（Breaking Changes）
+
+本版本包含重大变更，升级前请仔细阅读。
+
+#### 📄 许可证变更
+
+**从 MIT 更改为 AGPL-3.0 + 商业双许可模式**
+
+- **开源使用**：AGPL-3.0 许可证
+  - ✅ 免费用于开源项目
+  - ✅ 个人学习和研究
+  - ⚠️ 网络使用需开源（AGPL要求）
+
+- **商业使用**：需购买商业许可
+  - 用于商业/闭源产品
+  - 作为内部工具但不希望开源代码
+  - 需要技术支持和定制开发
+  - 📧 联系: kayou@duck.com
+
+**影响范围**：
+- 现有开源项目：✅ 可继续使用（符合AGPL要求）
+- 商业闭源项目：⚠️ 需购买商业许可或迁移到v1.x
+- 个人学习研究：✅ 无影响
+
+详见：[LICENSE](LICENSE) 和 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)
+
+#### 🔧 API Breaking Changes
+
+**4个交易/查询API参数重命名（与PTrade官方规范对齐）**
+
+| API | 旧参数名 | 新参数名 | 影响 |
+|-----|---------|---------|------|
+| `order_target` | `stock` | `security` | ⚠️ 关键字参数调用会报错 |
+| `order_value` | `stock` | `security` | ⚠️ 关键字参数调用会报错 |
+| `order_target_value` | `stock` | `security` | ⚠️ 关键字参数调用会报错 |
+| `get_fundamentals` | `stocks` | `security` | ⚠️ 关键字参数调用会报错 |
+
+**迁移示例：**
+
+```python
+# ❌ v1.x 写法（关键字参数）
+order_target(stock='600519.SS', amount=1000)
+order_value(stock='600519.SS', value=10000)
+get_fundamentals(stocks=['600519.SS'], ...)
+
+# ✅ v2.0 写法（推荐）
+order_target(security='600519.SS', amount=1000)
+order_value(security='600519.SS', value=10000)
+get_fundamentals(security=['600519.SS'], ...)
+
+# ✅ 位置参数不受影响（无需修改）
+order_target('600519.SS', 1000)
+order_value('600519.SS', 10000)
+```
+
+**兼容性说明：**
+- ✅ 使用位置参数的代码：无需修改
+- ⚠️ 使用关键字参数的代码：必须修改参数名
+- ✅ `get_fundamentals` 现在支持单个股票和股票列表
+
+**自动检测工具：**
+```bash
+# 扫描策略代码中使用旧参数名的位置
+grep -n "stock=" strategies/*/backtest.py
+grep -n "stocks=" strategies/*/backtest.py
+```
+
+### ✨ 新增功能
+
+#### 📚 文档重构
+
+**README 精简优化**
+- 从 911 行压缩到 340 行（压缩 62.7%）
+- 移除冗余的技术细节和重复内容
+- 保留核心使用指南和快速开始流程
+- 许可证说明提前到更显眼位置
+
+**新增独立文档**
+- `docs/INSTALLATION.md` - 详细安装指南
+  - 多平台系统依赖安装（macOS/Linux/Windows）
+  - 源码安装和PyPI安装方式
+  - 工作目录配置和数据准备
+  - 常见问题排查（Q&A 6条）
+
+- `docs/ARCHITECTURE.md` - 架构设计文档
+  - 核心模块职责说明
+  - 性能优化详解（数据常驻、多级缓存、向量化计算）
+  - 策略执行引擎设计
+  - 生命周期管理机制
+  - 持仓管理与分红税算法
+
+- `docs/TOOLS.md` - 工具脚本说明
+  - 参数优化框架（Optuna集成）
+  - 性能监控工具（@timer装饰器）
+  - 策略代码静态分析
+  - Python 3.5兼容性检查
+
+- `docs/IDE_SETUP.md` - IDE配置指南
+  - VS Code 和 PyCharm 配置
+  - 类型提示和代码片段
+  - 开发环境优化
+
+#### 📝 源码文件头
+
+**统一的 SPDX 许可标识**
+
+所有30个Python源文件添加标准化文件头：
+```python
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Kay
+#
+# This file is part of SimTradeLab, dual-licensed under AGPL-3.0 and a
+# commercial license. See LICENSE-COMMERCIAL.md or contact kayou@duck.com
+```
+
+**影响文件：**
+- `src/simtradelab/` 下所有 `.py` 文件（30个）
+- 提升法律合规性和机器可读性
+- 符合 SPDX 规范 2.3
+
+### 🔧 改进
+
+#### 🎯 API 设计优化
+
+**统一参数命名**
+- 交易API统一使用 `security` 参数（与PTrade官方一致）
+- `get_fundamentals` 支持 `str | list[str]` 类型（更灵活）
+
+#### 📖 贡献者协议
+
+**完善 CLA 条款**
+- 明确贡献者版权归属
+- 说明开源许可和商业许可权利
+- 提供清晰的贡献指南
+
+详见：`docs/CONTRIBUTING.md`
+
+### 📦 升级指南
+
+#### 从 v1.x 升级到 v2.0.0
+
+**重要提示：** 仔细评估许可证变更对您的项目的影响
+
+```bash
+# 1. 备份现有策略
+cp -r strategies strategies_backup
+
+# 2. 升级到新版本
+pip install --upgrade simtradelab==2.0.0
+
+# 3. 检查策略代码中的关键字参数
+grep -rn "stock=" strategies/
+grep -rn "stocks=" strategies/
+
+# 4. 修改代码（如果使用了关键字参数）
+# 将 stock= 改为 security=
+# 将 stocks= 改为 security=
+
+# 5. 运行回测验证
+poetry run python -m simtradelab.backtest.run_backtest
+```
+
+#### 许可证选择决策树
+
+```
+是否用于网络服务（SaaS/Web应用）？
+├─ 是 → 是否愿意开源所有代码？
+│  ├─ 是 → ✅ 使用 AGPL-3.0（免费）
+│  └─ 否 → ⚠️ 需购买商业许可
+└─ 否 → 是否用于商业产品？
+   ├─ 是 → 是否愿意开源产品代码？
+   │  ├─ 是 → ✅ 使用 AGPL-3.0（免费）
+   │  └─ 否 → ⚠️ 需购买商业许可
+   └─ 否 → ✅ 使用 AGPL-3.0（个人学习/开源项目免费）
+```
+
+#### 版本选择建议
+
+| 使用场景 | 推荐版本 | 许可证 |
+|---------|---------|--------|
+| 开源项目 | v2.0.0 | AGPL-3.0 |
+| 个人学习研究 | v2.0.0 | AGPL-3.0 |
+| 商业闭源产品 | v1.2.4 或购买商业许可 | MIT / Commercial |
+| 内部工具（不开源） | v1.2.4 或购买商业许可 | MIT / Commercial |
+
+**如果不确定：** 请联系 kayou@duck.com 获取许可证咨询
+
+### ⚠️ 已知问题
+
+无新增已知问题，继承 v1.2.0 的已知问题列表。
+
+### 💡 贡献指南
+
+**贡献者许可协议（CLA）：**
+- 您拥有提交代码的完整版权
+- 您同意按照 AGPL-3.0 许可证发布
+- 您同意项目维护者有权用于商业许可授权
+
+详见：`docs/CONTRIBUTING.md`
+
+### 🔗 相关链接
+
+- [完整 API 文档](docs/PTrade_API_Implementation_Status.md)
+- [架构设计文档](docs/ARCHITECTURE.md)
+- [安装指南](docs/INSTALLATION.md)
+- [贡献指南](docs/CONTRIBUTING.md)
+- [商业许可咨询](mailto:kayou@duck.com)
+
+---
+
 ## [1.2.0] - 2025-11-30
 
 ### 🎉 重要更新
