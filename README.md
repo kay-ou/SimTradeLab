@@ -3,8 +3,11 @@
 **轻量级量化回测框架 - PTrade API本地实现**
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![License: Commercial](https://img.shields.io/badge/License-Commercial--Available-red)](LICENSE-COMMERCIAL.md)
 [![Version](https://img.shields.io/badge/Version-1.2.4-orange.svg)](#)
+[![PyPI](https://img.shields.io/pypi/v/simtradelab.svg)](https://pypi.org/project/simtradelab/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 
 *完整模拟PTrade平台API，策略可无缝迁移*
 
@@ -864,7 +867,18 @@ runner.run(
 
 ## 📄 许可证
 
-MIT License - 查看 [LICENSE](LICENSE) 文件
+本项目采用 **双许可证** 模式：
+
+### 开源使用
+- **GNU Affero General Public License v3.0 (AGPL-3.0)** - 查看 [LICENSE](LICENSE) 文件
+- 免费用于开源项目
+- 网络使用需开源
+
+### 商业使用
+- **商业许可证** - 查看 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)
+- 用于商业/闭源产品
+- 需购买商业授权
+- 联系: [kayou@duck.com](mailto:kayou@duck.com)
 
 ---
 

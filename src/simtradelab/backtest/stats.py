@@ -1,9 +1,16 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Kay
+#
+# This file is part of SimTradeLab, dual-licensed under AGPL-3.0 and a
+# commercial license. See LICENSE-COMMERCIAL.md or contact kayou@duck.com
+#
 """
 回测统计分析模块
 
 包含收益率、风险指标、交易统计等计算函数，以及图表生成函数
 """
+
 
 import os
 import json

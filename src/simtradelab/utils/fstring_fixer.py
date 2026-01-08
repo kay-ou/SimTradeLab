@@ -1,9 +1,16 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Kay
+#
+# This file is part of SimTradeLab, dual-licensed under AGPL-3.0 and a
+# commercial license. See LICENSE-COMMERCIAL.md or contact kayou@duck.com
+#
 """
 f-string自动修复工具
 
 将Python 3.6+的f-string转换为Python 3.5兼容的.format()调用
 """
+
 
 import ast
 

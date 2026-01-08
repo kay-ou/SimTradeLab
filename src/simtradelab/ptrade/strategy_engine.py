@@ -1,9 +1,16 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Kay
+#
+# This file is part of SimTradeLab, dual-licensed under AGPL-3.0 and a
+# commercial license. See LICENSE-COMMERCIAL.md or contact kayou@duck.com
+#
 """
 PTrade 策略执行框架
 
 提供完整的策略执行环境，整合生命周期控制、API验证和Context管理
 """
+
 
 from __future__ import annotations
 

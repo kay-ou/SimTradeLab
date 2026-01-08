@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Kay
+#
+# This file is part of SimTradeLab, dual-licensed under AGPL-3.0 and a
+# commercial license. See LICENSE-COMMERCIAL.md or contact kayou@duck.com
+#
 """
 数据服务器 - 支持数据常驻内存，多次运行策略无需重新加载
 
@@ -7,6 +13,7 @@
 2. 后续运行直接使用缓存的数据
 3. 进程结束时自动释放资源
 """
+
 
 import pandas as pd
 import json

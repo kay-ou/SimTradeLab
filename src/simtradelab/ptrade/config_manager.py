@@ -1,10 +1,17 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Kay
+#
+# This file is part of SimTradeLab, dual-licensed under AGPL-3.0 and a
+# commercial license. See LICENSE-COMMERCIAL.md or contact kayou@duck.com
+#
 """
 PTrade统一配置管理器
 
 集中管理所有配置项，消除代码中的魔法数字和重复配置
 使用pydantic提供数据验证和类型安全
 """
+
 
 from __future__ import annotations
 

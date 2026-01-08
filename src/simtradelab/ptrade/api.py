@@ -1,8 +1,15 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Kay
+#
+# This file is part of SimTradeLab, dual-licensed under AGPL-3.0 and a
+# commercial license. See LICENSE-COMMERCIAL.md or contact kayou@duck.com
+#
 """
 ptrade API 模拟层
 
 模拟ptrade平台的所有API函数，用于本地回测
+
 """
 
 from __future__ import annotations

@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Kay
+#
+# This file is part of SimTradeLab, dual-licensed under AGPL-3.0 and a
+# commercial license. See LICENSE-COMMERCIAL.md or contact kayou@duck.com
+#
 """
 通用策略参数优化框架 - 防过拟合增强版
 
@@ -15,6 +21,7 @@
 4. 修改ScoringStrategy类中的评分策略
 5. 运行: poetry run python strategies/{strategy_name}/optimization/optimize_params.py
 """
+
 
 from __future__ import annotations
 

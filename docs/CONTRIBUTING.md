@@ -49,10 +49,41 @@
 | `test`   | 添加或修改测试               | `test: 增加策略回测单元测试`       |
 | `chore`  | 构建工具或依赖更新           | `chore: 升级pandas版本`            |
 
+## 版权和许可证
+
+SimTradeLab 采用**双许可证模式**（AGPL-3.0 + 商业许可证）。
+
+### 贡献者许可协议（CLA）
+
+当您向本项目提交代码（通过 Pull Request 或其他方式）时，即表示您：
+
+1. **版权归属** - 您拥有提交代码的完整版权，或已从版权所有者获得充分授权
+2. **开源许可** - 您同意您的贡献按照 [GNU Affero General Public License v3.0 (AGPL-3.0)](../LICENSE) 许可证发布
+3. **商业许可** - 您同意项目维护者（Kay）有权将您的贡献用于[商业许可证](../LICENSE-COMMERCIAL.md)授权，用于商业客户的闭源使用场景
+4. **无附加限制** - 您的贡献不包含任何第三方专利、商标或其他知识产权限制
+5. **真实身份** - 您使用真实身份（或经授权的公司身份）提交代码
+
+### 为什么需要双许可证授权？
+
+SimTradeLab 的双许可证模式旨在：
+- **开源社区**：通过 AGPL-3.0 保持项目开源，确保改进回馈社区
+- **商业用户**：为需要闭源使用的企业提供商业许可选项
+- **可持续发展**：商业授权收入支持项目的长期维护和改进
+
+您的贡献使这种模式成为可能，我们对此深表感谢。
+
+### 第三方依赖
+
+如果您的贡献引入了新的第三方库，请确保：
+- 该库的许可证与 AGPL-3.0 兼容（MIT、BSD、Apache 2.0 等）
+- 在 `pyproject.toml` 中明确声明依赖
+- 在 PR 中说明新依赖的用途和许可证
+
 ### 问题反馈
 
 -   **Bug报告**: [GitHub Issues](https://github.com/kay-ou/SimTradeLab/issues)
 -   **功能请求**: [GitHub Issues](https://github.com/kay-ou/SimTradeLab/issues)
 -   **使用问题**: [GitHub Discussions](https://github.com/kay-ou/SimTradeLab/discussions)
+-   **商业合作**: [kayou@duck.com](mailto:kayou@duck.com)
 
 感谢您的贡献！

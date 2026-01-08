@@ -1,9 +1,17 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Kay
+#
+# This file is part of SimTradeLab, dual-licensed under AGPL-3.0 and a
+# commercial license. See LICENSE-COMMERCIAL.md or contact kayou@duck.com
+#
 """
 复权因子缓存模块
 
 负责预计算和缓存所有股票的复权因子,以提升get_history性能
 """
+
+
 import pandas as pd
 import numpy as np
 import os

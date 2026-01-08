@@ -1,10 +1,17 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Kay
+#
+# This file is part of SimTradeLab, dual-licensed under AGPL-3.0 and a
+# commercial license. See LICENSE-COMMERCIAL.md or contact kayou@duck.com
+#
 """
 Python 3.5兼容性检查工具
 
 检查代码是否使用了Python 3.6+的特性，确保代码兼容Python 3.5
 支持自动修复f-string等兼容性问题
 """
+
 
 from __future__ import annotations
 

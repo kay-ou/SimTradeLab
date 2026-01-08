@@ -1,7 +1,14 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Kay
+#
+# This file is part of SimTradeLab, dual-licensed under AGPL-3.0 and a
+# commercial license. See LICENSE-COMMERCIAL.md or contact kayou@duck.com
+#
 """
 策略静态验证器 - 在运行前检查生命周期错误和Python 3.5兼容性
 """
+
 
 from __future__ import annotations
 

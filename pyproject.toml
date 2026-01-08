@@ -4,9 +4,29 @@ name = "simtradelab"
 version = "1.2.4"
 description = "开源策略回测框架，灵感来自PTrade的事件驱动模型，提供轻量、清晰、可插拔的策略验证环境"
 authors = ["kay <kayou@duck.com>"]
-license = "MIT"
+license = "AGPL-3.0"
 readme = "README.md"
 packages = [{include = "simtradelab", from = "src"}]
+homepage = "https://github.com/kay-ou/SimTradeLab"
+repository = "https://github.com/kay-ou/SimTradeLab"
+documentation = "https://github.com/kay-ou/SimTradeLab/tree/main/docs"
+keywords = ["quantitative", "backtest", "trading", "strategy", "ptrade", "finance"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
 
 [tool.poetry.dependencies]
 python = "^3.9"
