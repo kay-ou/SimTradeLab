@@ -1349,3 +1349,133 @@ class PtradeAPI:
         """
         _ = (context, func, time)  # 回测中不执行
         pass
+
+    # ==================== 技术指标API ====================
+
+    @validate_lifecycle
+    def get_MACD(self, close: np.ndarray, short: int = 12, long: int = 26, m: int = 9) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """计算MACD指标（异同移动平均线）
+
+        Args:
+            close: 收盘价时间序列，numpy.ndarray类型
+            short: 短周期，默认12
+            long: 长周期，默认26
+            m: 移动平均线周期，默认9
+
+        Returns:
+            tuple: (dif, dea, macd) 三个numpy.ndarray
+                - dif: MACD指标DIF值的时间序列
+                - dea: MACD指标DEA值的时间序列
+                - macd: MACD指标MACD值的时间序列（柱状图）
+        """
+        try:
+            import talib
+        except ImportError:
+            raise ImportError("get_MACD需要安装ta-lib库: pip install ta-lib")
+
+        if not isinstance(close, np.ndarray):
+            close = np.array(close, dtype=float)
+
+        # 使用talib计算MACD
+        dif, dea, macd = talib.MACD(close, fastperiod=short, slowperiod=long, signalperiod=m)
+
+        return dif, dea, macd
+
+    @validate_lifecycle
+    def get_KDJ(self, high: np.ndarray, low: np.ndarray, close: np.ndarray,
+                n: int = 9, m1: int = 3, m2: int = 3) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """计算KDJ指标（随机指标）
+
+        Args:
+            high: 最高价时间序列，numpy.ndarray类型
+            low: 最低价时间序列，numpy.ndarray类型
+            close: 收盘价时间序列，numpy.ndarray类型
+            n: 周期，默认9
+            m1: K值平滑周期，默认3
+            m2: D值平滑周期，默认3
+
+        Returns:
+            tuple: (k, d, j) 三个numpy.ndarray
+                - k: KDJ指标K值的时间序列
+                - d: KDJ指标D值的时间序列
+                - j: KDJ指标J值的时间序列
+        """
+        try:
+            import talib
+        except ImportError:
+            raise ImportError("get_KDJ需要安装ta-lib库: pip install ta-lib")
+
+        if not isinstance(high, np.ndarray):
+            high = np.array(high, dtype=float)
+        if not isinstance(low, np.ndarray):
+            low = np.array(low, dtype=float)
+        if not isinstance(close, np.ndarray):
+            close = np.array(close, dtype=float)
+
+        # 使用talib的STOCH (Stochastic) 计算KD
+        # talib.STOCH返回的是slowk和slowd
+        k, d = talib.STOCH(high, low, close,
+                          fastk_period=n,
+                          slowk_period=m1,
+                          slowk_matype=0,  # SMA
+                          slowd_period=m2,
+                          slowd_matype=0)  # SMA
+
+        # 计算J值：J = 3K - 2D
+        j = 3 * k - 2 * d
+
+        return k, d, j
+
+    @validate_lifecycle
+    def get_RSI(self, close: np.ndarray, n: int = 6) -> np.ndarray:
+        """计算RSI指标（相对强弱指标）
+
+        Args:
+            close: 收盘价时间序列，numpy.ndarray类型
+            n: 周期，默认6
+
+        Returns:
+            np.ndarray: RSI指标值的时间序列
+        """
+        try:
+            import talib
+        except ImportError:
+            raise ImportError("get_RSI需要安装ta-lib库: pip install ta-lib")
+
+        if not isinstance(close, np.ndarray):
+            close = np.array(close, dtype=float)
+
+        # 使用talib计算RSI
+        rsi = talib.RSI(close, timeperiod=n)
+
+        return rsi
+
+    @validate_lifecycle
+    def get_CCI(self, high: np.ndarray, low: np.ndarray, close: np.ndarray, n: int = 14) -> np.ndarray:
+        """计算CCI指标（顺势指标）
+
+        Args:
+            high: 最高价时间序列，numpy.ndarray类型
+            low: 最低价时间序列，numpy.ndarray类型
+            close: 收盘价时间序列，numpy.ndarray类型
+            n: 周期，默认14
+
+        Returns:
+            np.ndarray: CCI指标值的时间序列
+        """
+        try:
+            import talib
+        except ImportError:
+            raise ImportError("get_CCI需要安装ta-lib库: pip install ta-lib")
+
+        if not isinstance(high, np.ndarray):
+            high = np.array(high, dtype=float)
+        if not isinstance(low, np.ndarray):
+            low = np.array(low, dtype=float)
+        if not isinstance(close, np.ndarray):
+            close = np.array(close, dtype=float)
+
+        # 使用talib计算CCI
+        cci = talib.CCI(high, low, close, timeperiod=n)
+
+        return cci
