@@ -539,9 +539,10 @@ class Blotter:
                     sell_revenue = sell_qty * execution_price
                     portfolio._cash += sell_revenue
 
-                    # 更新价格
-                    position.last_sale_price = execution_price
-                    if position.amount > 0:
+                    # 更新价格（仅在未清仓时）
+                    if order.symbol in portfolio.positions:
+                        position = portfolio.positions[order.symbol]
+                        position.last_sale_price = execution_price
                         position.market_value = position.amount * execution_price
 
                     order.status = 'filled'
@@ -598,10 +599,14 @@ class Portfolio:
             self.positions[stock] = Position(stock, amount, price)
             self._position_lots[stock] = [{'date': date, 'amount': amount, 'dividends': [], 'dividends_total': 0.0}]
         else:
-            old_pos = self.positions[stock]
-            new_amount = old_pos.amount + amount
-            new_cost = (old_pos.amount * old_pos.cost_basis + amount * price) / new_amount
-            self.positions[stock] = Position(stock, new_amount, new_cost)
+            # 可变模式：直接修改现有position
+            position = self.positions[stock]
+            new_amount = position.amount + amount
+            new_cost = (position.amount * position.cost_basis + amount * price) / new_amount
+            position.amount = new_amount
+            position.cost_basis = new_cost
+            position.enable_amount = new_amount
+            position.market_value = new_amount * new_cost
             self._position_lots[stock].append({'date': date, 'amount': amount, 'dividends': [], 'dividends_total': 0.0})
         self._invalidate_cache()
 
@@ -615,7 +620,7 @@ class Portfolio:
         # 边界检查：卖出数量不能超过持仓
         if amount > position.amount:
             raise ValueError(
-                '卖出数量({})超过持仓({}): {}'.format(amount, position.amount, stock)
+                '卖出数量 {} 超过持仓 {}: {}'.format(amount, position.amount, stock)
             )
 
         # FIFO计算税务调整
@@ -628,6 +633,8 @@ class Portfolio:
                 del self._position_lots[stock]
         else:
             position.amount -= amount
+            position.enable_amount -= amount
+            position.market_value = position.amount * position.cost_basis
 
         self._invalidate_cache()
         return tax_adjustment
