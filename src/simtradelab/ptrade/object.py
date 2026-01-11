@@ -444,19 +444,19 @@ class Blotter:
         # 批量预加载：收集所有需要的股票数据
         stock_data_cache = {}
         for order in self.open_orders:
-            if order.stock not in stock_data_cache and self._bt_ctx and self._bt_ctx.stock_data_dict:
-                stock_df = self._bt_ctx.stock_data_dict.get(order.stock)
-                if not stock_df or not isinstance(stock_df, pd.DataFrame):
+            if order.symbol not in stock_data_cache and self._bt_ctx and self._bt_ctx.stock_data_dict:
+                stock_df = self._bt_ctx.stock_data_dict.get(order.symbol)
+                if stock_df is None or not isinstance(stock_df, pd.DataFrame):
                     continue
 
                 if self._bt_ctx.get_stock_date_index:
-                    date_dict, _ = self._bt_ctx.get_stock_date_index(order.stock)
+                    date_dict, _ = self._bt_ctx.get_stock_date_index(order.symbol)
                     idx = date_dict.get(current_dt)
                 else:
                     idx = stock_df.index.get_loc(current_dt) if current_dt in stock_df.index else None
 
                 if idx is not None:
-                    stock_data_cache[order.stock] = {
+                    stock_data_cache[order.symbol] = {
                         'df': stock_df,
                         'idx': idx,
                         'close': stock_df.iloc[idx]['close'],
@@ -467,8 +467,8 @@ class Blotter:
         for order in self.open_orders[:]:
             # 使用缓存获取当日收盘价
             execution_price = None
-            if order.stock in stock_data_cache:
-                execution_price = stock_data_cache[order.stock]['close']
+            if order.symbol in stock_data_cache:
+                execution_price = stock_data_cache[order.symbol]['close']
 
             if execution_price is None or np.isnan(execution_price) or execution_price <= 0:
                 continue
@@ -476,8 +476,8 @@ class Blotter:
             # 检查成交量限制（LIMIT模式）
             actual_amount = order.amount
             if config.trading.limit_mode == 'LIMIT':
-                if order.stock in stock_data_cache:
-                    daily_volume = stock_data_cache[order.stock]['volume']
+                if order.symbol in stock_data_cache:
+                    daily_volume = stock_data_cache[order.symbol]['volume']
                     # 应用成交比例限制
                     volume_ratio = config.trading.volume_ratio
                     max_allowed = int(daily_volume * volume_ratio)
@@ -488,12 +488,12 @@ class Blotter:
                             actual_amount = max_allowed if order.amount > 0 else -max_allowed
                             if self._bt_ctx.log:
                                 self._bt_ctx.log.warning(
-                                    f"【订单部分成交】{order.stock} | 委托量:{abs(order.amount)}, 成交量:{abs(actual_amount)} (成交比例限制:{volume_ratio})"
+                                    f"【订单部分成交】{order.symbol} | 委托量:{abs(order.amount)}, 成交量:{abs(actual_amount)} (成交比例限制:{volume_ratio})"
                                 )
                         else:
                             if self._bt_ctx.log:
                                 self._bt_ctx.log.warning(
-                                    f"【订单失败】{order.stock} | 原因: 当日成交量为0或不足"
+                                    f"【订单失败】{order.symbol} | 原因: 当日成交量为0或不足"
                                 )
                             self.open_orders.remove(order)
                             order.status = 'failed'
@@ -501,16 +501,16 @@ class Blotter:
 
             # 检查涨跌停限制
             if self._bt_ctx and self._bt_ctx.check_limit:
-                limit_status = self._bt_ctx.check_limit(order.stock, current_dt)[order.stock]
+                limit_status = self._bt_ctx.check_limit(order.symbol, current_dt)[order.symbol]
                 if order.amount > 0 and limit_status == 1:
                     if self._bt_ctx.log:
-                        self._bt_ctx.log.warning(f"【订单失败】{order.stock} | 原因: 涨停买不进")
+                        self._bt_ctx.log.warning(f"【订单失败】{order.symbol} | 原因: 涨停买不进")
                     self.open_orders.remove(order)
                     order.status = 'failed'
                     continue
                 elif order.amount < 0 and limit_status == -1:
                     if self._bt_ctx.log:
-                        self._bt_ctx.log.warning(f"【订单失败】{order.stock} | 原因: 跌停卖不出")
+                        self._bt_ctx.log.warning(f"【订单失败】{order.symbol} | 原因: 跌停卖不出")
                     self.open_orders.remove(order)
                     order.status = 'failed'
                     continue
@@ -521,19 +521,19 @@ class Blotter:
                 cost = actual_amount * execution_price
                 if cost <= portfolio._cash:
                     portfolio._cash -= cost
-                    portfolio.add_position(order.stock, actual_amount, execution_price, current_dt)
+                    portfolio.add_position(order.symbol, actual_amount, execution_price, current_dt)
                     order.status = 'filled'
                     order.filled = actual_amount
                     executed_orders.append(order)
                 self.open_orders.remove(order)
             elif actual_amount < 0:
                 # 卖出
-                if order.stock in portfolio.positions:
-                    position = portfolio.positions[order.stock]
+                if order.symbol in portfolio.positions:
+                    position = portfolio.positions[order.symbol]
                     sell_qty = position.amount
 
                     # 减仓/清仓（含FIFO分红税调整）
-                    portfolio.remove_position(order.stock, sell_qty, current_dt)
+                    portfolio.remove_position(order.symbol, sell_qty, current_dt)
 
                     # 卖出收入到账
                     sell_revenue = sell_qty * execution_price
