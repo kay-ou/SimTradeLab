@@ -60,6 +60,6 @@ PROJECT_ROOT = get_project_root()
 DATA_PATH = get_data_path()
 STRATEGIES_PATH = get_strategies_path()
 
-# HDF5缓存文件路径
-ADJ_PRE_CACHE_PATH = DATA_PATH / 'ptrade_adj_pre.h5'
-DIVIDEND_CACHE_PATH = DATA_PATH / 'ptrade_dividend_cache.h5'
+# 缓存文件路径（使用BR格式压缩）
+ADJ_PRE_CACHE_PATH = DATA_PATH / 'ptrade_adj_pre.br'
+ADJ_POST_CACHE_PATH = DATA_PATH / 'ptrade_adj_post.br'

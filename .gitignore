@@ -71,7 +71,6 @@ logs/
 CLAUDE.md
 GEMINI.md
 .pre-commit-config.yaml
-data/*.h5
-data/.keys_cache
+data
 strategies/*/optimization/results
-
+data_h5/

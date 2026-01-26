@@ -31,27 +31,37 @@ from .config_manager import config
 
 
 # ==================== 多进程worker函数 ====================
-def _load_data_chunk(hdf5_filename, prefix, keys_chunk) -> dict[str, Any]:
+def _load_brotli_chunk(data_dir, data_type, keys_chunk) -> dict[str, Any]:
     """多进程worker：加载一批数据
 
     Args:
-        hdf5_filename: HDF5文件路径
-        prefix: 数据路径前缀
+        data_dir: 数据目录路径
+        data_type: 数据类型（'stock', 'valuation', 'fundamentals', 'exrights'）
         keys_chunk: 要加载的key列表
 
     Returns:
         dict: {key: dataframe}
     """
+    from . import storage
+
+    load_map = {
+        'stock': storage.load_stock,
+        'valuation': storage.load_valuation,
+        'fundamentals': storage.load_fundamentals,
+        'exrights': lambda data_dir, k: storage.load_exrights(data_dir, k).get('exrights_events', pd.DataFrame())
+    }
+
+    load_func = load_map[data_type]
     result: dict[str, Any] = {}
-    store = pd.HDFStore(hdf5_filename, 'r')
-    try:
-        for key in keys_chunk:
-            try:
-                result[key] = store[f'{prefix}{key}']
-            except KeyError:
-                pass
-    finally:
-        store.close()
+
+    for key in keys_chunk:
+        try:
+            df = load_func(data_dir, key)
+            if not df.empty:
+                result[key] = df
+        except:
+            pass
+
     return result
 
 
@@ -77,9 +87,29 @@ class BacktestContext:
 
 class LazyDataDict:
     """延迟加载数据字典（可选全量加载，支持多进程加速）"""
-    def __init__(self, store, prefix, all_keys_list, max_cache_size=6000, preload=False, use_multiprocessing=True):
-        self.store = store
-        self.prefix = prefix
+    def __init__(self, data_dir, data_type, all_keys_list, max_cache_size=6000, preload=False, use_multiprocessing=True):
+        """初始化延迟加载数据字典
+
+        Args:
+            data_dir: 数据根目录路径
+            data_type: 数据类型（'stock', 'valuation', 'fundamentals', 'exrights'）
+            all_keys_list: 所有可用的key列表
+            max_cache_size: 最大缓存数量
+            preload: 是否预加载所有数据
+            use_multiprocessing: 是否使用多进程加载
+        """
+        from . import storage
+
+        self.data_dir = data_dir
+        self.data_type = data_type
+
+        # 数据类型到加载方法的映射
+        self._load_map = {
+            'stock': storage.load_stock,
+            'valuation': storage.load_valuation,
+            'fundamentals': storage.load_fundamentals,
+            'exrights': lambda data_dir, k: storage.load_exrights(data_dir, k).get('exrights_events', pd.DataFrame())
+        }
         self._cache = OrderedDict()  # 使用OrderedDict实现LRU
         self._all_keys = all_keys_list
         self._max_cache_size = max_cache_size  # 最大缓存数量
@@ -107,8 +137,9 @@ class LazyDataDict:
                 import time
                 start_time = time.perf_counter()
 
+                # 多进程加载
                 results = Parallel(n_jobs=num_workers, backend='loky', verbose=0)(
-                    delayed(_load_data_chunk)(store.filename, prefix, chunk)
+                    delayed(_load_brotli_chunk)(self.data_dir, self.data_type, chunk)
                     for chunk in chunks
                 )
 
@@ -123,7 +154,7 @@ class LazyDataDict:
                 for key in tqdm(all_keys_list, desc='  加载', ncols=80, ascii=True,
                               bar_format='{desc}: {percentage:3.0f}%|{bar}| {n:4d}/{total:4d} [{elapsed}<{remaining}]'):
                     try:
-                        self._cache[key] = self.store[f'{self.prefix}{key}']
+                        self._cache[key] = self.backend.load(key)
                     except KeyError:
                         pass
 
@@ -143,9 +174,10 @@ class LazyDataDict:
         if self._preload:
             raise KeyError(f"Stock {key} not found")
 
-        # 延迟加载模式：缓存未命中，从HDF5加载
+        # 延迟加载模式：缓存未命中，从存储加载
         try:
-            value = self.store[f'{self.prefix}{key}']
+            load_func = self._load_map[self.data_type]
+            value = load_func(self.data_dir, key)
 
             # 添加到缓存
             self._cache[key] = value
@@ -156,7 +188,7 @@ class LazyDataDict:
 
             return value
         except KeyError:
-            raise KeyError(f"Stock {key} not found")
+            raise KeyError(f'Stock {key} not found')
 
     def get(self, key, default=None):
         try:

@@ -3,7 +3,7 @@
 简化版5均线策略 - 每日交易测试
 保证每天都有交易发生
 """
-
+# 20250101-20251031 日终 | 总资产: 93149.40 | 持仓: 1 只 | 现金: 57452.40
 def initialize(context):
     """初始化"""
     set_benchmark('000300.SS')
@@ -17,16 +17,18 @@ def initialize(context):
         '000651.SZ',  # 格力电器
     ]
 
-    context.max_position = 3 # 最多持仓（只）
-    context.rotation_period = 6 # 轮换周期（天）
+    context.max_position = 2  # 最多持仓2只
     context.day_count = 0     # 交易日计数
-    context.last_trade_day = -999  # 上次交易日期
+    
+    set_slippage(slippage=0.0)
+    set_fixed_slippage(fixedslippage=0.0)  # 必须同时设置，否则会用默认值0.001
+    # 限制成交量，默认0.25（默认已开启）
+    set_limit_mode('UNLIMITED')
 
     log.info("=" * 60)
-    log.info("简化版5均线策略 - 按周期轮换")
+    log.info("简化版5均线策略 - 每日交易测试")
     log.info("股票池: {}".format(context.stocks))
     log.info("最大持仓: {} 只".format(context.max_position))
-    log.info("轮换周期: {} 天".format(context.rotation_period))
     log.info("=" * 60)
 
 
@@ -36,7 +38,7 @@ def before_trading_start(context, data):
 
 
 def handle_data(context, data):
-    """每日交易逻辑 - 按轮换周期持有/清仓"""
+    """每日交易逻辑 - 保证每天都有交易"""
 
     context.day_count += 1
 
@@ -44,26 +46,24 @@ def handle_data(context, data):
     positions = context.portfolio.positions
     current_stocks = [stock for stock, pos in positions.items() if pos.amount > 0]
 
-    # 计算距离上次交易的天数
-    days_since_trade = context.day_count - context.last_trade_day
-
-    # 策略：每隔 rotation_period 天完整轮换一次
-    if days_since_trade >= context.rotation_period:
+    # 策略：每2天轮换一次持仓
+    if context.day_count % 2 == 1:
+        # 奇数日：清空所有持仓
         if len(current_stocks) > 0:
-            # 有持仓：清仓
-            log.info("[Day {}] 轮换周期到达，清仓".format(context.day_count))
+            log.info("[Day {}] 清空持仓".format(context.day_count))
             for stock in current_stocks:
                 order_target(stock, 0)
-        else:
-            # 无持仓：买入
-            log.info("[Day {}] 轮换周期到达，买入 {} 只".format(context.day_count, context.max_position))
+    else:
+        # 偶数日：买入前2只股票
+        if len(current_stocks) == 0:
+            log.info("[Day {}] 买入股票".format(context.day_count))
             stocks_to_buy = context.stocks[:context.max_position]
+
             for stock in stocks_to_buy:
+                # 每只股票分配相等资金
                 target_value = context.portfolio.portfolio_value / context.max_position
                 order_value(stock, target_value)
                 log.info("  买入 {}".format(stock))
-
-        context.last_trade_day = context.day_count
 
 
 def after_trading_end(context, data):

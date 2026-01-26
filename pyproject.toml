@@ -52,6 +52,7 @@ ta-lib = "*" #0.4.10
 
 # 优化器（可选）
 optuna = {version = "^3.0.0", optional = true}
+brotli = "^1.2.0"
 
 [tool.poetry.extras]
 optimizer = ["optuna"]

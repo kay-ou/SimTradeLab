@@ -100,9 +100,9 @@ def get_stock_exrights(stock_code, date=None):
     return get_api().get_stock_exrights(stock_code, date)
 
 
-def get_price(stock, start_date=None, end_date=None, frequency='1d', fields=None, fq='pre'):
+def get_price(stock, start_date=None, end_date=None, frequency='1d', fields=None, fq='pre', count=None):
     """获取价格数据"""
-    return get_api().get_price(stock, start_date, end_date, frequency, fields, fq)
+    return get_api().get_price(stock, start_date, end_date, frequency, fields, fq, count)
 
 
 def get_history(count, stock, field, end_date=None, fq='pre'):

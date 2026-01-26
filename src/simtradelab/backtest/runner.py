@@ -47,10 +47,10 @@ class BacktestRunner:
         self.stock_metadata = None
         self.index_constituents = {}
         self.stock_status_history = {}
-        self.stock_data_store = None
-        self.fundamentals_store = None
         self.adj_pre_cache = None
+        self.adj_post_cache = None
         self.dividend_cache = None
+        self.trade_days = None
 
         # 注册信号处理（仅在主线程）
         try:
@@ -193,10 +193,10 @@ class BacktestRunner:
         self.stock_metadata = data_server.stock_metadata
         self.index_constituents = data_server.index_constituents
         self.stock_status_history = data_server.stock_status_history
-        self.stock_data_store = data_server.stock_data_store
-        self.fundamentals_store = data_server.fundamentals_store
         self.adj_pre_cache = data_server.adj_pre_cache
+        self.adj_post_cache = data_server.adj_post_cache
         self.dividend_cache = data_server.dividend_cache
+        self.trade_days = getattr(data_server, 'trade_days', None)
         self._data_loaded = True
         return data_server.get_benchmark_data()
 
@@ -268,12 +268,12 @@ class BacktestRunner:
             exrights_dict=self.exrights_dict,
             benchmark_data=self.benchmark_data,
             stock_metadata=self.stock_metadata,
-            stock_data_store=self.stock_data_store,
-            fundamentals_store=self.fundamentals_store,
             index_constituents=self.index_constituents,
             stock_status_history=self.stock_status_history,
             adj_pre_cache=self.adj_pre_cache,
-            dividend_cache=self.dividend_cache
+            adj_post_cache=self.adj_post_cache,
+            dividend_cache=self.dividend_cache,
+            trade_days=self.trade_days
         )
 
         # 创建API
