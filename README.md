@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![License: Commercial](https://img.shields.io/badge/License-Commercial--Available-red)](licenses/LICENSE-COMMERCIAL.md)
-[![Version](https://img.shields.io/badge/Version-2.0.0-orange.svg)](#)
+[![Version](https://img.shields.io/badge/Version-2.1.0-orange.svg)](#)
 [![PyPI](https://img.shields.io/pypi/v/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 
@@ -27,7 +27,7 @@ SimTradeLab（深测Lab） 是一个由社区独立开发的开源策略回测�
 - 📊 **完整统计报告** - 收益、风险、交易明细、持仓批次、FIFO分红税
 - 🔌 **模块化设计** - 清晰的代码结构，易于扩展和定制
 
-**当前版本：** v2.0.0 | **开发状态：** Beta - 核心功能完善，正在策略实战中持续优化
+**当前版本：** v2.1.0 | **开发状态：** Beta - 核心功能完善，正在策略实战中持续优化
 
 ---
 
@@ -49,18 +49,19 @@ pip install simtradelab[optimizer]
 ```
 
 **系统依赖：**
-- macOS: `brew install hdf5 ta-lib`
-- Linux: `sudo apt-get install libhdf5-dev` + [ta-lib源码编译](docs/INSTALLATION.md)
+- macOS: `brew install ta-lib`
+- Linux: [ta-lib源码编译](docs/INSTALLATION.md)
 
 > 详细安装指南：[docs/INSTALLATION.md](docs/INSTALLATION.md)
 
 ### 📁 准备数据
 
-将PTrade数据文件放到 `data/` 目录：
+将数据文件放到 `data/` 目录：
 ```
 data/
-├── ptrade_data.h5           # 股票价格、除权数据
-└── ptrade_fundamentals.h5   # 基本面数据
+├── price/               # 股票价格数据
+├── fundamentals/        # 基本面数据
+└── exrights/            # 除权除息数据
 ```
 
 **数据获取：** 推荐使用 [SimTradeData](https://github.com/kay-ou/SimTradeData) 项目获取A股历史数据
