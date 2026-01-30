@@ -18,6 +18,9 @@ from typing import Optional
 import uuid
 import pandas as pd
 
+from .config_manager import config
+from .object import Order
+
 
 class OrderProcessor:
     """订单处理器
@@ -66,7 +69,9 @@ class OrderProcessor:
 
             try:
                 date_dict, _ = self.get_stock_date_index(stock)
-                idx = date_dict.get(self.context.current_dt) or stock_df.index.get_loc(self.context.current_dt)
+                idx = date_dict.get(self.context.current_dt)
+                if idx is None:
+                    idx = stock_df.index.get_loc(self.context.current_dt)
                 price = stock_df.iloc[idx]['close']
 
                 # 转换为标量值
@@ -77,11 +82,8 @@ class OrderProcessor:
 
                 if pd.isna(base_price) or base_price <= 0:
                     return None
-            except:
+            except Exception:
                 return None
-
-        # 计算滑点
-        from .config_manager import config
 
         # 获取滑点配置
         slippage = getattr(self.context, 'slippage', config.trading.slippage)
@@ -138,8 +140,6 @@ class OrderProcessor:
         Returns:
             (order_id, order对象)
         """
-        from simtradelab.ptrade.object import Order
-
         order_id = str(uuid.uuid4()).replace('-', '')
         order = Order(
             id=order_id,
@@ -161,8 +161,6 @@ class OrderProcessor:
         Returns:
             手续费总额
         """
-        from .config_manager import config
-
         commission_ratio = getattr(self.context, 'commission_ratio', config.trading.commission_ratio)
         min_commission = getattr(self.context, 'min_commission', config.trading.min_commission)
 
@@ -255,10 +253,12 @@ class OrderProcessor:
             self.context.total_commission = 0
         self.context.total_commission += commission
 
-        # 更新价格
-        position.last_sale_price = price
-        if position.amount > 0:
-            position.market_value = position.amount * price
+        # 更新价格（仅当position仍存在时）
+        if stock in self.context.portfolio.positions:
+            position = self.context.portfolio.positions[stock]
+            position.last_sale_price = price
+            if position.amount > 0:
+                position.market_value = position.amount * price
 
         # 入账
         self.context.portfolio._cash += net_revenue

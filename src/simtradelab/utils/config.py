@@ -39,10 +39,6 @@ class Config:
             # 使用默认配置
             self._config = {
                 'data_path': './data',
-                'brotli': {
-                    'cache_size': 500,
-                    'compression_quality': 6
-                }
             }
             self._project_root = project_root
             return
@@ -68,16 +64,6 @@ class Config:
             path = self._project_root / path
 
         return str(path)
-
-    @property
-    def brotli_cache_size(self):
-        """Brotli后端缓存大小"""
-        return self._config.get('brotli', {}).get('cache_size', 500)
-
-    @property
-    def brotli_compression_quality(self):
-        """Brotli压缩质量"""
-        return self._config.get('brotli', {}).get('compression_quality', 6)
 
 
 # 全局配置实例

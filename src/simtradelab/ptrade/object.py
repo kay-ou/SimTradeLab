@@ -28,10 +28,11 @@ from datetime import datetime
 from ..utils.performance_config import get_performance_config
 from .cache_manager import cache_manager
 from .config_manager import config
+from .lifecycle_controller import LifecyclePhase
 
 
 # ==================== 多进程worker函数 ====================
-def _load_brotli_chunk(data_dir, data_type, keys_chunk) -> dict[str, Any]:
+def _load_data_chunk(data_dir, data_type, keys_chunk) -> dict[str, Any]:
     """多进程worker：加载一批数据
 
     Args:
@@ -59,7 +60,7 @@ def _load_brotli_chunk(data_dir, data_type, keys_chunk) -> dict[str, Any]:
             df = load_func(data_dir, key)
             if not df.empty:
                 result[key] = df
-        except:
+        except Exception:
             pass
 
     return result
@@ -139,7 +140,7 @@ class LazyDataDict:
 
                 # 多进程加载
                 results = Parallel(n_jobs=num_workers, backend='loky', verbose=0)(
-                    delayed(_load_brotli_chunk)(self.data_dir, self.data_type, chunk)
+                    delayed(_load_data_chunk)(self.data_dir, self.data_type, chunk)
                     for chunk in chunks
                 )
 
@@ -151,10 +152,11 @@ class LazyDataDict:
                 print(f"  ✓ 加载完成，耗时 {elapsed:.1f}秒")
             else:
                 # 串行加载（带进度条）
+                load_func = self._load_map[self.data_type]
                 for key in tqdm(all_keys_list, desc='  加载', ncols=80, ascii=True,
                               bar_format='{desc}: {percentage:3.0f}%|{bar}| {n:4d}/{total:4d} [{elapsed}<{remaining}]'):
                     try:
-                        self._cache[key] = self.backend.load(key)
+                        self._cache[key] = load_func(self.data_path, key)
                     except KeyError:
                         pass
 
@@ -246,7 +248,6 @@ class StockData:
                 controller = self._bt_ctx.context._lifecycle_controller if self._bt_ctx.context else None
                 current_phase = controller.current_phase if controller else None
 
-                from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
                 is_before_trading = (current_phase == LifecyclePhase.BEFORE_TRADING_START)
 
                 if is_before_trading:
@@ -772,11 +773,14 @@ class Portfolio:
                 if self._bt_ctx and self._bt_ctx.stock_data_dict and stock in self._bt_ctx.stock_data_dict:
                     stock_df = self._bt_ctx.stock_data_dict[stock]
                     if isinstance(stock_df, pd.DataFrame) and self._context:
-                        # 直接使用当天收盘价
-                        if self._context.current_dt in stock_df.index:
-                            price = stock_df.loc[self._context.current_dt]['close']
-                            if not np.isnan(price) and price > 0:
-                                current_price = price
+                        # 使用哈希索引 O(1) 查找，避免 df.loc O(log n)
+                        if self._bt_ctx.get_stock_date_index:
+                            date_dict, _ = self._bt_ctx.get_stock_date_index(stock)
+                            idx = date_dict.get(self._context.current_dt)
+                            if idx is not None:
+                                price = stock_df.iloc[idx]['close']
+                                if not np.isnan(price) and price > 0:
+                                    current_price = price
 
                 position.last_sale_price = current_price
                 position.market_value = position.amount * current_price

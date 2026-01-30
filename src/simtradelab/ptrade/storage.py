@@ -8,143 +8,108 @@
 """
 数据存储工具函数
 
-提供 Brotli 压缩文件的读写功能
+仅支持 Parquet 格式
 """
 
 from __future__ import annotations
-import json
-import brotli
 import pandas as pd
 from pathlib import Path
 
 
-def load_brotli_json(file_path):
-    """加载 Brotli 压缩的 JSON 文件
+def _date_to_int(dt_series: pd.Series) -> pd.Series:
+    """向量化将datetime转为YYYYMMDD整数"""
+    return (
+        dt_series.dt.year * 10000 +
+        dt_series.dt.month * 100 +
+        dt_series.dt.day
+    ).astype(int)
 
-    Args:
-        file_path: 文件路径
 
-    Returns:
-        解析后的 JSON 对象
-    """
-    with open(file_path, 'rb') as f:
-        compressed = f.read()
-        decompressed = brotli.decompress(compressed)
-        return json.loads(decompressed.decode('utf-8'))
+def _date_to_iso(dt_series: pd.Series) -> pd.Series:
+    """向量化将datetime转为YYYY-MM-DD字符串"""
+    return (
+        dt_series.dt.year.astype(str) + '-' +
+        dt_series.dt.month.astype(str).str.zfill(2) + '-' +
+        dt_series.dt.day.astype(str).str.zfill(2)
+    )
 
 
 def load_stock(data_dir, symbol):
-    """加载股票价格数据
-
-    Args:
-        data_dir: 数据根目录
-        symbol: 股票代码
-
-    Returns:
-        DataFrame，包含 OHLCV 数据
-    """
-    file_path = Path(data_dir) / 'stocks' / f'{symbol}.br'
-    if not file_path.exists():
-        return pd.DataFrame()
-
-    data = load_brotli_json(file_path)
-    df = pd.DataFrame(data['data'])
-    if not df.empty:
-        df['date'] = pd.to_datetime(df['date'])
-        df.set_index('date', inplace=True)
-    return df
+    """加载股票价格数据"""
+    parquet_file = Path(data_dir) / 'stocks' / f'{symbol}.parquet'
+    if parquet_file.exists():
+        df = pd.read_parquet(parquet_file)
+        if not df.empty and 'date' in df.columns:
+            df.set_index('date', inplace=True)
+        return df
+    return pd.DataFrame()
 
 
 def load_valuation(data_dir, symbol):
-    """加载估值数据
-
-    Args:
-        data_dir: 数据根目录
-        symbol: 股票代码
-
-    Returns:
-        DataFrame，包含估值指标
-    """
-    file_path = Path(data_dir) / 'valuation' / f'{symbol}.br'
-    if not file_path.exists():
-        return pd.DataFrame()
-
-    data = load_brotli_json(file_path)
-    df = pd.DataFrame(data['data'])
-    if not df.empty:
-        df['date'] = pd.to_datetime(df['date'])
-        df.set_index('date', inplace=True)
-    return df
+    """加载估值数据"""
+    parquet_file = Path(data_dir) / 'valuation' / f'{symbol}.parquet'
+    if parquet_file.exists():
+        df = pd.read_parquet(parquet_file)
+        if not df.empty and 'date' in df.columns:
+            df.set_index('date', inplace=True)
+        return df
+    return pd.DataFrame()
 
 
 def load_fundamentals(data_dir, symbol):
-    """加载财务数据
-
-    Args:
-        data_dir: 数据根目录
-        symbol: 股票代码
-
-    Returns:
-        DataFrame，包含财务指标
-    """
-    file_path = Path(data_dir) / 'fundamentals' / f'{symbol}.br'
-    if not file_path.exists():
-        return pd.DataFrame()
-
-    data = load_brotli_json(file_path)
-    df = pd.DataFrame(data['data'])
-    if not df.empty:
-        df['date'] = pd.to_datetime(df['date'])
-        df.set_index('date', inplace=True)
-    return df
+    """加载财务数据"""
+    parquet_file = Path(data_dir) / 'fundamentals' / f'{symbol}.parquet'
+    if parquet_file.exists():
+        df = pd.read_parquet(parquet_file)
+        if not df.empty and 'date' in df.columns:
+            df.set_index('date', inplace=True)
+        return df
+    return pd.DataFrame()
 
 
 def load_exrights(data_dir, symbol):
     """加载除权数据
 
-    Args:
-        data_dir: 数据根目录
-        symbol: 股票代码
-
     Returns:
         dict，包含除权事件、复权因子、分红信息
     """
-    file_path = Path(data_dir) / 'exrights' / f'{symbol}.br'
-    if not file_path.exists():
-        return {
-            'exrights_events': pd.DataFrame(),
-            'adj_factors': pd.DataFrame(),
-            'dividends': []
-        }
+    empty_result = {
+        'exrights_events': pd.DataFrame(),
+        'adj_factors': pd.DataFrame(),
+        'dividends': []
+    }
 
-    data = load_brotli_json(file_path)
-    result = {}
+    parquet_file = Path(data_dir) / 'exrights' / f'{symbol}.parquet'
+    if not parquet_file.exists():
+        return empty_result
 
-    # 除权事件 (数据文件中key为'exrights')
-    exrights_key = 'exrights' if 'exrights' in data else 'exrights_events'
-    if exrights_key in data and data[exrights_key]:
-        ex_df = pd.DataFrame(data[exrights_key])
-        if not ex_df.empty and 'date' in ex_df.columns:
-            ex_df['date'] = ex_df['date'].astype(str).str.replace('-', '').astype(int)
-            ex_df.set_index('date', inplace=True)
-        result['exrights_events'] = ex_df
-    else:
-        result['exrights_events'] = pd.DataFrame()
+    df = pd.read_parquet(parquet_file)
+    if df.empty:
+        return empty_result
 
-    # 预计算的复权因子
-    if 'adj_factors' in data and data['adj_factors']:
-        adj_df = pd.DataFrame(data['adj_factors'])
-        if not adj_df.empty and 'date' in adj_df.columns:
-            adj_df['date'] = pd.to_datetime(adj_df['date'])
-            adj_df.set_index('date', inplace=True)
-        result['adj_factors'] = adj_df
-    else:
-        result['adj_factors'] = pd.DataFrame()
+    # 构建exrights_events
+    ex_df = df.copy()
+    if 'date' in ex_df.columns:
+        ex_df['date'] = _date_to_int(ex_df['date'])
+        ex_df.set_index('date', inplace=True)
 
-    # 分红事件
-    result['dividends'] = data.get('dividends', [])
+    # 构建dividends列表
+    dividends = []
+    if 'dividend' in df.columns:
+        valid_mask = df['dividend'].notna()
+        if valid_mask.any():
+            valid_df = df.loc[valid_mask, ['date', 'dividend']]
+            date_strs = _date_to_iso(valid_df['date'])
+            dividends = [
+                {'date': d, 'dividend': div}
+                for d, div in zip(date_strs.values, valid_df['dividend'].values)
+            ]
 
-    return result
+    return {
+        'exrights_events': ex_df,
+        'adj_factors': pd.DataFrame(),
+        'dividends': dividends
+    }
 
 
 def load_metadata(data_dir, filename):
@@ -152,27 +117,90 @@ def load_metadata(data_dir, filename):
 
     Args:
         data_dir: 数据根目录
-        filename: 元数据文件名（如 'metadata.br'）
+        filename: 元数据文件名（如 'metadata' 或 'trade_days'）
 
     Returns:
-        解析后的数据
+        解析后的数据（dict或DataFrame）
     """
-    file_path = Path(data_dir) / 'metadata' / filename
+    data_path = Path(data_dir) / 'metadata'
+
+    # 兼容旧调用：去除.br后缀
+    if filename.endswith('.br'):
+        filename = filename[:-3]
+
+    # metadata特殊处理：已拆分为index_constituents和stock_status
+    if filename == 'metadata':
+        ic_file = data_path / 'index_constituents.parquet'
+        ss_file = data_path / 'stock_status.parquet'
+        if ic_file.exists() or ss_file.exists():
+            return _load_metadata_parquet(data_path, filename)
+
+    # 其他元数据
+    parquet_file = data_path / f'{filename}.parquet'
+    if parquet_file.exists():
+        return _load_metadata_parquet(data_path, filename)
+
+    return None
+
+
+def _load_metadata_parquet(metadata_dir, base_name):
+    """加载Parquet格式的元数据"""
+    # metadata特殊处理：已拆分为index_constituents和stock_status
+    if base_name == 'metadata':
+        result = {}
+
+        # index_constituents (预聚合格式: date, index_code, symbols)
+        ic_file = metadata_dir / 'index_constituents.parquet'
+        if ic_file.exists():
+            ic_df = pd.read_parquet(ic_file)
+            index_constituents = {}
+            for date, group in ic_df.groupby('date'):
+                index_constituents[date] = dict(zip(group['index_code'], group['symbols']))
+            result['index_constituents'] = index_constituents
+
+        # stock_status_history (预聚合格式: date, status_type, symbols)
+        ss_file = metadata_dir / 'stock_status.parquet'
+        if ss_file.exists():
+            ss_df = pd.read_parquet(ss_file)
+            stock_status_history = {}
+            for date, group in ss_df.groupby('date'):
+                stock_status_history[date] = {'ST': {}, 'HALT': {}, 'DELISTING': {}}
+                for st, syms in zip(group['status_type'], group['symbols']):
+                    stock_status_history[date][st] = dict.fromkeys(syms, True)
+            result['stock_status_history'] = stock_status_history
+
+        return result if result else None
+
+    file_path = metadata_dir / f'{base_name}.parquet'
     if not file_path.exists():
         return None
-    return load_brotli_json(file_path)
+
+    df = pd.read_parquet(file_path)
+
+    if base_name == 'trade_days':
+        return {'trade_days': _date_to_iso(df['date']).tolist()}
+
+    elif base_name == 'stock_metadata':
+        return {'data': df.to_dict('records')}
+
+    elif base_name == 'benchmark':
+        if 'date' in df.columns:
+            df = df.copy()
+            df['date'] = _date_to_iso(df['date'])
+        return {'data': df.to_dict('records')}
+
+    elif base_name == 'version':
+        return df.iloc[0].to_dict()
+
+    # 默认返回DataFrame
+    return df
 
 
 def list_stocks(data_dir):
-    """列出所有可用的股票代码
-
-    Args:
-        data_dir: 数据根目录
-
-    Returns:
-        股票代码列表
-    """
+    """列出所有可用的股票代码"""
     stocks_dir = Path(data_dir) / 'stocks'
     if not stocks_dir.exists():
         return []
-    return [f.stem for f in stocks_dir.glob('*.br')]
+
+    parquet_files = list(stocks_dir.glob('*.parquet'))
+    return [f.stem for f in parquet_files]

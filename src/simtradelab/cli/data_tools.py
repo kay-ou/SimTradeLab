@@ -6,16 +6,14 @@
 # commercial license. See LICENSE-COMMERCIAL.md or contact kayou@duck.com
 #
 """
-数据包解包和合并工具
+数据包解包工具
 """
 
 from __future__ import annotations
 import json
-import brotli
 import tarfile
 from pathlib import Path
 from tqdm import tqdm
-import hashlib
 
 
 class DataUnpacker:
@@ -71,6 +69,7 @@ class DataUnpacker:
                 tar.extractall(path=self.data_dir)
 
         # 保存版本信息
+        import pandas as pd
         version_info = {
             'version': manifest['version'],
             'export_date': manifest['export_date'],
@@ -86,105 +85,6 @@ class DataUnpacker:
         print("=" * 70)
 
 
-class DataMerger:
-    """增量数据合并器"""
-
-    def __init__(self, data_dir, compression_quality=6, num_workers=1):
-        """初始化合并器
-
-        Args:
-            data_dir: 数据目录路径
-            compression_quality: Brotli压缩质量（1-11）
-            num_workers: 并行进程数
-        """
-        self.data_dir = Path(data_dir)
-        self.stocks_dir = self.data_dir / 'stocks'
-        self.exrights_dir = self.data_dir / 'exrights'
-        self.compression_quality = compression_quality
-        self.num_workers = num_workers
-
-    def merge_incremental(self, incremental_file):
-        """合并增量数据到现有文件
-
-        Args:
-            incremental_file: 增量数据文件路径
-        """
-        incremental_file = Path(incremental_file)
-
-        print("=" * 70)
-        print("SimTradeLab 增量数据合并")
-        print("=" * 70)
-        print("增量文件: {}".format(incremental_file.name))
-        print("=" * 70)
-
-        # 解压增量包
-        with open(incremental_file, 'rb') as f:
-            compressed = f.read()
-            decompressed = brotli.decompress(compressed)
-            incremental_data = json.loads(decompressed.decode('utf-8'))
-
-        print("\n合并 {} 只股票数据...".format(len(incremental_data)))
-
-        # 合并数据
-        if self.num_workers > 1:
-            # 多进程并行（可选实现）
-            print("警告：多进程模式未实现，使用单进程")
-            self._merge_single_process(incremental_data)
-        else:
-            self._merge_single_process(incremental_data)
-
-        print("\n" + "=" * 70)
-        print("合并完成！")
-        print("=" * 70)
-
-    def _merge_single_process(self, incremental_data):
-        """单进程合并"""
-        # 判断是价格数据还是除权数据
-        first_key = next(iter(incremental_data))
-        first_value = incremental_data[first_key]
-
-        if isinstance(first_value, dict) and 'exrights_events' in first_value:
-            # 除权数据
-            target_dir = self.exrights_dir
-            is_exrights = True
-        else:
-            # 价格数据
-            target_dir = self.stocks_dir
-            is_exrights = False
-
-        for stock, new_data in tqdm(incremental_data.items(), desc="合并"):
-            stock_file = target_dir / "{}.br".format(stock)
-
-            if not stock_file.exists():
-                print("\n警告：股票 {} 不存在，跳过".format(stock))
-                continue
-
-            # 读取现有数据
-            with open(stock_file, 'rb') as f:
-                compressed = f.read()
-                decompressed = brotli.decompress(compressed)
-                stock_data = json.loads(decompressed.decode('utf-8'))
-
-            if is_exrights:
-                # 更新除权数据（完全替换）
-                stock_data['exrights_events'] = new_data['exrights_events']
-                stock_data['adj_factors'] = new_data['adj_factors']
-                stock_data['dividends'] = new_data['dividends']
-            else:
-                # 合并价格记录（去重）
-                existing_dates = {r['date'] for r in stock_data['data']}
-                if new_data['date'] not in existing_dates:
-                    stock_data['data'].append(new_data)
-                    stock_data['data'].sort(key=lambda x: x['date'])
-
-            # 重新压缩保存
-            json_str = json.dumps(stock_data, ensure_ascii=False, separators=(',', ':'))
-            compressed = brotli.compress(json_str.encode('utf-8'),
-                                        quality=self.compression_quality)
-            stock_file.write_bytes(compressed)
-
-
-# CLI命令行工具
 def unpack_command(download_dir, data_dir=None):
     """解包命令
 
@@ -200,30 +100,12 @@ def unpack_command(download_dir, data_dir=None):
     unpacker.unpack_all(download_dir)
 
 
-def merge_command(incremental_file, data_dir=None, compression_quality=6, num_workers=1):
-    """合并增量数据命令
-
-    Args:
-        incremental_file: 增量数据文件路径
-        data_dir: 数据目录路径
-        compression_quality: 压缩质量
-        num_workers: 并行进程数
-    """
-    if data_dir is None:
-        from simtradelab.utils.paths import DATA_PATH
-        data_dir = DATA_PATH
-
-    merger = DataMerger(data_dir, compression_quality, num_workers)
-    merger.merge_incremental(incremental_file)
-
-
 if __name__ == '__main__':
     import sys
 
     if len(sys.argv) < 2:
         print("用法：")
         print("  python data_tools.py unpack <download_dir>")
-        print("  python data_tools.py merge <incremental_file>")
         sys.exit(1)
 
     command = sys.argv[1]
@@ -233,13 +115,6 @@ if __name__ == '__main__':
             print("错误：需要指定下载目录")
             sys.exit(1)
         unpack_command(sys.argv[2])
-
-    elif command == 'merge':
-        if len(sys.argv) < 3:
-            print("错误：需要指定增量文件")
-            sys.exit(1)
-        merge_command(sys.argv[2])
-
     else:
         print("未知命令: {}".format(command))
         sys.exit(1)

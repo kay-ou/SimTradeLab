@@ -12,6 +12,8 @@
 
 from __future__ import annotations
 
+import pandas as pd
+
 
 class DataContext:
     """数据上下文容器"""
@@ -59,3 +61,20 @@ class DataContext:
         self.adj_post_cache = adj_post_cache
         self.dividend_cache = dividend_cache if dividend_cache is not None else {}
         self.trade_days = trade_days
+
+        # 预解析 stock_metadata 日期列为 Timestamp（优化 get_Ashares 性能）
+        if stock_metadata is not None and not stock_metadata.empty:
+            if 'listed_date' in stock_metadata.columns:
+                self.listed_date_ts = pd.to_datetime(stock_metadata['listed_date'], format='mixed', errors='coerce')
+            else:
+                self.listed_date_ts = None
+            if 'de_listed_date' in stock_metadata.columns:
+                self.de_listed_date_ts = pd.to_datetime(stock_metadata['de_listed_date'], format='mixed', errors='coerce')
+            else:
+                self.de_listed_date_ts = None
+        else:
+            self.listed_date_ts = None
+            self.de_listed_date_ts = None
+
+        # 预建行业索引（优化 get_industry_stocks 性能）
+        self._industry_index = None

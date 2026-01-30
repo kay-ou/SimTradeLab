@@ -91,7 +91,7 @@ class DataServer:
         pass
 
     def _load_data(self, required_data=None):
-        """加载数据文件（Brotli后端）
+        """加载数据
 
         Args:
             required_data: 需要加载的数据集合,None表示全部加载
@@ -102,12 +102,6 @@ class DataServer:
 
         # 记录需要加载的数据类型
         self._loaded_data_types = required_data
-
-        # 加载数据
-        self._load_data(required_data)
-
-    def _load_data(self, required_data):
-        """加载数据"""
         from ..ptrade import storage
 
         print("正在读取数据...")
@@ -121,7 +115,7 @@ class DataServer:
         print("正在读取元数据...")
 
         # 加载元数据
-        metadata_all = storage.load_metadata(self.data_path, 'metadata.br')
+        metadata_all = storage.load_metadata(self.data_path, 'metadata')
         if metadata_all:
             self.index_constituents = metadata_all.get('index_constituents', {})
             self.stock_status_history = metadata_all.get('stock_status_history', {})
@@ -130,14 +124,14 @@ class DataServer:
             self.stock_status_history = {}
 
         # 加载交易日历
-        trade_days_data = storage.load_metadata(self.data_path, 'trade_days.br')
+        trade_days_data = storage.load_metadata(self.data_path, 'trade_days')
         if trade_days_data and 'trade_days' in trade_days_data:
             self.trade_days = pd.DatetimeIndex(pd.to_datetime(trade_days_data['trade_days']))
         else:
             self.trade_days = None
 
         # 加载股票元数据
-        stock_metadata_data = storage.load_metadata(self.data_path, 'stock_metadata.br')
+        stock_metadata_data = storage.load_metadata(self.data_path, 'stock_metadata')
         if stock_metadata_data and 'data' in stock_metadata_data:
             self.stock_metadata = pd.DataFrame(stock_metadata_data['data'])
             if not self.stock_metadata.empty and 'symbol' in self.stock_metadata.columns:
@@ -146,7 +140,7 @@ class DataServer:
             self.stock_metadata = pd.DataFrame()
 
         # 加载基准数据
-        benchmark_data_raw = storage.load_metadata(self.data_path, 'benchmark.br')
+        benchmark_data_raw = storage.load_metadata(self.data_path, 'benchmark')
         if benchmark_data_raw and 'data' in benchmark_data_raw:
             benchmark_df = pd.DataFrame(benchmark_data_raw['data'])
             if not benchmark_df.empty and 'date' in benchmark_df.columns:
@@ -154,7 +148,7 @@ class DataServer:
                 benchmark_df.set_index('date', inplace=True)
             self.benchmark_data = {'000300.SS': benchmark_df}
         else:
-            # 如果benchmark.br不存在，从stock数据加载默认基准
+            # 如果benchmark不存在，从stock数据加载默认基准
             self.benchmark_data = {}
             if '000300.SS' in self._stock_keys_cache:
                 default_benchmark = storage.load_stock(self.data_path, '000300.SS')
@@ -162,9 +156,9 @@ class DataServer:
                     self.benchmark_data['000300.SS'] = default_benchmark
 
         # 加载指定的数据类型
-        self._load_data_by_types_brotli(required_data)
+        self._load_data_by_types(required_data)
 
-    def _load_data_by_types_brotli(self, required_data):
+    def _load_data_by_types(self, required_data):
         """加载数据类型"""
         from ..ptrade import storage
 
