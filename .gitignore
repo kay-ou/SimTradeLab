@@ -68,9 +68,9 @@ logs/
 *.png
 !docs/sponsor/*.png
 *.log
+*.gz
 CLAUDE.md
 GEMINI.md
 .pre-commit-config.yaml
-data
 strategies/*/optimization/results
-data_h5/
+data*/
