@@ -96,7 +96,9 @@ jobs:
       - pypi-publish
     if: github.event_name == 'release'
     permissions:
-      contents: write 
+      contents: write
+      pull-requests: write
+      issues: write
 
     steps:
       - uses: actions/checkout@v4
