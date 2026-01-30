@@ -1,6 +1,0 @@
-# SimTradeLab Configuration File
-
-# Brotli数据后端配置
-brotli:
-  cache_size: 500  # LRU缓存大小（股票数量）
-  compression_quality: 6  # 压缩质量（1-11，增量合并时使用）

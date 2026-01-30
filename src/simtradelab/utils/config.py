@@ -10,7 +10,6 @@
 """
 
 from __future__ import annotations
-import yaml
 from pathlib import Path
 
 
@@ -29,40 +28,16 @@ class Config:
             self._load_config()
 
     def _load_config(self):
-        """加载配置文件"""
         from .paths import get_project_root
-
-        project_root = get_project_root()
-        config_path = project_root / 'config.yaml'
-
-        if not config_path.exists():
-            # 使用默认配置
-            self._config = {
-                'data_path': './data',
-            }
-            self._project_root = project_root
-            return
-
-        with open(str(config_path), 'r', encoding='utf-8') as f:
-            self._config = yaml.safe_load(f)
-
-        self._project_root = project_root
+        self._project_root = get_project_root()
+        self._config = {'data_path': './data'}
 
     @property
     def data_path(self):
         """数据路径（自动转换为绝对路径）"""
-        path_str = self._config.get('data_path', None)
-
-        # 如果没有配置 data_path，使用默认路径
-        if path_str is None:
-            path_str = './data'
-
-        path = Path(path_str)
-
-        # 如果是相对路径，相对于项目根目录
+        path = Path(self._config['data_path'])
         if not path.is_absolute():
             path = self._project_root / path
-
         return str(path)
 
 
