@@ -6,7 +6,6 @@ name: Publish SimTradeLab Package
 on:
   release:
     types: [published]
-  # 可选：允许手动触发
   workflow_dispatch:
 
 jobs:
@@ -25,46 +24,9 @@ jobs:
         uses: snok/install-poetry@v1
         with:
           version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-
-          # 从源码编译安装ta-lib
-          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
-          tar -xzf ta-lib-0.4.0-src.tar.gz
-          cd ta-lib/
-          ./configure --prefix=/usr
-          make
-          sudo make install
-          cd ..
-          rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-3.11-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
 
       - name: Build release distributions
-        run: |
-          poetry build
-
-      - name: Check build artifacts
-        run: |
-          ls -la dist/
-          echo "Built packages:"
-          find dist/ -name "*.whl" -o -name "*.tar.gz"
+        run: poetry build
 
       - name: Upload distributions
         uses: actions/upload-artifact@v4
@@ -92,13 +54,10 @@ jobs:
 
   post-publish:
     runs-on: ubuntu-latest
-    needs:
-      - pypi-publish
+    needs: pypi-publish
     if: github.event_name == 'release'
     permissions:
       contents: write
-      pull-requests: write
-      issues: write
 
     steps:
       - uses: actions/checkout@v4
@@ -108,35 +67,24 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install TA-Lib
+        run: |
+          wget -q http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+          tar -xzf ta-lib-0.4.0-src.tar.gz
+          cd ta-lib && ./configure --prefix=/usr && make && sudo make install
+
       - name: Verify PyPI publication
         run: |
-          # 等待PyPI索引更新
           sleep 30
-
-          # 获取不带v前缀的版本号
           VERSION=${{ github.event.release.tag_name }}
           VERSION=${VERSION#v}
-
-          # 尝试安装刚发布的包
           pip install simtradelab==$VERSION
+          python -c 'import simtradelab; print("✅ SimTradeLab " + simtradelab.__version__ + " installed successfully")'
 
-          # 验证安装
-          python -c 'import simtradelab; from simtradelab.backtest.runner import BacktestRunner; print("✅ SimTradeLab " + simtradelab.__version__ + " installed successfully")'
-
-      - name: Install script dependencies
+      - name: Generate and Update Release Notes
         run: |
           pip install gitpython
-
-      - name: Generate Release Notes
-        id: release_notes
-        run: |
-          # 生成Release Notes
           python scripts/generate_release_notes.py ${{ github.event.release.tag_name }} --output release_notes.md
-
-          # 读取生成的内容并设置为输出
-          echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
-          cat release_notes.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Update Release with Generated Notes
         uses: actions/github-script@v7
@@ -145,37 +93,9 @@ jobs:
           script: |
             const fs = require('fs');
             const releaseNotes = fs.readFileSync('release_notes.md', 'utf8');
-
-            // 更新Release的描述
             await github.rest.repos.updateRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               release_id: context.payload.release.id,
               body: releaseNotes
             });
-
-      - name: Create success comment
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const tagName = '${{ github.event.release.tag_name }}';
-            const version = tagName.replace(/^v/, '');
-            
-            github.rest.issues.createComment({
-              issue_number: context.payload.release.id,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `🎉 SimTradeLab ${tagName} has been successfully published to PyPI!
-
-              📦 **Installation:**
-              \`\`\`bash
-              pip install simtradelab==${version}
-              \`\`\`
-
-              🔗 **PyPI Link:** https://pypi.org/project/simtradelab/${version}/
-
-              ✅ **Verification:** Package installation verified successfully.
-
-              📋 **Release Notes:** Automatically generated and updated in the release description.`
-            })
