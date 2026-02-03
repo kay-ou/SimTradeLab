@@ -1301,15 +1301,22 @@ class PtradeAPI:
                 return order
         return None
 
-    def get_trades(self) -> list:
+    def get_trades(self, security: str = None) -> list:
         """获取当日成交订单
+
+        Args:
+            security: 股票代码，None表示获取所有成交
 
         Returns:
             成交订单列表
         """
-        # 回测中所有已成交订单都会从open_orders移除，需要单独记录
-        # 这里简化实现，返回空列表
-        return []
+        if not self.context or not self.context.blotter:
+            return []
+
+        filled = getattr(self.context.blotter, 'filled_orders', [])
+        if security is None:
+            return filled
+        return [o for o in filled if o.symbol == security]
 
     def get_position(self, security: str) -> Optional[Position]:
         """获取持仓信息
@@ -1323,6 +1330,24 @@ class PtradeAPI:
         if self.context and self.context.portfolio:
             return self.context.portfolio.positions.get(security)
         return None
+
+    def get_positions(self, security_list: list[str] = None) -> dict[str, Position]:
+        """获取多支股票持仓信息
+
+        Args:
+            security_list: 股票代码列表，None表示获取所有持仓
+
+        Returns:
+            dict: {stock: Position对象}
+        """
+        if not self.context or not self.context.portfolio:
+            return {}
+
+        positions = self.context.portfolio.positions
+        if security_list is None:
+            return positions.copy()
+
+        return {s: positions[s] for s in security_list if s in positions}
 
     def cancel_order(self, order: Any) -> bool:
         """取消订单"""
@@ -1460,6 +1485,45 @@ class PtradeAPI:
         """
         _ = (context, func, time)  # 回测中不执行
         pass
+
+    @validate_lifecycle
+    def set_parameters(self, params: dict) -> None:
+        """设置策略配置参数
+
+        Args:
+            params: dict，策略参数字典
+        """
+        if not hasattr(self.context, 'params'):
+            self.context.params = {}
+        self.context.params.update(params)
+
+    @validate_lifecycle
+    def convert_position_from_csv(self, file_path: str) -> list[dict]:
+        """从CSV文件获取设置底仓的参数列表
+
+        Args:
+            file_path: CSV文件路径
+
+        Returns:
+            list: 持仓列表，格式为 [{'security': 股票代码, 'amount': 数量, 'cost_basis': 成本价}, ...]
+        """
+        df = pd.read_csv(file_path)
+        positions = []
+        for _, row in df.iterrows():
+            positions.append({
+                'security': row.get('security', row.get('stock', row.get('code'))),
+                'amount': int(row.get('amount', row.get('qty', 0))),
+                'cost_basis': float(row.get('cost_basis', row.get('cost', row.get('price', 0))))
+            })
+        return positions
+
+    def get_user_name(self) -> str:
+        """获取登录终端的资金账号
+
+        Returns:
+            str: 资金账号（回测返回模拟账号）
+        """
+        return 'backtest_user'
 
     # ==================== 技术指标API ====================
 
