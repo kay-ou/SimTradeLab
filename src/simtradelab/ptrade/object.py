@@ -47,6 +47,7 @@ def _load_data_chunk(data_dir, data_type, keys_chunk) -> dict[str, Any]:
 
     load_map = {
         'stock': storage.load_stock,
+        'stock_1m': storage.load_stock_1m,
         'valuation': storage.load_valuation,
         'fundamentals': storage.load_fundamentals,
         'exrights': lambda data_dir, k: storage.load_exrights(data_dir, k).get('exrights_events', pd.DataFrame())
@@ -107,6 +108,7 @@ class LazyDataDict:
         # 数据类型到加载方法的映射
         self._load_map = {
             'stock': storage.load_stock,
+            'stock_1m': storage.load_stock_1m,
             'valuation': storage.load_valuation,
             'fundamentals': storage.load_fundamentals,
             'exrights': lambda data_dir, k: storage.load_exrights(data_dir, k).get('exrights_events', pd.DataFrame())

@@ -517,6 +517,14 @@ class PtradeAPI:
             first_df = next(iter(self.values()))
             return first_df.columns
 
+    def _get_data_source(self, frequency: str):
+        """根据frequency获取对应的数据源"""
+        if frequency == '1m':
+            if self.data_context.stock_data_dict_1m is None:
+                raise ValueError("分钟数据未加载，请确保data/stocks_1m/目录存在分钟数据")
+            return self.data_context.stock_data_dict_1m
+        return self.data_context.stock_data_dict
+
     def get_price(self, security: str | list[str], start_date: str = None, end_date: str = None, frequency: str = '1d', fields: str | list[str] = None, fq: str = None, count: int = None) -> pd.DataFrame | PtradeAPI.PanelLike:
         """获取历史行情数据"""
         # 验证fq参数
@@ -535,26 +543,36 @@ class PtradeAPI:
         is_single_stock = isinstance(security, str)
         stocks = [security] if is_single_stock else security
 
+        # 根据frequency选择数据源
+        data_source = self._get_data_source(frequency)
+
         if count is not None:
             end_dt = pd.Timestamp(end_date) if end_date else self.context.current_dt
             result = {}
             for stock in stocks:
-                if stock not in self.data_context.stock_data_dict:
+                if stock not in data_source:
                     continue
 
-                stock_df = self.data_context.stock_data_dict[stock]
+                stock_df = data_source[stock]
                 if not isinstance(stock_df, pd.DataFrame):
                     continue
 
                 try:
-                    date_dict, _ = self.get_stock_date_index(stock)
-                    current_idx = date_dict.get(end_dt)
-                    if current_idx is None:
-                        current_idx = stock_df.index.get_loc(end_dt)
+                    if frequency == '1m':
+                        # 分钟数据：直接使用index查找
+                        idx = stock_df.index.searchsorted(end_dt, side='right') - 1
+                        if idx < 0:
+                            continue
+                        current_idx = idx
+                    else:
+                        date_dict, _ = self.get_stock_date_index(stock)
+                        current_idx = date_dict.get(end_dt)
+                        if current_idx is None:
+                            current_idx = stock_df.index.get_loc(end_dt)
                 except (KeyError, IndexError):
                     continue
 
-                # Ptrade API语义: count=N 返回截止到end_date的N天数据（包含end_date）
+                # Ptrade API语义: count=N 返回截止到end_date的N条数据（包含end_date）
                 slice_df = stock_df.iloc[max(0, current_idx - count + 1):current_idx + 1]
                 result[stock] = slice_df
         else:
@@ -563,10 +581,10 @@ class PtradeAPI:
 
             result = {}
             for stock in stocks:
-                if stock not in self.data_context.stock_data_dict:
+                if stock not in data_source:
                     continue
 
-                stock_df = self.data_context.stock_data_dict[stock]
+                stock_df = data_source[stock]
                 if not isinstance(stock_df, pd.DataFrame):
                     continue
 
@@ -578,7 +596,8 @@ class PtradeAPI:
                 slice_df = stock_df[mask]
                 result[stock] = slice_df
 
-        if fq == 'pre':
+        # 复权处理（仅日线数据支持）
+        if frequency != '1m' and fq == 'pre':
             for stock in list(result.keys()):
                 stock_df = result[stock]
                 if isinstance(stock_df, pd.DataFrame) and not stock_df.empty:
@@ -600,7 +619,7 @@ class PtradeAPI:
                                     ) / adj_a
                             result[stock] = adjusted_df
 
-        if fq == 'post':
+        if frequency != '1m' and fq == 'post':
             for stock in list(result.keys()):
                 stock_df = result[stock]
                 if isinstance(stock_df, pd.DataFrame) and not stock_df.empty:
@@ -668,20 +687,25 @@ class PtradeAPI:
 
         # 缓存键：使用frozen set避免列表顺序问题，但这里保持tuple更快
         field_key = tuple(fields) if len(fields) > 1 else fields[0]
-        cache_key = (tuple(sorted(stocks)), count, field_key, fq, current_dt, include, is_dict)
+        cache_key = (tuple(sorted(stocks)), count, field_key, fq, current_dt, include, is_dict, frequency)
 
         # 检查缓存
         if cache_key in self._history_cache:
             return self._history_cache[cache_key]
 
-        # 优化1: 批量预加载股票数据（减少LazyDataDict的重复加载）
-        stock_dfs = {}
-        stock_data_dict = self.data_context.stock_data_dict
+        # 根据frequency选择数据源
+        if frequency == '1m':
+            stock_data_dict = self._get_data_source(frequency)
+        else:
+            stock_data_dict = self.data_context.stock_data_dict
         benchmark_data = self.data_context.benchmark_data
 
+        # 优化1: 批量预加载股票数据（减少LazyDataDict的重复加载）
+        stock_dfs = {}
+
         for stock in stocks:
-            data_source = stock_data_dict.get(stock)
-            if data_source is None:
+            data_source = stock_data_dict.get(stock) if stock_data_dict else None
+            if data_source is None and frequency != '1m':
                 data_source = benchmark_data.get(stock)
             if data_source is not None:
                 stock_dfs[stock] = data_source
@@ -692,18 +716,26 @@ class PtradeAPI:
             if not isinstance(data_source, pd.DataFrame):
                 continue
             try:
-                date_dict, _ = self.get_stock_date_index(stock)
-                current_idx = date_dict.get(current_dt)
-                if current_idx is None:
-                    current_idx = data_source.index.get_loc(current_dt)
+                if frequency == '1m':
+                    # 分钟数据：使用searchsorted查找
+                    idx = data_source.index.searchsorted(current_dt, side='right') - 1
+                    if idx < 0:
+                        continue
+                    current_idx = idx
+                else:
+                    date_dict, _ = self.get_stock_date_index(stock)
+                    current_idx = date_dict.get(current_dt)
+                    if current_idx is None:
+                        current_idx = data_source.index.get_loc(current_dt)
                 stock_info[stock] = (data_source, current_idx)
             except (KeyError, IndexError):
                 continue
 
         # 优化3+4: 批量切片+复权（减少循环开销）
         result = {}
-        needs_adj_pre = fq == 'pre' and self.data_context.adj_pre_cache
-        needs_adj_post = fq == 'post' and self.data_context.adj_post_cache
+        # 分钟数据不支持复权
+        needs_adj_pre = frequency != '1m' and fq == 'pre' and self.data_context.adj_pre_cache
+        needs_adj_post = frequency != '1m' and fq == 'post' and self.data_context.adj_post_cache
         price_fields = {'open', 'high', 'low', 'close'}  # 预先构建集合,提升查找速度
 
         for stock, (data_source, current_idx) in stock_info.items():

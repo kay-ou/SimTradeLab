@@ -31,13 +31,13 @@ class DataServer:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, required_data=None):
+    def __init__(self, required_data=None, frequency='1d'):
         # 只初始化一次基础结构
         if DataServer._initialized:
             print("使用已加载的数据（常驻内存）")
             # 如果指定了新的数据需求,动态补充加载
             if required_data is not None:
-                self._ensure_data_loaded(required_data)
+                self._ensure_data_loaded(required_data, frequency)
             return
 
         print("=" * 70)
@@ -50,6 +50,7 @@ class DataServer:
         print("数据路径: {}".format(self.data_path))
 
         self.stock_data_dict = None
+        self.stock_data_dict_1m = None
         self.valuation_dict = None
         self.fundamentals_dict = None
         self.exrights_dict = None
@@ -64,15 +65,17 @@ class DataServer:
 
         # 记录已加载的数据类型
         self._loaded_data_types = set()
+        self._frequency = frequency
 
         # 缓存keys避免重复读取
         self._stock_keys_cache = None
+        self._stock_1m_keys_cache = None
         self._valuation_keys_cache = None
         self._fundamentals_keys_cache = None
         self._exrights_keys_cache = None
 
         # 加载数据
-        self._load_data(required_data)
+        self._load_data(required_data, frequency)
 
         # 注册清理函数：进程退出时自动关闭文件
         atexit.register(self._cleanup_on_exit)
@@ -82,7 +85,7 @@ class DataServer:
     def _clear_all_caches(self):
         """清空所有缓存"""
         for cache in [self.valuation_dict, self.fundamentals_dict,
-                      self.stock_data_dict, self.exrights_dict]:
+                      self.stock_data_dict, self.exrights_dict, self.stock_data_dict_1m]:
             if cache is not None:
                 cache.clear_cache()
 
@@ -90,11 +93,12 @@ class DataServer:
         """进程退出时清理资源"""
         pass
 
-    def _load_data(self, required_data=None):
+    def _load_data(self, required_data=None, frequency='1d'):
         """加载数据
 
         Args:
             required_data: 需要加载的数据集合,None表示全部加载
+            frequency: 数据频率 '1d'日线 '1m'分钟线
         """
         # 默认加载全部
         if required_data is None:
@@ -102,12 +106,14 @@ class DataServer:
 
         # 记录需要加载的数据类型
         self._loaded_data_types = required_data
+        self._frequency = frequency
         from ..ptrade import storage
 
         print("正在读取数据...")
 
         # 获取股票列表
         self._stock_keys_cache = storage.list_stocks(self.data_path)
+        self._stock_1m_keys_cache = storage.list_stocks_1m(self.data_path)
         self._valuation_keys_cache = self._stock_keys_cache
         self._fundamentals_keys_cache = self._stock_keys_cache
         self._exrights_keys_cache = self._stock_keys_cache
@@ -162,7 +168,7 @@ class DataServer:
         """加载数据类型"""
         from ..ptrade import storage
 
-        # 股票价格
+        # 股票价格（日线）
         if 'price' in required_data:
             print("\n[1] 股票价格（{}只）...".format(len(self._stock_keys_cache)))
             self.stock_data_dict = LazyDataDict(
@@ -179,6 +185,23 @@ class DataServer:
         else:
             print("\n[1] 股票价格（跳过）")
             self.stock_data_dict = LazyDataDict(self.data_path, 'stock', [], preload=False)
+
+        # 分钟数据（按需加载）
+        if 'price_1m' in required_data and self._stock_1m_keys_cache:
+            print("[1.1] 分钟数据（{}只）...".format(len(self._stock_1m_keys_cache)))
+            self.stock_data_dict_1m = LazyDataDict(
+                self.data_path, 'stock_1m', self._stock_1m_keys_cache,
+                preload=True
+            )
+        else:
+            # 延迟加载模式
+            if self._stock_1m_keys_cache:
+                self.stock_data_dict_1m = LazyDataDict(
+                    self.data_path, 'stock_1m', self._stock_1m_keys_cache,
+                    preload=False
+                )
+            else:
+                self.stock_data_dict_1m = None
 
         # 估值数据
         if 'valuation' in required_data:
@@ -260,17 +283,23 @@ class DataServer:
 
         print("✓ 数据加载完成\n")
 
-    def _ensure_data_loaded(self, required_data):
+    def _ensure_data_loaded(self, required_data, frequency='1d'):
         """确保所需数据已加载,动态补充缺失的数据
 
         Args:
             required_data: 需要的数据集合
+            frequency: 回测频率 '1d'日线 '1m'分钟线
         """
         if not hasattr(self, '_loaded_data_types'):
             self._loaded_data_types = set()
 
         # 计算缺失的数据类型
         missing = set(required_data) - self._loaded_data_types
+
+        # 分钟回测需要加载分钟数据
+        if frequency == '1m' and self.stock_data_dict_1m is None:
+            missing.add('price_1m')
+
         if not missing:
             return
 
@@ -305,6 +334,13 @@ class DataServer:
                 self.data_path, 'exrights', self._exrights_keys_cache,
                 preload=False,
                 max_cache_size=config.cache.exrights_cache_size
+            )
+
+        if 'price_1m' in missing and self._stock_1m_keys_cache is not None:
+            print("  加载分钟数据（{}只）...".format(len(self._stock_1m_keys_cache)))
+            self.stock_data_dict_1m = LazyDataDict(
+                self.data_path, 'stock_1m', self._stock_1m_keys_cache,
+                preload=True
             )
 
         # 更新已加载记录

@@ -31,7 +31,8 @@ class DataContext:
         adj_pre_cache,
         adj_post_cache=None,
         dividend_cache=None,
-        trade_days=None
+        trade_days=None,
+        stock_data_dict_1m=None
     ):
         """初始化数据上下文
 
@@ -48,6 +49,7 @@ class DataContext:
             adj_post_cache: 后复权因子缓存
             dividend_cache: 分红事件缓存
             trade_days: 交易日历（DatetimeIndex）
+            stock_data_dict_1m: 分钟数据字典（LazyDataDict）
         """
         self.stock_data_dict = stock_data_dict
         self.valuation_dict = valuation_dict
@@ -61,6 +63,7 @@ class DataContext:
         self.adj_post_cache = adj_post_cache
         self.dividend_cache = dividend_cache if dividend_cache is not None else {}
         self.trade_days = trade_days
+        self.stock_data_dict_1m = stock_data_dict_1m
 
         # 预解析 stock_metadata 日期列为 Timestamp（优化 get_Ashares 性能）
         if stock_metadata is not None and not stock_metadata.empty:

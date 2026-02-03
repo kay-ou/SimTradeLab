@@ -101,6 +101,7 @@ class Context:
     universe: list[str] = field(default_factory=list)  # 股票池
     benchmark: Optional[str] = None  # 基准
     current_dt: Optional[datetime] = None  # 当前时间
+    frequency: str = '1d'  # 回测频率 '1d'日线 '1m'分钟线
 
     # === 内部配置属性 ===
     _parameters: dict[str, Any] = field(default_factory=dict)  # 策略参数

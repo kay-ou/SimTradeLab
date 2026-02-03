@@ -43,6 +43,7 @@ class StrategyExecutionEngine:
         stats_collector: Any,
         g: Any,
         log: logging.Logger,
+        frequency: str = '1d',
     ):
         """
         初始化策略执行引擎
@@ -53,6 +54,7 @@ class StrategyExecutionEngine:
             stats_collector: 统计收集器
             g: Global对象
             log: 日志对象
+            frequency: 回测频率 '1d'日线 '1m'分钟线
         """
         # 核心组件（外部注入）
         self.context = context
@@ -60,6 +62,7 @@ class StrategyExecutionEngine:
         self.stats_collector = stats_collector
         self.g = g
         self.log = log
+        self.frequency = frequency
 
         # 获取生命周期控制器
         if self.context._lifecycle_controller is None:
@@ -204,13 +207,16 @@ class StrategyExecutionEngine:
         self._is_running = True
 
         try:
-            self.log.info(f"Starting strategy execution: {self._strategy_name}")
+            self.log.info("Starting strategy execution: {}".format(self._strategy_name))
 
             # 1. 执行初始化
             self._execute_initialize()
 
-            # 2. 执行每日循环
-            success = self._run_daily_loop(date_range)
+            # 2. 根据frequency选择循环模式
+            if self.frequency == '1m':
+                success = self._run_minute_loop(date_range)
+            else:
+                success = self._run_daily_loop(date_range)
 
             if success:
                 self.log.info("Strategy execution completed successfully")
@@ -218,7 +224,7 @@ class StrategyExecutionEngine:
             return success
 
         except Exception as e:
-            self.log.error(f"Strategy execution failed: {e}")
+            self.log.error("Strategy execution failed: {}".format(e))
             traceback.print_exc()
             return False
 
@@ -284,6 +290,97 @@ class StrategyExecutionEngine:
             self.stats_collector.collect_post_trading(self.context, prev_portfolio_value)
 
         return True
+
+    def _run_minute_loop(self, date_range) -> bool:
+        """执行分钟级回测循环
+
+        Args:
+            date_range: 交易日序列
+
+        Returns:
+            是否成功完成所有交易日
+        """
+        from datetime import timedelta
+        from simtradelab.ptrade.object import Data
+        from simtradelab.ptrade.cache_manager import cache_manager
+        from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
+
+        for current_date in date_range:
+            # 更新日期上下文（设为开盘时间）
+            self.context.current_dt = current_date
+            self.context.blotter.current_dt = current_date
+
+            # 使用API获取真正的前一交易日
+            prev_trade_day = self.api.get_trading_day(-1)
+            if prev_trade_day:
+                self.context.previous_date = prev_trade_day
+            else:
+                self.context.previous_date = (current_date - timedelta(days=1)).date()
+
+            # 清理全局缓存
+            cache_manager.clear_daily_cache(current_date)
+
+            # 记录交易前状态
+            prev_portfolio_value = self.context.portfolio.portfolio_value
+            prev_cash = self.context.portfolio._cash
+
+            # 收集交易前统计
+            self.stats_collector.collect_pre_trading(self.context, current_date)
+
+            # 构造data对象
+            data = Data(current_date, self.context.portfolio._bt_ctx)
+
+            # 1. before_trading_start（每日一次，开盘前）
+            if not self._safe_call('before_trading_start', LifecyclePhase.BEFORE_TRADING_START, data):
+                return False
+
+            # 2. handle_data（分钟级调用）
+            minute_bars = self._get_minute_bars(current_date)
+            for minute_dt in minute_bars:
+                self.context.current_dt = minute_dt
+                data = Data(minute_dt, self.context.portfolio._bt_ctx)
+                if not self._safe_call('handle_data', LifecyclePhase.HANDLE_DATA, data):
+                    return False
+
+            # 3. after_trading_end（每日一次，收盘后）
+            self.context.current_dt = current_date.replace(hour=15, minute=0, second=0)
+            data = Data(self.context.current_dt, self.context.portfolio._bt_ctx)
+            self._safe_call('after_trading_end', LifecyclePhase.AFTER_TRADING_END, data, allow_fail=True)
+
+            # 处理分红事件
+            self._process_dividend_events(current_date)
+
+            # 收集交易金额
+            current_cash = self.context.portfolio._cash
+            self.stats_collector.collect_trading_amounts(prev_cash, current_cash)
+
+            # 收集交易后统计
+            self.stats_collector.collect_post_trading(self.context, prev_portfolio_value)
+
+        return True
+
+    def _get_minute_bars(self, trade_date):
+        """生成交易日分钟时间序列
+
+        Args:
+            trade_date: 交易日
+
+        Returns:
+            分钟时间戳列表
+        """
+        import pandas as pd
+
+        # A股交易时间: 9:30-11:30, 13:00-15:00
+        morning_start = trade_date.replace(hour=9, minute=30, second=0, microsecond=0)
+        morning_end = trade_date.replace(hour=11, minute=30, second=0, microsecond=0)
+        afternoon_start = trade_date.replace(hour=13, minute=0, second=0, microsecond=0)
+        afternoon_end = trade_date.replace(hour=15, minute=0, second=0, microsecond=0)
+
+        # 生成分钟序列
+        morning_bars = pd.date_range(morning_start, morning_end, freq='1min')
+        afternoon_bars = pd.date_range(afternoon_start, afternoon_end, freq='1min')
+
+        return list(morning_bars) + list(afternoon_bars)
 
     def _execute_lifecycle(self, data) -> bool:
         """执行策略生命周期方法
