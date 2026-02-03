@@ -41,6 +41,9 @@ class BacktestConfig(BaseModel):
     initial_capital: float = Field(default=100000.0, gt=0, description="初始资金必须大于0")
     use_data_server: bool = True
 
+    # 回测频率配置
+    frequency: str = Field(default='1d', description="回测频率: '1d'日线, '1m'分钟线")
+
     # 性能优化配置
     enable_multiprocessing: bool = True
     num_workers: Optional[int] = Field(default=None, ge=1, description="多进程worker数量")

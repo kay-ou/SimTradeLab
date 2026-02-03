@@ -204,3 +204,24 @@ def list_stocks(data_dir):
 
     parquet_files = list(stocks_dir.glob('*.parquet'))
     return [f.stem for f in parquet_files]
+
+
+def load_stock_1m(data_dir, symbol):
+    """加载分钟线数据"""
+    parquet_file = Path(data_dir) / 'stocks_1m' / (symbol + '.parquet')
+    if parquet_file.exists():
+        df = pd.read_parquet(parquet_file)
+        if not df.empty and 'datetime' in df.columns:
+            df.set_index('datetime', inplace=True)
+        return df
+    return pd.DataFrame()
+
+
+def list_stocks_1m(data_dir):
+    """列出所有可用的分钟数据股票代码"""
+    stocks_dir = Path(data_dir) / 'stocks_1m'
+    if not stocks_dir.exists():
+        return []
+
+    parquet_files = list(stocks_dir.glob('*.parquet'))
+    return [f.stem for f in parquet_files]

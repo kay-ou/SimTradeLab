@@ -40,6 +40,7 @@ class BacktestRunner:
         # 数据容器（延迟加载）
         self._data_loaded = False
         self.stock_data_dict = None
+        self.stock_data_dict_1m = None
         self.valuation_dict = None
         self.fundamentals_dict = None
         self.exrights_dict = None
@@ -105,7 +106,7 @@ class BacktestRunner:
 
         try:
             # 加载数据
-            benchmark_df = self._load_data(required_data)
+            benchmark_df = self._load_data(required_data, config.frequency)
 
             # 创建全局对象（每次run都新建，避免状态污染）
             g = Global()
@@ -137,7 +138,8 @@ class BacktestRunner:
                 api=api,
                 stats_collector=stats_collector,
                 g=g,
-                log=log
+                log=log,
+                frequency=config.frequency
             )
 
             # 加载策略
@@ -166,11 +168,12 @@ class BacktestRunner:
             self._cleanup()
 
     @timer(name="数据加载")
-    def _load_data(self, required_data=None) -> pd.DataFrame:
+    def _load_data(self, required_data=None, frequency='1d') -> pd.DataFrame:
         """加载数据
 
         Args:
             required_data: 需要加载的数据集合
+            frequency: 回测频率 '1d'日线 '1m'分钟线
 
         Returns:
             基准数据DataFrame
@@ -182,10 +185,11 @@ class BacktestRunner:
             return next(iter(self.benchmark_data.values())) # type: ignore
 
         # 使用多进程安全的DataServer
-        data_server = DataServer(required_data)
+        data_server = DataServer(required_data, frequency)
 
         # 绑定到runner实例
         self.stock_data_dict = data_server.stock_data_dict
+        self.stock_data_dict_1m = data_server.stock_data_dict_1m
         self.valuation_dict = data_server.valuation_dict
         self.fundamentals_dict = data_server.fundamentals_dict
         self.exrights_dict = data_server.exrights_dict
@@ -255,7 +259,8 @@ class BacktestRunner:
 
         # 创建组合和上下文
         portfolio = Portfolio(config.initial_capital)
-        context = Context(portfolio=portfolio, current_dt=start_date)
+        context = Context(portfolio=portfolio, current_dt=start_date,
+                          frequency=config.frequency)
 
         # 设置portfolio的context引用
         portfolio._context = context
@@ -273,7 +278,8 @@ class BacktestRunner:
             adj_pre_cache=self.adj_pre_cache,
             adj_post_cache=self.adj_post_cache,
             dividend_cache=self.dividend_cache,
-            trade_days=self.trade_days
+            trade_days=self.trade_days,
+            stock_data_dict_1m=self.stock_data_dict_1m
         )
 
         # 创建API

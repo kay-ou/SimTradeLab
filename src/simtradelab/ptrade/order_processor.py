@@ -60,18 +60,34 @@ class OrderProcessor:
         if limit_price is not None:
             base_price = limit_price
         else:
-            if stock not in self.data_context.stock_data_dict:
+            # 根据frequency选择数据源
+            frequency = getattr(self.context, 'frequency', '1d')
+            if frequency == '1m' and self.data_context.stock_data_dict_1m is not None:
+                data_source = self.data_context.stock_data_dict_1m
+            else:
+                data_source = self.data_context.stock_data_dict
+
+            if stock not in data_source:
                 return None
 
-            stock_df = self.data_context.stock_data_dict[stock]
+            stock_df = data_source[stock]
             if not isinstance(stock_df, pd.DataFrame):
                 return None
 
             try:
-                date_dict, _ = self.get_stock_date_index(stock)
-                idx = date_dict.get(self.context.current_dt)
-                if idx is None:
-                    idx = stock_df.index.get_loc(self.context.current_dt)
+                current_dt = self.context.current_dt
+                if frequency == '1m':
+                    # 分钟数据：使用searchsorted查找最近的时间点
+                    idx = stock_df.index.searchsorted(current_dt, side='right') - 1
+                    if idx < 0:
+                        return None
+                else:
+                    # 日线数据：使用date_dict查找
+                    date_dict, _ = self.get_stock_date_index(stock)
+                    idx = date_dict.get(current_dt)
+                    if idx is None:
+                        idx = stock_df.index.get_loc(current_dt)
+
                 price = stock_df.iloc[idx]['close']
 
                 # 转换为标量值
