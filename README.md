@@ -18,7 +18,7 @@
 SimTradeLab（深测Lab） 是一个由社区独立开发的开源策略回测框架，灵感来源于 PTrade 的事件驱动架构。它具备完全自主的实现与出色的扩展能力，为策略开发者提供一个轻量级、结构清晰、模块可插拔的策略验证环境。框架无需依赖 PTrade 即可独立运行，但与其语法保持高度兼容。所有在 SimTradeLab 中编写的策略可无缝迁移至 PTrade 平台，反之亦然，两者之间的 API 可直接互通使用。详情参考：https://github.com/kay-ou/ptradeAPI 项目。
 
 **核心特性：**
-- ✅ **46个回测/研究API** - 股票日线回测场景100%覆盖（PTrade总API覆盖率31%）
+- ✅ **46个回测/研究API** - 股票日/分钟线回测场景100%覆盖
 - ⚡ **20-30倍性能提升** - 本地回测比PTrade平台快20-30倍
 - 🚀 **数据常驻内存** - 单例模式，首次加载后常驻，二次运行秒级启动
 - 💾 **多级智能缓存** - LRU缓存（MA/VWAP/复权/历史数据），命中率>95%
@@ -59,9 +59,12 @@ pip install simtradelab[optimizer]
 将数据文件放到 `data/` 目录：
 ```
 data/
-├── price/               # 股票价格数据
-├── fundamentals/        # 基本面数据
-└── exrights/            # 除权除息数据
+├── stocks/              # 股票日线数据
+├── stocks_1m/           # 股票分钟数据（分钟回测需要）
+├── valuation/           # 估值数据
+├── fundamentals/        # 财务数据
+├── exrights/            # 除权数据
+└── metadata/            # 元数据
 ```
 
 **数据获取：** 推荐使用 [SimTradeData](https://github.com/kay-ou/SimTradeData) 项目获取A股历史数据
@@ -77,7 +80,7 @@ def initialize(context):
     context.stocks = ['600519.SS', '000858.SZ']
 
 def handle_data(context, data):
-    """每日交易逻辑"""
+    """交易逻辑（日线每日调用，分钟线每分钟调用）"""
     for stock in context.stocks:
         hist = get_history(20, '1d', 'close', [stock], is_dict=True)
         if stock not in hist:
@@ -105,14 +108,18 @@ def handle_data(context, data):
 ```python
 # run_backtest.py
 from simtradelab.backtest.runner import BacktestRunner
+from simtradelab.backtest.config import BacktestConfig
 
-runner = BacktestRunner()
-runner.run(
+config = BacktestConfig(
     strategy_name='my_strategy',
     start_date='2024-01-01',
     end_date='2024-12-31',
-    initial_capital=1000000.0
+    initial_capital=1000000.0,
+    frequency='1d'  # '1d'日线回测（默认），'1m'分钟回测
 )
+
+runner = BacktestRunner()
+runner.run(config=config)
 ```
 
 执行：
@@ -211,7 +218,7 @@ stocks = api.get_index_stocks('000300.SS', date='2024-01-01')
 ```
 SimTradeLab/
 ├── src/simtradelab/
-│   ├── ptrade/          # PTrade API模拟层（52个核心API）
+│   ├── ptrade/          # PTrade API模拟层（日/分钟线100%覆盖回测场景API）
 │   ├── backtest/        # 回测引擎（统计、优化、配置）
 │   ├── research/        # Research模式（无生命周期限制）
 │   ├── service/         # 核心服务（数据常驻）
@@ -249,10 +256,9 @@ SimTradeLab/
 ## 🚧 待改进与已知问题
 
 ### 主要限制
-- ❌ 不支持分钟线数据（仅日线）
 - ❌ 不支持实盘交易（仅回测）
 - ⚠️ 测试覆盖不全面（策略驱动测试中）
-- ⏳ 99个PTrade API未实现（融资融券、期货、期权等）
+- ⏳ 实盘PTrade API未实现（融资融券、期货、期权等）
 
 ### 计划改进
 - 🔧 命令行工具（目前需要修改Python文件）
@@ -267,8 +273,24 @@ SimTradeLab/
 
 **Q: 如何修改初始资金？**
 ```python
-runner.run(initial_capital=2000000.0)  # 修改这里
+config = BacktestConfig(
+    strategy_name='my_strategy',
+    start_date='2024-01-01',
+    end_date='2024-12-31',
+    initial_capital=2000000.0  # 修改这里
+)
 ```
+
+**Q: 如何使用分钟回测？**
+```python
+config = BacktestConfig(
+    strategy_name='my_strategy',
+    start_date='2024-01-01',
+    end_date='2024-12-31',
+    frequency='1m'  # 设置为分钟回测
+)
+```
+注意：分钟回测需要在 `data/stocks_1m/` 目录下准备分钟数据。
 
 **Q: 回测太慢怎么办？**
 - 减少股票数量或缩短回测时间
@@ -284,7 +306,7 @@ runner.run(initial_capital=2000000.0)  # 修改这里
 可能是缓存问题，尝试清理并重建：
 ```bash
 cd data
-rm -rf .keys_cache/ ptrade_adj_pre.h5 ptrade_dividend_cache.h5
+rm -rf .keys_cache/
 ```
 详见 [INSTALLATION.md - Q7](docs/INSTALLATION.md#q7-数据加载异常或缓存问题)
 
