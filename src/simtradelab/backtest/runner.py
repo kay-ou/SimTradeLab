@@ -19,7 +19,8 @@ import logging
 import os
 
 from simtradelab.ptrade.context import Context
-from simtradelab.ptrade.object import Global, Portfolio, BacktestContext
+from simtradelab.ptrade.object import Portfolio, BacktestContext
+from simtradelab.ptrade.config_manager import config as ptrade_config
 from simtradelab.backtest.stats import generate_backtest_report, generate_backtest_charts, print_backtest_report
 from simtradelab.ptrade.api import PtradeAPI
 from simtradelab.service.data_server import DataServer
@@ -77,7 +78,7 @@ class BacktestRunner:
         if not is_valid:
             print("\n策略验证失败:")
             for error in errors:
-                print("  - {}".format(error))
+                print(f"  - {error}")
             return {}
         if fixed_code:
             print("已自动修复Python 3.5兼容性问题")
@@ -108,9 +109,6 @@ class BacktestRunner:
             # 加载数据
             benchmark_df = self._load_data(required_data, config.frequency)
 
-            # 创建全局对象（每次run都新建，避免状态污染）
-            g = Global()
-
             # 初始化日志
             self._setup_logging(config)
             log = logging.getLogger('backtest')
@@ -137,7 +135,6 @@ class BacktestRunner:
                 context=context,
                 api=api,
                 stats_collector=stats_collector,
-                g=g,
                 log=log,
                 frequency=config.frequency
             )
@@ -256,6 +253,9 @@ class BacktestRunner:
             (Context, PtradeAPI) 元组
         """
         from simtradelab.ptrade.data_context import DataContext
+
+        # 重置全局交易配置，避免前次回测的残留设置污染本次回测
+        ptrade_config.reset_to_defaults()
 
         # 创建组合和上下文
         portfolio = Portfolio(config.initial_capital)

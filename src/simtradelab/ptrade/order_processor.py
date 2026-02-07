@@ -102,8 +102,8 @@ class OrderProcessor:
                 return None
 
         # 获取滑点配置
-        slippage = getattr(self.context, 'slippage', config.trading.slippage)
-        fixed_slippage = getattr(self.context, 'fixed_slippage', config.trading.fixed_slippage)
+        slippage = config.trading.slippage
+        fixed_slippage = config.trading.fixed_slippage
 
         # 计算滑点金额
         if slippage > 0:
@@ -138,10 +138,10 @@ class OrderProcessor:
             是否可交易
         """
         if delta > 0 and limit_status == 1:
-            self.log.warning("【订单失败】{} | 原因: 涨停买不进".format(stock))
+            self.log.warning(f"【订单失败】{stock} | 原因: 涨停买不进")
             return False
         elif delta < 0 and limit_status == -1:
-            self.log.warning("【订单失败】{} | 原因: 跌停卖不出".format(stock))
+            self.log.warning(f"【订单失败】{stock} | 原因: 跌停卖不出")
             return False
         return True
 
@@ -177,8 +177,8 @@ class OrderProcessor:
         Returns:
             手续费总额
         """
-        commission_ratio = getattr(self.context, 'commission_ratio', config.trading.commission_ratio)
-        min_commission = getattr(self.context, 'min_commission', config.trading.min_commission)
+        commission_ratio = config.trading.commission_ratio
+        min_commission = config.trading.min_commission
 
         # 如果手续费率为0，则完全不收手续费
         if commission_ratio == 0:
@@ -187,16 +187,14 @@ class OrderProcessor:
         value = amount * price
         # 佣金费
         broker_fee = max(value * commission_ratio, min_commission)
-        # 经手费率：万分之0.487
-        transfer_fee = value * 0.0000487
+        # 经手费
+        transfer_fee = value * config.trading.transfer_fee_rate
 
         commission = broker_fee + transfer_fee
 
         # 印花税(仅卖出时收取)
         if is_sell:
-            tax_rate = getattr(self.context, 'tax_rate', 0.001)
-            tax = value * tax_rate
-            commission += tax
+            commission += value * config.trading.stamp_tax_rate
 
         return commission
 
@@ -216,8 +214,7 @@ class OrderProcessor:
         total_cost = cost + commission
 
         if total_cost > self.context.portfolio._cash:
-            self.log.warning("【买入失败】{} | 原因: 现金不足 (需要{:.2f}, 可用{:.2f})".format(
-                stock, total_cost, self.context.portfolio._cash))
+            self.log.warning(f"【买入失败】{stock} | 原因: 现金不足 (需要{total_cost:.2f}, 可用{self.context.portfolio._cash:.2f})")
             return False
 
         self.context.portfolio._cash -= total_cost
@@ -244,14 +241,13 @@ class OrderProcessor:
             是否成功
         """
         if stock not in self.context.portfolio.positions:
-            self.log.warning("【卖出失败】{} | 原因: 无持仓".format(stock))
+            self.log.warning(f"【卖出失败】{stock} | 原因: 无持仓")
             return False
 
         position = self.context.portfolio.positions[stock]
 
         if position.amount < amount:
-            self.log.warning("【卖出失败】{} | 原因: 持仓不足 (持有{}, 尝试卖出{})".format(
-                stock, position.amount, amount))
+            self.log.warning(f"【卖出失败】{stock} | 原因: 持仓不足 (持有{position.amount}, 尝试卖出{amount})")
             return False
 
         # 计算手续费
@@ -281,9 +277,9 @@ class OrderProcessor:
 
         # 日志
         if tax_adjustment > 0:
-            self.log.info("📊分红税 | {} | 补税{:.2f}元".format(stock, tax_adjustment))
+            self.log.info(f"📊分红税 | {stock} | 补税{tax_adjustment:.2f}元")
         elif tax_adjustment < 0:
-            self.log.info("📊分红税 | {} | 退税{:.2f}元".format(stock, -tax_adjustment))
+            self.log.info(f"📊分红税 | {stock} | 退税{-tax_adjustment:.2f}元")
 
         return True
 
@@ -303,7 +299,7 @@ class OrderProcessor:
         # 1. 获取执行价格
         price = self.get_execution_price(stock, limit_price)
         if price is None:
-            self.log.warning("【订单失败】{} | 原因: 无法获取价格".format(stock))
+            self.log.warning(f"【订单失败】{stock} | 原因: 无法获取价格")
             return False
 
         # 2. 计算交易数量

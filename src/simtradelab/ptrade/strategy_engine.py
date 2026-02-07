@@ -41,7 +41,6 @@ class StrategyExecutionEngine:
         context: Context,
         api: Any,
         stats_collector: Any,
-        g: Any,
         log: logging.Logger,
         frequency: str = '1d',
     ):
@@ -52,7 +51,6 @@ class StrategyExecutionEngine:
             context: PTrade Context对象
             api: PtradeAPI对象
             stats_collector: 统计收集器
-            g: Global对象
             log: 日志对象
             frequency: 回测频率 '1d'日线 '1m'分钟线
         """
@@ -60,7 +58,6 @@ class StrategyExecutionEngine:
         self.context = context
         self.api = api
         self.stats_collector = stats_collector
-        self.g = g
         self.log = log
         self.frequency = frequency
 
@@ -91,7 +88,7 @@ class StrategyExecutionEngine:
         strategy_namespace = {
             '__name__': '__main__',
             '__file__': strategy_path,
-            'g': self.g,
+            'g': self.context.g,
             'log': self.log,
             'context': self.context,
         }
@@ -133,45 +130,38 @@ class StrategyExecutionEngine:
     def register_initialize(self, func: Callable[[Context], None]) -> None:
         """注册initialize函数"""
         self._strategy_functions["initialize"] = func
-        self.context.register_initialize(func)
 
     def register_handle_data(self, func: Callable[[Context, Any], None]) -> None:
         """注册handle_data函数"""
         self._strategy_functions["handle_data"] = func
-        self.context.register_handle_data(func)
 
     def register_before_trading_start(
         self, func: Callable[[Context, Any], None]
     ) -> None:
         """注册before_trading_start函数"""
         self._strategy_functions["before_trading_start"] = func
-        self.context.register_before_trading_start(func)
 
     def register_after_trading_end(
         self, func: Callable[[Context, Any], None]
     ) -> None:
         """注册after_trading_end函数"""
         self._strategy_functions["after_trading_end"] = func
-        self.context.register_after_trading_end(func)
 
     def register_tick_data(self, func: Callable[[Context, Any], None]) -> None:
         """注册tick_data函数"""
         self._strategy_functions["tick_data"] = func
-        self.context.register_tick_data(func)
 
     def register_on_order_response(
         self, func: Callable[[Context, Any], None]
     ) -> None:
         """注册on_order_response函数"""
         self._strategy_functions["on_order_response"] = func
-        self.context.register_on_order_response(func)
 
     def register_on_trade_response(
         self, func: Callable[[Context, Any], None]
     ) -> None:
         """注册on_trade_response函数"""
         self._strategy_functions["on_trade_response"] = func
-        self.context.register_on_trade_response(func)
 
     # ==========================================
     # PTrade API 代理接口
@@ -207,7 +197,7 @@ class StrategyExecutionEngine:
         self._is_running = True
 
         try:
-            self.log.info("Starting strategy execution: {}".format(self._strategy_name))
+            self.log.info(f"Starting strategy execution: {self._strategy_name}")
 
             # 1. 执行初始化
             self._execute_initialize()
@@ -224,7 +214,7 @@ class StrategyExecutionEngine:
             return success
 
         except Exception as e:
-            self.log.error("Strategy execution failed: {}".format(e))
+            self.log.error(f"Strategy execution failed: {e}")
             traceback.print_exc()
             return False
 
@@ -233,8 +223,12 @@ class StrategyExecutionEngine:
 
     def _execute_initialize(self) -> None:
         """执行初始化阶段"""
+        from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
+
         self.log.info("Executing initialize phase")
-        self.context.execute_initialize()
+        self.lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+        self._strategy_functions["initialize"](self.context)
+        self.context.initialized = True
 
     def _run_daily_loop(self, date_range) -> bool:
         """执行每日回测循环
@@ -272,15 +266,15 @@ class StrategyExecutionEngine:
             # 收集交易前统计
             self.stats_collector.collect_pre_trading(self.context, current_date)
 
+            # 处理除权除息事件（在策略执行前）
+            self._process_dividend_events(current_date)
+
             # 构造data对象
             data = Data(current_date, self.context.portfolio._bt_ctx)
 
             # 执行策略生命周期
             if not self._execute_lifecycle(data):
                 return False
-
-            # 处理分红事件（在生命周期执行完、订单成交后）
-            self._process_dividend_events(current_date)
 
             # 收集交易金额
             current_cash = self.context.portfolio._cash
@@ -327,6 +321,9 @@ class StrategyExecutionEngine:
             # 收集交易前统计
             self.stats_collector.collect_pre_trading(self.context, current_date)
 
+            # 处理除权除息事件（在策略执行前）
+            self._process_dividend_events(current_date)
+
             # 构造data对象
             data = Data(current_date, self.context.portfolio._bt_ctx)
 
@@ -346,9 +343,6 @@ class StrategyExecutionEngine:
             self.context.current_dt = current_date.replace(hour=15, minute=0, second=0)
             data = Data(self.context.current_dt, self.context.portfolio._bt_ctx)
             self._safe_call('after_trading_end', LifecyclePhase.AFTER_TRADING_END, data, allow_fail=True)
-
-            # 处理分红事件
-            self._process_dividend_events(current_date)
 
             # 收集交易金额
             current_cash = self.context.portfolio._cash
@@ -445,25 +439,39 @@ class StrategyExecutionEngine:
             return allow_fail
 
     def _process_dividend_events(self, current_date):
-        """处理分红事件
+        """处理除权除息事件
 
         Args:
             current_date: 当前交易日
 
-        分红处理逻辑：
-        1. 分红到账时全额到账（不扣税）
-        2. 记录每批次的分红金额
-        3. 卖出时根据持股时间（FIFO）计算并扣除分红税
+        处理逻辑：
+        1. 送股/配股: 调整持仓数量
+        2. 现金分红: 到账（预扣税20%）
         """
         try:
             date_str = current_date.strftime('%Y%m%d')
 
-            # 遍历所有持仓股票
             for stock_code, position in self.context.portfolio.positions.items():
                 if position.amount <= 0:
                     continue
 
-                # 从缓存中查找分红
+                # 分红和送股都基于登记日（前一天）的持股数
+                original_amount = position.amount
+
+                # 检查除权事件（送股/配股）
+                exrights_df = self.api.data_context.exrights_dict.get(stock_code)
+                if exrights_df is not None and not exrights_df.empty:
+                    date_key = int(date_str) if exrights_df.index.dtype in ('int64', 'int32') else current_date
+                    if date_key in exrights_df.index:
+                        event = exrights_df.loc[date_key]
+                        allotted = float(event.get('allotted_ps', 0) or 0)
+                        if allotted > 0:
+                            new_amount = int(original_amount * (1 + allotted))
+                            position.amount = new_amount
+                            position.enable_amount = new_amount
+                            self.context.portfolio._invalidate_cache()
+
+                # 现金分红（按登记日股数计算）
                 if stock_code not in self.api.data_context.dividend_cache:
                     continue
 
@@ -471,33 +479,18 @@ class StrategyExecutionEngine:
                 if date_str not in stock_dividends:
                     continue
 
-                # 获取税前分红金额（每股）
                 dividend_per_share_before_tax = stock_dividends[date_str]
-
-                # 预扣税率20%（保守估计）
                 pre_tax_rate = 0.20
                 dividend_per_share_after_tax = dividend_per_share_before_tax * (1 - pre_tax_rate)
-                total_dividend_after_tax = dividend_per_share_after_tax * position.amount
+                total_dividend_after_tax = dividend_per_share_after_tax * original_amount
 
                 if total_dividend_after_tax > 0:
-                    # 税后金额到账
-                    old_cash = self.context.portfolio._cash
                     self.context.portfolio._cash += total_dividend_after_tax
                     self.context.portfolio._invalidate_cache()
-
-                    # 记录分红到批次（用于卖出时税务调整）
                     self.context.portfolio.add_dividend(stock_code, dividend_per_share_before_tax)
 
-                    self.log.info(
-                        f"💰分红 | {stock_code} | {position.amount}股 | "
-                        f"税前{dividend_per_share_before_tax:.4f}元/股 | 预扣税率{pre_tax_rate:.0%} | "
-                        f"到账{total_dividend_after_tax:.2f}元 | "
-                        f"现金: {old_cash:.2f} → {self.context.portfolio._cash:.2f}"
-                    )
-
         except Exception as e:
-            self.log.warning(f"分红处理失败: {e}")
-            import traceback
+            self.log.warning(f"除权除息处理失败: {e}")
             traceback.print_exc()
 
     # ==========================================

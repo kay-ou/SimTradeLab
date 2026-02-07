@@ -29,10 +29,9 @@ def _calculate_adj_factors_from_events(stock, stock_df, exrights_events):
     - 最新的价格不变 (adj_a=1, adj_b=0)
     - 越往过去，调整幅度越大
 
-    除权除息调整规则（从最新往历史回推）：
-    每遇到一个除权日，该日期之前的价格需要调整:
-    - adj_a[旧] = adj_a[新] × (1 + allotted_ps + rationed_ps)
-    - adj_b[旧] = adj_b[新] × (1 + allotted_ps + rationed_ps) + bonus_ps - rationed_ps × rationed_px
+    如果除权数据包含平台预计算的 exer_forward_a/b，直接使用（精度更高）。
+    平台公式: P_adj = exer_forward_a * P + exer_forward_b
+    转换关系: adj_a = 1/exer_forward_a, adj_b = -exer_forward_b/exer_forward_a
     """
     if stock_df is None or stock_df.empty:
         return None
@@ -48,33 +47,48 @@ def _calculate_adj_factors_from_events(stock, stock_df, exrights_events):
     try:
         ex_dates_int = exrights_events.index.tolist()
         ex_dates_dt = pd.to_datetime(ex_dates_int, format="%Y%m%d")
+        n_events = len(ex_dates_int)
 
-        # 获取除权除息数据
-        allotted_ps = exrights_events["allotted_ps"].values  # 送转股比例
-        bonus_ps = exrights_events["bonus_ps"].values  # 现金分红(元/股)
-        rationed_ps = exrights_events["rationed_ps"].values  # 配股比例
-        rationed_px = exrights_events["rationed_px"].values  # 配股价格
+        has_platform_factors = (
+            'exer_forward_a' in exrights_events.columns
+            and exrights_events['exer_forward_a'].notna().all()
+        )
 
-        # 计算每个除权日之后的前复权因子
-        n_events = len(allotted_ps)
-        forward_a_array = np.ones(n_events + 1, dtype="float64")
-        forward_b_array = np.zeros(n_events + 1, dtype="float64")
+        if has_platform_factors:
+            # 直接使用平台预计算的前复权因子
+            ef_a = exrights_events['exer_forward_a'].values
+            ef_b = exrights_events['exer_forward_b'].values
 
-        # 最新时刻(index=n_events): 不调整
-        forward_a_array[n_events] = 1.0
-        forward_b_array[n_events] = 0.0
+            forward_a_array = np.empty(n_events + 1, dtype="float64")
+            forward_b_array = np.empty(n_events + 1, dtype="float64")
 
-        # 从最新往历史回推计算前复权因子
-        for i in range(n_events - 1, -1, -1):
-            total_ratio = allotted_ps[i] + rationed_ps[i]
-            multiplier = 1.0 + total_ratio
+            for i in range(n_events):
+                forward_a_array[i] = 1.0 / ef_a[i]
+                forward_b_array[i] = -ef_b[i] / ef_a[i]
 
-            forward_a_array[i] = forward_a_array[i + 1] * multiplier
-            forward_b_array[i] = (
-                forward_b_array[i + 1] * multiplier
-                + bonus_ps[i]
-                - rationed_ps[i] * rationed_px[i]
-            )
+            # 最新时刻不调整
+            forward_a_array[n_events] = 1.0
+            forward_b_array[n_events] = 0.0
+        else:
+            # 从原始事件计算
+            allotted_ps = exrights_events["allotted_ps"].values
+            bonus_ps = exrights_events["bonus_ps"].values
+            rationed_ps = exrights_events["rationed_ps"].values
+            rationed_px = exrights_events["rationed_px"].values
+
+            forward_a_array = np.ones(n_events + 1, dtype="float64")
+            forward_b_array = np.zeros(n_events + 1, dtype="float64")
+
+            for i in range(n_events - 1, -1, -1):
+                total_ratio = allotted_ps[i] + rationed_ps[i]
+                multiplier = 1.0 + total_ratio
+
+                forward_a_array[i] = forward_a_array[i + 1] * multiplier
+                forward_b_array[i] = (
+                    forward_b_array[i + 1] * multiplier
+                    + bonus_ps[i]
+                    - rationed_ps[i] * rationed_px[i]
+                )
 
         # 向量化操作
         trade_dates_np = stock_df.index.values
@@ -97,13 +111,13 @@ def _calculate_adj_factors_from_events(stock, stock_df, exrights_events):
     except (ValueError, KeyError, IndexError, pd.errors.EmptyDataError) as e:
         import logging
         logger = logging.getLogger(__name__)
-        logger.error("计算 {} 前复权因子失败: {}".format(stock, e))
+        logger.error(f"计算 {stock} 前复权因子失败: {e}")
         return None
     except Exception as e:
         import logging
         import traceback
         logger = logging.getLogger(__name__)
-        logger.error("计算 {} 前复权因子失败: {}".format(stock, e))
+        logger.error(f"计算 {stock} 前复权因子失败: {e}")
         logger.debug(traceback.format_exc())
         return None
 
@@ -181,11 +195,9 @@ def create_adj_pre_cache(data_context):
                 if not ex_df.empty:
                     exrights_cache[stock] = ex_df
 
-        logger.info("    已加载 {} 只股票的除权数据".format(len(exrights_cache)))
+        logger.info(f"    已加载 {len(exrights_cache)} 只股票的除权数据")
 
-        logger.info("  并行计算前复权因子({} 进程)...".format(
-            num_workers if num_workers > 0 else "auto"
-        ))
+        logger.info(f"  并行计算前复权因子({num_workers if num_workers > 0 else 'auto'} 进程)...")
 
         results = Parallel(n_jobs=num_workers, backend="loky", verbose=0)(
             delayed(_calculate_adj_factors_from_events)(
@@ -212,17 +224,17 @@ def create_adj_pre_cache(data_context):
         file_size = os.path.getsize(ADJ_PRE_CACHE_PATH) / 1024 / 1024
 
         logger.info("✓ 前复权因子缓存创建完成！")
-        logger.info("  处理: {} 只股票".format(total_stocks))
-        logger.info("  保存: {} 只（有除权数据或价格数据）".format(saved_count))
+        logger.info(f"  处理: {total_stocks} 只股票")
+        logger.info(f"  保存: {saved_count} 只（有除权数据或价格数据）")
         if failed_stocks:
-            logger.warning("  失败股票: {} 只".format(len(failed_stocks)))
-        logger.info("  文件: {} ({:.1f}MB)".format(ADJ_PRE_CACHE_PATH, file_size))
+            logger.warning(f"  失败股票: {len(failed_stocks)} 只")
+        logger.info(f"  文件: {ADJ_PRE_CACHE_PATH} ({file_size:.1f}MB)")
 
     except OSError as e:
-        logger.error("创建前复权因子缓存失败: {}".format(e))
+        logger.error(f"创建前复权因子缓存失败: {e}")
         raise
     except Exception as e:
-        logger.error("创建前复权因子缓存时发生未预期错误: {}".format(e))
+        logger.error(f"创建前复权因子缓存时发生未预期错误: {e}")
         import traceback
         logger.debug(traceback.format_exc())
         raise
@@ -241,7 +253,7 @@ def load_adj_pre_cache(data_context):
         try:
             create_adj_pre_cache(data_context)
         except Exception as e:
-            logger.error("创建前复权因子缓存失败: {}".format(e))
+            logger.error(f"创建前复权因子缓存失败: {e}")
             raise
 
     logger.info("正在加载前复权因子缓存...")
@@ -252,22 +264,22 @@ def load_adj_pre_cache(data_context):
         if adj_factors_cache is None:
             raise FileNotFoundError("缓存文件为空")
 
-        logger.info("✓ 前复权因子缓存加载完成！共 {} 只股票".format(len(adj_factors_cache)))
+        logger.info(f"✓ 前复权因子缓存加载完成！共 {len(adj_factors_cache)} 只股票")
         return adj_factors_cache
 
     except FileNotFoundError:
-        logger.error("缓存文件不存在: {}".format(ADJ_PRE_CACHE_PATH))
+        logger.error(f"缓存文件不存在: {ADJ_PRE_CACHE_PATH}")
         create_adj_pre_cache(data_context)
         return load_adj_pre_cache(data_context)
     except Exception as e:
-        logger.error("缓存文件损坏或格式错误: {}".format(e))
+        logger.error(f"缓存文件损坏或格式错误: {e}")
         try:
             os.remove(ADJ_PRE_CACHE_PATH)
             logger.info("已删除损坏的缓存文件，重新创建...")
             create_adj_pre_cache(data_context)
             return load_adj_pre_cache(data_context)
         except OSError as remove_error:
-            logger.error("删除损坏的缓存文件失败: {}".format(remove_error))
+            logger.error(f"删除损坏的缓存文件失败: {remove_error}")
             raise
 
 
@@ -336,13 +348,13 @@ def _calculate_adj_post_factors_from_events(stock, stock_df, exrights_events):
     except (ValueError, KeyError, IndexError, pd.errors.EmptyDataError) as e:
         import logging
         logger = logging.getLogger(__name__)
-        logger.error("计算 {} 后复权因子失败: {}".format(stock, e))
+        logger.error(f"计算 {stock} 后复权因子失败: {e}")
         return None
     except Exception as e:
         import logging
         import traceback
         logger = logging.getLogger(__name__)
-        logger.error("计算 {} 后复权因子失败: {}".format(stock, e))
+        logger.error(f"计算 {stock} 后复权因子失败: {e}")
         logger.debug(traceback.format_exc())
         return None
 
@@ -377,11 +389,9 @@ def create_adj_post_cache(data_context):
                 if not ex_df.empty:
                     exrights_cache[stock] = ex_df
 
-        logger.info("    已加载 {} 只股票的除权数据".format(len(exrights_cache)))
+        logger.info(f"    已加载 {len(exrights_cache)} 只股票的除权数据")
 
-        logger.info("  并行计算后复权因子({} 进程)...".format(
-            num_workers if num_workers > 0 else "auto"
-        ))
+        logger.info(f"  并行计算后复权因子({num_workers if num_workers > 0 else 'auto'} 进程)...")
 
         results = Parallel(n_jobs=num_workers, backend="loky", verbose=0)(
             delayed(_calculate_adj_post_factors_from_events)(
@@ -408,17 +418,17 @@ def create_adj_post_cache(data_context):
         file_size = os.path.getsize(ADJ_POST_CACHE_PATH) / 1024 / 1024
 
         logger.info("✓ 后复权因子缓存创建完成！")
-        logger.info("  处理: {} 只股票".format(total_stocks))
-        logger.info("  保存: {} 只（有除权数据或价格数据）".format(saved_count))
+        logger.info(f"  处理: {total_stocks} 只股票")
+        logger.info(f"  保存: {saved_count} 只（有除权数据或价格数据）")
         if failed_stocks:
-            logger.warning("  失败股票: {} 只".format(len(failed_stocks)))
-        logger.info("  文件: {} ({:.1f}MB)".format(ADJ_POST_CACHE_PATH, file_size))
+            logger.warning(f"  失败股票: {len(failed_stocks)} 只")
+        logger.info(f"  文件: {ADJ_POST_CACHE_PATH} ({file_size:.1f}MB)")
 
     except OSError as e:
-        logger.error("创建后复权因子缓存失败: {}".format(e))
+        logger.error(f"创建后复权因子缓存失败: {e}")
         raise
     except Exception as e:
-        logger.error("创建后复权因子缓存时发生未预期错误: {}".format(e))
+        logger.error(f"创建后复权因子缓存时发生未预期错误: {e}")
         import traceback
         logger.debug(traceback.format_exc())
         raise
@@ -437,7 +447,7 @@ def load_adj_post_cache(data_context):
         try:
             create_adj_post_cache(data_context)
         except Exception as e:
-            logger.error("创建后复权因子缓存失败: {}".format(e))
+            logger.error(f"创建后复权因子缓存失败: {e}")
             raise
 
     logger.info("正在加载后复权因子缓存...")
@@ -448,22 +458,22 @@ def load_adj_post_cache(data_context):
         if adj_factors_cache is None:
             raise FileNotFoundError("缓存文件为空")
 
-        logger.info("✓ 后复权因子缓存加载完成！共 {} 只股票".format(len(adj_factors_cache)))
+        logger.info(f"✓ 后复权因子缓存加载完成！共 {len(adj_factors_cache)} 只股票")
         return adj_factors_cache
 
     except FileNotFoundError:
-        logger.error("缓存文件不存在: {}".format(ADJ_POST_CACHE_PATH))
+        logger.error(f"缓存文件不存在: {ADJ_POST_CACHE_PATH}")
         create_adj_post_cache(data_context)
         return load_adj_post_cache(data_context)
     except Exception as e:
-        logger.error("缓存文件损坏或格式错误: {}".format(e))
+        logger.error(f"缓存文件损坏或格式错误: {e}")
         try:
             os.remove(ADJ_POST_CACHE_PATH)
             logger.info("已删除损坏的缓存文件，重新创建...")
             create_adj_post_cache(data_context)
             return load_adj_post_cache(data_context)
         except OSError as remove_error:
-            logger.error("删除损坏的缓存文件失败: {}".format(remove_error))
+            logger.error(f"删除损坏的缓存文件失败: {remove_error}")
             raise
 
 

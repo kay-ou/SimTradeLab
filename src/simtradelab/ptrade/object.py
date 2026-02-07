@@ -14,21 +14,33 @@
 
 from __future__ import annotations
 
-from collections import OrderedDict
 import bisect
-import pandas as pd
-import numpy as np
-from functools import wraps
-from joblib import Parallel, delayed
-from tqdm import tqdm
-from pydantic import BaseModel, Field
-from typing import Optional, Any
+from collections import OrderedDict
 from datetime import datetime
+from functools import wraps
+from typing import Any, Optional
+
+import numpy as np
+import pandas as pd
+from joblib import Parallel, delayed
+from pydantic import BaseModel, Field
+from tqdm import tqdm
 
 from ..utils.performance_config import get_performance_config
 from .cache_manager import cache_manager
-from .config_manager import config
 from .lifecycle_controller import LifecyclePhase
+
+
+def _get_load_map():
+    """获取数据类型到加载函数的映射（延迟导入避免循环依赖）"""
+    from . import storage
+    return {
+        'stock': storage.load_stock,
+        'stock_1m': storage.load_stock_1m,
+        'valuation': storage.load_valuation,
+        'fundamentals': storage.load_fundamentals,
+        'exrights': lambda data_dir, k: storage.load_exrights(data_dir, k).get('exrights_events', pd.DataFrame())
+    }
 
 
 # ==================== 多进程worker函数 ====================
@@ -43,17 +55,7 @@ def _load_data_chunk(data_dir, data_type, keys_chunk) -> dict[str, Any]:
     Returns:
         dict: {key: dataframe}
     """
-    from . import storage
-
-    load_map = {
-        'stock': storage.load_stock,
-        'stock_1m': storage.load_stock_1m,
-        'valuation': storage.load_valuation,
-        'fundamentals': storage.load_fundamentals,
-        'exrights': lambda data_dir, k: storage.load_exrights(data_dir, k).get('exrights_events', pd.DataFrame())
-    }
-
-    load_func = load_map[data_type]
+    load_func = _get_load_map()[data_type]
     result: dict[str, Any] = {}
 
     for key in keys_chunk:
@@ -100,21 +102,14 @@ class LazyDataDict:
             preload: 是否预加载所有数据
             use_multiprocessing: 是否使用多进程加载
         """
-        from . import storage
-
         self.data_dir = data_dir
         self.data_type = data_type
 
-        # 数据类型到加载方法的映射
-        self._load_map = {
-            'stock': storage.load_stock,
-            'stock_1m': storage.load_stock_1m,
-            'valuation': storage.load_valuation,
-            'fundamentals': storage.load_fundamentals,
-            'exrights': lambda data_dir, k: storage.load_exrights(data_dir, k).get('exrights_events', pd.DataFrame())
-        }
+        # 使用公共加载映射
+        self._load_map = _get_load_map()
         self._cache = OrderedDict()  # 使用OrderedDict实现LRU
         self._all_keys = all_keys_list
+        self._all_keys_set = set(all_keys_list)  # O(1) 查找
         self._max_cache_size = max_cache_size  # 最大缓存数量
         self._preload = preload
         self._access_count = 0  # 访问计数器
@@ -158,12 +153,12 @@ class LazyDataDict:
                 for key in tqdm(all_keys_list, desc='  加载', ncols=80, ascii=True,
                               bar_format='{desc}: {percentage:3.0f}%|{bar}| {n:4d}/{total:4d} [{elapsed}<{remaining}]'):
                     try:
-                        self._cache[key] = load_func(self.data_path, key)
+                        self._cache[key] = load_func(self.data_dir, key)
                     except KeyError:
                         pass
 
     def __contains__(self, key):
-        return key in self._all_keys
+        return key in self._all_keys_set
 
     def __getitem__(self, key):
         if key in self._cache:
@@ -273,7 +268,7 @@ class StockData:
     def _load_data(self):
         """加载股票当日数据并应用前复权"""
         if self._current_idx is None or self._stock_df is None:
-            raise ValueError("股票 {} 在 {} 数据加载失败".format(self.stock, self.current_date))
+            raise ValueError(f"股票 {self.stock} 在 {self.current_date} 数据加载失败")
 
         row = self._stock_df.iloc[self._current_idx]
         data = {
@@ -422,29 +417,13 @@ class Data(dict):
 
         return stock_data
 
-
-# class Context:
-#     """模拟context对象"""
-#     def __init__(self, current_dt, bt_ctx=None):
-#         self.current_dt = current_dt
-#         self.previous_date = (current_dt - timedelta(days=1)).date()
-#         self.portfolio = Portfolio(bt_ctx, self)
-#         self.blotter = Blotter(current_dt, bt_ctx)
-#         # 回测配置
-#         self.commission_ratio = 0.0003
-#         self.min_commission = 5.0
-#         self.commission_type = 'STOCK'
-#         self.slippage = 0.0
-#         self.fixed_slippage = 0.0
-#         self.limit_mode = 'LIMITED'
-#         self.volume_ratio = 0.25
-#         self.benchmark = '000300.SS'
-
 class Blotter:
     """模拟blotter对象"""
     def __init__(self, current_dt, bt_ctx=None):
         self.current_dt = current_dt
         self.open_orders = []
+        self.all_orders = []
+        self.filled_orders = []
         self._order_id_counter = 0
         self._bt_ctx = bt_ctx
 
@@ -459,6 +438,7 @@ class Blotter:
             limit=None
         )
         self.open_orders.append(order)
+        self.all_orders.append(order)
         return order
 
     def cancel_order(self, order):
@@ -468,125 +448,6 @@ class Blotter:
             order.status = 'cancelled'
             return True
         return False
-
-    def process_orders(self, portfolio, current_dt):
-        """处理未成交订单（使用当日收盘价成交）优化版：批量预加载"""
-        executed_orders = []
-
-        if not self.open_orders:
-            return executed_orders
-
-        # 批量预加载：收集所有需要的股票数据
-        stock_data_cache = {}
-        for order in self.open_orders:
-            if order.symbol not in stock_data_cache and self._bt_ctx and self._bt_ctx.stock_data_dict:
-                stock_df = self._bt_ctx.stock_data_dict.get(order.symbol)
-                if stock_df is None or not isinstance(stock_df, pd.DataFrame):
-                    continue
-
-                if self._bt_ctx.get_stock_date_index:
-                    date_dict, _ = self._bt_ctx.get_stock_date_index(order.symbol)
-                    idx = date_dict.get(current_dt)
-                else:
-                    idx = stock_df.index.get_loc(current_dt) if current_dt in stock_df.index else None
-
-                if idx is not None:
-                    stock_data_cache[order.symbol] = {
-                        'df': stock_df,
-                        'idx': idx,
-                        'close': stock_df.iloc[idx]['close'],
-                        'volume': stock_df.iloc[idx]['volume']
-                    }
-
-        # 处理订单
-        for order in self.open_orders[:]:
-            # 使用缓存获取当日收盘价
-            execution_price = None
-            if order.symbol in stock_data_cache:
-                execution_price = stock_data_cache[order.symbol]['close']
-
-            if execution_price is None or np.isnan(execution_price) or execution_price <= 0:
-                continue
-
-            # 检查成交量限制（LIMIT模式）
-            actual_amount = order.amount
-            if config.trading.limit_mode == 'LIMIT':
-                if order.symbol in stock_data_cache:
-                    daily_volume = stock_data_cache[order.symbol]['volume']
-                    # 应用成交比例限制
-                    volume_ratio = config.trading.volume_ratio
-                    max_allowed = int(daily_volume * volume_ratio)
-
-                    if abs(order.amount) > max_allowed:
-                        if max_allowed > 0:
-                            # 部分成交
-                            actual_amount = max_allowed if order.amount > 0 else -max_allowed
-                            if self._bt_ctx.log:
-                                self._bt_ctx.log.warning(
-                                    f"【订单部分成交】{order.symbol} | 委托量:{abs(order.amount)}, 成交量:{abs(actual_amount)} (成交比例限制:{volume_ratio})"
-                                )
-                        else:
-                            if self._bt_ctx.log:
-                                self._bt_ctx.log.warning(
-                                    f"【订单失败】{order.symbol} | 原因: 当日成交量为0或不足"
-                                )
-                            self.open_orders.remove(order)
-                            order.status = 'failed'
-                            continue
-
-            # 检查涨跌停限制
-            if self._bt_ctx and self._bt_ctx.check_limit:
-                limit_status = self._bt_ctx.check_limit(order.symbol, current_dt)[order.symbol]
-                if order.amount > 0 and limit_status == 1:
-                    if self._bt_ctx.log:
-                        self._bt_ctx.log.warning(f"【订单失败】{order.symbol} | 原因: 涨停买不进")
-                    self.open_orders.remove(order)
-                    order.status = 'failed'
-                    continue
-                elif order.amount < 0 and limit_status == -1:
-                    if self._bt_ctx.log:
-                        self._bt_ctx.log.warning(f"【订单失败】{order.symbol} | 原因: 跌停卖不出")
-                    self.open_orders.remove(order)
-                    order.status = 'failed'
-                    continue
-
-            # 执行订单
-            if actual_amount > 0:
-                # 买入
-                cost = actual_amount * execution_price
-                if cost <= portfolio._cash:
-                    portfolio._cash -= cost
-                    portfolio.add_position(order.symbol, actual_amount, execution_price, current_dt)
-                    order.status = 'filled'
-                    order.filled = actual_amount
-                    executed_orders.append(order)
-                self.open_orders.remove(order)
-            elif actual_amount < 0:
-                # 卖出
-                if order.symbol in portfolio.positions:
-                    position = portfolio.positions[order.symbol]
-                    sell_qty = position.amount
-
-                    # 减仓/清仓（含FIFO分红税调整）
-                    portfolio.remove_position(order.symbol, sell_qty, current_dt)
-
-                    # 卖出收入到账
-                    sell_revenue = sell_qty * execution_price
-                    portfolio._cash += sell_revenue
-
-                    # 更新价格（仅在未清仓时）
-                    if order.symbol in portfolio.positions:
-                        position = portfolio.positions[order.symbol]
-                        position.last_sale_price = execution_price
-                        position.market_value = position.amount * execution_price
-
-                    order.status = 'filled'
-                    order.filled = actual_amount
-                    executed_orders.append(order)
-
-                self.open_orders.remove(order)
-
-        return executed_orders
 
 class Order(BaseModel):
     """订单对象"""
@@ -655,7 +516,7 @@ class Portfolio:
         # 边界检查：卖出数量不能超过持仓
         if amount > position.amount:
             raise ValueError(
-                '卖出数量 {} 超过持仓 {}: {}'.format(amount, position.amount, stock)
+                f'卖出数量 {amount} 超过持仓 {position.amount}: {stock}'
             )
 
         # FIFO计算税务调整
@@ -683,47 +544,11 @@ class Portfolio:
                 lot['dividends_total'] = lot.get('dividends_total', 0.0) + lot_div
 
     def _calculate_dividend_tax(self, stock, amount, sell_date):
-        """计算分红税调整（FIFO）"""
-        if stock not in self._position_lots:
-            return 0.0
+        """计算分红税调整（FIFO）
 
-        lots = self._position_lots[stock]
-        remaining = amount
-        tax_adjustment = 0.0
-        i = 0
-
-        while i < len(lots) and remaining > 0:
-            lot = lots[i]
-            holding_days = (sell_date - lot['date']).days
-
-            # 真实税率
-            if holding_days <= 30:
-                actual_rate = 0.20
-            elif holding_days <= 365:
-                actual_rate = 0.10
-            else:
-                actual_rate = 0.0
-
-            # 本批次卖出数量
-            sell_qty = min(remaining, lot['amount'])
-            ratio = sell_qty / lot['amount']
-
-            # 优先使用缓存总和
-            lot_div_total = lot.get('dividends_total', sum(lot['dividends']))
-            tax_adjustment += lot_div_total * ratio * (actual_rate - 0.20)
-
-            # 扣减批次
-            if lot['amount'] <= remaining:
-                remaining -= lot['amount']
-                lots.pop(i)
-            else:
-                lot['amount'] -= remaining
-                # 更新剩余部分的分红总额
-                lot['dividends_total'] = lot_div_total * (1.0 - ratio)
-                remaining = 0
-                i += 1
-
-        return tax_adjustment
+        Ptrade行为：分红时预扣20%，卖出时不做税务调整
+        """
+        return 0.0
 
     @property
     def cash(self):
@@ -816,9 +641,4 @@ class Position:
         self.business_type = 'STOCK'
         self.market_value = amount * cost_basis
 
-
-
-class Global:
-    """模拟全局变量g（策略可用于存储自定义数据）"""
-    pass
 

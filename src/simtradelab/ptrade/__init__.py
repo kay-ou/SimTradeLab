@@ -16,7 +16,6 @@ Complete simulation of PTrade platform API interface for local backtesting and r
 from .context import (
     Context,
     PTradeMode,
-    StrategyLifecycleManager,
     create_backtest_context,
     create_research_context,
     create_trading_context,
@@ -51,7 +50,6 @@ from .object import (
     BacktestContext,
     Blotter,
     Data,
-    Global,
     LazyDataDict,
     Order,
     Portfolio,
@@ -76,7 +74,6 @@ __all__ = [
     # Context related
     "Context",
     "PTradeMode",
-    "StrategyLifecycleManager",
     "create_backtest_context",
     "create_research_context",
     "create_trading_context",
@@ -102,7 +99,6 @@ __all__ = [
     "BacktestContext",
     "Blotter",
     "Data",
-    "Global",
     "LazyDataDict",
     "Order",
     "Portfolio",

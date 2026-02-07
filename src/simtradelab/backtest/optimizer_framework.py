@@ -111,7 +111,7 @@ class ParameterSpace:
             trial: Optuna trial对象
 
         Returns:
-            Dict[str, Any]: 参数字典
+            dict[str, Any]: 参数字典
         """
         choices = cls.get_parameter_choices()
         return {
@@ -120,7 +120,7 @@ class ParameterSpace:
         }
 
     @classmethod
-    def get_extreme_params(cls) -> Dict[str, Tuple[Any, Any]]:
+    def get_extreme_params(cls) -> dict[str, tuple[Any, Any]]:
         """自动推导极端参数范围（框架实现，子类无需覆盖）
 
         设计理念：
@@ -129,7 +129,7 @@ class ParameterSpace:
         - 避免人为限制参数搜索空间
 
         Returns:
-            Dict[str, Tuple]: {param_name: (min_value, max_value)}
+            dict[str, tuple]: {param_name: (min_value, max_value)}
         """
         choices = cls.get_parameter_choices()
         extreme_params = {}
@@ -140,7 +140,7 @@ class ParameterSpace:
         return extreme_params
 
     @staticmethod
-    def validate(params: Dict[str, Any]) -> Dict[str, Any]:
+    def validate(params: dict[str, Any]) -> dict[str, Any]:
         """验证参数（可选，子类可覆盖）
 
         默认实现：不做任何验证，直接返回原参数
@@ -153,7 +153,7 @@ class ParameterSpace:
             params: 参数字典
 
         Returns:
-            Dict[str, Any]: 验证后的参数字典
+            dict[str, Any]: 验证后的参数字典
 
         Raises:
             ValueError: 参数不合法时抛出
@@ -170,7 +170,7 @@ class ParameterSpace:
 
 # ==================== 参数映射辅助函数 ====================
 
-def resolve_variable_name(param_name: str, custom_mapping: Optional[Dict[str, str]] = None) -> str:
+def resolve_variable_name(param_name: str, custom_mapping: Optional[dict[str, str]] = None) -> str:
     """解析参数对应的策略变量名
 
     Args:
@@ -195,8 +195,8 @@ def resolve_variable_name(param_name: str, custom_mapping: Optional[Dict[str, st
 
 def apply_parameter_replacement(
     original_code: str,
-    params: Dict[str, Any],
-    custom_mapping: Optional[Dict[str, str]] = None
+    params: dict[str, Any],
+    custom_mapping: Optional[dict[str, str]] = None
 ) -> str:
     """统一的参数替换逻辑（消除代码重复）
 
@@ -235,7 +235,7 @@ class ScoringStrategy:
     """评分策略基类"""
 
     @staticmethod
-    def calculate_score(metrics: Dict[str, float]) -> float:
+    def calculate_score(metrics: dict[str, float]) -> float:
         """计算综合得分（提供默认实现，子类可选覆盖）
 
         默认策略（改进版，避免指标冗余）：
@@ -264,7 +264,7 @@ class ScoringStrategy:
             # 自定义评分
             class MyStrategy(ScoringStrategy):
                 @staticmethod
-                def calculate_score(metrics: Dict[str, float]) -> float:
+                def calculate_score(metrics: dict[str, float]) -> float:
                     return metrics['annual_return'] * 0.5 + metrics['sharpe_ratio'] * 0.5
         """
         score = (
@@ -276,11 +276,11 @@ class ScoringStrategy:
         return score
 
     @staticmethod
-    def get_tracked_metrics() -> List[str]:
+    def get_tracked_metrics() -> list[str]:
         """获取需要跟踪的指标列表（可选）
 
         Returns:
-            List[str]: 指标名称列表
+            list[str]: 指标名称列表
         """
         return [
             'total_return', 'annual_return', 'sharpe_ratio',
@@ -289,7 +289,7 @@ class ScoringStrategy:
         ]
 
     @staticmethod
-    def calculate_regularization_penalty(params: Dict[str, Any], extreme_params: Optional[Dict[str, Tuple[float, float]]] = None) -> float:
+    def calculate_regularization_penalty(params: dict[str, Any], extreme_params: Optional[dict[str, tuple[float, float]]] = None) -> float:
         """计算正则化惩罚（防止参数极值）
 
         Args:
@@ -337,7 +337,7 @@ class StrategyOptimizer:
         start_date: str = DEFAULT_START_DATE,
         end_date: str = DEFAULT_END_DATE,
         initial_capital: float = DEFAULT_INITIAL_CAPITAL,
-        custom_mapping: Optional[Dict[str, str]] = None,
+        custom_mapping: Optional[dict[str, str]] = None,
         use_walk_forward: bool = True,
         train_months: int = DEFAULT_TRAIN_MONTHS,
         test_months: int = DEFAULT_TEST_MONTHS,
@@ -409,7 +409,7 @@ class StrategyOptimizer:
         self._no_improvement_count = 0
 
         # 缓存Walk-Forward时间窗口（避免每个trial重复计算）
-        self._cached_time_windows: Optional[List[Tuple[str, str, str, str]]] = None
+        self._cached_time_windows: Optional[list[tuple[str, str, str, str]]] = None
         if self.use_walk_forward:
             self._cached_time_windows = self._generate_time_windows()
 
@@ -424,12 +424,12 @@ class StrategyOptimizer:
                 self._cached_strategy_code = f.read()
         return self._cached_strategy_code
 
-    def create_strategy_code(self, params: Dict[str, Any]) -> str:
+    def create_strategy_code(self, params: dict[str, Any]) -> str:
         """基于参数创建策略代码"""
         # 使用统一的参数替换函数（使用缓存的策略代码）
         return apply_parameter_replacement(self.original_strategy_code, params, self.custom_mapping)
 
-    def run_backtest_with_params(self, params: Dict[str, Any], start_date: Optional[str] = None, end_date: Optional[str] = None) -> Tuple[float, Dict[str, Any]]:
+    def run_backtest_with_params(self, params: dict[str, Any], start_date: Optional[str] = None, end_date: Optional[str] = None) -> tuple[float, dict[str, Any]]:
         """使用给定参数运行回测（支持缓存）"""
         import hashlib
 
@@ -459,7 +459,7 @@ class StrategyOptimizer:
 
         return result
 
-    def _run_backtest_impl(self, params: Dict[str, Any], start_date: Optional[str] = None, end_date: Optional[str] = None) -> Tuple[float, Dict[str, Any]]:
+    def _run_backtest_impl(self, params: dict[str, Any], start_date: Optional[str] = None, end_date: Optional[str] = None) -> tuple[float, dict[str, Any]]:
         """实际执行回测的内部方法"""
         temp_strategy_dir = None
         try:
@@ -534,7 +534,7 @@ class StrategyOptimizer:
         """生成Walk-Forward时间窗口
 
         Returns:
-            List[Tuple]: [(train_start, train_end, test_start, test_end), ...]
+            list[tuple]: [(train_start, train_end, test_start, test_end), ...]
         """
         from dateutil.relativedelta import relativedelta
 
@@ -806,7 +806,7 @@ class StrategyOptimizer:
 
         return study
 
-    def validate_on_holdout(self, best_params: Dict[str, Any], holdout_start: str, holdout_end: str) -> Dict[str, float]:
+    def validate_on_holdout(self, best_params: dict[str, Any], holdout_start: str, holdout_end: str) -> dict[str, float]:
         """在留存集上验证最佳参数
 
         Args:
@@ -815,7 +815,7 @@ class StrategyOptimizer:
             holdout_end: 留存集结束日期
 
         Returns:
-            Dict[str, float]: 留存集指标
+            dict[str, float]: 留存集指标
         """
         print(f"\n样本外验证: {holdout_start} 至 {holdout_end}")
         score, metrics = self.run_backtest_with_params(best_params, holdout_start, holdout_end)
@@ -973,7 +973,7 @@ def create_optimized_strategy(
     best_params_file: str,
     original_strategy_path: str,
     output_path: str,
-    custom_mapping: Optional[Dict[str, str]] = None
+    custom_mapping: Optional[dict[str, str]] = None
 ):
     """基于最佳参数创建优化后的策略文件"""
     # 读取最佳参数
@@ -997,16 +997,16 @@ def create_optimized_strategy(
 # ==================== 简化的顶层API ====================
 def optimize_strategy(
     parameter_space: type,
-    optimization_period: Optional[Tuple[str, str]] = None,
-    holdout_period: Optional[Tuple[str, str]] = None,
+    optimization_period: Optional[tuple[str, str]] = None,
+    holdout_period: Optional[tuple[str, str]] = None,
     initial_capital: float = DEFAULT_INITIAL_CAPITAL,
     scoring_strategy: Optional[Type[ScoringStrategy]] = None,
-    walk_forward_config: Optional[Dict[str, int]] = None,
+    walk_forward_config: Optional[dict[str, int]] = None,
     use_optimal_stopping: bool = DEFAULT_USE_OPTIMAL_STOPPING,
     patience: Optional[int] = None,
     regularization_weight: float = DEFAULT_REGULARIZATION_WEIGHT,
     stability_weight: float = DEFAULT_STABILITY_WEIGHT,
-    custom_mapping: Optional[Dict[str, str]] = None,
+    custom_mapping: Optional[dict[str, str]] = None,
     resume: bool = True,
     verbose: bool = False
 ):
