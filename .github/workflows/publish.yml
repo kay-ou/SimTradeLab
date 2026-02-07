@@ -1,17 +1,87 @@
-# This workflow will upload SimTradeLab to PyPI when a release is created
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python#publishing-to-package-registries
-
-name: Publish SimTradeLab Package
+name: Auto Release
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - 'pyproject.toml'
   workflow_dispatch:
 
-jobs:
-  release-build:
-    runs-on: ubuntu-latest
+permissions:
+  contents: write
+  id-token: write
 
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      new_release: ${{ steps.check.outputs.new_release }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from pyproject.toml
+        id: version
+        run: |
+          VERSION=$(grep -m1 '^version' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        id: check
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "new_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "new_release=true" >> $GITHUB_OUTPUT
+          fi
+
+  create-tag:
+    needs: check-version
+    if: needs.check-version.outputs.new_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ needs.check-version.outputs.tag }}" -m "Release ${{ needs.check-version.outputs.tag }}"
+          git push origin "${{ needs.check-version.outputs.tag }}"
+
+  create-release:
+    needs: [check-version, create-tag]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+          # 提取 CHANGELOG.md 中对应版本的内容
+          NOTES=$(awk "/^## \[$VERSION\]/{found=1; next} /^---$/{if(found) exit} /^## \[/{if(found) exit} found{print}" CHANGELOG.md)
+          # 写入文件避免转义问题
+          echo "$NOTES" > /tmp/release_notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.check-version.outputs.tag }}
+        run: |
+          gh release create "$TAG" \
+            --title "SimTradeLab $TAG" \
+            --notes-file /tmp/release_notes.md
+
+  build:
+    needs: [check-version, create-tag]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -34,14 +104,13 @@ jobs:
           name: release-dists
           path: dist/
 
-  pypi-publish:
+  publish:
+    needs: [check-version, build]
     runs-on: ubuntu-latest
-    needs: release-build
     environment: pypi
     permissions:
       id-token: write
       contents: read
-
     steps:
       - name: Retrieve release distributions
         uses: actions/download-artifact@v4
@@ -49,53 +118,17 @@ jobs:
           name: release-dists
           path: dist/
 
-      - name: Publish release distributions to PyPI
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
-  post-publish:
+  verify:
+    needs: [check-version, publish]
     runs-on: ubuntu-latest
-    needs: pypi-publish
-    if: github.event_name == 'release'
-    permissions:
-      contents: write
-
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install TA-Lib
-        run: |
-          wget -q http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
-          tar -xzf ta-lib-0.4.0-src.tar.gz
-          cd ta-lib && ./configure --prefix=/usr && make && sudo make install
-
       - name: Verify PyPI publication
+        env:
+          VERSION: ${{ needs.check-version.outputs.version }}
         run: |
           sleep 30
-          VERSION=${{ github.event.release.tag_name }}
-          VERSION=${VERSION#v}
-          pip install simtradelab==$VERSION
-          python -c 'import simtradelab; print("✅ SimTradeLab " + simtradelab.__version__ + " installed successfully")'
-
-      - name: Generate and Update Release Notes
-        run: |
-          pip install gitpython
-          python scripts/generate_release_notes.py ${{ github.event.release.tag_name }} --output release_notes.md
-
-      - name: Update Release with Generated Notes
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('fs');
-            const releaseNotes = fs.readFileSync('release_notes.md', 'utf8');
-            await github.rest.repos.updateRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: context.payload.release.id,
-              body: releaseNotes
-            });
+          pip install "simtradelab==$VERSION"
+          python -c "import simtradelab; print('SimTradeLab ' + simtradelab.__version__ + ' installed successfully')"
