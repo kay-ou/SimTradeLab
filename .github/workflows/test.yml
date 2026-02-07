@@ -1,13 +1,10 @@
-# This workflow will run tests for SimTradeLab on multiple Python versions
-
 name: Test SimTradeLab
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
-  # 允许手动触发
+    branches: [main, develop]
   workflow_dispatch:
 
 permissions:
@@ -15,15 +12,11 @@ permissions:
 
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # 仅在Linux上运行CI，macOS/Windows编译依赖太慢
-        os: [ubuntu-latest]
         python-version: ["3.10", "3.11", "3.12"]
-        # 如需测试其他平台，使用workflow_dispatch手动触发
-        # os: [ubuntu-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -43,16 +36,10 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-
-          # 从源码编译安装ta-lib
-          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+          wget -q http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
           tar -xzf ta-lib-0.4.0-src.tar.gz
-          cd ta-lib/
-          ./configure --prefix=/usr
-          make
-          sudo make install
-          cd ..
-          rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
+          cd ta-lib && ./configure --prefix=/usr && make && sudo make install
+          cd .. && rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
 
       - name: Load cached venv
         id: cached-poetry-dependencies
@@ -70,150 +57,35 @@ jobs:
 
       - name: Run basic import test
         run: |
-          poetry run python -c "import simtradelab; print(f'✅ SimTradeLab {simtradelab.__version__} imported successfully')"
+          poetry run python -c "import simtradelab; print('SimTradeLab ' + simtradelab.__version__ + ' imported successfully')"
 
       - name: Run unit tests
-        run: |
-          poetry run pytest tests/unit/ -v --tb=short
+        run: poetry run pytest tests/unit/ -v --tb=short
 
       - name: Run integration tests
-        run: |
-          poetry run pytest tests/integration/ -v --tb=short
+        run: poetry run pytest tests/integration/ -v --tb=short
 
       - name: Test CLI functionality
+        run: poetry run simtradelab --help
+
+      - name: Test package build and install
         run: |
-          poetry run simtradelab --help
+          poetry build
+          python -m venv test_env
+          source test_env/bin/activate
+          WHEEL_FILE=$(find dist -name "simtradelab-*.whl" | head -1)
+          pip install "$WHEEL_FILE"
+          python -c "import simtradelab; print('Package install test passed: ' + simtradelab.__version__)"
 
       - name: Generate coverage report
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
-        run: |
-          poetry run pytest tests/ --cov=simtradelab --cov-report=xml --cov-report=html
+        if: matrix.python-version == '3.11'
+        run: poetry run pytest tests/ --cov=simtradelab --cov-report=xml --cov-report=html
 
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        if: matrix.python-version == '3.11'
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
-
-  lint:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-
-          # 从源码编译安装ta-lib
-          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
-          tar -xzf ta-lib-0.4.0-src.tar.gz
-          cd ta-lib/
-          ./configure --prefix=/usr
-          make
-          sudo make install
-          cd ..
-          rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
-
-      - name: Install dependencies
-        run: |
-          poetry install --no-interaction
-
-      - name: Check code formatting (optional)
-        continue-on-error: true
-        run: |
-          # 如果使用black格式化
-          # poetry run black --check src/simtradelab/
-          echo "Code formatting check (optional)"
-
-      - name: Run type checking (optional)
-        continue-on-error: true
-        run: |
-          # 如果使用mypy类型检查
-          # poetry run mypy src/simtradelab/
-          echo "Type checking (optional)"
-
-  build-test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-
-          # 从源码编译安装ta-lib
-          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
-          tar -xzf ta-lib-0.4.0-src.tar.gz
-          cd ta-lib/
-          ./configure --prefix=/usr
-          make
-          sudo make install
-          cd ..
-          rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
-
-      - name: Install dependencies
-        run: poetry install --no-interaction
-
-      - name: Build package
-        run: poetry build
-
-      - name: Check build artifacts
-        run: |
-          ls -la dist/
-          echo "Built packages:"
-          find dist/ -name "*.whl" -o -name "*.tar.gz"
-
-      - name: Test package installation
-        shell: bash
-        run: |
-          # 在新的虚拟环境中测试安装
-          python -m venv test_env
-          WHEEL_FILE=$(find dist -name "simtradelab-*.whl" | head -1)
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            source test_env/Scripts/activate
-            python -m pip install "$WHEEL_FILE"
-          else
-            source test_env/bin/activate
-            python -m pip install "$WHEEL_FILE"
-          fi
-          python -c "
-          import simtradelab
-          from simtradelab.backtest.runner import BacktestRunner
-          print(f'✅ Package installation test passed: {simtradelab.__version__}')
-          "
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-artifacts-${{ github.sha }}
-          path: dist/
-          retention-days: 7
