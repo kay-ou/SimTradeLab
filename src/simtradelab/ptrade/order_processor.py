@@ -227,6 +227,9 @@ class OrderProcessor:
         # 建仓/加仓（含批次追踪）
         self.context.portfolio.add_position(stock, amount, price, self.context.current_dt)
 
+        # 累计当日买入金额（gross，不含手续费）
+        self.context._daily_buy_total += amount * price
+
         return True
 
     def execute_sell(self, stock: str, amount: int, price: float) -> bool:
@@ -274,6 +277,9 @@ class OrderProcessor:
 
         # 入账
         self.context.portfolio._cash += net_revenue
+
+        # 累计当日卖出金额（gross，不含手续费）
+        self.context._daily_sell_total += amount * price
 
         # 日志
         if tax_adjustment > 0:

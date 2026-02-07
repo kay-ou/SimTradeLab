@@ -212,11 +212,13 @@ class BacktestRunner:
         handlers = [logging.StreamHandler(sys.stdout)]
 
         # 仅在启用日志时创建文件handler
+        os.makedirs(config.log_dir, exist_ok=True)
         if config.enable_logging:
-            log_filename = config.get_log_filename()
-            os.makedirs(config.log_dir, exist_ok=True)
-            print(f"日志文件: {log_filename}")
-            handlers.append(logging.FileHandler(log_filename, mode='w', encoding='utf-8'))
+            self._log_filename = config.get_log_filename()
+            print(f"日志文件: {self._log_filename}")
+            handlers.append(logging.FileHandler(self._log_filename, mode='w', encoding='utf-8'))
+        if config.enable_charts:
+            self._chart_filename = config.get_chart_filename()
 
         logging.basicConfig(
             level=logging.INFO,
@@ -385,18 +387,17 @@ class BacktestRunner:
         # 生成图表
         if config.enable_charts:
             chart_benchmark_data = {benchmark_code: actual_benchmark_df}
-            chart_filename = generate_backtest_charts(
+            generate_backtest_charts(
                 stats,
                 config.start_date, config.end_date,
                 chart_benchmark_data,
-                config.get_chart_filename(),
+                self._chart_filename,
                 benchmark_code=benchmark_code
             )
-            print(f"图表已保存至: {chart_filename}")
+            print(f"图表已保存至: {self._chart_filename}")
 
         if config.enable_logging:
-            log_filename = config.get_log_filename()
-            print(f"\n日志已保存至: {log_filename}")
+            print(f"\n日志已保存至: {self._log_filename}")
 
         return report
 
