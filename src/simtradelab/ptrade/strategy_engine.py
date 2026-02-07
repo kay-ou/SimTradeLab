@@ -243,6 +243,9 @@ class StrategyExecutionEngine:
         from simtradelab.ptrade.object import Data
         from simtradelab.ptrade.cache_manager import cache_manager
 
+        # 跨日追踪：上一交易日收盘后的组合市值（用于计算真实日盈亏）
+        prev_day_end_value = None
+
         for current_date in date_range:
             # 更新日期上下文
             self.context.current_dt = current_date
@@ -259,10 +262,6 @@ class StrategyExecutionEngine:
             # 清理全局缓存
             cache_manager.clear_daily_cache(current_date)
 
-            # 记录交易前状态
-            prev_portfolio_value = self.context.portfolio.portfolio_value
-            prev_cash = self.context.portfolio._cash
-
             # 收集交易前统计
             self.stats_collector.collect_pre_trading(self.context, current_date)
 
@@ -276,12 +275,15 @@ class StrategyExecutionEngine:
             if not self._execute_lifecycle(data):
                 return False
 
-            # 收集交易金额
-            current_cash = self.context.portfolio._cash
-            self.stats_collector.collect_trading_amounts(prev_cash, current_cash)
+            # 收集交易金额（从OrderProcessor累计的gross金额）
+            self.stats_collector.collect_trading_amounts(self.context)
 
-            # 收集交易后统计
-            self.stats_collector.collect_post_trading(self.context, prev_portfolio_value)
+            # 收集交易后统计（用上一交易日收盘后的组合市值计算真实日盈亏）
+            current_end_value = self.context.portfolio.portfolio_value
+            if prev_day_end_value is None:
+                prev_day_end_value = current_end_value  # 首日无盈亏
+            self.stats_collector.collect_post_trading(self.context, prev_day_end_value)
+            prev_day_end_value = current_end_value
 
         return True
 
@@ -299,6 +301,9 @@ class StrategyExecutionEngine:
         from simtradelab.ptrade.cache_manager import cache_manager
         from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
 
+        # 跨日追踪：上一交易日收盘后的组合市值
+        prev_day_end_value = None
+
         for current_date in date_range:
             # 更新日期上下文（设为开盘时间）
             self.context.current_dt = current_date
@@ -313,10 +318,6 @@ class StrategyExecutionEngine:
 
             # 清理全局缓存
             cache_manager.clear_daily_cache(current_date)
-
-            # 记录交易前状态
-            prev_portfolio_value = self.context.portfolio.portfolio_value
-            prev_cash = self.context.portfolio._cash
 
             # 收集交易前统计
             self.stats_collector.collect_pre_trading(self.context, current_date)
@@ -344,12 +345,15 @@ class StrategyExecutionEngine:
             data = Data(self.context.current_dt, self.context.portfolio._bt_ctx)
             self._safe_call('after_trading_end', LifecyclePhase.AFTER_TRADING_END, data, allow_fail=True)
 
-            # 收集交易金额
-            current_cash = self.context.portfolio._cash
-            self.stats_collector.collect_trading_amounts(prev_cash, current_cash)
+            # 收集交易金额（从OrderProcessor累计的gross金额）
+            self.stats_collector.collect_trading_amounts(self.context)
 
             # 收集交易后统计
-            self.stats_collector.collect_post_trading(self.context, prev_portfolio_value)
+            current_end_value = self.context.portfolio.portfolio_value
+            if prev_day_end_value is None:
+                prev_day_end_value = current_end_value
+            self.stats_collector.collect_post_trading(self.context, prev_day_end_value)
+            prev_day_end_value = current_end_value
 
         return True
 

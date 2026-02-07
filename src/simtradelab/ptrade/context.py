@@ -68,6 +68,10 @@ class Context:
         # === 初始化g全局对象 ===
         self.g = types.SimpleNamespace()  # 全局变量容器
 
+        # === 每日买卖金额累计（由OrderProcessor写入） ===
+        self._daily_buy_total = 0.0
+        self._daily_sell_total = 0.0
+
         # === 设置时间 ===
         if self.current_dt is None:
             self.current_dt = datetime.now()

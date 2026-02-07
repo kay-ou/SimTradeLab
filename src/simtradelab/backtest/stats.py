@@ -15,8 +15,6 @@
 import os
 import json
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 
 
 def _load_index_names():
@@ -33,28 +31,15 @@ def _load_index_names():
         return {}
 
 
-def _get_benchmark_name(benchmark_code, use_english=False):
+def _get_benchmark_name(benchmark_code):
     """获取基准名称
 
     Args:
         benchmark_code: 基准代码
-        use_english: 是否使用英文名称（用于图表显示）
 
     Returns:
         str: 基准名称，如果找不到则返回代码本身
     """
-    if use_english:
-        english_names = {
-            '000300.SS': 'CSI 300',
-            '000905.SZ': 'CSI 500',
-            '000001.SZ': 'SZE Component',
-            '399001.SZ': 'SZE Component',
-            '399006.SZ': 'ChiNext',
-            '399101.SZ': 'SME Board',
-            '000001.SS': 'SSE Composite'
-        }
-        return english_names.get(benchmark_code, benchmark_code)
-
     index_names = _load_index_names()
     return index_names.get(benchmark_code, benchmark_code)
 
@@ -349,10 +334,10 @@ def _plot_nav_curve(ax, dates, portfolio_values, daily_buy, daily_sell, benchmar
     """
     # 策略净值曲线
     strategy_nav = portfolio_values / portfolio_values[0]
-    ax.plot(dates, strategy_nav, linewidth=2, label='Strategy NAV', color='#1f77b4')
+    ax.plot(dates, strategy_nav, linewidth=2, label='策略净值', color='#1f77b4')
 
     # 基准净值曲线
-    benchmark_name = _get_benchmark_name(benchmark_code, use_english=True)
+    benchmark_name = _get_benchmark_name(benchmark_code)
     if benchmark_code in benchmark_data and not benchmark_data[benchmark_code].empty:
         benchmark_df_data = benchmark_data[benchmark_code]
         benchmark_slice = benchmark_df_data.loc[
@@ -367,35 +352,36 @@ def _plot_nav_curve(ax, dates, portfolio_values, daily_buy, daily_sell, benchmar
     # 标注买卖点
     buy_dates = dates[daily_buy > 0]
     buy_navs = strategy_nav[daily_buy > 0]
-    ax.scatter(buy_dates, buy_navs, marker='^', color='red', s=50, label='Buy', zorder=5)
+    ax.scatter(buy_dates, buy_navs, marker='^', color='red', s=50, label='买入', zorder=5)
 
     sell_dates = dates[daily_sell > 0]
     sell_navs = strategy_nav[daily_sell > 0]
-    ax.scatter(sell_dates, sell_navs, marker='v', color='green', s=50, label='Sell', zorder=5)
+    ax.scatter(sell_dates, sell_navs, marker='v', color='green', s=50, label='卖出', zorder=5)
 
-    ax.set_title('Portfolio Value vs Benchmark', fontsize=14, fontweight='bold')
-    ax.set_ylabel('Net Asset Value', fontsize=12)
+    ax.set_title('策略净值 vs 基准', fontsize=14, fontweight='bold')
+    ax.set_ylabel('净值', fontsize=12)
     ax.legend(loc='best', fontsize=10)
     ax.grid(True, alpha=0.3)
 
 
-def _plot_daily_pnl(ax, dates, daily_pnl):
+def _plot_daily_pnl(ax, dates, daily_pnl, bar_width):
     """绘制每日盈亏子图
 
     Args:
         ax: matplotlib axes对象
         dates: 日期数组
         daily_pnl: 每日盈亏数组
+        bar_width: 柱宽
     """
     colors = ['red' if pnl >= 0 else 'green' for pnl in daily_pnl]
-    ax.bar(dates, daily_pnl, color=colors, alpha=0.7, width=0.8)
-    ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
-    ax.set_title('Daily P&L', fontsize=14, fontweight='bold')
-    ax.set_ylabel('P&L (CNY)', fontsize=12)
+    ax.bar(dates, daily_pnl, color=colors, alpha=0.7, width=bar_width)
+    ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+    ax.set_title('每日盈亏', fontsize=14, fontweight='bold')
+    ax.set_ylabel('盈亏（元）', fontsize=12)
     ax.grid(True, alpha=0.3, axis='y')
 
 
-def _plot_trade_amounts(ax, dates, daily_buy, daily_sell):
+def _plot_trade_amounts(ax, dates, daily_buy, daily_sell, bar_width):
     """绘制交易金额子图
 
     Args:
@@ -403,13 +389,13 @@ def _plot_trade_amounts(ax, dates, daily_buy, daily_sell):
         dates: 日期数组
         daily_buy: 每日买入金额
         daily_sell: 每日卖出金额
+        bar_width: 柱宽
     """
-    width = 0.4
-    ax.bar(dates, daily_buy, color='red', alpha=0.7, width=width, label='Buy Amount')
-    ax.bar(dates, -daily_sell, color='green', alpha=0.7, width=width, label='Sell Amount')
-    ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
-    ax.set_title('Daily Buy/Sell Amount', fontsize=14, fontweight='bold')
-    ax.set_ylabel('Amount (CNY)', fontsize=12)
+    ax.bar(dates, daily_buy, color='red', alpha=0.7, width=bar_width, label='买入金额')
+    ax.bar(dates, -daily_sell, color='green', alpha=0.7, width=bar_width, label='卖出金额')
+    ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+    ax.set_title('每日买卖金额', fontsize=14, fontweight='bold')
+    ax.set_ylabel('金额（元）', fontsize=12)
     ax.legend(loc='best', fontsize=10)
     ax.grid(True, alpha=0.3, axis='y')
 
@@ -423,10 +409,10 @@ def _plot_positions_value(ax, dates, daily_positions_val):
         daily_positions_val: 每日持仓市值数组
     """
     ax.fill_between(dates, daily_positions_val, alpha=0.3, color='#9467bd')
-    ax.plot(dates, daily_positions_val, linewidth=2, color='#9467bd', label='Positions Value')
-    ax.set_title('Daily Positions Value', fontsize=14, fontweight='bold')
-    ax.set_xlabel('Date', fontsize=12)
-    ax.set_ylabel('Value (CNY)', fontsize=12)
+    ax.plot(dates, daily_positions_val, linewidth=2, color='#9467bd', label='持仓市值')
+    ax.set_title('每日持仓市值', fontsize=14, fontweight='bold')
+    ax.set_xlabel('日期', fontsize=12)
+    ax.set_ylabel('市值（元）', fontsize=12)
     ax.legend(loc='best', fontsize=10)
     ax.grid(True, alpha=0.3)
 
@@ -445,20 +431,26 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
     Returns:
         str: 图表文件路径
     """
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+
     # 设置字体 - 使用系统可用字体
-    plt.rcParams['font.sans-serif'] = ['Ubuntu', 'DejaVu Sans']
+    plt.rcParams['font.sans-serif'] = ['WenQuanYi Micro Hei', 'Ubuntu', 'DejaVu Sans']
     plt.rcParams['axes.unicode_minus'] = False
 
     # 验证并提取数据
     dates, portfolio_values, daily_pnl, daily_buy, daily_sell, daily_positions_val = _validate_chart_data(backtest_stats)
 
+    # 统一柱宽
+    bar_width = 4
+
     # 创建图表 - 4行1列布局
-    fig, axes = plt.subplots(4, 1, figsize=(16, 20), sharex=True)
+    _, axes = plt.subplots(4, 1, figsize=(16, 20), sharex=True)
 
     # 绘制4个子图
     _plot_nav_curve(axes[0], dates, portfolio_values, daily_buy, daily_sell, benchmark_data, start_date, end_date, benchmark_code)
-    _plot_daily_pnl(axes[1], dates, daily_pnl)
-    _plot_trade_amounts(axes[2], dates, daily_buy, daily_sell)
+    _plot_daily_pnl(axes[1], dates, daily_pnl, bar_width)
+    _plot_trade_amounts(axes[2], dates, daily_buy, daily_sell, bar_width)
     _plot_positions_value(axes[3], dates, daily_positions_val)
 
     # 设置x轴日期格式
@@ -467,15 +459,12 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
         ax.xaxis.set_major_locator(mdates.MonthLocator())
         plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
 
-    # 调整布局
-    plt.tight_layout()
-
     # 自动创建目录
     chart_dir = os.path.dirname(chart_filename)
     os.makedirs(chart_dir, exist_ok=True)
 
-    # 保存图表
-    plt.savefig(chart_filename, dpi=150, bbox_inches='tight')
+    # 保存图表（tight_layout 由 bbox_inches='tight' 隐式完成）
+    plt.savefig(chart_filename, dpi=100, bbox_inches='tight')
     plt.close()
 
     return chart_filename

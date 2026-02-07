@@ -42,11 +42,12 @@ class StatsCollector:
         )
         self._stats['trade_dates'].append(current_date)
 
-    def collect_trading_amounts(self, prev_cash: float, current_cash: float):
-        """收集交易金额"""
-        cash_change = current_cash - prev_cash
-        self._stats['daily_buy_amount'].append(max(0, -cash_change))
-        self._stats['daily_sell_amount'].append(max(0, cash_change))
+    def collect_trading_amounts(self, context: Context):
+        """收集交易金额（从OrderProcessor累计的gross金额）"""
+        self._stats['daily_buy_amount'].append(context._daily_buy_total)
+        self._stats['daily_sell_amount'].append(context._daily_sell_total)
+        context._daily_buy_total = 0.0
+        context._daily_sell_total = 0.0
 
     def collect_post_trading(self, context: Context, prev_portfolio_value: float):
         """收集交易后数据"""
