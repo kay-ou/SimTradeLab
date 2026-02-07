@@ -105,7 +105,7 @@ def analyze_strategy_data_requirements(strategy_path: str) -> DataDependencies:
 
     except Exception as e:
         # 分析失败时返回全量依赖
-        print("策略分析失败: {}, 加载全部数据".format(e))
+        print(f"策略分析失败: {e}, 加载全部数据")
         return DataDependencies(
             needs_price_data=True,
             needs_valuation=True,
@@ -123,11 +123,11 @@ def print_dependencies(deps: DataDependencies):
         items.append("估值")
     if deps.needs_fundamentals:
         tables = ','.join(deps.fundamental_tables) if deps.fundamental_tables else '全部'
-        items.append("财务({})".format(tables))
+        items.append(f"财务({tables})")
     if deps.needs_exrights:
         items.append("除权")
 
     if items:
-        print("策略数据依赖: {}".format(' | '.join(items)))
+        print(f"策略数据依赖: {' | '.join(items)}")
     else:
         print("策略数据依赖: 无")

@@ -192,7 +192,7 @@ class Python35CompatChecker:
                     )
 
 
-def check_python35_compatibility(code: str) -> Tuple[bool, List[str]]:
+def check_python35_compatibility(code: str) -> tuple[bool, list[str]]:
     """检查代码是否兼容Python 3.5
 
     Args:
@@ -205,7 +205,7 @@ def check_python35_compatibility(code: str) -> Tuple[bool, List[str]]:
     return checker.check()
 
 
-def check_file_python35_compatibility(filepath: str) -> Tuple[bool, List[str]]:
+def check_file_python35_compatibility(filepath: str) -> tuple[bool, list[str]]:
     """检查文件是否兼容Python 3.5
 
     Args:
@@ -227,7 +227,7 @@ def check_file_python35_compatibility(filepath: str) -> Tuple[bool, List[str]]:
     return check_python35_compatibility(code)
 
 
-def check_and_fix_file(filepath: str, auto_fix: bool = True) -> Tuple[bool, List[str], str]:
+def check_and_fix_file(filepath: str, auto_fix: bool = True) -> tuple[bool, list[str], str]:
     """检查并自动修复文件的Python 3.5兼容性问题
 
     Args:

@@ -58,6 +58,16 @@ class TradingConfig(BaseModel):
         default="STOCK",
         description="佣金类型"
     )
+    transfer_fee_rate: float = Field(
+        default=0.0000487,
+        ge=0,
+        description="经手费率（万分之0.487，证监会规定）"
+    )
+    stamp_tax_rate: float = Field(
+        default=0.001,
+        ge=0,
+        description="印花税率（千分之一，卖出时收取）"
+    )
 
     model_config = {"frozen": True}  # 配置不可变，确保线程安全
 

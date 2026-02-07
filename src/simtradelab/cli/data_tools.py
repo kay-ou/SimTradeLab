@@ -49,8 +49,8 @@ class DataUnpacker:
         with open(manifest_file, 'r') as f:
             manifest = json.load(f)
 
-        print("数据版本: {}".format(manifest['version']))
-        print("导出日期: {}".format(manifest['export_date']))
+        print(f"数据版本: {manifest['version']}")
+        print(f"导出日期: {manifest['export_date']}")
         print("=" * 70)
 
         # 确保数据目录存在
@@ -61,7 +61,7 @@ class DataUnpacker:
             pkg_path = download_dir / pkg_info['name']
 
             if not pkg_path.exists():
-                print("\n警告：文件不存在 {}".format(pkg_info['name']))
+                print(f"\n警告：文件不存在 {pkg_info['name']}")
                 continue
 
             # 解压
@@ -81,7 +81,7 @@ class DataUnpacker:
             json.dump(version_info, f, ensure_ascii=False, indent=2)
 
         print("\n" + "=" * 70)
-        print("解包完成！数据目录: {}".format(self.data_dir))
+        print(f"解包完成！数据目录: {self.data_dir}")
         print("=" * 70)
 
 
@@ -116,5 +116,5 @@ if __name__ == '__main__':
             sys.exit(1)
         unpack_command(sys.argv[2])
     else:
-        print("未知命令: {}".format(command))
+        print(f"未知命令: {command}")
         sys.exit(1)

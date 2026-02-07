@@ -47,7 +47,7 @@ class DataServer:
         # 读取配置
         self.data_path = global_config.data_path
 
-        print("数据路径: {}".format(self.data_path))
+        print(f"数据路径: {self.data_path}")
 
         self.stock_data_dict = None
         self.stock_data_dict_1m = None
@@ -170,7 +170,7 @@ class DataServer:
 
         # 股票价格（日线）
         if 'price' in required_data:
-            print("\n[1] 股票价格（{}只）...".format(len(self._stock_keys_cache)))
+            print(f"\n[1] 股票价格（{len(self._stock_keys_cache)}只）...")
             self.stock_data_dict = LazyDataDict(
                 self.data_path, 'stock', self._stock_keys_cache,
                 preload=True
@@ -188,7 +188,7 @@ class DataServer:
 
         # 分钟数据（按需加载）
         if 'price_1m' in required_data and self._stock_1m_keys_cache:
-            print("[1.1] 分钟数据（{}只）...".format(len(self._stock_1m_keys_cache)))
+            print(f"[1.1] 分钟数据（{len(self._stock_1m_keys_cache)}只）...")
             self.stock_data_dict_1m = LazyDataDict(
                 self.data_path, 'stock_1m', self._stock_1m_keys_cache,
                 preload=True
@@ -205,7 +205,7 @@ class DataServer:
 
         # 估值数据
         if 'valuation' in required_data:
-            print("[2] 估值数据（{}只）...".format(len(self._valuation_keys_cache)))
+            print(f"[2] 估值数据（{len(self._valuation_keys_cache)}只）...")
             self.valuation_dict = LazyDataDict(
                 self.data_path, 'valuation', self._valuation_keys_cache,
                 preload=True
@@ -216,7 +216,7 @@ class DataServer:
 
         # 财务数据
         if 'fundamentals' in required_data:
-            print("[3] 财务数据（{}只，延迟加载）...".format(len(self._fundamentals_keys_cache)))
+            print(f"[3] 财务数据（{len(self._fundamentals_keys_cache)}只，延迟加载）...")
             from ..ptrade.config_manager import config
             self.fundamentals_dict = LazyDataDict(
                 self.data_path, 'fundamentals', self._fundamentals_keys_cache,
@@ -229,7 +229,7 @@ class DataServer:
 
         # 除权数据
         if 'exrights' in required_data:
-            print("[4] 除权数据（{}只，延迟加载）...".format(len(self._exrights_keys_cache)))
+            print(f"[4] 除权数据（{len(self._exrights_keys_cache)}只，延迟加载）...")
             from ..ptrade.config_manager import config
             self.exrights_dict = LazyDataDict(
                 self.data_path, 'exrights', self._exrights_keys_cache,
@@ -240,7 +240,7 @@ class DataServer:
             print("[4] 除权数据（跳过）")
             self.exrights_dict = LazyDataDict(self.data_path, 'exrights', [], preload=False)
 
-        print("\n已加载: {}".format(' | '.join(sorted(required_data))))
+        print(f"\n已加载: {' | '.join(sorted(required_data))}")
 
         # 动态获取所有指数代码
         index_codes = set()
@@ -258,7 +258,7 @@ class DataServer:
             self.benchmark_data['000300.SS'] = self.stock_data_dict['000300.SS']
 
         keys_list = list(self.benchmark_data.keys())
-        print("可用基准(共 {} 个): {} ...".format(len(keys_list), ', '.join(keys_list[:5])))
+        print(f"可用基准(共 {len(keys_list)} 个): {', '.join(keys_list[:5])} ...")
 
         # 加载复权缓存
         if 'price' in required_data or 'exrights' in required_data:
@@ -303,23 +303,23 @@ class DataServer:
         if not missing:
             return
 
-        print("补充加载缺失数据: {}".format(', '.join(sorted(missing))))
+        print(f"补充加载缺失数据: {', '.join(sorted(missing))}")
 
         # 使用缓存的keys加载缺失数据
         if 'price' in missing and self._stock_keys_cache is not None:
-            print("  加载股票价格（{}只）...".format(len(self._stock_keys_cache)))
+            print(f"  加载股票价格（{len(self._stock_keys_cache)}只）...")
             self.stock_data_dict = LazyDataDict(
                 self.data_path, 'stock', self._stock_keys_cache, preload=True
             )
 
         if 'valuation' in missing and self._valuation_keys_cache is not None:
-            print("  加载估值数据（{}只）...".format(len(self._valuation_keys_cache)))
+            print(f"  加载估值数据（{len(self._valuation_keys_cache)}只）...")
             self.valuation_dict = LazyDataDict(
                 self.data_path, 'valuation', self._valuation_keys_cache, preload=True
             )
 
         if 'fundamentals' in missing and self._fundamentals_keys_cache is not None:
-            print("  加载财务数据（{}只，延迟加载）...".format(len(self._fundamentals_keys_cache)))
+            print(f"  加载财务数据（{len(self._fundamentals_keys_cache)}只，延迟加载）...")
             from ..ptrade.config_manager import config
             self.fundamentals_dict = LazyDataDict(
                 self.data_path, 'fundamentals', self._fundamentals_keys_cache,
@@ -328,7 +328,7 @@ class DataServer:
             )
 
         if 'exrights' in missing and self._exrights_keys_cache is not None:
-            print("  加载除权数据（{}只，延迟加载）...".format(len(self._exrights_keys_cache)))
+            print(f"  加载除权数据（{len(self._exrights_keys_cache)}只，延迟加载）...")
             from ..ptrade.config_manager import config
             self.exrights_dict = LazyDataDict(
                 self.data_path, 'exrights', self._exrights_keys_cache,
@@ -337,7 +337,7 @@ class DataServer:
             )
 
         if 'price_1m' in missing and self._stock_1m_keys_cache is not None:
-            print("  加载分钟数据（{}只）...".format(len(self._stock_1m_keys_cache)))
+            print(f"  加载分钟数据（{len(self._stock_1m_keys_cache)}只）...")
             self.stock_data_dict_1m = LazyDataDict(
                 self.data_path, 'stock_1m', self._stock_1m_keys_cache,
                 preload=True

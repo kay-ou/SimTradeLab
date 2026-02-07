@@ -129,7 +129,7 @@ class UnifiedCacheManager:
     def get_namespace(self, name: str) -> CacheNamespace:
         """获取缓存命名空间"""
         if name not in self._namespaces:
-            raise ValueError("未知的缓存命名空间: {}".format(name))
+            raise ValueError(f"未知的缓存命名空间: {name}")
         return self._namespaces[name]
 
     def get(self, namespace: str, key: Any) -> Optional[Any]:
@@ -167,4 +167,3 @@ class UnifiedCacheManager:
 
 # 全局单例实例
 cache_manager = UnifiedCacheManager()
-

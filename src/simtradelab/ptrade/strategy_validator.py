@@ -44,9 +44,9 @@ class StrategyValidator:
         try:
             self.tree = ast.parse(strategy_code)
         except SyntaxError as e:
-            self.errors.append("语法错误: 行 {} - {}".format(e.lineno, e.msg))
+            self.errors.append(f"语法错误: 行 {e.lineno} - {e.msg}")
         except Exception as e:
-            self.errors.append("解析失败: {}".format(str(e)))
+            self.errors.append(f"解析失败: {str(e)}")
 
     def validate(self) -> bool:
         """验证策略
@@ -74,8 +74,8 @@ class StrategyValidator:
                     # 检查当前阶段是否被允许
                     if phase.value not in allowed_phase_names:
                         self.errors.append(
-                            "行 {}: API '{}' 不能在 '{}' 阶段调用。"
-                            "允许的阶段: {}".format(lineno, api_name, phase.value, allowed_phase_names)
+                            f"行 {lineno}: API '{api_name}' 不能在 '{phase.value}' 阶段调用。"
+                            f"允许的阶段: {allowed_phase_names}"
                         )
 
         # Python 3.5兼容性检查
@@ -143,11 +143,11 @@ def validate_strategy_file(strategy_path: str, check_py35_compat: bool = True, a
         with open(strategy_path, 'r', encoding='utf-8') as f:
             strategy_code = f.read()
     except FileNotFoundError:
-        return False, ["文件不存在: {}".format(strategy_path)], None
+        return False, [f"文件不存在: {strategy_path}"], None
     except PermissionError:
-        return False, ["无权限读取文件: {}".format(strategy_path)], None
+        return False, [f"无权限读取文件: {strategy_path}"], None
     except Exception as e:
-        return False, ["读取文件失败: {}".format(str(e))], None
+        return False, [f"读取文件失败: {str(e)}"], None
 
     # 如果需要检查兼容性且启用自动修复，先尝试修复
     fixed_code = None
@@ -163,7 +163,7 @@ def validate_strategy_file(strategy_path: str, check_py35_compat: bool = True, a
                 strategy_code = fixed
                 fixed_code = fixed
             except Exception as e:
-                return False, ["写入修复后的代码失败: {}".format(str(e))], None
+                return False, [f"写入修复后的代码失败: {str(e)}"], None
 
     validator = StrategyValidator(strategy_code, check_py35_compat=check_py35_compat)
     is_valid = validator.validate()
