@@ -362,6 +362,26 @@ fixer.fix_and_save()
 
 ---
 
+## Ptrade API 类型声明
+
+### setup_typeshed.sh
+
+在 pyright/Pylance 的 typeshed 中注入 Ptrade API 类型声明，使 VS Code 能识别策略代码中的全局函数（如 `order`、`get_history`、`context` 等）。
+
+#### 用法
+
+```bash
+bash scripts/setup_typeshed.sh
+```
+
+#### 说明
+
+- 脚本幂等，重复运行会自动跳过
+- pyright 更新后需重新运行
+- 仅修改 `.venv` 内的 typeshed，不影响项目代码
+
+---
+
 ## 工具脚本列表
 
 | 脚本 | 功能 | 路径 |
@@ -371,6 +391,7 @@ fixer.fix_and_save()
 | 策略分析 | 静态分析策略代码 | `ptrade/strategy_data_analyzer.py` |
 | 兼容性检查 | Python 3.5兼容性检查 | `utils/py35_compat_checker.py` |
 | f-string修复 | 自动修复f-string语法 | `utils/fstring_fixer.py` |
+| 类型声明注入 | 让Pylance识别Ptrade API全局函数 | `scripts/setup_typeshed.sh` |
 
 ---
 
