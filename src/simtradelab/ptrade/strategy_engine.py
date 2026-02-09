@@ -472,17 +472,16 @@ class StrategyExecutionEngine:
                 # 检查除权事件（送股/配股）
                 exrights_df = self.api.data_context.exrights_dict.get(stock_code)
                 if exrights_df is not None and not exrights_df.empty:
-                    if 'date' in exrights_df.columns:
-                        match = exrights_df[exrights_df['date'] == current_date]
-                        if not match.empty:
-                            event = match.iloc[0]
-                            allotted = float(event.get('allotted_ps', 0) or 0)
-                            if allotted > 0:
-                                new_amount = int(original_amount * (1 + allotted))
-                                position.amount = new_amount
-                                position.enable_amount = new_amount
-                                position.cost_basis /= (1 + allotted)
-                                self.context.portfolio._invalidate_cache()
+                    date_int = int(date_str)
+                    if date_int in exrights_df.index:
+                        event = exrights_df.loc[date_int]
+                        allotted = float(event.get('allotted_ps', 0) or 0)
+                        if allotted > 0:
+                            new_amount = int(original_amount * (1 + allotted))
+                            position.amount = new_amount
+                            position.enable_amount = new_amount
+                            position.cost_basis /= (1 + allotted)
+                            self.context.portfolio._invalidate_cache()
 
                 # 现金分红（按登记日股数计算）
                 if stock_code not in self.api.data_context.dividend_cache:
