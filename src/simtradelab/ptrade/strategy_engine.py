@@ -296,6 +296,7 @@ class StrategyExecutionEngine:
         Returns:
             是否成功完成所有交易日
         """
+        import pandas as pd
         from datetime import timedelta
         from simtradelab.ptrade.object import Data
         from simtradelab.ptrade.cache_manager import cache_manager
@@ -305,6 +306,9 @@ class StrategyExecutionEngine:
         prev_day_end_value = None
 
         for current_date in date_range:
+            # 确保是 pd.Timestamp（防止 datetime.date 无法 replace 时间分量）
+            current_date = pd.Timestamp(current_date)
+
             # 更新日期上下文（设为开盘时间）
             self.context.current_dt = current_date
             self.context.blotter.current_dt = current_date
@@ -437,6 +441,9 @@ class StrategyExecutionEngine:
         try:
             self._strategy_functions[func_name](self.context, data)
             return True
+        except ValueError as e:
+            self.log.error(f"{func_name}执行失败: {e}")
+            return allow_fail
         except Exception as e:
             self.log.error(f"{func_name}执行失败: {e}")
             traceback.print_exc()
@@ -465,15 +472,17 @@ class StrategyExecutionEngine:
                 # 检查除权事件（送股/配股）
                 exrights_df = self.api.data_context.exrights_dict.get(stock_code)
                 if exrights_df is not None and not exrights_df.empty:
-                    date_key = int(date_str) if exrights_df.index.dtype in ('int64', 'int32') else current_date
-                    if date_key in exrights_df.index:
-                        event = exrights_df.loc[date_key]
-                        allotted = float(event.get('allotted_ps', 0) or 0)
-                        if allotted > 0:
-                            new_amount = int(original_amount * (1 + allotted))
-                            position.amount = new_amount
-                            position.enable_amount = new_amount
-                            self.context.portfolio._invalidate_cache()
+                    if 'date' in exrights_df.columns:
+                        match = exrights_df[exrights_df['date'] == current_date]
+                        if not match.empty:
+                            event = match.iloc[0]
+                            allotted = float(event.get('allotted_ps', 0) or 0)
+                            if allotted > 0:
+                                new_amount = int(original_amount * (1 + allotted))
+                                position.amount = new_amount
+                                position.enable_amount = new_amount
+                                position.cost_basis /= (1 + allotted)
+                                self.context.portfolio._invalidate_cache()
 
                 # 现金分红（按登记日股数计算）
                 if stock_code not in self.api.data_context.dividend_cache:

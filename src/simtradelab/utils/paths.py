@@ -15,33 +15,40 @@
 from pathlib import Path
 
 
+def _is_project_dir(path: Path) -> bool:
+    """检查目录是否为有效的项目根目录"""
+    data_dir = path / 'data'
+    if not data_dir.is_dir():
+        return False
+    return (data_dir / 'manifest.json').exists() or (path / 'strategies').is_dir()
+
+
 def get_project_root() -> Path:
     """获取项目根目录
 
     从任何位置调用都能正确返回项目根目录
-    优先查找data目录（更可靠），然后查找pyproject.toml
+    查找顺序: CWD → __file__ 向上查找 → pyproject.toml → 固定层级
 
     Returns:
         项目根目录的Path对象
     """
+    # 方法1: 检查当前工作目录（支持 pip install 后从项目目录运行）
+    cwd = Path.cwd()
+    if _is_project_dir(cwd):
+        return cwd
+
+    # 方法2: 从源码位置向上查找 data 目录
     current = Path(__file__).resolve()
-
-    # 方法1: 向上查找data目录（最可靠的方式）
     for parent in [current] + list(current.parents):
-        data_dir = parent / 'data'
-        # 检查data目录是否存在且包含HDF5文件（验证是正确的项目目录）
-        if data_dir.exists() and data_dir.is_dir():
-            # 进一步验证：检查是否有预期的数据文件
-            has_data_files = any(data_dir.glob('*.h5'))
-            if has_data_files or (parent / 'strategies').exists():
-                return parent
+        if _is_project_dir(parent):
+            return parent
 
-    # 方法2: 向上查找pyproject.toml（备选方案）
+    # 方法3: 向上查找pyproject.toml（备选方案）
     for parent in [current] + list(current.parents):
         if (parent / 'pyproject.toml').exists():
             return parent
 
-    # 方法3: 如果都找不到，使用固定层级（当前文件在src/simtradelab/utils/）
+    # 方法4: 如果都找不到，使用固定层级（当前文件在src/simtradelab/utils/）
     return current.parent.parent.parent
     
 
