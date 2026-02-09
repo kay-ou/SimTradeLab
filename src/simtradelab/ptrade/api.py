@@ -178,8 +178,8 @@ class PtradeAPI:
                 continue
             if fq == 'pre':
                 # 前复权: (未复权价 - adj_b) / adj_a
-                adjusted_df.loc[common_idx, col] = np.round(
-                    (adjusted_df.loc[common_idx, col] - adj_b) / adj_a, 2
+                adjusted_df.loc[common_idx, col] = (
+                    (adjusted_df.loc[common_idx, col] - adj_b) / adj_a
                 )
             else:
                 # 后复权: adj_a * 未复权价 + adj_b
@@ -750,7 +750,7 @@ class PtradeAPI:
                         if needs_adj_dypre:
                             stock_result[field_name] = np.round(pre_price * adj_a_base + adj_b_base, 2)
                         else:
-                            stock_result[field_name] = np.round(pre_price, 2)
+                            stock_result[field_name] = pre_price
                     else:
                         stock_result[field_name] = aligned_df[field_name].values
             # 后复权处理: 后复权价 = adj_a * 未复权价 + adj_b
