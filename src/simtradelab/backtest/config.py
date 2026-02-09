@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 import pandas as pd
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -75,23 +76,25 @@ class BacktestConfig(BaseModel):
     @property
     def strategy_path(self) -> str:
         """策略文件完整路径"""
-        return f'{self.strategies_path}/{self.strategy_name}/backtest.py'
+        return str(Path(self.strategies_path) / self.strategy_name / 'backtest.py')
 
     @property
     def log_dir(self) -> str:
         """日志目录"""
-        return f'{self.strategies_path}/{self.strategy_name}/stats'
+        return str(Path(self.strategies_path) / self.strategy_name / 'stats')
 
     def get_log_filename(self) -> str:
         """生成日志文件名"""
-        return (f'{self.log_dir}/backtest_'
-                f'{self.start_date.strftime("%y%m%d")}_'  # type: ignore
-                f'{self.end_date.strftime("%y%m%d")}_'  # type: ignore
-                f'{datetime.now().strftime("%y%m%d_%H%M%S")}.log')
+        name = 'backtest_{}_{}_{}.log'.format(
+            self.start_date.strftime("%y%m%d"),  # type: ignore
+            self.end_date.strftime("%y%m%d"),  # type: ignore
+            datetime.now().strftime("%y%m%d_%H%M%S"))
+        return str(Path(self.log_dir) / name)
 
     def get_chart_filename(self) -> str:
         """生成图表文件名"""
-        return (f'{self.log_dir}/backtest_'
-                f'{self.start_date.strftime("%y%m%d")}_'  # type: ignore
-                f'{self.end_date.strftime("%y%m%d")}_'  # type: ignore
-                f'{datetime.now().strftime("%y%m%d_%H%M%S")}.png')
+        name = 'backtest_{}_{}_{}.png'.format(
+            self.start_date.strftime("%y%m%d"),  # type: ignore
+            self.end_date.strftime("%y%m%d"),  # type: ignore
+            datetime.now().strftime("%y%m%d_%H%M%S"))
+        return str(Path(self.log_dir) / name)

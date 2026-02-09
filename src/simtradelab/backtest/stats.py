@@ -453,10 +453,21 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
     _plot_trade_amounts(axes[2], dates, daily_buy, daily_sell, bar_width)
     _plot_positions_value(axes[3], dates, daily_positions_val)
 
-    # 设置x轴日期格式
+    # 根据回测时长自动选择x轴刻度
+    total_days = (dates[-1] - dates[0]).days if len(dates) > 1 else 0
+    if total_days > 365 * 4:
+        major_locator = mdates.YearLocator()
+        major_fmt = mdates.DateFormatter('%Y')
+    elif total_days > 365:
+        major_locator = mdates.MonthLocator(interval=3)
+        major_fmt = mdates.DateFormatter('%Y-%m')
+    else:
+        major_locator = mdates.MonthLocator()
+        major_fmt = mdates.DateFormatter('%Y-%m')
+
     for ax in axes:
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-        ax.xaxis.set_major_locator(mdates.MonthLocator())
+        ax.xaxis.set_major_formatter(major_fmt)
+        ax.xaxis.set_major_locator(major_locator)
         plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
 
     # 自动创建目录

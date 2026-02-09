@@ -13,10 +13,10 @@
 
 
 import sys
-import os
 
-# 强制无缓冲输出（确保日志实时显示）
-sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', buffering=1)
+# 确保控制台 UTF-8 编码和实时输出（兼容 Windows）
+sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+sys.stderr.reconfigure(encoding='utf-8')
 
 from simtradelab.backtest.runner import BacktestRunner
 from simtradelab.backtest.config import BacktestConfig

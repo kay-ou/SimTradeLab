@@ -224,8 +224,9 @@ class OrderProcessor:
             self.context.total_commission = 0
         self.context.total_commission += commission
 
-        # 建仓/加仓（含批次追踪）
-        self.context.portfolio.add_position(stock, amount, price, self.context.current_dt)
+        # 建仓/加仓（含批次追踪），cost_basis含佣金（与Ptrade一致）
+        cost_basis = total_cost / amount
+        self.context.portfolio.add_position(stock, amount, cost_basis, self.context.current_dt)
 
         # 累计当日买入金额（gross，不含手续费）
         self.context._daily_buy_total += amount * price

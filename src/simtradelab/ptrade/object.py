@@ -265,6 +265,9 @@ class StockData:
                     self._cached_phase = current_phase
                     self._cached_idx = self._current_idx
 
+        if self._data is None:
+            raise ValueError("股票 %s 在 %s 无可用数据" % (self.stock, self.current_date))
+
     def _load_data(self):
         """加载股票当日数据并应用前复权"""
         if self._current_idx is None or self._stock_df is None:
