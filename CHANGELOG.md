@@ -5,6 +5,34 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
 项目遵循 [语义化版本](https://semver.org/spec/v2.0.0.html) 规范。
 
+## [2.2.1] - 2026-02-09
+
+### 🐛 Bug 修复
+
+- **买入成本含佣金** - `cost_basis` 现在包含佣金，与 PTrade 实际行为对齐
+- **除权事件处理修复** - 使用 `date` 列匹配替代索引查找，除权时同步调整 `cost_basis`
+- **空数据快速报错** - `StockData` 数据为空时抛出明确 `ValueError`
+- **日期类型修正** - 回测循环中确保 `current_date` 为 `pd.Timestamp`，避免 `datetime.date` 无法 `replace` 时间分量
+
+### 🔧 改进
+
+- **路径处理重构** - 使用 `Path` 对象替代字符串拼接，跨平台兼容
+- **项目根目录查找优化** - 新增 CWD 优先检测，支持 `manifest.json` 判定
+- **图表 x 轴自适应** - 根据回测时长自动选择年/季/月刻度间隔
+- **控制台编码修正** - 使用 `reconfigure` 确保 UTF-8 编码和实时输出
+
+### 📦 升级指南
+
+从 v2.2.0 升级：
+
+```bash
+pip install --upgrade simtradelab==2.2.1
+```
+
+**兼容性：** ✅ 向后兼容，无 breaking change。
+
+---
+
 ## [2.2.0] - 2026-02-07
 
 ### ✨ 新增功能
