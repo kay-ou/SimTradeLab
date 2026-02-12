@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![License: Commercial](https://img.shields.io/badge/License-Commercial--Available-red)](licenses/LICENSE-COMMERCIAL.md)
-[![Version](https://img.shields.io/badge/Version-2.2.1-orange.svg)](#)
+[![Version](https://img.shields.io/badge/Version-2.3.0-orange.svg)](#)
 [![PyPI](https://img.shields.io/pypi/v/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 
@@ -27,7 +27,7 @@ SimTradeLab（深测Lab） 是一个由社区独立开发的开源策略回测�
 - 📊 **完整统计报告** - 收益、风险、交易明细、持仓批次、FIFO分红税
 - 🔌 **模块化设计** - 清晰的代码结构，易于扩展和定制
 
-**当前版本：** v2.2.1 | **开发状态：** Beta - 核心功能完善，正在策略实战中持续优化
+**当前版本：** v2.3.0 | **开发状态：** 核心功能完善，正在策略实战中持续优化
 
 ---
 
@@ -44,13 +44,20 @@ venv\Scripts\activate      # Windows
 # 安装最新版本
 pip install simtradelab
 
+# 包含技术指标（需要系统级ta-lib，可选）
+pip install simtradelab[indicators]
+
 # 包含优化器（可选）
 pip install simtradelab[optimizer]
+
+# 安装全部可选依赖
+pip install simtradelab[all]
 ```
 
-**系统依赖：**
+**系统依赖（仅使用技术指标API时需要）：**
 - macOS: `brew install ta-lib`
 - Linux: [ta-lib源码编译](docs/INSTALLATION.md)
+- Windows: 从 [ta-lib releases](https://github.com/ta-lib/ta-lib-python) 下载预编译包
 
 > 详细安装指南：[docs/INSTALLATION.md](docs/INSTALLATION.md)
 
