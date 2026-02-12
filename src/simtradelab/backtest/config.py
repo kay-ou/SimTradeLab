@@ -51,17 +51,18 @@ class BacktestConfig(BaseModel):
     enable_charts: bool = True
     enable_logging: bool = True
 
+    # 沙箱模式：True=限制import和builtins（Ptrade兼容），False=本地开发无限制
+    sandbox: bool = True
+
     model_config = {"arbitrary_types_allowed": True}
 
     @field_validator('start_date', 'end_date', mode='before')
     @classmethod
     def convert_to_timestamp(cls, v) -> pd.Timestamp:
         """转换日期为pd.Timestamp"""
-        if isinstance(v, str):
-            return pd.Timestamp(v)
         if isinstance(v, pd.Timestamp):
             return v
-        raise ValueError(f"日期必须是str或pd.Timestamp类型，得到: {type(v)}")
+        return pd.Timestamp(v)
 
     @model_validator(mode='after')
     def validate_date_range(self):

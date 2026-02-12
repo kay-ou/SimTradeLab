@@ -21,17 +21,11 @@ from joblib import Parallel, delayed
 
 
 def _calculate_adj_factors_from_events(stock, stock_df, exrights_events):
-    """从除权除息事件计算前复权因子
+    """从平台预计算因子构建前复权因子
 
-    前复权公式: P_adj = (P - adj_b) / adj_a
-
-    前复权的含义: 以最新价格为基准，调整历史价格使其连续可比
-    - 最新的价格不变 (adj_a=1, adj_b=0)
-    - 越往过去，调整幅度越大
-
-    如果除权数据包含平台预计算的 exer_forward_a/b，直接使用（精度更高）。
-    平台公式: P_adj = exer_forward_a * P + exer_forward_b
-    转换关系: adj_a = 1/exer_forward_a, adj_b = -exer_forward_b/exer_forward_a
+    平台公式: P_adj = ef_a * P + ef_b
+    转换: adj_a = 1/ef_a, adj_b = -ef_b/ef_a
+    前复权: P_adj = (P - adj_b) / adj_a
     """
     if stock_df is None or stock_df.empty:
         return None
@@ -45,80 +39,29 @@ def _calculate_adj_factors_from_events(stock, stock_df, exrights_events):
         return adj_factors
 
     try:
-        ex_dates_int = exrights_events.index.tolist()
-        ex_dates_dt = pd.to_datetime(ex_dates_int, format="%Y%m%d")
-        n_events = len(ex_dates_int)
+        ex_dates_dt = pd.to_datetime(exrights_events.index.tolist(), format="%Y%m%d")
+        n_events = len(ex_dates_dt)
 
-        has_platform_factors = (
-            'exer_forward_a' in exrights_events.columns
-            and exrights_events['exer_forward_a'].notna().all()
-        )
+        ef_a = exrights_events['exer_forward_a'].values
+        ef_b = exrights_events['exer_forward_b'].values
 
-        if has_platform_factors:
-            # 直接使用平台预计算的前复权因子
-            ef_a = exrights_events['exer_forward_a'].values
-            ef_b = exrights_events['exer_forward_b'].values
+        # 向量化转换：[n_events] 个除权区间 + 最新区间(1.0, 0.0)
+        forward_a = np.ones(n_events + 1, dtype="float64")
+        forward_b = np.zeros(n_events + 1, dtype="float64")
+        forward_a[:n_events] = 1.0 / ef_a
+        forward_b[:n_events] = -ef_b / ef_a
 
-            forward_a_array = np.empty(n_events + 1, dtype="float64")
-            forward_b_array = np.empty(n_events + 1, dtype="float64")
+        # searchsorted 将每个交易日映射到对应的除权区间
+        factor_idx = np.searchsorted(ex_dates_dt.values, stock_df.index.values, side="right")
 
-            for i in range(n_events):
-                forward_a_array[i] = 1.0 / ef_a[i]
-                forward_b_array[i] = -ef_b[i] / ef_a[i]
-
-            # 最新时刻不调整
-            forward_a_array[n_events] = 1.0
-            forward_b_array[n_events] = 0.0
-        else:
-            # 从原始事件计算
-            allotted_ps = exrights_events["allotted_ps"].values
-            bonus_ps = exrights_events["bonus_ps"].values
-            rationed_ps = exrights_events["rationed_ps"].values
-            rationed_px = exrights_events["rationed_px"].values
-
-            forward_a_array = np.ones(n_events + 1, dtype="float64")
-            forward_b_array = np.zeros(n_events + 1, dtype="float64")
-
-            for i in range(n_events - 1, -1, -1):
-                total_ratio = allotted_ps[i] + rationed_ps[i]
-                multiplier = 1.0 + total_ratio
-
-                forward_a_array[i] = forward_a_array[i + 1] * multiplier
-                forward_b_array[i] = (
-                    forward_b_array[i + 1] * multiplier
-                    + bonus_ps[i]
-                    - rationed_ps[i] * rationed_px[i]
-                )
-
-        # 向量化操作
-        trade_dates_np = stock_df.index.values
-        ex_dates_np = ex_dates_dt.values
-        factor_indices = np.searchsorted(ex_dates_np, trade_dates_np, side="right")
-
-        adj_a_array = forward_a_array[factor_indices]
-        adj_b_array = forward_b_array[factor_indices]
-
-        adj_factors = pd.DataFrame(
+        return pd.DataFrame(
             index=stock_df.index,
-            data={
-                "adj_a": adj_a_array.astype("float64"),
-                "adj_b": adj_b_array.astype("float64"),
-            },
+            data={"adj_a": forward_a[factor_idx], "adj_b": forward_b[factor_idx]},
         )
-
-        return adj_factors
 
     except (ValueError, KeyError, IndexError, pd.errors.EmptyDataError) as e:
         import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"计算 {stock} 前复权因子失败: {e}")
-        return None
-    except Exception as e:
-        import logging
-        import traceback
-        logger = logging.getLogger(__name__)
-        logger.error(f"计算 {stock} 前复权因子失败: {e}")
-        logger.debug(traceback.format_exc())
+        logging.getLogger(__name__).error(f"计算 {stock} 前复权因子失败: {e}")
         return None
 
 
@@ -287,10 +230,7 @@ def _calculate_adj_post_factors_from_events(stock, stock_df, exrights_events):
     """从除权除息事件计算后复权因子
 
     后复权公式: P_adj = adj_a * P + adj_b
-
-    后复权的含义: 以上市首日为基准，调整后续价格使其连续可比
-    - 上市首日不调整 (adj_a=1, adj_b=0)
-    - 越往最新，调整幅度越大
+    从历史往最新累积，上市首日 adj_a=1, adj_b=0
     """
     if stock_df is None or stock_df.empty:
         return None
@@ -304,8 +244,7 @@ def _calculate_adj_post_factors_from_events(stock, stock_df, exrights_events):
         return adj_factors
 
     try:
-        ex_dates_int = exrights_events.index.tolist()
-        ex_dates_dt = pd.to_datetime(ex_dates_int, format="%Y%m%d")
+        ex_dates_dt = pd.to_datetime(exrights_events.index.tolist(), format="%Y%m%d")
 
         allotted_ps = exrights_events["allotted_ps"].values
         bonus_ps = exrights_events["bonus_ps"].values
@@ -313,49 +252,24 @@ def _calculate_adj_post_factors_from_events(stock, stock_df, exrights_events):
         rationed_px = exrights_events["rationed_px"].values
 
         n_events = len(allotted_ps)
-        backward_a_array = np.ones(n_events + 1, dtype="float64")
-        backward_b_array = np.zeros(n_events + 1, dtype="float64")
+        backward_a = np.ones(n_events + 1, dtype="float64")
+        backward_b = np.zeros(n_events + 1, dtype="float64")
 
-        # 从历史往最新推进计算后复权因子
         for i in range(n_events):
-            total_ratio = allotted_ps[i] + rationed_ps[i]
-            multiplier = 1.0 + total_ratio
+            m = 1.0 + allotted_ps[i] + rationed_ps[i]
+            backward_a[i + 1] = backward_a[i] * m
+            backward_b[i + 1] = backward_b[i] * m + bonus_ps[i] - rationed_ps[i] * rationed_px[i]
 
-            backward_a_array[i + 1] = backward_a_array[i] * multiplier
-            backward_b_array[i + 1] = (
-                backward_b_array[i] * multiplier
-                + bonus_ps[i]
-                - rationed_ps[i] * rationed_px[i]
-            )
+        factor_idx = np.searchsorted(ex_dates_dt.values, stock_df.index.values, side="right")
 
-        trade_dates_np = stock_df.index.values
-        ex_dates_np = ex_dates_dt.values
-        factor_indices = np.searchsorted(ex_dates_np, trade_dates_np, side="right")
-
-        adj_a_array = backward_a_array[factor_indices]
-        adj_b_array = backward_b_array[factor_indices]
-
-        adj_factors = pd.DataFrame(
+        return pd.DataFrame(
             index=stock_df.index,
-            data={
-                "adj_a": adj_a_array.astype("float64"),
-                "adj_b": adj_b_array.astype("float64"),
-            },
+            data={"adj_a": backward_a[factor_idx], "adj_b": backward_b[factor_idx]},
         )
-
-        return adj_factors
 
     except (ValueError, KeyError, IndexError, pd.errors.EmptyDataError) as e:
         import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"计算 {stock} 后复权因子失败: {e}")
-        return None
-    except Exception as e:
-        import logging
-        import traceback
-        logger = logging.getLogger(__name__)
-        logger.error(f"计算 {stock} 后复权因子失败: {e}")
-        logger.debug(traceback.format_exc())
+        logging.getLogger(__name__).error(f"计算 {stock} 后复权因子失败: {e}")
         return None
 
 

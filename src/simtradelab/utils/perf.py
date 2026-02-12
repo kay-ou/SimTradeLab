@@ -56,7 +56,7 @@ def timer(threshold=0.1, name=None):
             start = time.perf_counter()
 
             # 保存开始时间（供函数内部访问当前耗时）
-            if args and hasattr(args[0], '__class__'):
+            if args and hasattr(args[0], '__dict__'):
                 instance = args[0]
                 if not hasattr(instance, '_timing_start'):
                     instance._timing_start = {}
@@ -68,7 +68,7 @@ def timer(threshold=0.1, name=None):
             if elapsed > threshold:
                 func_name = name or func.__name__
                 # 尝试获取第一个参数的类型信息
-                if args and hasattr(args[0], '__class__'):
+                if args and hasattr(args[0], '__dict__'):
                     class_name = args[0].__class__.__name__
                     if class_name == 'PtradeAPI':
                         # 如果是批量操作，显示批次大小
