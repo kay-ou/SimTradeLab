@@ -87,23 +87,6 @@ class Context:
         self.blotter.current_dt = self.current_dt
 
     # ==========================================
-    # 生命周期状态查询接口
-    # ==========================================
-
-    def get_current_lifecycle_phase(self) -> Optional[str]:
-        """获取当前生命周期阶段"""
-        return self._lifecycle_controller.current_phase_name
-
-    def get_lifecycle_statistics(self) -> dict[str, Any]:
-        """获取生命周期统计信息"""
-        return self._lifecycle_controller.get_call_statistics()
-
-    def is_api_allowed(self, api_name: str) -> bool:
-        """检查API是否在当前阶段允许调用"""
-        result = self._lifecycle_controller.validate_api_call(api_name)
-        return result.is_valid
-
-    # ==========================================
     # 工具方法
     # ==========================================
 

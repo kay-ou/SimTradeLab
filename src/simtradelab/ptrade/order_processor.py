@@ -68,6 +68,7 @@ class OrderProcessor:
                 data_source = self.data_context.stock_data_dict
 
             if stock not in data_source:
+                self.log.warning("get_execution_price 失败 | %s 不在数据源中", stock)
                 return None
 
             stock_df = data_source[stock]
@@ -78,13 +79,13 @@ class OrderProcessor:
                 current_dt = self.context.current_dt
                 if frequency == '1m':
                     # 分钟数据：使用searchsorted查找最近的时间点
-                    idx = stock_df.index.searchsorted(current_dt, side='right') - 1
+                    idx = stock_df.index.values.view('i8').searchsorted(current_dt.value, side='right') - 1
                     if idx < 0:
                         return None
                 else:
                     # 日线数据：使用date_dict查找
                     date_dict, _ = self.get_stock_date_index(stock)
-                    idx = date_dict.get(current_dt)
+                    idx = date_dict.get(current_dt.value)
                     if idx is None:
                         idx = stock_df.index.get_loc(current_dt)
 
@@ -97,8 +98,10 @@ class OrderProcessor:
                 base_price = float(price)
 
                 if pd.isna(base_price) or base_price <= 0:
+                    self.log.warning("get_execution_price 失败 | %s 价格异常: %s", stock, base_price)
                     return None
-            except Exception:
+            except Exception as e:
+                self.log.warning("get_execution_price 异常 | %s: %s", stock, e)
                 return None
 
         # 获取滑点配置
@@ -179,10 +182,6 @@ class OrderProcessor:
         """
         commission_ratio = config.trading.commission_ratio
         min_commission = config.trading.min_commission
-
-        # 如果手续费率为0，则完全不收手续费
-        if commission_ratio == 0:
-            return 0
 
         value = amount * price
         # 佣金费

@@ -14,11 +14,38 @@ PTrade 策略执行框架
 
 from __future__ import annotations
 
+import builtins
 import logging
 import traceback
 from typing import Any, Callable, Optional
 
 from .context import Context
+
+# 策略代码禁止导入的模块（与Ptrade平台一致）
+_BLOCKED_MODULES = frozenset({
+    'os', 'sys', 'io', 'subprocess', 'shutil', 'socket', 'http', 'urllib',
+    'ctypes', 'signal', 'importlib', 'runpy', 'code', 'codeop',
+})
+
+_REAL_IMPORT = builtins.__import__
+
+
+def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+    top = name.split('.')[0]
+    if top in _BLOCKED_MODULES:
+        raise ImportError(f"Module '{name}' is not allowed in strategy code")
+    return _REAL_IMPORT(name, globals, locals, fromlist, level)
+
+
+def _build_safe_builtins() -> dict:
+    """构建受限 builtins，移除 exec/eval/compile/breakpoint"""
+    unsafe = {'exec', 'eval', 'compile', 'breakpoint'}
+    safe = {k: v for k, v in builtins.__dict__.items() if k not in unsafe}
+    safe['__import__'] = _safe_import
+    return safe
+
+
+_SAFE_BUILTINS = _build_safe_builtins()
 
 
 class StrategyExecutionError(Exception):
@@ -43,6 +70,7 @@ class StrategyExecutionEngine:
         stats_collector: Any,
         log: logging.Logger,
         frequency: str = '1d',
+        sandbox: bool = True,
     ):
         """
         初始化策略执行引擎
@@ -53,6 +81,7 @@ class StrategyExecutionEngine:
             stats_collector: 统计收集器
             log: 日志对象
             frequency: 回测频率 '1d'日线 '1m'分钟线
+            sandbox: 是否启用沙箱（限制import和builtins）
         """
         # 核心组件（外部注入）
         self.context = context
@@ -60,6 +89,7 @@ class StrategyExecutionEngine:
         self.stats_collector = stats_collector
         self.log = log
         self.frequency = frequency
+        self.sandbox = sandbox
 
         # 获取生命周期控制器
         if self.context._lifecycle_controller is None:
@@ -86,6 +116,7 @@ class StrategyExecutionEngine:
 
         # 构建命名空间
         strategy_namespace = {
+            '__builtins__': _SAFE_BUILTINS if self.sandbox else builtins.__dict__.copy(),
             '__name__': '__main__',
             '__file__': strategy_path,
             'g': self.context.g,
@@ -275,6 +306,9 @@ class StrategyExecutionEngine:
             if not self._execute_lifecycle(data):
                 return False
 
+            # 执行 run_daily 注册的任务（日频固定在15:00执行）
+            self._execute_daily_tasks()
+
             # 收集交易金额（从OrderProcessor累计的gross金额）
             self.stats_collector.collect_trading_amounts(self.context)
 
@@ -336,13 +370,18 @@ class StrategyExecutionEngine:
             if not self._safe_call('before_trading_start', LifecyclePhase.BEFORE_TRADING_START, data):
                 return False
 
-            # 2. handle_data（分钟级调用）
+            # 2. handle_data + run_daily任务（分钟级调用）
             minute_bars = self._get_minute_bars(current_date)
+            daily_task_times = self._get_daily_task_time_set()
             for minute_dt in minute_bars:
                 self.context.current_dt = minute_dt
                 data = Data(minute_dt, self.context.portfolio._bt_ctx)
                 if not self._safe_call('handle_data', LifecyclePhase.HANDLE_DATA, data):
                     return False
+                # 在匹配的分钟bar执行run_daily任务
+                hhmm = f'{minute_dt.hour:02d}:{minute_dt.minute:02d}'
+                if hhmm in daily_task_times:
+                    self._execute_daily_tasks_for_time(hhmm)
 
             # 3. after_trading_end（每日一次，收盘后）
             self.context.current_dt = current_date.replace(hour=15, minute=0, second=0)
@@ -361,6 +400,20 @@ class StrategyExecutionEngine:
 
         return True
 
+    # 预生成分钟时间偏移模板（类级别，只算一次）
+    _MINUTE_OFFSETS = None
+
+    @classmethod
+    def _get_minute_offsets(cls):
+        """生成分钟时间偏移模板（惰性初始化，仅一次）"""
+        if cls._MINUTE_OFFSETS is None:
+            from datetime import timedelta
+            # A股交易时间: 9:30-11:30 (121分钟), 13:00-15:00 (121分钟)
+            morning = [timedelta(hours=9, minutes=30) + timedelta(minutes=i) for i in range(121)]
+            afternoon = [timedelta(hours=13) + timedelta(minutes=i) for i in range(121)]
+            cls._MINUTE_OFFSETS = morning + afternoon
+        return cls._MINUTE_OFFSETS
+
     def _get_minute_bars(self, trade_date):
         """生成交易日分钟时间序列
 
@@ -370,19 +423,31 @@ class StrategyExecutionEngine:
         Returns:
             分钟时间戳列表
         """
-        import pandas as pd
+        base = trade_date.normalize()
+        return [base + offset for offset in self._get_minute_offsets()]
 
-        # A股交易时间: 9:30-11:30, 13:00-15:00
-        morning_start = trade_date.replace(hour=9, minute=30, second=0, microsecond=0)
-        morning_end = trade_date.replace(hour=11, minute=30, second=0, microsecond=0)
-        afternoon_start = trade_date.replace(hour=13, minute=0, second=0, microsecond=0)
-        afternoon_end = trade_date.replace(hour=15, minute=0, second=0, microsecond=0)
+    def _execute_daily_tasks(self) -> None:
+        """执行所有 run_daily 注册的任务（日频模式：忽略time参数，全部执行）"""
+        for func, _ in self.api._daily_tasks:
+            try:
+                func(self.context)
+            except Exception as e:
+                self.log.error(f"run_daily任务执行失败: {e}")
+                self.log.error(traceback.format_exc())
 
-        # 生成分钟序列
-        morning_bars = pd.date_range(morning_start, morning_end, freq='1min')
-        afternoon_bars = pd.date_range(afternoon_start, afternoon_end, freq='1min')
+    def _get_daily_task_time_set(self) -> set[str]:
+        """获取所有 run_daily 注册的时间集合（分钟模式用）"""
+        return {time_str for _, time_str in self.api._daily_tasks}
 
-        return list(morning_bars) + list(afternoon_bars)
+    def _execute_daily_tasks_for_time(self, hhmm: str) -> None:
+        """执行指定时间的 run_daily 任务（分钟模式）"""
+        for func, time_str in self.api._daily_tasks:
+            if time_str == hhmm:
+                try:
+                    func(self.context)
+                except Exception as e:
+                    self.log.error(f"run_daily任务({hhmm})执行失败: {e}")
+                    self.log.error(traceback.format_exc())
 
     def _execute_lifecycle(self, data) -> bool:
         """执行策略生命周期方法

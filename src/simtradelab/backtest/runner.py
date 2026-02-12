@@ -25,7 +25,7 @@ from simtradelab.backtest.stats import generate_backtest_report, generate_backte
 from simtradelab.ptrade.api import PtradeAPI
 from simtradelab.service.data_server import DataServer
 from simtradelab.backtest.config import BacktestConfig
-from simtradelab.backtest.stats_collector import StatsCollector
+from simtradelab.backtest.backtest_stats import StatsCollector, BacktestStats
 from simtradelab.ptrade.strategy_engine import StrategyExecutionEngine
 from simtradelab.ptrade.strategy_validator import validate_strategy_file
 from simtradelab.utils.perf import timer, get_current_elapsed_time
@@ -74,7 +74,10 @@ class BacktestRunner:
 
         # 先验证策略，避免数据加载后才发现策略错误
         print("检查策略...")
-        is_valid, errors, fixed_code = validate_strategy_file(config.strategy_path)
+        is_valid, errors, fixed_code = validate_strategy_file(
+            config.strategy_path,
+            check_py35_compat=config.sandbox
+        )
         if not is_valid:
             print("\n策略验证失败:")
             for error in errors:
@@ -136,7 +139,8 @@ class BacktestRunner:
                 api=api,
                 stats_collector=stats_collector,
                 log=log,
-                frequency=config.frequency
+                frequency=config.frequency,
+                sandbox=config.sandbox
             )
 
             # 加载策略
@@ -156,7 +160,7 @@ class BacktestRunner:
                 stats_collector.stats,
                 config,
                 benchmark_df,
-                stats_collector.stats['positions_count'],
+                stats_collector.stats.positions_count,
                 context,
                 log
             )
@@ -329,7 +333,7 @@ class BacktestRunner:
 
     def _generate_reports(
         self,
-        stats: dict,
+        stats: BacktestStats,
         config: BacktestConfig,
         benchmark_df: pd.DataFrame,
         positions_count,
@@ -388,12 +392,8 @@ class BacktestRunner:
         if config.enable_charts:
             chart_benchmark_data = {benchmark_code: actual_benchmark_df}
             generate_backtest_charts(
-                stats,
-                config.start_date, config.end_date,
-                chart_benchmark_data,
-                self._chart_filename,
-                benchmark_code=benchmark_code
-            )
+                stats, config.start_date, config.end_date,
+                chart_benchmark_data, self._chart_filename, benchmark_code)
             print(f"图表已保存至: {self._chart_filename}")
 
         if config.enable_logging:

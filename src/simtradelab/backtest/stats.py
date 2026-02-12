@@ -16,6 +16,9 @@ import os
 import json
 import numpy as np
 
+from simtradelab.utils.perf import timer
+from simtradelab.backtest.backtest_stats import BacktestStats
+
 
 def _load_index_names():
     """加载指数名称映射
@@ -216,11 +219,11 @@ def calculate_trade_stats(daily_returns):
     }
 
 
-def generate_backtest_report(backtest_stats, start_date, end_date, benchmark_df, benchmark_code='000300.SS'):
+def generate_backtest_report(backtest_stats: BacktestStats, start_date, end_date, benchmark_df, benchmark_code='000300.SS'):
     """生成完整的回测报告
 
     Args:
-        backtest_stats: 回测统计数据字典
+        backtest_stats: 回测统计数据
         start_date: 回测开始日期
         end_date: 回测结束日期
         benchmark_df: 基准数据DataFrame
@@ -230,7 +233,7 @@ def generate_backtest_report(backtest_stats, start_date, end_date, benchmark_df,
     Returns:
         dict: 完整的回测报告指标
     """
-    portfolio_values = np.array(backtest_stats['portfolio_values'])
+    portfolio_values = np.array(backtest_stats.portfolio_values)
 
     # 基本收益指标
     returns_metrics = calculate_returns(portfolio_values)
@@ -287,21 +290,21 @@ def generate_backtest_report(backtest_stats, start_date, end_date, benchmark_df,
     return report
 
 
-def _validate_chart_data(backtest_stats):
+def _validate_chart_data(backtest_stats: BacktestStats):
     """验证并对齐图表数据
 
     Args:
-        backtest_stats: 回测统计数据字典
+        backtest_stats: 回测统计数据
 
     Returns:
         tuple: (dates, portfolio_values, daily_pnl, daily_buy, daily_sell, daily_positions_val)
     """
-    dates = np.array(backtest_stats['trade_dates'])
-    portfolio_values = np.array(backtest_stats['portfolio_values'])
-    daily_pnl = np.array(backtest_stats['daily_pnl'])
-    daily_buy = np.array(backtest_stats['daily_buy_amount'])
-    daily_sell = np.array(backtest_stats['daily_sell_amount'])
-    daily_positions_val = np.array(backtest_stats['daily_positions_value'])
+    dates = np.array(backtest_stats.trade_dates)
+    portfolio_values = np.array(backtest_stats.portfolio_values)
+    daily_pnl = np.array(backtest_stats.daily_pnl)
+    daily_buy = np.array(backtest_stats.daily_buy_amount)
+    daily_sell = np.array(backtest_stats.daily_sell_amount)
+    daily_positions_val = np.array(backtest_stats.daily_positions_value)
 
     # 数据验证：确保所有数组长度一致，空数组填充为0
     expected_len = len(dates)
@@ -364,24 +367,23 @@ def _plot_nav_curve(ax, dates, portfolio_values, daily_buy, daily_sell, benchmar
     ax.grid(True, alpha=0.3)
 
 
-def _plot_daily_pnl(ax, dates, daily_pnl, bar_width):
+def _plot_daily_pnl(ax, dates, daily_pnl):
     """绘制每日盈亏子图
 
     Args:
         ax: matplotlib axes对象
         dates: 日期数组
         daily_pnl: 每日盈亏数组
-        bar_width: 柱宽
     """
-    colors = ['red' if pnl >= 0 else 'green' for pnl in daily_pnl]
-    ax.bar(dates, daily_pnl, color=colors, alpha=0.7, width=bar_width)
+    ax.fill_between(dates, daily_pnl, 0, where=daily_pnl >= 0, color='red', alpha=0.7)
+    ax.fill_between(dates, daily_pnl, 0, where=daily_pnl < 0, color='green', alpha=0.7)
     ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
     ax.set_title('每日盈亏', fontsize=14, fontweight='bold')
     ax.set_ylabel('盈亏（元）', fontsize=12)
     ax.grid(True, alpha=0.3, axis='y')
 
 
-def _plot_trade_amounts(ax, dates, daily_buy, daily_sell, bar_width):
+def _plot_trade_amounts(ax, dates, daily_buy, daily_sell):
     """绘制交易金额子图
 
     Args:
@@ -389,10 +391,9 @@ def _plot_trade_amounts(ax, dates, daily_buy, daily_sell, bar_width):
         dates: 日期数组
         daily_buy: 每日买入金额
         daily_sell: 每日卖出金额
-        bar_width: 柱宽
     """
-    ax.bar(dates, daily_buy, color='red', alpha=0.7, width=bar_width, label='买入金额')
-    ax.bar(dates, -daily_sell, color='green', alpha=0.7, width=bar_width, label='卖出金额')
+    ax.fill_between(dates, daily_buy, 0, color='red', alpha=0.7, label='买入金额')
+    ax.fill_between(dates, -daily_sell, 0, color='green', alpha=0.7, label='卖出金额')
     ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
     ax.set_title('每日买卖金额', fontsize=14, fontweight='bold')
     ax.set_ylabel('金额（元）', fontsize=12)
@@ -417,11 +418,12 @@ def _plot_positions_value(ax, dates, daily_positions_val):
     ax.grid(True, alpha=0.3)
 
 
-def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_data, chart_filename, benchmark_code='000300.SS'):
+@timer(name="图表生成")
+def generate_backtest_charts(backtest_stats: BacktestStats, start_date, end_date, benchmark_data, chart_filename, benchmark_code='000300.SS'):
     """生成回测图表
 
     Args:
-        backtest_stats: 回测统计数据字典
+        backtest_stats: 回测统计数据
         start_date: 回测开始日期
         end_date: 回测结束日期
         benchmark_data: 基准数据字典
@@ -441,16 +443,13 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
     # 验证并提取数据
     dates, portfolio_values, daily_pnl, daily_buy, daily_sell, daily_positions_val = _validate_chart_data(backtest_stats)
 
-    # 统一柱宽
-    bar_width = 4
-
     # 创建图表 - 4行1列布局
     _, axes = plt.subplots(4, 1, figsize=(16, 20), sharex=True)
 
     # 绘制4个子图
     _plot_nav_curve(axes[0], dates, portfolio_values, daily_buy, daily_sell, benchmark_data, start_date, end_date, benchmark_code)
-    _plot_daily_pnl(axes[1], dates, daily_pnl, bar_width)
-    _plot_trade_amounts(axes[2], dates, daily_buy, daily_sell, bar_width)
+    _plot_daily_pnl(axes[1], dates, daily_pnl)
+    _plot_trade_amounts(axes[2], dates, daily_buy, daily_sell)
     _plot_positions_value(axes[3], dates, daily_positions_val)
 
     # 根据回测时长自动选择x轴刻度
@@ -474,9 +473,11 @@ def generate_backtest_charts(backtest_stats, start_date, end_date, benchmark_dat
     chart_dir = os.path.dirname(chart_filename)
     os.makedirs(chart_dir, exist_ok=True)
 
-    # 保存图表（tight_layout 由 bbox_inches='tight' 隐式完成）
-    plt.savefig(chart_filename, dpi=100, bbox_inches='tight')
-    plt.close()
+    # tight_layout 解析式布局（比 bbox_inches='tight' 的双重渲染快）
+    fig = plt.gcf()
+    fig.tight_layout()
+    fig.savefig(chart_filename, dpi=100)
+    plt.close(fig)
 
     return chart_filename
 

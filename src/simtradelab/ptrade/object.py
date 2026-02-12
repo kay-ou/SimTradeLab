@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-import bisect
 from collections import OrderedDict
 from datetime import datetime
 from functools import wraps
@@ -238,8 +237,9 @@ class StockData:
         # 首次访问时才计算_current_idx（此时phase已正确设置）
         if self._stock_df is not None and isinstance(self._stock_df, pd.DataFrame):
             if self._bt_ctx and self._bt_ctx.get_stock_date_index:
-                date_dict, sorted_dates = self._bt_ctx.get_stock_date_index(self.stock)
+                date_dict, sorted_i8 = self._bt_ctx.get_stock_date_index(self.stock)
                 current_date_norm = self.current_date.normalize()
+                dt_value = current_date_norm.value
 
                 # 通过LifecycleController判断当前阶段
                 controller = self._bt_ctx.context._lifecycle_controller if self._bt_ctx.context else None
@@ -249,13 +249,15 @@ class StockData:
 
                 if is_before_trading:
                     # before_trading_start阶段：返回前一交易日数据
-                    pos = bisect.bisect_left(sorted_dates, current_date_norm)
+                    # searchsorted(side='left') 等价于 bisect_left: 当 dt_value 在数组中时
+                    # 返回该元素位置，pos-1 得到前一交易日
+                    pos = sorted_i8.searchsorted(dt_value, side='left')
                     if pos > 0:
-                        self._current_idx = date_dict[sorted_dates[pos - 1]]
+                        self._current_idx = date_dict[sorted_i8[pos - 1]]
                 else:
                     # handle_data阶段：返回当日数据
-                    if current_date_norm in date_dict:
-                        self._current_idx = date_dict[current_date_norm]
+                    if dt_value in date_dict:
+                        self._current_idx = date_dict[dt_value]
 
                 # 优化:只有phase或idx变化时才重新加载
                 if (self._cached_phase != current_phase or
@@ -484,13 +486,18 @@ class Portfolio:
         # 日内缓存
         self._cached_portfolio_value = None
         self._cache_date = None
+        # 每日收盘价缓存（避免重复 DataFrame 查找）
+        self._close_price_cache = {}
+        self._close_price_cache_date = None
         # 持股批次追踪（用于分红税FIFO计算）
         self._position_lots = {}
 
     def _invalidate_cache(self):
-        """清空缓存（持仓变化时调用）"""
+        """清空 portfolio_value 缓存（持仓变化时调用）
+
+        注意：不清空 _close_price_cache，因为同一天收盘价不变
+        """
         self._cached_portfolio_value = None
-        self._cache_date = None
 
     def add_position(self, stock, amount, price, date):
         """买入建仓/加仓"""
@@ -587,39 +594,49 @@ class Portfolio:
 
     @property
     def portfolio_value(self):
-        """计算总资产（现金+持仓市值）带日内缓存"""
-        # 检查缓存
+        """计算总资产（现金+持仓市值）带日内缓存
+
+        优化：收盘价按日缓存，交易后重算只做算术，不重复 DataFrame 查找
+        """
         current_date = self._context.current_dt if self._context else None
         if current_date is not None and current_date == self._cache_date and self._cached_portfolio_value is not None:
             return self._cached_portfolio_value
 
         total = self._cash
 
-        # 持仓市值（使用当天收盘价）
+        # 日切时清空收盘价缓存
+        if current_date != self._close_price_cache_date:
+            self._close_price_cache = {}
+            self._close_price_cache_date = current_date
+
         positions_value = 0.0
         for stock, position in self.positions.items():
-            if position.amount > 0:
-                current_price = position.cost_basis
-                if self._bt_ctx and self._bt_ctx.stock_data_dict and stock in self._bt_ctx.stock_data_dict:
-                    stock_df = self._bt_ctx.stock_data_dict[stock]
-                    if isinstance(stock_df, pd.DataFrame) and self._context:
-                        # 使用哈希索引 O(1) 查找，避免 df.loc O(log n)
-                        if self._bt_ctx.get_stock_date_index:
-                            date_dict, _ = self._bt_ctx.get_stock_date_index(stock)
-                            idx = date_dict.get(self._context.current_dt)
-                            if idx is not None:
-                                price = stock_df.iloc[idx]['close']
-                                if not np.isnan(price) and price > 0:
-                                    current_price = price
+            if position.amount <= 0:
+                continue
 
-                position.last_sale_price = current_price
-                position.market_value = position.amount * current_price
-                positions_value += position.amount * current_price
+            # 从日缓存获取收盘价
+            if stock in self._close_price_cache:
+                current_price = self._close_price_cache[stock]
+            else:
+                current_price = position.cost_basis
+                if self._bt_ctx and self._bt_ctx.get_stock_date_index:
+                    stock_df = self._bt_ctx.stock_data_dict.get(stock)
+                    if stock_df is not None and isinstance(stock_df, pd.DataFrame) and self._context:
+                        date_dict, _ = self._bt_ctx.get_stock_date_index(stock)
+                        idx = date_dict.get(self._context.current_dt.value)
+                        if idx is not None:
+                            price = stock_df['close'].values[idx]
+                            if not np.isnan(price) and price > 0:
+                                current_price = price
+                self._close_price_cache[stock] = current_price
+
+            position.last_sale_price = current_price
+            position.market_value = position.amount * current_price
+            positions_value += position.amount * current_price
 
         self.positions_value = positions_value
         result = total + positions_value
 
-        # 更新缓存
         if current_date is not None:
             self._cache_date = current_date
             self._cached_portfolio_value = result
