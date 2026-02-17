@@ -32,7 +32,14 @@ SimTradeLab 提供完整的 IDE 智能提示支持，提升策略开发效率：
 
 ### 功能说明
 
-项目内置 `typings/builtins.pyi` 存根文件，**VS Code 和 PyCharm 会自动识别**，无需额外配置！
+通过 `scripts/setup_typeshed.sh` 脚本，可以在 pyright/Pylance 的 typeshed 中注入 PTrade API 类型声明，使 IDE 能识别策略代码中的全局函数。
+
+运行方式：
+```bash
+bash scripts/setup_typeshed.sh
+```
+
+脚本运行后，**VS Code 和 PyCharm 会自动识别**，获得类型提示支持。
 
 ### 支持的功能
 
@@ -58,7 +65,7 @@ get_  # 自动补全：get_history, get_price, get_fundamentals, ...
 
 ### 覆盖范围
 
-类型提示覆盖 **52 个 PTrade API 函数**：
+类型提示覆盖 **46 个 PTrade API 函数**：
 
 **交易API：**
 - `order`, `order_target`, `order_value`, `order_target_value`
@@ -337,8 +344,8 @@ tree.write('ptrade-api.xml', encoding='utf-8', xml_declaration=True)
 # 2. 重新加载窗口
 Ctrl+Shift+P → "Developer: Reload Window"
 
-# 3. 检查 stub 文件是否存在
-ls typings/builtins.pyi
+# 3. 确认已运行 setup_typeshed.sh
+bash scripts/setup_typeshed.sh
 ```
 
 **PyCharm:**
@@ -372,9 +379,8 @@ File → Settings → Project → Python Interpreter
 
 **解决方案：**
 ```bash
-# 确认 stub 文件路径正确
-# VS Code: typings/builtins.pyi
-# PyCharm: 应该自动识别
+# 确认已运行 setup_typeshed.sh
+bash scripts/setup_typeshed.sh
 
 # 检查 Python 路径配置
 import sys
