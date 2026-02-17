@@ -34,7 +34,7 @@ SimTradeLab 采用模块化设计，主要分为以下几个核心模块：
                    │
         ┌──────────▼──────────┐
         │    PTrade API       │  API模拟层
-        │  - 52个核心API      │  - 交易/查询/配置
+        │  - 46个核心API      │  - 交易/查询/配置
         │  - 生命周期验证     │  - 数据访问
         └──────────┬──────────┘
                    │
@@ -46,9 +46,9 @@ SimTradeLab 采用模块化设计，主要分为以下几个核心模块：
         └──────────┬──────────┘
                    │
         ┌──────────▼──────────┐
-        │   HDF5 Storage      │  数据存储
+        │   Parquet Storage   │  数据存储
         │  - 股票价格         │  - 5000+股票
-        │  - 基本面数据       │  - 日线数据
+        │  - 基本面数据       │  - 日线/分钟线
         └─────────────────────┘
 ```
 
@@ -58,13 +58,13 @@ SimTradeLab 采用模块化设计，主要分为以下几个核心模块：
 |------|------|------|
 | **回测编排器** | `backtest/runner.py` | 数据加载、环境初始化、报告生成 |
 | **策略执行引擎** | `ptrade/strategy_engine.py` | 策略加载、生命周期执行、统计收集 |
-| **API模拟层** | `ptrade/api.py` | 52个PTrade API实现 |
+| **API模拟层** | `ptrade/api.py` | 46个PTrade API实现 |
 | **数据上下文** | `ptrade/data_context.py` | 数据结构封装 |
 | **数据服务** | `service/data_server.py` | 单例数据常驻服务 |
 | **生命周期控制器** | `ptrade/lifecycle_controller.py` | API调用阶段验证 |
 | **订单处理器** | `ptrade/order_processor.py` | 订单创建、执行、验证 |
 | **缓存管理器** | `ptrade/cache_manager.py` | 多级LRU缓存 |
-| **统计收集器** | `backtest/stats_collector.py` | 交易数据收集 |
+| **统计收集器** | `backtest/backtest_stats.py` | 交易数据收集 |
 
 ---
 
@@ -72,7 +72,7 @@ SimTradeLab 采用模块化设计，主要分为以下几个核心模块：
 
 ### 核心优化技术栈
 
-**本地回测性能比PTrade平台提升20-30+倍！**
+**本地回测性能比PTrade平台提升100-160倍！**
 
 #### 1. 数据常驻内存（单例模式）
 
@@ -111,8 +111,8 @@ class DataServer:
 | 缓存类型 | 实现 | 淘汰策略 | 容量 | 命中率 |
 |---------|------|---------|------|--------|
 | 全局MA/VWAP缓存 | `cachetools.LRUCache` | LRU | 1000项 | >95% |
-| 前复权因子缓存 | HDF5持久化 | 永久 | 全量 | 100% |
-| 分红事件缓存 | HDF5持久化 | 永久 | 全量 | 100% |
+| 前复权因子缓存 | Parquet持久化 | 永久 | 全量 | 100% |
+| 分红事件缓存 | 内存计算 | 每次 | 全量 | 100% |
 | 历史数据缓存 | `LazyDataDict` | LRU | 500项 | >90% |
 | 基本面数据缓存 | `LazyDataDict` | LRU | 200项 | >85% |
 | 日期索引缓存 | 内存字典 | 永久 | 全量 | 100% |
@@ -148,8 +148,8 @@ adj_prices = original_prices * adj_a_array + adj_b_array
 ```
 
 **实现：**
-- 预计算所有股票的复权因子，存储到 `ptrade_adj_pre.h5`
-- 使用 `blosc` 压缩，减少磁盘占用
+- 预计算所有股票的复权因子，存储到 `ptrade_adj_pre.parquet`
+- 使用 Parquet 格式持久化，高效读写
 - 向量化计算，利用 numpy 的 SIMD 加速
 
 **性能提升：**
@@ -387,7 +387,7 @@ API_LIFECYCLE_CONFIG = {
         'allowed_phases': ['all'],
         'description': '获取历史行情数据',
     },
-    # ... 52个API配置
+    # ... 46个API配置
 }
 ```
 
@@ -614,7 +614,7 @@ class DataServer:
 
 **设计思想：**
 - 数据不预加载到内存
-- 首次访问时从HDF5读取
+- 首次访问时从 Parquet 读取
 - 使用LRU缓存管理内存
 - 支持全量预加载模式
 
@@ -635,7 +635,7 @@ class LazyDataDict:
         if key in self._cache:
             return self._cache[key]
 
-        # 从HDF5加载
+        # 从 Parquet 加载
         data = self._store[f'{self._prefix}{key}']
         self._cache[key] = data
         return data

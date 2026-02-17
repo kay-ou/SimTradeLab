@@ -1,21 +1,25 @@
 # SimTradeLab 使用指南 - PyPI安装版
 
-## 📦 安装
+## 安装
 
 ```bash
 pip install simtradelab
+
+# 可选：技术指标（需要系统级 ta-lib）
+pip install simtradelab[indicators]
+
+# 可选：参数优化器
+pip install simtradelab[optimizer]
 ```
 
-## 🏗️ 创建工作目录
+## 创建工作目录
 
-安装后需要创建工作目录来存放数据、策略和notebooks：
+安装后需要创建工作目录来存放数据、策略和 notebooks：
 
 ```bash
-# 创建工作目录
 mkdir -p ~/simtrade_workspace
 cd ~/simtrade_workspace
 
-# 创建子目录
 mkdir -p data          # 数据文件
 mkdir -p strategies    # 策略文件
 mkdir -p notebooks     # Jupyter notebooks
@@ -25,37 +29,37 @@ mkdir -p notebooks     # Jupyter notebooks
 ```
 ~/simtrade_workspace/
 ├── data/
-│   ├── ptrade_data.h5
-│   └── ptrade_fundamentals.h5
+│   ├── stocks/              # 股票日线（.parquet）
+│   ├── stocks_1m/           # 分钟数据（.parquet）
+│   ├── valuation/           # 估值数据
+│   ├── fundamentals/        # 财务数据
+│   ├── exrights/            # 除权数据
+│   ├── metadata/            # 元数据
+│   └── manifest.json        # 数据清单
 ├── strategies/
 │   ├── my_strategy/
 │   │   └── backtest.py
 │   └── another_strategy/
 │       └── backtest.py
 └── notebooks/
-    ├── research.ipynb
-    └── analysis.ipynb
+    └── research.ipynb
 ```
 
-## 📊 准备数据
+## 准备数据
 
-### 方式1: 使用SimTradeData项目
+### 方式1: 使用 SimTradeData 项目
 
 访问 [SimTradeData](https://github.com/kay-ou/SimTradeData) 下载数据，放到 `data/` 目录。
 
 ### 方式2: 使用自己的数据
 
-确保数据文件是HDF5格式，包含以下内容：
-- `ptrade_data.h5` - 价格和除权数据
-- `ptrade_fundamentals.h5` - 基本面数据
+确保数据为 Parquet 格式，按上述目录结构组织。每只股票一个 `.parquet` 文件，包含 `open`、`high`、`low`、`close`、`volume`、`money` 字段。
 
-## 📝 编写策略
+## 编写策略
 
 创建策略文件 `strategies/my_strategy/backtest.py`：
 
 ```python
-from simtradelab.ptrade.api import *
-
 def initialize(context):
     """策略初始化"""
     set_benchmark('000300.SS')
@@ -64,7 +68,6 @@ def initialize(context):
 def handle_data(context, data):
     """每日交易逻辑"""
     for stock in context.stocks:
-        # 获取历史数据
         hist = get_history(20, '1d', 'close', [stock], is_dict=True)
 
         if stock not in hist:
@@ -87,35 +90,27 @@ def after_trading_end(context, data):
     log.info("总资产: %.2f" % context.portfolio.portfolio_value)
 ```
 
-## 🚀 运行回测
+> **注意：** 策略代码中无需 import，所有 PTrade API（`set_benchmark`、`get_history`、`order_value` 等）由框架自动注入。Backtest 模式不支持 f-string 和 `import io/sys`。
+
+## 运行回测
 
 创建运行脚本 `run_backtest.py`：
 
 ```python
 from simtradelab.backtest.runner import BacktestRunner
-from pathlib import Path
+from simtradelab.backtest.config import BacktestConfig
 
-# 配置路径
-workspace = Path.home() / 'simtrade_workspace'
-data_path = workspace / 'data'
-strategies_path = workspace / 'strategies'
-
-# 创建回测引擎
-runner = BacktestRunner(
-    data_path=str(data_path),
-    strategies_path=str(strategies_path)
-)
-
-# 运行回测
-runner.run(
+config = BacktestConfig(
     strategy_name='my_strategy',
     start_date='2024-01-01',
     end_date='2024-12-31',
-    initial_capital=1000000.0
+    initial_capital=1000000.0,
+    data_path='data',          # 数据目录路径
+    strategies_path='strategies' # 策略目录路径
 )
 
-print("回测完成！")
-print("报告位置:", strategies_path / 'my_strategy' / 'stats')
+runner = BacktestRunner()
+runner.run(config=config)
 ```
 
 运行：
@@ -123,28 +118,22 @@ print("报告位置:", strategies_path / 'my_strategy' / 'stats')
 python run_backtest.py
 ```
 
-## 📊 Research模式（Jupyter Notebook）
+## Research模式（Jupyter Notebook）
 
-### 启动Jupyter
+### 启动 Jupyter
 
 ```bash
 cd ~/simtrade_workspace/notebooks
 jupyter notebook
 ```
 
-### 在Notebook中使用
+### 在 Notebook 中使用
 
 ```python
 # Cell 1: 导入和初始化
 from simtradelab.research.api import init_api, get_price, get_history
-from pathlib import Path
-import pandas as pd
 
-# 指定数据路径
-data_path = Path.home() / 'simtrade_workspace' / 'data'
-api = init_api(data_path=str(data_path))
-
-print("✅ API初始化成功")
+api = init_api(data_path='../data')
 ```
 
 ```python
@@ -155,171 +144,51 @@ df = get_price(
     end_date='2024-12-31',
     fields=['open', 'high', 'low', 'close', 'volume']
 )
-
-print(f"数据形状: {df.shape}")
 df.head()
 ```
 
 ```python
-# Cell 3: 获取历史数据
-hist = get_history(20, '600519.SS', 'close')
-print(f"最近20日收盘价:")
-print(hist)
+# Cell 3: 获取指数成分股
+stocks = api.get_index_stocks('000300.SS', date='2024-01-01')
 ```
 
-```python
-# Cell 4: 获取基本面数据
-fundamentals = api.get_fundamentals(
-    ['600519.SS'],
-    'valuation',
-    ['pe_ratio', 'pb_ratio'],
-    '2024-01-01'
-)
-print(fundamentals)
-```
+## 常见问题
 
-## ⚙️ 高级配置
+### Q: ModuleNotFoundError: No module named 'simtradelab'
 
-### 自定义数据路径
-
-如果不想使用默认路径，可以在代码中指定：
-
-```python
-# 回测
-from simtradelab.backtest.runner import BacktestRunner
-
-runner = BacktestRunner(
-    data_path='/path/to/your/data',
-    strategies_path='/path/to/your/strategies'
-)
-
-# Research
-from simtradelab.research.api import init_api
-
-api = init_api(data_path='/path/to/your/data')
-```
-
-### 环境变量配置
-
-也可以设置环境变量：
-
+确保虚拟环境已激活：
 ```bash
-export SIMTRADE_DATA_PATH=~/simtrade_workspace/data
-export SIMTRADE_STRATEGIES_PATH=~/simtrade_workspace/strategies
-```
-
-## 🐛 常见问题
-
-### Q: ModuleNotFoundError: No module named 'tables'
-
-安装系统依赖：
-
-**macOS:**
-```bash
-brew install hdf5
-export HDF5_DIR=$(brew --prefix hdf5)
-pip install tables
-```
-
-**Linux:**
-```bash
-sudo apt-get install libhdf5-dev
-pip install tables
+which python  # 应指向虚拟环境
+pip install --upgrade simtradelab
 ```
 
 ### Q: 找不到数据文件
 
 确保：
 1. 数据文件路径正确
-2. 文件名为 `ptrade_data.h5` 和 `ptrade_fundamentals.h5`
-3. 在代码中正确指定了 `data_path`
+2. `data/` 目录下有 `stocks/`、`metadata/` 等子目录
+3. BacktestConfig 中正确指定了 `data_path`
 
 ```python
-# 检查路径
 from pathlib import Path
 data_path = Path.home() / 'simtrade_workspace' / 'data'
 print(f"数据路径: {data_path}")
-print(f"文件存在: {data_path.exists()}")
-print(f"包含文件: {list(data_path.glob('*.h5'))}")
+print(f"存在: {data_path.exists()}")
+print(f"子目录: {list(data_path.iterdir())}")
 ```
 
 ### Q: 如何查看回测报告？
 
 回测报告自动保存在策略目录的 `stats/` 子目录：
-
 ```bash
 ls ~/simtrade_workspace/strategies/my_strategy/stats/
-
-# 输出：
-# backtest_240101_241231_*.log  - 详细日志
-# backtest_240101_241231_*.png  - 可视化图表
+# backtest_*.log  - 详细日志
+# backtest_*.png  - 可视化图表
 ```
 
-### Q: 从哪里获取示例策略？
-
-从GitHub下载：
-
-```bash
-cd ~/simtrade_workspace/strategies
-git clone https://github.com/kay-ou/SimTradeLab.git temp
-mv temp/strategies/* .
-rm -rf temp
-```
-
-或访问 https://github.com/kay-ou/SimTradeLab/tree/main/strategies
-
-## 📚 更多资源
+## 更多资源
 
 - **完整文档**: https://github.com/kay-ou/SimTradeLab
-- **API参考**: `docs/PTrade_API_Implementation_Status.md`
+- **API参考**: [docs/PTrade_API_Implementation_Status.md](PTrade_API_Implementation_Status.md)
 - **数据获取**: https://github.com/kay-ou/SimTradeData
 - **问题反馈**: https://github.com/kay-ou/SimTradeLab/issues
-
-## 🎯 快速开始示例
-
-完整的端到端示例：
-
-```bash
-# 1. 安装
-pip install simtradelab
-
-# 2. 创建工作目录
-mkdir -p ~/simtrade_workspace/{data,strategies/simple,notebooks}
-cd ~/simtrade_workspace
-
-# 3. 下载示例策略
-cat > strategies/simple/backtest.py << 'EOF'
-from simtradelab.ptrade.api import *
-
-def initialize(context):
-    set_benchmark('000300.SS')
-    context.stocks = ['600519.SS']
-
-def handle_data(context, data):
-    for stock in context.stocks:
-        if stock not in context.portfolio.positions:
-            order_value(stock, 100000)
-EOF
-
-# 4. 创建运行脚本
-cat > run.py << 'EOF'
-from simtradelab.backtest.runner import BacktestRunner
-from pathlib import Path
-
-workspace = Path.home() / 'simtrade_workspace'
-runner = BacktestRunner(
-    data_path=str(workspace / 'data'),
-    strategies_path=str(workspace / 'strategies')
-)
-
-runner.run(
-    strategy_name='simple',
-    start_date='2024-01-01',
-    end_date='2024-12-31',
-    initial_capital=1000000.0
-)
-EOF
-
-# 5. 运行（需要先准备数据文件）
-python run.py
-```
