@@ -1,0 +1,46 @@
+{
+  "name": "simtradelab-ui",
+  "version": "0.1.0",
+  "description": "SimTradeLab Desktop App",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "package": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.simtradelab.app",
+    "productName": "SimTradeLab",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*"
+    ]
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.1.0",
+    "@electron-toolkit/preload": "^3.0.2",
+    "@electron-toolkit/utils": "^4.0.0",
+    "@monaco-editor/react": "^4.7.0",
+    "antd": "^6.3.0",
+    "axios": "^1.13.5",
+    "dayjs": "^1.11.19",
+    "echarts": "^6.0.0",
+    "echarts-for-react": "^3.0.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@electron-toolkit/tsconfig": "^1.0.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.0.0",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.10"
+  }
+}
