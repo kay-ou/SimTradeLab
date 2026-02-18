@@ -41,16 +41,28 @@ tqdm = "^4.67.1"
 pydantic = "^2.12.5"
 ta-lib = {version = "*", optional = true}
 optuna = {version = "^3.0.0", optional = true}
+fastapi   = {version = "^0.115.0", optional = true}
+uvicorn   = {version = "^0.34.0",  optional = true, extras = ["standard"]}
 
 [tool.poetry.extras]
 indicators = ["ta-lib"]
-optimizer = ["optuna"]
-all = ["ta-lib", "optuna"]
+optimizer  = ["optuna"]
+server     = ["fastapi", "uvicorn"]
+all        = ["ta-lib", "optuna", "fastapi", "uvicorn"]
+
+[tool.poetry.scripts]
+simtradelab = "simtradelab.cli.serve:main"
 
 [tool.poetry.group.dev.dependencies]
-baostock = "^0.8.9"
-jupyter = "^1.1.1"
+baostock        = "^0.8.9"
+jupyter         = "^1.1.1"
+pytest          = "^8.0.0"
+pytest-asyncio  = "^0.24.0"
+httpx           = "^0.27.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
