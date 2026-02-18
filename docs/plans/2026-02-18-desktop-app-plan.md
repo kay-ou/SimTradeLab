@@ -2381,6 +2381,31 @@ git commit -m "chore: add electron-builder packaging config"
 
 ---
 
+## 实施状态（2026-02-18）
+
+| Task | 状态 | Commit |
+|------|------|--------|
+| Task 1: 添加 server 依赖 | ✅ | a3a313b |
+| Task 2: schemas.py | ✅ | 0605e20 |
+| Task 3: task_manager.py | ✅ | 41334c8 |
+| Task 4: log_streamer.py | ✅ | 15b50cc |
+| Task 5: runner_thread.py | ✅ | 7e5024a |
+| Task 6+7: routers + main.py | ✅ | e2cc9f7 |
+| Task 8+9: CLI + runner stats | ✅ | ebe3d6a |
+| fix: asyncio loop 跨线程 | ✅ | b1164d5 |
+| Task 10: Electron + React 脚手架 | ✅ | — |
+| Task 11: Electron 主进程 | ✅ | b3977c7 |
+| Task 12: API 服务层 | ✅ | b3977c7 |
+| Task 13-17: UI 组件 + App | ✅ | 11ff1e1 |
+| fix: 恢复 simple 策略文件 | ✅ | fcdfe84 |
+| Task 18-19: 打包配置 | ✅ | dd84d5e |
+
+**测试**：18/18 通过
+**UI 编译**：3728 模块，无错误
+**分支**：`feat/desktop-app`（未合并，保留中）
+
+---
+
 ## 完成后验证清单
 
 ```bash
