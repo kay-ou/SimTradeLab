@@ -2419,7 +2419,111 @@ cd ui && npm run dev
 # 3. API 手动验证
 curl http://127.0.0.1:8000/strategies
 curl -X POST http://127.0.0.1:8000/strategies/test -H "Content-Type: application/json" -d '{"name":"test"}'
+```
 
-# 4. 打包验证
-cd ui && npm run package
+---
+
+## 打包成安装文件
+
+### 第一步：打包 Python 服务端（PyInstaller）
+
+```bash
+# 在项目根目录执行
+cd /path/to/SimTradeLab
+chmod +x packaging/build_server.sh
+./packaging/build_server.sh
+```
+
+产物：`ui/resources/server/simtradelab-server`（Linux/macOS）或 `simtradelab-server.exe`（Windows）
+
+验证产物可运行：
+```bash
+./ui/resources/server/simtradelab-server serve --port 9999 &
+sleep 3 && curl http://127.0.0.1:9999/strategies
+kill %1
+```
+
+**常见问题：**
+
+| 问题 | 解法 |
+|------|------|
+| `ModuleNotFoundError` | 在 `packaging/server.spec` 的 `hiddenimports` 追加缺失模块名，重新打包 |
+| `data` 目录找不到 | 检查 spec 里 `datas` 路径是否与实际 `data/` 目录一致 |
+| 打包后启动崩溃 | 加 `--debug bootloader` 参数重新打包，查看详细错误 |
+
+### 第二步：打包 Electron 应用（electron-builder）
+
+```bash
+cd ui
+npm run package
+```
+
+产物目录：`ui/dist/`
+- Linux：`SimTradeLab-x.x.x.AppImage`
+- Windows（需在 Windows 上运行）：`SimTradeLab-Setup-x.x.x.exe`
+- macOS（需在 macOS 上运行）：`SimTradeLab-x.x.x.dmg`
+
+> 跨平台打包需要在对应系统上执行，或使用 GitHub Actions CI。
+
+**常见问题：**
+
+| 问题 | 解法 |
+|------|------|
+| Electron 启动后 server 连不上 | 检查 `ui/src/main/index.ts` 中 `process.resourcesPath` 拼接路径是否正确 |
+| AppImage 无法执行 | `chmod +x SimTradeLab-x.x.x.AppImage` 后再运行 |
+| 安装包内缺少 server 可执行文件 | 确认第一步已完成，`ui/resources/server/` 下有产物 |
+
+---
+
+## 合并分支
+
+### 前置检查
+
+```bash
+# 确认测试全部通过
+poetry run pytest tests/server/ -v
+
+# 确认 UI 编译正常
+cd ui && npx electron-vite build
+```
+
+### 方式 A：本地合并到 dev
+
+```bash
+git checkout dev
+git pull origin dev          # 同步远端最新
+git merge feat/desktop-app   # 合并
+poetry run pytest tests/server/ -v   # 合并后再跑一次测试
+git branch -d feat/desktop-app       # 删除功能分支
+```
+
+### 方式 B：创建 Pull Request（推荐）
+
+```bash
+git push -u origin feat/desktop-app
+gh pr create \
+  --base dev \
+  --title "feat: desktop app - FastAPI server + Electron UI" \
+  --body "$(cat <<'EOF'
+## Summary
+- 新增 FastAPI server 层（`simtradelab[server]` extra），含策略管理和回测任务 API
+- 新增 WebSocket 实时日志流（asyncio.Queue + 跨线程 QueueHandler）
+- 新增 Electron + React UI（Monaco 编辑器、ECharts 图表、Ant Design）
+- 新增 PyInstaller + electron-builder 打包配置
+
+## Test Plan
+- [ ] `poetry run pytest tests/server/ -v` 全部通过
+- [ ] 开发模式端到端验证（serve + npm run dev）
+- [ ] 至少运行一次完整回测验证日志流和结果展示
+EOF
+)"
+```
+
+### 合并后清理
+
+```bash
+# 删除本地功能分支（如果选 PR 合并后）
+git checkout dev
+git pull origin dev
+git branch -d feat/desktop-app
 ```
