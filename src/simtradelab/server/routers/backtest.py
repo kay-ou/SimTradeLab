@@ -15,12 +15,15 @@ _executor = ThreadPoolExecutor(max_workers=1)
 
 
 @router.post("/run")
-def run_backtest(req: RunBacktestRequest):
+async def run_backtest(req: RunBacktestRequest):
     if task_manager.has_running_task():
         raise HTTPException(status_code=409, detail="已有回测正在运行，请等待完成")
+    loop = asyncio.get_running_loop()
     task_id = task_manager.create_task(req)
-    future = _executor.submit(run_backtest_in_thread, task_id, task_manager)
-    task_manager.get_task(task_id).future = future
+    task = task_manager.get_task(task_id)
+    task.loop = loop
+    future = _executor.submit(run_backtest_in_thread, task_id, task_manager, loop)
+    task.future = future
     return {"task_id": task_id}
 
 

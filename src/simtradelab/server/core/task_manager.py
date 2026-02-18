@@ -24,6 +24,7 @@ class TaskState:
     log_buffer: list[dict] = field(default_factory=list)
     log_queue: Optional[asyncio.Queue] = field(default=None, compare=False)
     future: Optional[Future] = field(default=None, compare=False)
+    loop: Optional[asyncio.AbstractEventLoop] = field(default=None, compare=False)
 
 
 def _now_iso() -> str:

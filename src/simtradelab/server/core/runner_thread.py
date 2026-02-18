@@ -37,11 +37,10 @@ class ServerBacktestRunner(BacktestRunner):
         logging.getLogger().addHandler(handler)
 
 
-def run_backtest_in_thread(task_id: str, manager: TaskManager) -> dict | None:
+def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.AbstractEventLoop) -> dict | None:
     """在 ThreadPoolExecutor 子线程中执行回测。"""
     task = manager.get_task(task_id)
     req = task.request
-    loop = asyncio.get_event_loop()
     log_queue = task.log_queue
     assert log_queue is not None
 
