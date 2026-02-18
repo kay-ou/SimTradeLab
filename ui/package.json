@@ -16,8 +16,32 @@
       "output": "dist"
     },
     "files": [
-      "out/**/*"
-    ]
+      "out/**/*",
+      "!node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/server/",
+        "to": "server/",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "SimTradeLab-Setup-${version}.exe"
+    },
+    "mac": {
+      "target": "dmg",
+      "artifactName": "SimTradeLab-${version}.dmg"
+    },
+    "linux": {
+      "target": "AppImage",
+      "artifactName": "SimTradeLab-${version}.AppImage"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
