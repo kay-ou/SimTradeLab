@@ -399,6 +399,9 @@ class BacktestRunner:
         if config.enable_logging:
             print(f"\n日志已保存至: {self._log_filename}")
 
+        report["_stats"] = stats
+        if config.enable_charts and hasattr(self, '_chart_filename'):
+            report["_chart_path"] = self._chart_filename
         return report
 
     def _cleanup(self):
