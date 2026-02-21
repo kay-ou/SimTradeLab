@@ -8,8 +8,8 @@
 """
 复权因子缓存模块 - 使用Parquet格式
 
-前复权公式：前复权价 = (未复权价 - adj_b) / adj_a
-后复权公式：后复权价 = adj_a * 未复权价 + adj_b
+前复权公式：前复权价 = adj_a * 未复权价 + adj_b  (adj_a=ef_a, adj_b=ef_b)
+后复权公式：后复权价 = adj_a * 未复权价 + adj_b  (adj_a/adj_b 从除权事件累积)
 """
 
 import pandas as pd
@@ -24,8 +24,7 @@ def _calculate_adj_factors_from_events(stock, stock_df, exrights_events):
     """从平台预计算因子构建前复权因子
 
     平台公式: P_adj = ef_a * P + ef_b
-    转换: adj_a = 1/ef_a, adj_b = -ef_b/ef_a
-    前复权: P_adj = (P - adj_b) / adj_a
+    直接存储 ef_a/ef_b 作为 adj_a/adj_b，避免中间除法的精度损失
     """
     if stock_df is None or stock_df.empty:
         return None
@@ -48,8 +47,8 @@ def _calculate_adj_factors_from_events(stock, stock_df, exrights_events):
         # 向量化转换：[n_events] 个除权区间 + 最新区间(1.0, 0.0)
         forward_a = np.ones(n_events + 1, dtype="float64")
         forward_b = np.zeros(n_events + 1, dtype="float64")
-        forward_a[:n_events] = 1.0 / ef_a
-        forward_b[:n_events] = -ef_b / ef_a
+        forward_a[:n_events] = ef_a
+        forward_b[:n_events] = ef_b
 
         # searchsorted 将每个交易日映射到对应的除权区间
         factor_idx = np.searchsorted(ex_dates_dt.values, stock_df.index.values, side="right")
@@ -187,7 +186,7 @@ def create_adj_pre_cache(data_context):
 def load_adj_pre_cache(data_context):
     """加载前复权因子缓存
 
-    前复权价 = (未复权价 - adj_b) / adj_a
+    前复权价 = adj_a * 未复权价 + adj_b
     """
     import logging
     logger = logging.getLogger(__name__)

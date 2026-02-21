@@ -89,12 +89,13 @@ class OrderProcessor:
                     if idx is None:
                         idx = stock_df.index.get_loc(current_dt)
 
-                price = stock_df.iloc[idx]['close']
+                # 成交量检查：volume=0 表示停牌，Ptrade会拒绝订单
+                volume = stock_df['volume'].values[idx]
+                if volume == 0:
+                    self.log.warning("订单撤销:  当前bar交易量不足  %s  bar.volume 0.0", stock)
+                    return None
 
-                # 转换为标量值
-                if isinstance(price, pd.Series):
-                    price = price.item()
-
+                price = stock_df['close'].values[idx]
                 base_price = float(price)
 
                 if pd.isna(base_price) or base_price <= 0:
@@ -132,20 +133,9 @@ class OrderProcessor:
     def check_limit_status(self, stock: str, delta: int, limit_status: int) -> bool:
         """检查涨跌停限制
 
-        Args:
-            stock: 股票代码
-            delta: 交易数量变化（正数买入，负数卖出）
-            limit_status: 涨跌停状态（1涨停，-1跌停，0正常）
-
-        Returns:
-            是否可交易
+        Ptrade回测不阻止涨跌停交易，只靠volume=0（停牌）拒绝订单。
+        保留接口以兼容调用方。
         """
-        if delta > 0 and limit_status == 1:
-            self.log.warning(f"【订单失败】{stock} | 原因: 涨停买不进")
-            return False
-        elif delta < 0 and limit_status == -1:
-            self.log.warning(f"【订单失败】{stock} | 原因: 跌停卖不出")
-            return False
         return True
 
     def create_order(self, stock: str, amount: int, price: float) -> tuple[str, object]:

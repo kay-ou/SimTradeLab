@@ -15,6 +15,7 @@
 import os
 import json
 import numpy as np
+from simtradelab.utils.plot import save_figure
 
 from simtradelab.utils.perf import timer
 from simtradelab.backtest.backtest_stats import BacktestStats
@@ -476,8 +477,7 @@ def generate_backtest_charts(backtest_stats: BacktestStats, start_date, end_date
     # tight_layout 解析式布局（比 bbox_inches='tight' 的双重渲染快）
     fig = plt.gcf()
     fig.tight_layout()
-    fig.savefig(chart_filename, dpi=100)
-    plt.close(fig)
+    save_figure(fig, chart_filename, dpi=100)
 
     return chart_filename
 
