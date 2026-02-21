@@ -18,7 +18,10 @@ import numpy as np
 import pandas as pd
 import json
 import bisect
+import calendar
 import traceback
+
+from collections import OrderedDict
 from functools import wraps
 from typing import Optional, Any, Callable
 
@@ -34,17 +37,39 @@ from simtradelab.utils.perf import timer
 
 
 def _round2(values: np.ndarray) -> np.ndarray:
-    """Round to 2 decimal places matching Ptrade behavior.
+    """Round to 2dp matching Ptrade's behavior.
 
-    np.round(x, 2) internally computes rint(x * 100) / 100. The multiplication
-    can shift values exactly onto a .5 boundary (e.g. 22.735 * 100 = 2273.5
-    exactly), causing banker's rounding to round UP when the original float
-    was actually below x.xx5 (22.7349999...).
+    Default: round(float(v), 2) — Python banker's rounding.
 
-    Ptrade uses Python float rounding semantics which respect the true float64
-    representation, so 22.7349... rounds DOWN to 22.73.
+    TypeA (float64 below true .XX5, str shows '.XX5' exactly):
+      fv - rd > 0.00499, dec[2]='5', non-dyadic → round UP to .XX+1.
+      The nearest float64 to .XX5 is from below; Python rounds DOWN but Ptrade rounds UP.
+
+    Anti-TypeA (float64 one step ABOVE nearest to .XX5, str shows '.XX5000...1'):
+      rd - fv > 0.00499, len(dec) > 3 (not the nearest, one step above), non-dyadic,
+      EVEN second digit → round DOWN to .XX.
+      Ptrade's computation yields the nearest float64 to .XX5 (from below), giving .XX
+      after standard round; our numpy op gives +1 ULP, standard round gives .XX+1.
     """
-    return np.array([round(float(v), 2) for v in values])
+    result = np.empty(len(values), dtype=np.float64)
+    for i, v in enumerate(values):
+        fv = float(v)
+        rd = round(fv, 2)
+        diff = fv - rd
+        if abs(diff) > 0.00499:                                        # 边界情况才做 str 检查
+            s = str(fv)
+            dot = s.find('.')
+            if dot >= 0:
+                frac = s[dot + 1:]
+                if len(frac) >= 3 and frac[2] == '5' and int(frac[:3]) % 125 != 0:
+                    if diff > 0:                                        # TypeA: below → UP
+                        result[i] = round(round(rd + 0.01, 2), 2)
+                        continue
+                    if len(frac) > 3 and int(frac[1]) % 2 == 0:       # anti-TypeA: +1ULP above, EVEN → DOWN
+                        result[i] = round(rd - 0.01, 2)
+                        continue
+        result[i] = rd
+    return result
 
 
 def validate_lifecycle(func: Callable) -> Callable:
@@ -194,9 +219,9 @@ class PtradeAPI:
             if col not in adjusted_df.columns:
                 continue
             if fq == 'pre':
-                # 前复权: (未复权价 - adj_b) / adj_a
+                # 前复权: adj_a * 未复权价 + adj_b (直接使用平台 ef_a/ef_b)
                 adjusted_df.loc[common_idx, col] = (
-                    (adjusted_df.loc[common_idx, col] - adj_b) / adj_a
+                    adj_a * adjusted_df.loc[common_idx, col] + adj_b
                 )
             else:
                 # 后复权: adj_a * 未复权价 + adj_b
@@ -440,7 +465,7 @@ class PtradeAPI:
                 stock_df = self.data_context.stock_data_dict.get(stock)
                 if stock_df is not None and isinstance(stock_df, pd.DataFrame) and not stock_df.empty:
                     idx = stock_df.index.values.view('i8').searchsorted(query_ts.value, side='right')
-                    if idx > 0:
+                    if idx > 0 and stock_df['volume'].values[idx - 1] > 0:
                         close_prices[stock] = stock_df['close'].values[idx - 1]
 
         for stock in stocks:
@@ -747,9 +772,9 @@ class PtradeAPI:
                     if needs_adj_post:
                         stock_result[field_name] = adj_a * raw + adj_b
                     elif needs_adj_dypre:
-                        stock_result[field_name] = _round2((raw - adj_b) / adj_a) * adj_a_base + adj_b_base
+                        stock_result[field_name] = (_round2(adj_a * raw + adj_b) - adj_b_base) / adj_a_base
                     else:
-                        stock_result[field_name] = _round2((raw - adj_b) / adj_a)
+                        stock_result[field_name] = _round2(adj_a * raw + adj_b)
                 else:
                     stock_result[field_name] = raw
 
@@ -762,8 +787,17 @@ class PtradeAPI:
                            security_list, count, frequency, fq)
             final_result = {} if is_dict else pd.DataFrame()
         elif is_dict:
-            # is_dict=True: 返回 {stock: {field: array}} 格式
-            final_result = result
+            # Ptrade返回 OrderedDict[stock → structured numpy array]
+            final_result = OrderedDict()
+            for stock in stocks:
+                if stock not in result:
+                    continue
+                sd = result[stock]
+                n = len(next(iter(sd.values())))
+                arr = np.empty(n, dtype=[(f, '<f8') for f in sd])
+                for f, v in sd.items():
+                    arr[f] = v
+                final_result[stock] = arr
         else:
             is_single_stock = isinstance(security_list, str)
             stocks_list = [security_list] if is_single_stock else stocks
@@ -919,6 +953,18 @@ class PtradeAPI:
 
     # ==================== 指数/行业API ====================
 
+    @staticmethod
+    def _csi_rebalance_day(year: int, month: int) -> int:
+        """CSI半年度调仓生效日 = 第二个周五后的下一个周一的day"""
+        cal = calendar.monthcalendar(year, month)
+        friday_count = 0
+        for week in cal:
+            if week[4] != 0:  # Friday = index 4
+                friday_count += 1
+                if friday_count == 2:
+                    return week[4] + 3  # 下周一
+        return 32
+
     def get_index_stocks(self, index_code: str, date: str = None) -> list[str]:
         """获取指数成份股（支持向前回溯查找）"""
         if not self.data_context.index_constituents:
@@ -935,6 +981,15 @@ class PtradeAPI:
         else:
             # 统一日期格式为YYYYMMDD
             query_date = date.replace('-', '')
+
+        # CSI半年度调仓: 6/12月第二个周五后生效，使用当月月末快照
+        month = int(query_date[4:6])
+        if month in (6, 12):
+            year = int(query_date[:4])
+            day = int(query_date[6:8])
+            if day >= self._csi_rebalance_day(year, month):
+                last_day = calendar.monthrange(year, month)[1]
+                query_date = '%04d%02d%02d' % (year, month, last_day)
 
         # 使用 bisect 找到小于等于 date 的最近日期
         idx = bisect.bisect_right(available_dates, query_date)
@@ -1083,15 +1138,39 @@ class PtradeAPI:
             return None
         return price
 
-    def _adjust_buy_amount(self, security: str, amount: int, price: float) -> Optional[int]:
-        """买入时资金不足自动调整数量（Ptrade行为）。返回调整后的 amount 或 None。"""
+    def _get_prev_raw_close(self, security: str, default: float) -> float:
+        """获取前一交易日不复权收盘价。用于 order_value 的资金可负担性检查。"""
+        stock_df = self.data_context.stock_data_dict.get(security)
+        if stock_df is None:
+            return default
+        date_dict, _ = self.get_stock_date_index(security)
+        idx = date_dict.get(self.context.current_dt.value)
+        if idx is None or idx == 0:
+            return default
+        return float(stock_df['close'].values[idx - 1])
+
+    def _adjust_buy_amount(self, security: str, amount: int, price: float, prev_price: float = None) -> Optional[int]:
+        """买入时资金不足自动调整数量（Ptrade行为）。返回调整后的 amount 或 None。
+
+        prev_price: 前一交易日收盘价。Ptrade 用 prev_price 做最小可行性预检：
+                    若连 1 手以前日价也买不起则直接失败，不再尝试调整。
+                    后续调整计算仍用 price（今日收盘价）。
+        """
         available_cash = self.context.portfolio._cash
+        min_lot = 100
+
+        # Ptrade 前置检查：以前日收盘价评估是否能负担最小1手
+        if prev_price is not None:
+            pre_commission = self.order_processor.calculate_commission(min_lot, prev_price, is_sell=False)
+            if min_lot * prev_price + pre_commission > available_cash:
+                self.log.warning(f"当前账户资金不足，{security}下单失败")
+                return None
+
         cost = amount * price
         commission = self.order_processor.calculate_commission(amount, price, is_sell=False)
         if cost + commission <= available_cash:
             return amount
 
-        min_lot = 200 if security.startswith('688') else 100
         adjusted = int(available_cash / price / min_lot) * min_lot
 
         while adjusted >= min_lot:
@@ -1107,6 +1186,28 @@ class PtradeAPI:
 
         self.log.warning(f"当前账户资金不足，调整{security}下单数量为{adjusted}")
         return adjusted
+
+    def _adjust_sell_amount(self, security: str, amount: int) -> int:
+        """卖出时整手约束（Ptrade行为）。amount为负数，返回调整后的负数或0。"""
+        abs_amount = abs(amount)
+        min_lot = 100
+        rounded = (abs_amount // min_lot) * min_lot
+
+        # 剩余不足一手时卖出全部（清零股）
+        current = self.context.portfolio.positions.get(security)
+        if current and current.amount > 0:
+            remaining = current.amount - rounded
+            if 0 < remaining < min_lot:
+                rounded = current.amount
+
+        # 科创板单笔申报数量不足200股约束（非清仓时）
+        if security.startswith('688') and rounded < 200:
+            current_amount = current.amount if current else 0
+            if rounded < current_amount:  # 非清仓
+                self.log.warning(f"取消下单，科创板单笔申报数量应不小于200股")
+                return 0
+
+        return -rounded
 
     def _submit_order(self, security: str, amount: int, price: float) -> Optional[str]:
         """创建订单→注册blotter→执行→更新状态。返回 order_id 或 None。"""
@@ -1150,6 +1251,11 @@ class PtradeAPI:
             amount = self._adjust_buy_amount(security, amount, price)
             if amount is None:
                 return None
+        else:
+            # A股卖出必须整手(100股)，向下取整；清仓时可卖零股
+            amount = self._adjust_sell_amount(security, amount)
+            if amount == 0:
+                return None
         return self._submit_order(security, amount, price)
 
     @validate_lifecycle
@@ -1173,6 +1279,13 @@ class PtradeAPI:
         price = self._get_price_and_check_limit(security, limit_price, delta)
         if price is None:
             return None
+        if delta < 0:
+            # 科创板非清仓卖出必须≥200股
+            if security.startswith('688'):
+                sell_amount = abs(delta)
+                if sell_amount < 200 and sell_amount < current_amount:
+                    self.log.warning(f"取消下单，科创板单笔申报数量应不小于200股")
+                    return None
         return self._submit_order(security, delta, price)
 
     @validate_lifecycle
@@ -1194,14 +1307,19 @@ class PtradeAPI:
         if price is None:
             return None
 
-        min_lot = 200 if security.startswith('688') else 100
+        min_lot = 100
 
         if is_buy:
             target_amount = int(value / price / min_lot) * min_lot
             if target_amount < min_lot:
                 self.log.warning(f"【下单失败】{security} | 原因: 分配金额不足{min_lot}股 (分配{value:.2f}元, 价格{price:.2f}元, 可用现金{self.context.portfolio._cash:.2f}元)")
                 return None
-            amount = self._adjust_buy_amount(security, target_amount, price)
+            # 科创板买入最小申报数量 200 股
+            if security.startswith('688') and target_amount < 200:
+                self.log.warning(f"取消下单，科创板单笔申报数量应不小于200股")
+                return None
+            prev_price = self._get_prev_raw_close(security, price)
+            amount = self._adjust_buy_amount(security, target_amount, price, prev_price)
             if amount is None:
                 return None
             return self._submit_order(security, amount, price)
@@ -1244,7 +1362,7 @@ class PtradeAPI:
             self.log.warning(f"订单失败 {security} | 原因: 无法获取价格")
             return None
 
-        min_lot = 200 if security.startswith('688') else 100
+        min_lot = 100
         if value <= 0:
             target_amount = 0
         else:
