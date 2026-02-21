@@ -94,7 +94,7 @@ def update_version_in_files(version):
 
         # 当前版本
         content = re.sub(
-            r'(\*\*当前版本\*\*:\s+v)[0-9]+\.[0-9]+\.[0-9]+',
+            r'(\*\*当前版本：\*\*\s+v)[0-9]+\.[0-9]+\.[0-9]+',
             rf'\g<1>{version}',
             content
         )

@@ -13,7 +13,20 @@
 *   **彻底革新，不向后兼容 (Embrace Greenfield Development)**
     *   本项目为全新开发，不考虑向后兼容。发现过时或冗余的代码应立即予以删除，以确保测试能够尽早暴露新架构下的问题。兼容性设计会掩盖潜在缺陷，必须避免。
 
-#### **2. 开发工作流 (Development Workflow)**
+#### **2. 发布工作流 (Release Workflow)**
+
+*   **版本发布步骤**
+    1.  更新 `CHANGELOG.md`（手动）
+    2.  运行发布脚本：`poetry run python scripts/release.py --version x.y.z --skip-tests`
+    3.  Push dev 分支并创建 PR：`git push origin dev`
+    4.  在 GitHub 上选择 **Rebase and merge**
+    5.  **⚠️ 合并后必须同步本地 dev**（Rebase 会重写 commit hash，导致本地与远端分叉）：
+        ```bash
+        git fetch origin && git reset --hard origin/dev
+        ```
+    6.  CI 自动创建 tag、GitHub Release 并发布 PyPI
+
+#### **3. 开发工作流 (Development Workflow)**
 
 *   **代码复用优于重复实现 (Prioritize Reuse Over Reinvention)**
     *   在创建新功能或代码前，必须检查项目中是否已存在类似实现。若有，需向团队解释为何无法复用，并评估是否可以整合或删除冗余部分。
