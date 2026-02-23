@@ -5,6 +5,22 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
 项目遵循 [语义化版本](https://semver.org/spec/v2.0.0.html) 规范。
 
+## [2.4.2] - 2026-02-23
+
+### 🐛 Bug 修复
+
+- **pyarrow 依赖缺失** - 补入 `pyarrow>=10.0.0` 为必须依赖，修复 `pip install simtradelab` 后 Parquet 读写报 `ImportError` 的问题
+
+### 📦 升级指南
+
+```bash
+pip install --upgrade simtradelab==2.4.2
+```
+
+**兼容性：** ✅ API 接口无 breaking change。
+
+---
+
 ## [2.4.1] - 2026-02-23
 
 ### 🐛 Bug 修复
