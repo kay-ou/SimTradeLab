@@ -32,7 +32,8 @@ class DataServer:
         return cls._instance
 
     def __init__(self, required_data=None, frequency='1d', data_path: str = None):
-        resolved_path = str(data_path) if data_path else global_config.data_path
+        from pathlib import Path
+        resolved_path = str(Path(data_path).resolve()) if data_path else global_config.data_path
 
         # 路径变更时强制重新初始化
         if DataServer._initialized:
