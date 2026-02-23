@@ -1,41 +1,57 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_submodules
 
-# simtradelab 包全量收集（uvicorn 字符串导入无法被静态分析检测到）
-simtradelab_datas, simtradelab_binaries, simtradelab_hiddenimports = collect_all('simtradelab')
+# SPEC 是 PyInstaller 内置变量，包含 spec 文件的完整路径
+SPEC_DIR = Path(SPEC).resolve().parent
+ENTRY = str((SPEC_DIR / '..' / 'src' / 'simtradelab' / 'cli' / 'serve.py').resolve())
+SRC_DIR = str((SPEC_DIR / '..' / 'src').resolve())
+
+# 将 src/ 加入分析路径，让 collect_submodules 能找到 simtradelab
+sys.path.insert(0, SRC_DIR)
+
+# 验证 server 依赖已安装
+try:
+    import uvicorn  # noqa: F401
+    import fastapi  # noqa: F401
+except ImportError as e:
+    raise SystemExit(
+        "构建失败：server 依赖未安装，请先运行: poetry install --extras server\n" + str(e)
+    )
+
+simtradelab_hiddenimports = collect_submodules('simtradelab')
+uvicorn_hiddenimports = collect_submodules('uvicorn')
+anyio_hiddenimports = collect_submodules('anyio')
+fastapi_hiddenimports = collect_submodules('fastapi')
+starlette_hiddenimports = collect_submodules('starlette')
 
 a = Analysis(
-    [str(Path('../src/simtradelab/cli/serve.py').resolve())],
-    pathex=[str(Path('../src').resolve())],
-    binaries=simtradelab_binaries,
-    datas=simtradelab_datas,
-    hiddenimports=simtradelab_hiddenimports + [
-        'uvicorn',
-        'uvicorn.logging',
-        'uvicorn.loops',
-        'uvicorn.loops.auto',
-        'uvicorn.protocols',
-        'uvicorn.protocols.http',
-        'uvicorn.protocols.http.auto',
-        'uvicorn.protocols.websockets',
-        'uvicorn.protocols.websockets.auto',
-        'uvicorn.lifespan',
-        'uvicorn.lifespan.on',
-        'anyio',
-        'anyio._backends._asyncio',
-        'pandas',
-        'numpy',
-        'pyarrow',
-        'pyarrow.pandas_compat',
-        'joblib',
-        'cachetools',
-        'pydantic',
-        'pydantic_core',
-        'matplotlib',
-        'matplotlib.backends.backend_agg',
-    ],
+    [ENTRY],
+    pathex=[SRC_DIR],
+    binaries=[],
+    datas=[],
+    hiddenimports=(
+        simtradelab_hiddenimports
+        + uvicorn_hiddenimports
+        + anyio_hiddenimports
+        + fastapi_hiddenimports
+        + starlette_hiddenimports
+        + [
+            'pandas',
+            'numpy',
+            'pyarrow',
+            'pyarrow.pandas_compat',
+            'joblib',
+            'cachetools',
+            'pydantic',
+            'pydantic_core',
+            'matplotlib',
+            'matplotlib.backends.backend_agg',
+            'h11',
+            'httptools',
+        ]
+    ),
     hookspath=[],
     runtime_hooks=[],
     excludes=['tkinter', 'test', 'unittest'],
