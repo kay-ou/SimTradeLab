@@ -77,8 +77,8 @@ export function RunPanel({
         layout="inline"
         size="small"
         initialValues={{
-          start_date: dayjs("2024-01-01"),
-          end_date: dayjs("2024-12-31"),
+          start_date: dayjs("2025-01-01"),
+          end_date: dayjs("2025-12-31"),
           initial_capital: 100000,
           frequency: "1d",
         }}

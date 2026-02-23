@@ -15,11 +15,12 @@ _FAIL_SENTINEL = {"level": "SYSTEM", "msg": "__FAIL__", "ts": 0.0}
 
 
 class _QueueWriter:
-    """将 sys.stdout 写入转发到 asyncio.Queue。"""
+    """将 sys.stdout 写入转发到 asyncio.Queue，同时写入 log_buffer 供 replay。"""
 
-    def __init__(self, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop) -> None:
+    def __init__(self, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop, log_buffer: list) -> None:
         self._queue = queue
         self._loop = loop
+        self._log_buffer = log_buffer
         self._buf = ""
 
     def write(self, text: str) -> int:
@@ -29,12 +30,14 @@ class _QueueWriter:
             line = line.rstrip()
             if line:
                 msg = {"level": "INFO", "msg": line, "ts": time.time()}
+                self._log_buffer.append(msg)
                 self._loop.call_soon_threadsafe(self._queue.put_nowait, msg)
         return len(text)
 
     def flush(self) -> None:
         if self._buf.strip():
             msg = {"level": "INFO", "msg": self._buf.strip(), "ts": time.time()}
+            self._log_buffer.append(msg)
             self._loop.call_soon_threadsafe(self._queue.put_nowait, msg)
             self._buf = ""
 
@@ -62,8 +65,7 @@ class ServerBacktestRunner(BacktestRunner):
         handler = ThreadSafeQueueHandler(self._log_queue, self._loop)
         handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
         logging.getLogger().addHandler(handler)
-        # 将 print() 输出也路由到队列
-        sys.stdout = _QueueWriter(self._log_queue, self._loop)  # type: ignore[assignment]
+        # stdout 已在 run_backtest_in_thread 最开始替换，这里无需再操作
 
 
 def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.AbstractEventLoop) -> dict | None:
@@ -79,6 +81,7 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
 
     manager.mark_running(task_id)
     _orig_stdout = sys.stdout
+    sys.stdout = _QueueWriter(log_queue, loop, task.log_buffer)  # type: ignore[assignment]
 
     try:
         config = BacktestConfig(

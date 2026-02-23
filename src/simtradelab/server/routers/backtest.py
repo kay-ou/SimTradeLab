@@ -85,8 +85,8 @@ def cancel_task(task_id: str):
         task = task_manager.get_task(task_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="任务不存在")
-    if task.status != "running":
-        raise HTTPException(status_code=400, detail="任务未在运行中")
+    if task.status in ("finished", "failed"):
+        return {"ok": True, "skipped": True}
     if task.future:
         task.future.cancel()
     task_manager.mark_failed(task_id, "用户取消")
