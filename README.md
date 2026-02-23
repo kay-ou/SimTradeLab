@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![License: Commercial](https://img.shields.io/badge/License-Commercial--Available-red)](licenses/LICENSE-COMMERCIAL.md)
-[![Version](https://img.shields.io/badge/Version-2.4.0-orange.svg)](#)
+[![Version](https://img.shields.io/badge/Version-2.4.1-orange.svg)](#)
 [![PyPI](https://img.shields.io/pypi/v/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 
@@ -27,7 +27,7 @@ SimTradeLab（深测Lab） 是一个由社区独立开发的开源策略回测�
 - 📊 **完整统计报告** - 收益、风险、交易明细、持仓批次、FIFO分红税
 - 🔌 **模块化设计** - 清晰的代码结构，易于扩展和定制
 
-**当前版本：** v2.4.0 | **开发状态：** 核心功能完善，正在策略实战中持续优化
+**当前版本：** v2.4.1 | **开发状态：** 核心功能完善，正在策略实战中持续优化
 
 ---
 
