@@ -20,6 +20,7 @@ set OUTPUT_DIR=%REPO_ROOT%\ui\resources\server
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
 
 cd "%REPO_ROOT%"
+poetry install --with dev --quiet
 poetry run pyinstaller packaging\server.spec ^
     --distpath "%OUTPUT_DIR%" ^
     --workpath %TEMP%\pyinstaller-work ^

@@ -1,22 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_all
+
+# simtradelab 包全量收集（uvicorn 字符串导入无法被静态分析检测到）
+simtradelab_datas, simtradelab_binaries, simtradelab_hiddenimports = collect_all('simtradelab')
 
 a = Analysis(
     [str(Path('../src/simtradelab/cli/serve.py').resolve())],
     pathex=[str(Path('../src').resolve())],
-    binaries=[],
-    datas=[],
-    hiddenimports=[
-        'simtradelab.server.main',
-        'simtradelab.server.routers.strategies',
-        'simtradelab.server.routers.backtest',
-        'simtradelab.server.routers.settings',
-        'simtradelab.server.core.task_manager',
-        'simtradelab.server.core.log_streamer',
-        'simtradelab.server.core.runner_thread',
-        'simtradelab.server.schemas',
-        'simtradelab.cli.serve',
+    binaries=simtradelab_binaries,
+    datas=simtradelab_datas,
+    hiddenimports=simtradelab_hiddenimports + [
+        'uvicorn',
         'uvicorn.logging',
         'uvicorn.loops',
         'uvicorn.loops.auto',
