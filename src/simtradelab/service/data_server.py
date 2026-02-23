@@ -31,21 +31,24 @@ class DataServer:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, required_data=None, frequency='1d'):
-        # 只初始化一次基础结构
+    def __init__(self, required_data=None, frequency='1d', data_path: str = None):
+        resolved_path = str(data_path) if data_path else global_config.data_path
+
+        # 路径变更时强制重新初始化
         if DataServer._initialized:
-            print("使用已加载的数据（常驻内存）")
-            # 如果指定了新的数据需求,动态补充加载
-            if required_data is not None:
-                self._ensure_data_loaded(required_data, frequency)
-            return
+            if resolved_path != self.data_path:
+                DataServer._initialized = False
+            else:
+                print("使用已加载的数据（常驻内存）")
+                if required_data is not None:
+                    self._ensure_data_loaded(required_data, frequency)
+                return
 
         print("=" * 70)
         print("首次加载 - 在jupyter notebook中数据将常驻内存")
         print("=" * 70)
 
-        # 读取配置
-        self.data_path = global_config.data_path
+        self.data_path = resolved_path
 
         print(f"数据路径: {self.data_path}")
 

@@ -110,7 +110,7 @@ class BacktestRunner:
 
         try:
             # 加载数据
-            benchmark_df = self._load_data(required_data, config.frequency)
+            benchmark_df = self._load_data(required_data, config.frequency, config.data_path)
 
             # 初始化日志
             self._setup_logging(config)
@@ -169,7 +169,7 @@ class BacktestRunner:
             self._cleanup()
 
     @timer(name="数据加载")
-    def _load_data(self, required_data=None, frequency='1d') -> pd.DataFrame:
+    def _load_data(self, required_data=None, frequency='1d', data_path: str = None) -> pd.DataFrame:
         """加载数据
 
         Args:
@@ -186,7 +186,7 @@ class BacktestRunner:
             return next(iter(self.benchmark_data.values())) # type: ignore
 
         # 使用多进程安全的DataServer
-        data_server = DataServer(required_data, frequency)
+        data_server = DataServer(required_data, frequency, data_path)
 
         # 绑定到runner实例
         self.stock_data_dict = data_server.stock_data_dict
