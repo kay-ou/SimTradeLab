@@ -28,7 +28,8 @@
     ],
     "win": {
       "target": "nsis",
-      "artifactName": "SimTradeLab-Setup-${version}.exe"
+      "artifactName": "SimTradeLab-Setup-${version}.exe",
+      "signAndEditExecutable": false
     },
     "mac": {
       "target": "dmg",
