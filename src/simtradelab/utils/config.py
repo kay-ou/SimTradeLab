@@ -28,16 +28,15 @@ class Config:
             self._load_config()
 
     def _load_config(self):
-        from .paths import get_project_root
-        self._project_root = get_project_root()
         self._config = {'data_path': './data'}
 
     @property
     def data_path(self):
         """数据路径（自动转换为绝对路径）"""
+        from .paths import get_project_root
         path = Path(self._config['data_path'])
         if not path.is_absolute():
-            path = self._project_root / path
+            path = get_project_root() / path
         return str(path)
 
 

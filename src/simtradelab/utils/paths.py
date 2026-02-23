@@ -27,15 +27,16 @@ def get_project_root() -> Path:
     """获取项目根目录
 
     从任何位置调用都能正确返回项目根目录
-    查找顺序: CWD → __file__ 向上查找 → pyproject.toml → 固定层级
+    查找顺序: CWD → CWD父目录 → __file__ 向上查找 → pyproject.toml → 固定层级
 
     Returns:
         项目根目录的Path对象
     """
-    # 方法1: 检查当前工作目录（支持 pip install 后从项目目录运行）
+    # 方法1: 检查CWD及其父目录（支持从子目录如 notebooks/ 运行）
     cwd = Path.cwd()
-    if _is_project_dir(cwd):
-        return cwd
+    for candidate in [cwd, cwd.parent]:
+        if _is_project_dir(candidate):
+            return candidate
 
     # 方法2: 从源码位置向上查找 data 目录
     current = Path(__file__).resolve()
@@ -50,7 +51,7 @@ def get_project_root() -> Path:
 
     # 方法4: 如果都找不到，使用固定层级（当前文件在src/simtradelab/utils/）
     return current.parent.parent.parent
-    
+
 
 def get_data_path() -> Path:
     """获取数据目录路径"""
@@ -62,11 +63,16 @@ def get_strategies_path() -> Path:
     return get_project_root() / 'strategies'
 
 
-# 便捷访问
-PROJECT_ROOT = get_project_root()
-DATA_PATH = get_data_path()
-STRATEGIES_PATH = get_strategies_path()
-
-# 缓存文件路径（使用Parquet格式）
-ADJ_PRE_CACHE_PATH = DATA_PATH / 'ptrade_adj_pre.parquet'
-ADJ_POST_CACHE_PATH = DATA_PATH / 'ptrade_adj_post.parquet'
+def __getattr__(name: str) -> Path:
+    """模块级懒加载：常量在首次 import 时按当前 CWD 计算，而非 paths.py 加载时"""
+    if name == 'PROJECT_ROOT':
+        return get_project_root()
+    if name == 'DATA_PATH':
+        return get_data_path()
+    if name == 'STRATEGIES_PATH':
+        return get_strategies_path()
+    if name == 'ADJ_PRE_CACHE_PATH':
+        return get_data_path() / 'ptrade_adj_pre.parquet'
+    if name == 'ADJ_POST_CACHE_PATH':
+        return get_data_path() / 'ptrade_adj_post.parquet'
+    raise AttributeError(f"module 'paths' has no attribute {name!r}")
