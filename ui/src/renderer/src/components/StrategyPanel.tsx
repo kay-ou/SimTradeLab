@@ -1,56 +1,77 @@
-import { useEffect, useState } from 'react'
-import { Button, List, Input, Popconfirm, message, Spin } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
-import { strategiesAPI } from '../services/api'
+import { useEffect, useState } from "react";
+import { Button, List, Input, Popconfirm, message, Spin } from "antd";
+import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import { strategiesAPI } from "../services/api";
 
 interface Props {
-  selected: string | null
-  onSelect: (name: string) => void
+  selected: string | null;
+  onSelect: (name: string) => void;
+  reloadKey?: number;
 }
 
-export function StrategyPanel({ selected, onSelect }: Props) {
-  const [strategies, setStrategies] = useState<string[]>([])
-  const [loading, setLoading] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [newName, setNewName] = useState('')
+export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
+  const [strategies, setStrategies] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
 
   const load = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      setStrategies(await strategiesAPI.list())
+      setStrategies(await strategiesAPI.list());
     } catch {
-      message.error('加载策略列表失败')
+      message.error("加载策略列表失败");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load();
+  }, [reloadKey]);
 
   const handleCreate = async () => {
-    if (!newName.trim()) return
+    if (!newName.trim()) return;
     try {
-      await strategiesAPI.create(newName.trim())
-      message.success(`策略 "${newName}" 已创建`)
-      setNewName('')
-      setCreating(false)
-      await load()
+      await strategiesAPI.create(newName.trim());
+      message.success(`策略 "${newName}" 已创建`);
+      setNewName("");
+      setCreating(false);
+      await load();
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '创建失败')
+      message.error(e.response?.data?.detail || "创建失败");
     }
-  }
+  };
 
   const handleDelete = async (name: string) => {
-    await strategiesAPI.delete(name)
-    message.success(`策略 "${name}" 已删除`)
-    await load()
-  }
+    await strategiesAPI.delete(name);
+    message.success(`策略 "${name}" 已删除`);
+    await load();
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 8 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        padding: 8,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 8,
+        }}
+      >
         <span style={{ fontWeight: 600, fontSize: 13 }}>策略</span>
-        <Button size="small" icon={<PlusOutlined />} onClick={() => setCreating(!creating)} />
+        <Button
+          size="small"
+          icon={<PlusOutlined />}
+          onClick={() => setCreating(!creating)}
+        />
       </div>
       {creating && (
         <Input.Search
@@ -70,9 +91,9 @@ export function StrategyPanel({ selected, onSelect }: Props) {
           renderItem={(name) => (
             <List.Item
               style={{
-                cursor: 'pointer',
-                background: name === selected ? '#e6f4ff' : 'transparent',
-                padding: '4px 8px',
+                cursor: "pointer",
+                background: name === selected ? "#e6f4ff" : "transparent",
+                padding: "4px 8px",
                 borderRadius: 4,
               }}
               onClick={() => onSelect(name)}
@@ -98,5 +119,5 @@ export function StrategyPanel({ selected, onSelect }: Props) {
         />
       </Spin>
     </div>
-  )
+  );
 }

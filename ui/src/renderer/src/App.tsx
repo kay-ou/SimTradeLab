@@ -1,6 +1,8 @@
 import { useState, useCallback } from "react";
 import { ConfigProvider, Layout, theme, Button } from "antd";
 import { SettingOutlined } from "@ant-design/icons";
+import { Allotment } from "allotment";
+import "allotment/dist/style.css";
 import zhCN from "antd/locale/zh_CN";
 import { StrategyPanel } from "./components/StrategyPanel";
 import { EditorPanel } from "./components/EditorPanel";
@@ -20,6 +22,7 @@ export default function App() {
   const [logs, setLogs] = useState<LogMessage[]>([]);
   const [result, setResult] = useState<any | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [strategyReloadKey, setStrategyReloadKey] = useState(0);
 
   const handleTaskStarted = useCallback(async (taskId: string) => {
     setRunningTaskId(taskId);
@@ -76,61 +79,37 @@ export default function App() {
           runningTaskId={runningTaskId}
         />
 
-        <Content style={{ display: "flex", overflow: "hidden", flex: 1 }}>
-          {/* 左栏：策略列表 */}
-          <div
-            style={{
-              width: 220,
-              borderRight: "1px solid #f0f0f0",
-              flexShrink: 0,
-              overflow: "hidden",
-            }}
-          >
-            <StrategyPanel
-              selected={selectedStrategy}
-              onSelect={setSelectedStrategy}
-            />
-          </div>
+        <Content style={{ overflow: "hidden", flex: 1 }}>
+          <Allotment>
+            <Allotment.Pane minSize={120} preferredSize={220} snap>
+              <StrategyPanel
+                selected={selectedStrategy}
+                onSelect={setSelectedStrategy}
+                reloadKey={strategyReloadKey}
+              />
+            </Allotment.Pane>
 
-          {/* 中栏：编辑器 + 日志 */}
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-          >
-            <div style={{ flex: "0 0 60%", overflow: "hidden" }}>
-              <EditorPanel strategyName={selectedStrategy} />
-            </div>
-            <div
-              style={{
-                flex: 1,
-                borderTop: "1px solid #333",
-                overflow: "hidden",
-              }}
-            >
-              <LogConsole logs={logs} />
-            </div>
-          </div>
+            <Allotment.Pane minSize={300}>
+              <Allotment vertical>
+                <Allotment.Pane minSize={100} preferredSize="60%">
+                  <EditorPanel strategyName={selectedStrategy} />
+                </Allotment.Pane>
+                <Allotment.Pane minSize={60} snap>
+                  <LogConsole logs={logs} />
+                </Allotment.Pane>
+              </Allotment>
+            </Allotment.Pane>
 
-          {/* 右栏：结果 */}
-          <div
-            style={{
-              width: 380,
-              borderLeft: "1px solid #f0f0f0",
-              flexShrink: 0,
-              overflow: "hidden",
-            }}
-          >
-            <ResultPanel result={result} />
-          </div>
+            <Allotment.Pane minSize={120} preferredSize={380} snap>
+              <ResultPanel result={result} />
+            </Allotment.Pane>
+          </Allotment>
         </Content>
 
         <SettingsModal
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
+          onSaved={() => setStrategyReloadKey((k) => k + 1)}
         />
       </Layout>
     </ConfigProvider>
