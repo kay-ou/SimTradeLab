@@ -402,6 +402,22 @@ class BacktestRunner:
         report["_stats"] = stats
         if config.enable_charts and hasattr(self, '_chart_filename'):
             report["_chart_path"] = self._chart_filename
+
+        # 基准净值序列（对齐到策略交易日，归一化到1.0起点）
+        trade_dates_set = {str(d.date()) if hasattr(d, 'date') else str(d) for d in stats.trade_dates}
+        bm_slice = actual_benchmark_df[
+            (actual_benchmark_df.index >= config.start_date) &
+            (actual_benchmark_df.index <= config.end_date)
+        ]
+        bm_slice = bm_slice[
+            bm_slice.index.map(lambda d: str(d.date()) if hasattr(d, 'date') else str(d)).isin(trade_dates_set)
+        ]
+        if len(bm_slice) > 0:
+            bm_initial = bm_slice['close'].iloc[0]
+            report["_benchmark_nav"] = (bm_slice['close'] / bm_initial).tolist() if bm_initial else []
+        else:
+            report["_benchmark_nav"] = []
+
         return report
 
     def _cleanup(self):

@@ -63,6 +63,7 @@ def get_result(task_id: str):
             "daily_buy_amount": [float(v) for v in stats.daily_buy_amount],
             "daily_sell_amount": [float(v) for v in stats.daily_sell_amount],
             "daily_positions_value": [float(v) for v in stats.daily_positions_value],
+            "benchmark_nav": [float(v) for v in report.get("_benchmark_nav", [])],
         }
     else:
         series_data = {k: [] for k in ["dates", "portfolio_values", "daily_pnl",

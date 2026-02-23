@@ -75,6 +75,10 @@ class CreateStrategyRequest(BaseModel):
     name: str
 
 
+class RenameStrategyRequest(BaseModel):
+    new_name: str
+
+
 class PathSettings(BaseModel):
     data_path: str
     strategies_path: str

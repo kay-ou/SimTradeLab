@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 import time
-from typing import TYPE_CHECKING
 
 from simtradelab.backtest.runner import BacktestRunner
 from simtradelab.backtest.config import BacktestConfig
@@ -14,8 +14,37 @@ _DONE_SENTINEL = {"level": "SYSTEM", "msg": "__DONE__", "ts": 0.0}
 _FAIL_SENTINEL = {"level": "SYSTEM", "msg": "__FAIL__", "ts": 0.0}
 
 
+class _QueueWriter:
+    """将 sys.stdout 写入转发到 asyncio.Queue。"""
+
+    def __init__(self, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop) -> None:
+        self._queue = queue
+        self._loop = loop
+        self._buf = ""
+
+    def write(self, text: str) -> int:
+        self._buf += text
+        while "\n" in self._buf:
+            line, self._buf = self._buf.split("\n", 1)
+            line = line.rstrip()
+            if line:
+                msg = {"level": "INFO", "msg": line, "ts": time.time()}
+                self._loop.call_soon_threadsafe(self._queue.put_nowait, msg)
+        return len(text)
+
+    def flush(self) -> None:
+        if self._buf.strip():
+            msg = {"level": "INFO", "msg": self._buf.strip(), "ts": time.time()}
+            self._loop.call_soon_threadsafe(self._queue.put_nowait, msg)
+            self._buf = ""
+
+    @property
+    def encoding(self) -> str:
+        return "utf-8"
+
+
 class ServerBacktestRunner(BacktestRunner):
-    """BacktestRunner 的服务端子类，注入 QueueHandler 捕获日志。"""
+    """BacktestRunner 的服务端子类，注入 QueueHandler 捕获日志和 print 输出。"""
 
     def __init__(
         self,
@@ -29,12 +58,12 @@ class ServerBacktestRunner(BacktestRunner):
         self._log_buffer = log_buffer
 
     def _setup_logging(self, config: BacktestConfig) -> None:
-        # 父类调用 basicConfig(force=True) 清空 root logger handlers
         super()._setup_logging(config)
-        # 父类完成后，追加我们的 QueueHandler
         handler = ThreadSafeQueueHandler(self._log_queue, self._loop)
         handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
         logging.getLogger().addHandler(handler)
+        # 将 print() 输出也路由到队列
+        sys.stdout = _QueueWriter(self._log_queue, self._loop)  # type: ignore[assignment]
 
 
 def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.AbstractEventLoop) -> dict | None:
@@ -49,6 +78,7 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
         loop.call_soon_threadsafe(log_queue.put_nowait, msg)
 
     manager.mark_running(task_id)
+    _orig_stdout = sys.stdout
 
     try:
         config = BacktestConfig(
@@ -80,3 +110,6 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
         _send({"level": "ERROR", "msg": err, "ts": time.time()})
         _send({**_FAIL_SENTINEL, "ts": time.time()})
         return None
+
+    finally:
+        sys.stdout = _orig_stdout

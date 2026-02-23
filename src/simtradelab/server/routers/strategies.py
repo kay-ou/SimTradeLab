@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 from simtradelab.utils.paths import get_strategies_path
-from simtradelab.server.schemas import StrategySource, CreateStrategyRequest
+from simtradelab.server.schemas import StrategySource, CreateStrategyRequest, RenameStrategyRequest
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
 
@@ -71,6 +71,19 @@ def create_strategy(name: str, _body: CreateStrategyRequest):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_STRATEGY_TEMPLATE, encoding="utf-8")
     return {"ok": True, "name": name}
+
+
+@router.patch("/{name}")
+def rename_strategy(name: str, body: RenameStrategyRequest):
+    base = get_strategies_path()
+    src = base / name
+    dst = base / body.new_name
+    if not src.exists():
+        raise HTTPException(status_code=404, detail="策略 '{}' 不存在".format(name))
+    if dst.exists():
+        raise HTTPException(status_code=409, detail="策略 '{}' 已存在".format(body.new_name))
+    src.rename(dst)
+    return {"ok": True, "name": body.new_name}
 
 
 @router.delete("/{name}")
