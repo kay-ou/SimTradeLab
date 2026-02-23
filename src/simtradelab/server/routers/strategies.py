@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from simtradelab.utils.paths import STRATEGIES_PATH
+from simtradelab.utils.paths import get_strategies_path
 from simtradelab.server.schemas import StrategySource, CreateStrategyRequest
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
@@ -32,12 +32,12 @@ def after_trading_end(context, data):
 
 
 def _strategy_file(name: str) -> Path:
-    return Path(str(STRATEGIES_PATH)) / name / "backtest.py"
+    return get_strategies_path() / name / "backtest.py"
 
 
 @router.get("", response_model=list[str])
 def list_strategies():
-    base = Path(str(STRATEGIES_PATH))
+    base = get_strategies_path()
     if not base.exists():
         return []
     return sorted(
@@ -75,7 +75,7 @@ def create_strategy(name: str, _body: CreateStrategyRequest):
 
 @router.delete("/{name}")
 def delete_strategy(name: str):
-    folder = Path(str(STRATEGIES_PATH)) / name
+    folder = get_strategies_path() / name
     if not folder.exists():
         raise HTTPException(status_code=404, detail="策略 '{}' 不存在".format(name))
     shutil.rmtree(folder)

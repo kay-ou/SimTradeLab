@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import os
+from pathlib import Path
 
 
 def main() -> None:
@@ -11,7 +13,14 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--reload", action="store_true",
                         help="开发模式自动重载")
+    parser.add_argument("--data-path", default=None, help="数据目录路径")
+    parser.add_argument("--strategies-path", default=None, help="策略目录路径")
     args = parser.parse_args()
+
+    if args.data_path:
+        os.environ['SIMTRADELAB_DATA_PATH'] = str(Path(args.data_path).resolve())
+    if args.strategies_path:
+        os.environ['SIMTRADELAB_STRATEGIES_PATH'] = str(Path(args.strategies_path).resolve())
 
     try:
         import uvicorn

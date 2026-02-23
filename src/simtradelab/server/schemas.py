@@ -73,3 +73,8 @@ class StrategySource(BaseModel):
 
 class CreateStrategyRequest(BaseModel):
     name: str
+
+
+class PathSettings(BaseModel):
+    data_path: str
+    strategies_path: str

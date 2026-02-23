@@ -1,5 +1,6 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { spawn, ChildProcess } from 'child_process'
 import * as net from 'net'
@@ -8,6 +9,47 @@ import * as http from 'http'
 let serverProcess: ChildProcess | null = null
 let serverPort = 8000
 
+// ── 配置持久化 ──────────────────────────────────────────────
+interface AppConfig {
+  dataPath?: string
+  strategiesPath?: string
+}
+
+const configPath = join(app.getPath('userData'), 'config.json')
+
+function loadConfig(): AppConfig {
+  try {
+    if (existsSync(configPath)) {
+      return JSON.parse(readFileSync(configPath, 'utf-8'))
+    }
+  } catch {}
+  return {}
+}
+
+function saveConfig(config: AppConfig): void {
+  mkdirSync(app.getPath('userData'), { recursive: true })
+  writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+}
+
+// ── 自动搜索 data 目录 ──────────────────────────────────────
+function findProjectRoot(): string | null {
+  const candidates = [
+    app.getPath('documents'),
+    app.getPath('home'),
+    process.cwd(),
+  ]
+  for (const base of candidates) {
+    if (existsSync(join(base, 'SimTradeLab', 'data'))) {
+      return join(base, 'SimTradeLab')
+    }
+    if (existsSync(join(base, 'data'))) {
+      return base
+    }
+  }
+  return null
+}
+
+// ── Server 启动 ─────────────────────────────────────────────
 async function findFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = net.createServer()
@@ -23,7 +65,7 @@ function waitForServer(port: number, timeoutMs = 15000): Promise<void> {
   return new Promise((resolve, reject) => {
     const start = Date.now()
     function attempt() {
-      const req = http.get(`http://127.0.0.1:${port}/strategies`, (res) => {
+      const req = http.get(`http://127.0.0.1:${port}/settings`, (res) => {
         if (res.statusCode === 200) {
           resolve()
         } else {
@@ -46,22 +88,28 @@ function waitForServer(port: number, timeoutMs = 15000): Promise<void> {
   })
 }
 
-async function startServer(port: number): Promise<void> {
-  const isDev = is.dev
+async function startServer(port: number, config: AppConfig): Promise<void> {
+  const extraArgs: string[] = []
+  if (config.dataPath) extraArgs.push('--data-path', config.dataPath)
+  if (config.strategiesPath) extraArgs.push('--strategies-path', config.strategiesPath)
 
-  if (isDev) {
-    serverProcess = spawn('poetry', ['run', 'simtradelab', 'serve', '--port', String(port)], {
-      cwd: join(__dirname, '../../..'),
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env }
-    })
+  if (is.dev) {
+    serverProcess = spawn(
+      'poetry',
+      ['run', 'simtradelab', 'serve', '--port', String(port), ...extraArgs],
+      {
+        cwd: join(__dirname, '../../..'),
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env }
+      }
+    )
   } else {
     const serverBin = join(
       process.resourcesPath,
       'server',
       process.platform === 'win32' ? 'simtradelab-server.exe' : 'simtradelab-server'
     )
-    serverProcess = spawn(serverBin, ['serve', '--port', String(port)], {
+    serverProcess = spawn(serverBin, ['serve', '--port', String(port), ...extraArgs], {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env }
     })
@@ -74,6 +122,7 @@ async function startServer(port: number): Promise<void> {
   await waitForServer(port)
 }
 
+// ── 窗口 ────────────────────────────────────────────────────
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1400,
@@ -102,6 +151,7 @@ function createWindow(): void {
   }
 }
 
+// ── 主流程 ──────────────────────────────────────────────────
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.simtradelab')
 
@@ -109,12 +159,32 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  // 加载配置，未配置时自动搜索
+  const config = loadConfig()
+  if (!config.dataPath) {
+    const root = findProjectRoot()
+    if (root) {
+      config.dataPath = join(root, 'data')
+      config.strategiesPath = join(root, 'strategies')
+      saveConfig(config)
+    }
+  }
+
   ipcMain.handle('get-server-port', () => serverPort)
+  ipcMain.handle('get-config', () => loadConfig())
+  ipcMain.handle('save-config', (_e, newConfig: AppConfig) => {
+    saveConfig(newConfig)
+    return newConfig
+  })
+  ipcMain.handle('open-folder-dialog', async () => {
+    const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
+    return result.canceled ? null : result.filePaths[0]
+  })
 
   try {
     serverPort = await findFreePort()
-    await startServer(serverPort)
-    console.log(`[main] Server started on port ${serverPort}`)
+    await startServer(serverPort, config)
+    console.log('[main] Server started on port', serverPort)
   } catch (err) {
     console.error('[main] Failed to start server:', err)
   }

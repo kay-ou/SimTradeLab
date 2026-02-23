@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from simtradelab.server.routers import strategies, backtest
+from simtradelab.server.routers import strategies, backtest, settings
 
 
 def create_app() -> FastAPI:
@@ -16,6 +16,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(strategies.router)
     app.include_router(backtest.router)
+    app.include_router(settings.router)
     return app
 
 
