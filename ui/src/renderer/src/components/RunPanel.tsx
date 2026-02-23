@@ -7,6 +7,7 @@ import {
   Button,
   Space,
   Alert,
+  theme,
 } from "antd";
 import { PlayCircleOutlined, StopOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -31,6 +32,7 @@ export function RunPanel({
   onTaskStarted,
   runningTaskId,
 }: Props) {
+  const { token } = theme.useToken();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +73,12 @@ export function RunPanel({
   };
 
   return (
-    <div style={{ padding: "6px 12px", borderBottom: "1px solid #f0f0f0" }}>
+    <div
+      style={{
+        padding: "6px 12px",
+        borderBottom: `1px solid ${token.colorBorderSecondary}`,
+      }}
+    >
       <Form
         form={form}
         layout="inline"

@@ -87,6 +87,7 @@ def cancel_task(task_id: str):
         raise HTTPException(status_code=404, detail="任务不存在")
     if task.status in ("finished", "failed"):
         return {"ok": True, "skipped": True}
+    task.cancel_event.set()
     if task.future:
         task.future.cancel()
     task_manager.mark_failed(task_id, "用户取消")

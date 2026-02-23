@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, Input, Popconfirm, Spin, message } from "antd";
+import { Button, Input, Popconfirm, Spin, message, theme } from "antd";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { strategiesAPI } from "../services/api";
 
@@ -10,6 +10,7 @@ interface Props {
 }
 
 export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
+  const { token } = theme.useToken();
   const [strategies, setStrategies] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -29,7 +30,9 @@ export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
     }
   };
 
-  useEffect(() => { load(); }, [reloadKey]);
+  useEffect(() => {
+    load();
+  }, [reloadKey]);
 
   useEffect(() => {
     if (renamingName) renameInputRef.current?.select();
@@ -75,10 +78,28 @@ export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        padding: 8,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 8,
+        }}
+      >
         <span style={{ fontWeight: 600, fontSize: 13 }}>策略</span>
-        <Button size="small" icon={<PlusOutlined />} onClick={() => setCreating(!creating)} />
+        <Button
+          size="small"
+          icon={<PlusOutlined />}
+          onClick={() => setCreating(!creating)}
+        />
       </div>
 
       {creating && (
@@ -104,7 +125,8 @@ export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
               padding: "3px 6px",
               borderRadius: 4,
               cursor: "pointer",
-              background: name === selected ? "#e6f4ff" : "transparent",
+              background:
+                name === selected ? token.colorPrimaryBg : "transparent",
               marginBottom: 1,
             }}
             className="strategy-item"
@@ -123,24 +145,38 @@ export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
               />
             ) : (
               <>
-                <span style={{
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  fontSize: 13,
-                }}>
+                <span
+                  style={{
+                    flex: 1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    fontSize: 13,
+                  }}
+                >
                   {name}
                 </span>
-                <span className="strategy-actions" style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                <span
+                  className="strategy-actions"
+                  style={{ display: "flex", gap: 2, flexShrink: 0 }}
+                >
                   <Button
-                    type="text" size="small"
+                    type="text"
+                    size="small"
                     icon={<EditOutlined />}
-                    onClick={(e) => { e.stopPropagation(); startRename(name); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startRename(name);
+                    }}
                   />
-                  <Popconfirm title="确认删除？" onConfirm={() => handleDelete(name)}>
+                  <Popconfirm
+                    title="确认删除？"
+                    onConfirm={() => handleDelete(name)}
+                  >
                     <Button
-                      type="text" size="small" danger
+                      type="text"
+                      size="small"
+                      danger
                       icon={<DeleteOutlined />}
                       onClick={(e) => e.stopPropagation()}
                     />

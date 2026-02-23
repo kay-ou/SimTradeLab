@@ -265,16 +265,25 @@ const ResizableTitle = (props: any) => {
     <Resizable
       width={width}
       height={0}
+      axis="x"
       handle={
         <span
-          className="react-resizable-handle"
           onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            right: -5,
+            top: 0,
+            zIndex: 1,
+            width: 10,
+            height: "100%",
+            cursor: "col-resize",
+          }}
         />
       }
       onResize={onResize}
       draggableOpts={{ enableUserSelectHack: false }}
     >
-      <th {...restProps} />
+      <th {...restProps} style={{ ...restProps.style, position: "relative" }} />
     </Resizable>
   );
 };

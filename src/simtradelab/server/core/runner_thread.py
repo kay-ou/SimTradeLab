@@ -110,6 +110,7 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
         )
 
         runner = ServerBacktestRunner(log_queue, loop, task.log_buffer)
+        runner._cancel_event = task.cancel_event
         report = runner.run(config=config)
 
         if not report:

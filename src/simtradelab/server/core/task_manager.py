@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import secrets
+import threading
 from concurrent.futures import Future
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
 from simtradelab.server.schemas import RunBacktestRequest
 
@@ -25,6 +26,7 @@ class TaskState:
     log_queue: Optional[asyncio.Queue] = field(default=None, compare=False)
     future: Optional[Future] = field(default=None, compare=False)
     loop: Optional[asyncio.AbstractEventLoop] = field(default=None, compare=False)
+    cancel_event: threading.Event = field(default_factory=threading.Event)
 
 
 def _now_iso() -> str:

@@ -360,7 +360,7 @@ function ThemedLayout({
           <Allotment.Pane minSize={200}>
             <Allotment vertical>
               <Allotment.Pane minSize={80}>
-                <EditorPanel strategyName={selectedStrategy} />
+                <EditorPanel strategyName={selectedStrategy} isDark={isDark} />
               </Allotment.Pane>
               <Allotment.Pane
                 minSize={0}

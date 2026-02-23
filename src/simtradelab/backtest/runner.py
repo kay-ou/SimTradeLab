@@ -40,6 +40,7 @@ class BacktestRunner:
 
         # 数据容器（延迟加载）
         self._data_loaded = False
+        self._cancel_event: object = None
         self.stock_data_dict = None
         self.stock_data_dict_1m = None
         self.valuation_dict = None
@@ -112,6 +113,9 @@ class BacktestRunner:
             # 加载数据
             benchmark_df = self._load_data(required_data, config.frequency, config.data_path)
 
+            if self._cancel_event and self._cancel_event.is_set():
+                return {}
+
             # 初始化日志
             self._setup_logging(config)
             log = logging.getLogger('backtest')
@@ -140,7 +144,8 @@ class BacktestRunner:
                 stats_collector=stats_collector,
                 log=log,
                 frequency=config.frequency,
-                sandbox=config.sandbox
+                sandbox=config.sandbox,
+                cancel_event=self._cancel_event,
             )
 
             # 加载策略
