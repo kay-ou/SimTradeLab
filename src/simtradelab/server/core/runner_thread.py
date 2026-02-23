@@ -61,11 +61,25 @@ class ServerBacktestRunner(BacktestRunner):
         self._log_buffer = log_buffer
 
     def _setup_logging(self, config: BacktestConfig) -> None:
-        super()._setup_logging(config)
-        handler = ThreadSafeQueueHandler(self._log_queue, self._loop)
-        handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
-        logging.getLogger().addHandler(handler)
-        # stdout 已在 run_backtest_in_thread 最开始替换，这里无需再操作
+        # 完全覆盖父类实现：不加 StreamHandler(stdout)，避免与 _QueueWriter 重复
+        # logging 消息只走 ThreadSafeQueueHandler；print 消息走 _QueueWriter(stdout)
+        import os
+        os.makedirs(config.log_dir, exist_ok=True)
+        handlers: list[logging.Handler] = []
+        if config.enable_logging:
+            self._log_filename = config.get_log_filename()
+            handlers.append(logging.FileHandler(self._log_filename, mode='w', encoding='utf-8'))
+        if config.enable_charts:
+            self._chart_filename = config.get_chart_filename()
+        queue_handler = ThreadSafeQueueHandler(self._log_queue, self._loop, self._log_buffer)
+        queue_handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+        handlers.append(queue_handler)
+        logging.basicConfig(
+            level=logging.INFO,
+            format='[%(levelname)s] %(message)s',
+            handlers=handlers,
+            force=True,
+        )
 
 
 def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.AbstractEventLoop) -> dict | None:

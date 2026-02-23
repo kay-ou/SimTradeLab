@@ -12,10 +12,11 @@ class ThreadSafeQueueHandler(logging.Handler):
     此 Handler 桥接两者，确保线程安全。
     """
 
-    def __init__(self, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop) -> None:
+    def __init__(self, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop, log_buffer: list | None = None) -> None:
         super().__init__()
         self._queue = queue
         self._loop = loop
+        self._log_buffer = log_buffer
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
@@ -24,6 +25,8 @@ class ThreadSafeQueueHandler(logging.Handler):
                 "msg": self.format(record),
                 "ts": time.time(),
             }
+            if self._log_buffer is not None:
+                self._log_buffer.append(msg)
             self._loop.call_soon_threadsafe(self._queue.put_nowait, msg)
         except Exception:
             self.handleError(record)

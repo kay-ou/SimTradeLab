@@ -1,3 +1,4 @@
+import { useState, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import {
   Card,
@@ -12,6 +13,8 @@ import {
 } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
 import { theme } from "antd";
+import { Resizable } from "react-resizable";
+import "react-resizable/css/styles.css";
 import type { HistoryEntry } from "../App";
 
 interface Props {
@@ -255,6 +258,27 @@ function num(v: number) {
   return v.toFixed(3);
 }
 
+const ResizableTitle = (props: any) => {
+  const { onResize, width, ...restProps } = props;
+  if (!width) return <th {...restProps} />;
+  return (
+    <Resizable
+      width={width}
+      height={0}
+      handle={
+        <span
+          className="react-resizable-handle"
+          onClick={(e) => e.stopPropagation()}
+        />
+      }
+      onResize={onResize}
+      draggableOpts={{ enableUserSelectHack: false }}
+    >
+      <th {...restProps} />
+    </Resizable>
+  );
+};
+
 function HistoryTable({
   history,
   onDelete,
@@ -264,11 +288,37 @@ function HistoryTable({
 }) {
   const { token } = theme.useToken();
 
+  const [colWidths, setColWidths] = useState<Record<string, number>>({
+    runAt: 80,
+    strategy: 100,
+    range: 120,
+    ret: 72,
+    ann: 68,
+    sharpe: 58,
+    dd: 68,
+    dur: 56,
+    del: 32,
+  });
+
+  const handleResize = useCallback(
+    (key: string) =>
+      (_: React.SyntheticEvent, { size }: { size: { width: number } }) => {
+        setColWidths((prev) => ({ ...prev, [key]: size.width }));
+      },
+    [],
+  );
+
   const columns = [
     {
       title: "时间",
       dataIndex: "runAt",
-      width: 80,
+      key: "runAt",
+      width: colWidths.runAt,
+      sorter: (a: HistoryEntry, b: HistoryEntry) => a.runAt - b.runAt,
+      onHeaderCell: (col: any) => ({
+        width: col.width,
+        onResize: handleResize("runAt"),
+      }),
       render: (v: number) =>
         new Date(v).toLocaleString("zh-CN", {
           month: "2-digit",
@@ -277,17 +327,39 @@ function HistoryTable({
           minute: "2-digit",
         }),
     },
-    { title: "策略", dataIndex: "strategy", ellipsis: true },
+    {
+      title: "策略",
+      dataIndex: "strategy",
+      key: "strategy",
+      width: colWidths.strategy,
+      ellipsis: true,
+      sorter: (a: HistoryEntry, b: HistoryEntry) =>
+        a.strategy.localeCompare(b.strategy),
+      onHeaderCell: (col: any) => ({
+        width: col.width,
+        onResize: handleResize("strategy"),
+      }),
+    },
     {
       title: "区间",
       key: "range",
-      width: 120,
+      width: colWidths.range,
+      onHeaderCell: (col: any) => ({
+        width: col.width,
+        onResize: handleResize("range"),
+      }),
       render: (_: any, r: HistoryEntry) => `${r.startDate} ~ ${r.endDate}`,
     },
     {
       title: "总收益",
       key: "ret",
-      width: 72,
+      width: colWidths.ret,
+      sorter: (a: HistoryEntry, b: HistoryEntry) =>
+        (a.metrics.total_return ?? 0) - (b.metrics.total_return ?? 0),
+      onHeaderCell: (col: any) => ({
+        width: col.width,
+        onResize: handleResize("ret"),
+      }),
       render: (_: any, r: HistoryEntry) => {
         const v = r.metrics.total_return ?? 0;
         return (
@@ -302,19 +374,37 @@ function HistoryTable({
     {
       title: "年化",
       key: "ann",
-      width: 68,
+      width: colWidths.ann,
+      sorter: (a: HistoryEntry, b: HistoryEntry) =>
+        (a.metrics.annual_return ?? 0) - (b.metrics.annual_return ?? 0),
+      onHeaderCell: (col: any) => ({
+        width: col.width,
+        onResize: handleResize("ann"),
+      }),
       render: (_: any, r: HistoryEntry) => pct(r.metrics.annual_return ?? 0),
     },
     {
       title: "夏普",
       key: "sharpe",
-      width: 58,
+      width: colWidths.sharpe,
+      sorter: (a: HistoryEntry, b: HistoryEntry) =>
+        (a.metrics.sharpe_ratio ?? 0) - (b.metrics.sharpe_ratio ?? 0),
+      onHeaderCell: (col: any) => ({
+        width: col.width,
+        onResize: handleResize("sharpe"),
+      }),
       render: (_: any, r: HistoryEntry) => num(r.metrics.sharpe_ratio ?? 0),
     },
     {
       title: "回撤",
       key: "dd",
-      width: 68,
+      width: colWidths.dd,
+      sorter: (a: HistoryEntry, b: HistoryEntry) =>
+        (a.metrics.max_drawdown ?? 0) - (b.metrics.max_drawdown ?? 0),
+      onHeaderCell: (col: any) => ({
+        width: col.width,
+        onResize: handleResize("dd"),
+      }),
       render: (_: any, r: HistoryEntry) => (
         <span style={{ color: token.colorError }}>
           {pct(r.metrics.max_drawdown ?? 0)}
@@ -324,13 +414,22 @@ function HistoryTable({
     {
       title: "耗时",
       key: "dur",
-      width: 56,
+      width: colWidths.dur,
+      sorter: (a: HistoryEntry, b: HistoryEntry) => a.duration - b.duration,
+      onHeaderCell: (col: any) => ({
+        width: col.width,
+        onResize: handleResize("dur"),
+      }),
       render: (_: any, r: HistoryEntry) => `${r.duration.toFixed(1)}s`,
     },
     {
       title: "",
       key: "del",
-      width: 32,
+      width: colWidths.del,
+      onHeaderCell: (col: any) => ({
+        width: col.width,
+        onResize: handleResize("del"),
+      }),
       render: (_: any, r: HistoryEntry) => (
         <Popconfirm title="删除此记录？" onConfirm={() => onDelete(r.id)}>
           <Button type="text" size="small" danger icon={<DeleteOutlined />} />
@@ -348,6 +447,7 @@ function HistoryTable({
       pagination={false}
       scroll={{ x: true }}
       style={{ fontSize: 11 }}
+      components={{ header: { cell: ResizableTitle } }}
     />
   );
 }
