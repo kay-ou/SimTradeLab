@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { ConfigProvider, theme, Button, Tooltip } from "antd";
+import { ConfigProvider, theme, Button, Tooltip, Segmented } from "antd";
 import {
   SettingOutlined,
   SunOutlined,
@@ -9,6 +9,8 @@ import {
   MenuUnfoldOutlined,
   BarChartOutlined,
   CodeOutlined,
+  ExperimentOutlined,
+  PlayCircleOutlined,
 } from "@ant-design/icons";
 import { Allotment } from "allotment";
 import "allotment/dist/style.css";
@@ -19,11 +21,13 @@ import { RunPanel } from "./components/RunPanel";
 import { LogConsole } from "./components/LogConsole";
 import { ResultPanel } from "./components/ResultPanel";
 import { SettingsModal } from "./components/SettingsModal";
+import { OptimizerPanel } from "./components/OptimizerPanel";
 import { createLogStream } from "./services/backtest.ws";
 import { backtestAPI, getWSBaseURL } from "./services/api";
 import type { LogMessage } from "./components/LogConsole";
 
 type ThemeMode = "light" | "dark" | "system";
+type ActiveTab = "backtest" | "optimizer";
 
 export interface HistoryEntry {
   id: string;
@@ -62,13 +66,21 @@ function getStoredTheme(): ThemeMode {
 
 export default function App() {
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ActiveTab>("backtest");
+
+  // Backtest state
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogMessage[]>([]);
   const [result, setResult] = useState<any | null>(null);
+  const pendingRun = useRef<{ params: any; startedAt: number } | null>(null);
+
+  // Optimizer state
+  const [optimizerTaskId, setOptimizerTaskId] = useState<string | null>(null);
+  const [optimizerLogs, setOptimizerLogs] = useState<LogMessage[]>([]);
+
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [strategyReloadKey, setStrategyReloadKey] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
-  const pendingRun = useRef<{ params: any; startedAt: number } | null>(null);
 
   const [themeMode, setThemeMode] = useState<ThemeMode>(getStoredTheme);
   const [systemDark, setSystemDark] = useState(
@@ -155,6 +167,18 @@ export default function App() {
     [],
   );
 
+  const handleOptimizerTaskStarted = useCallback(async (taskId: string) => {
+    setOptimizerTaskId(taskId);
+    setOptimizerLogs([]);
+    const base = await getWSBaseURL();
+    createLogStream(
+      base,
+      taskId,
+      (msg) => setOptimizerLogs((prev) => [...prev, msg]),
+      () => setOptimizerTaskId(null),
+    );
+  }, []);
+
   const deleteHistory = useCallback((id: string) => {
     setHistory((prev) => {
       const next = prev.filter((e) => e.id !== id);
@@ -162,6 +186,8 @@ export default function App() {
       return next;
     });
   }, []);
+
+  const currentLogs = activeTab === "backtest" ? logs : optimizerLogs;
 
   return (
     <ConfigProvider
@@ -172,11 +198,15 @@ export default function App() {
     >
       <ThemedLayout
         isDark={isDark}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         selectedStrategy={selectedStrategy}
         setSelectedStrategy={setSelectedStrategy}
         runningTaskId={runningTaskId}
         handleTaskStarted={handleTaskStarted}
-        logs={logs}
+        optimizerTaskId={optimizerTaskId}
+        handleOptimizerTaskStarted={handleOptimizerTaskStarted}
+        logs={currentLogs}
         result={result}
         history={history}
         deleteHistory={deleteHistory}
@@ -201,10 +231,14 @@ export default function App() {
 
 interface ThemedLayoutProps {
   isDark: boolean;
+  activeTab: ActiveTab;
+  setActiveTab: (tab: ActiveTab) => void;
   selectedStrategy: string | null;
   setSelectedStrategy: (s: string) => void;
   runningTaskId: string | null;
   handleTaskStarted: (taskId: string, params: any, startedAt: number) => void;
+  optimizerTaskId: string | null;
+  handleOptimizerTaskStarted: (taskId: string) => void;
   logs: LogMessage[];
   result: any;
   history: HistoryEntry[];
@@ -227,10 +261,14 @@ interface ThemedLayoutProps {
 
 function ThemedLayout({
   isDark,
+  activeTab,
+  setActiveTab,
   selectedStrategy,
   setSelectedStrategy,
   runningTaskId,
   handleTaskStarted,
+  optimizerTaskId,
+  handleOptimizerTaskStarted,
   logs,
   result,
   history,
@@ -253,7 +291,6 @@ function ThemedLayout({
 
   const headerColor = token.colorTextBase;
 
-  // allotment 分割线颜色通过 CSS 变量注入
   const allotmentStyle = {
     "--separator-border": token.colorBorder,
     "--sash-hover-size": "4px",
@@ -288,6 +325,15 @@ function ThemedLayout({
         <span style={{ fontWeight: 600, fontSize: 14, color: token.colorText }}>
           SimTradeLab
         </span>
+        <Segmented
+          size="small"
+          value={activeTab}
+          onChange={(v) => setActiveTab(v as ActiveTab)}
+          options={[
+            { label: "回测", value: "backtest", icon: <PlayCircleOutlined /> },
+            { label: "优化器", value: "optimizer", icon: <ExperimentOutlined /> },
+          ]}
+        />
         <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
           <Tooltip title={leftVisible ? "折叠策略面板" : "展开策略面板"}>
             <Button
@@ -334,12 +380,14 @@ function ThemedLayout({
         </div>
       </div>
 
-      {/* RunPanel */}
-      <RunPanel
-        strategyName={selectedStrategy}
-        onTaskStarted={handleTaskStarted}
-        runningTaskId={runningTaskId}
-      />
+      {/* RunPanel - only for backtest mode */}
+      {activeTab === "backtest" && (
+        <RunPanel
+          strategyName={selectedStrategy}
+          onTaskStarted={handleTaskStarted}
+          runningTaskId={runningTaskId}
+        />
+      )}
 
       {/* Main content */}
       <div style={allotmentStyle}>
@@ -360,7 +408,16 @@ function ThemedLayout({
           <Allotment.Pane minSize={200}>
             <Allotment vertical>
               <Allotment.Pane minSize={80}>
-                <EditorPanel strategyName={selectedStrategy} isDark={isDark} />
+                {activeTab === "backtest" ? (
+                  <EditorPanel strategyName={selectedStrategy} isDark={isDark} />
+                ) : (
+                  <OptimizerPanel
+                    strategyName={selectedStrategy}
+                    isDark={isDark}
+                    runningTaskId={optimizerTaskId}
+                    onTaskStarted={handleOptimizerTaskStarted}
+                  />
+                )}
               </Allotment.Pane>
               <Allotment.Pane
                 minSize={0}

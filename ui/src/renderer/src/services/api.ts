@@ -83,6 +83,26 @@ export const backtestAPI = {
     (await (await getClient()).post(`/backtest/${taskId}/cancel`)).data,
 };
 
+export const optimizerAPI = {
+  getScript: async (
+    strategyName: string,
+  ): Promise<{ source: string; exists: boolean }> =>
+    (await (await getClient()).get(`/optimizer/${strategyName}/script`)).data,
+
+  saveScript: async (strategyName: string, source: string) =>
+    (
+      await (
+        await getClient()
+      ).put(`/optimizer/${strategyName}/script`, { source })
+    ).data,
+
+  run: async (strategyName: string): Promise<{ task_id: string }> =>
+    (await (await getClient()).post(`/optimizer/${strategyName}/run`)).data,
+
+  cancel: async (taskId: string) =>
+    (await (await getClient()).post(`/backtest/${taskId}/cancel`)).data,
+};
+
 export async function getWSBaseURL(): Promise<string> {
   const base = await getBaseURL();
   return base.replace(/^http/, "ws");

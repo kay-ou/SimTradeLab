@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
-from simtradelab.server.core.task_manager import TaskManager
+from simtradelab.server.core.shared import task_manager, executor
 from simtradelab.server.core.runner_thread import run_backtest_in_thread
 from simtradelab.server.schemas import RunBacktestRequest, TaskStatus
 
 router = APIRouter(prefix="/backtest", tags=["backtest"])
-task_manager = TaskManager()
-_executor = ThreadPoolExecutor(max_workers=1)
 
 
 @router.post("/run")
@@ -22,7 +19,7 @@ async def run_backtest(req: RunBacktestRequest):
     task_id = task_manager.create_task(req)
     task = task_manager.get_task(task_id)
     task.loop = loop
-    future = _executor.submit(run_backtest_in_thread, task_id, task_manager, loop)
+    future = executor.submit(run_backtest_in_thread, task_id, task_manager, loop)
     task.future = future
     return {"task_id": task_id}
 

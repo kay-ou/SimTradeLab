@@ -16,7 +16,8 @@ class TaskState:
     task_id: str
     task_type: Literal["backtest", "optimize"]
     status: Literal["pending", "running", "finished", "failed"]
-    request: RunBacktestRequest
+    request: Optional[RunBacktestRequest]
+    script_path: Optional[str] = None
     progress: float = 0.0
     result: Optional[dict] = None
     error: Optional[str] = None
@@ -44,6 +45,18 @@ class TaskManager:
             task_type="backtest",
             status="pending",
             request=request,
+            log_queue=asyncio.Queue(),
+        )
+        return task_id
+
+    def create_optimizer_task(self, script_path: str) -> str:
+        task_id = secrets.token_hex(4)
+        self._tasks[task_id] = TaskState(
+            task_id=task_id,
+            task_type="optimize",
+            status="pending",
+            request=None,
+            script_path=script_path,
             log_queue=asyncio.Queue(),
         )
         return task_id
