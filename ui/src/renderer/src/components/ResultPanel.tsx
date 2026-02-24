@@ -39,22 +39,28 @@ export function ResultPanel({
   const pnlChartRef = useRef<any>(null);
   const benchmarkChartRef = useRef<any>(null);
 
+  const ZOOM_GROUP = "result-charts-zoom";
+
+  // 首次挂载时 echarts-for-react 异步初始化（等 'finished' 事件），
+  // useEffect 执行时实例还未就绪，用 onChartReady 处理首次挂载。
+  const handleChartReady = useCallback((inst: echarts.ECharts) => {
+    inst.group = ZOOM_GROUP;
+    echarts.connect(ZOOM_GROUP);
+  }, []);
+
+  // result 切换时重新 connect（实例已就绪，getEchartsInstance 有效）
   useEffect(() => {
-    const charts = [];
-    if (navChartRef.current?.getEchartsInstance()) {
-      charts.push(navChartRef.current.getEchartsInstance());
-    }
-    if (pnlChartRef.current?.getEchartsInstance()) {
-      charts.push(pnlChartRef.current.getEchartsInstance());
-    }
-    if (benchmarkChartRef.current?.getEchartsInstance()) {
-      charts.push(benchmarkChartRef.current.getEchartsInstance());
-    }
-    if (charts.length > 1) {
-      echarts.connect(charts);
-    }
+    if (!result) return;
+    const insts = [navChartRef, pnlChartRef, benchmarkChartRef]
+      .map((r) => r.current?.getEchartsInstance())
+      .filter((inst): inst is echarts.ECharts => inst != null);
+    if (insts.length < 2) return;
+    insts.forEach((inst) => {
+      inst.group = ZOOM_GROUP;
+    });
+    echarts.connect(ZOOM_GROUP);
     return () => {
-      echarts.disconnect(charts);
+      echarts.disconnect(ZOOM_GROUP);
     };
   }, [result]);
 
@@ -395,6 +401,7 @@ export function ResultPanel({
         ref={navChartRef}
         option={navOption}
         style={{ height: 220 }}
+        onChartReady={handleChartReady}
       />
       <Divider style={{ margin: "10px 0", fontSize: 12 }}>
         {metrics.benchmark_name || "基准"} 独立走势
@@ -403,12 +410,14 @@ export function ResultPanel({
         ref={benchmarkChartRef}
         option={benchmarkOption}
         style={{ height: 150 }}
+        onChartReady={handleChartReady}
       />
       <Divider style={{ margin: "10px 0", fontSize: 12 }}>每日盈亏</Divider>
       <ReactECharts
         ref={pnlChartRef}
         option={pnlOption}
         style={{ height: 150 }}
+        onChartReady={handleChartReady}
       />
 
       {history.length > 0 && (
