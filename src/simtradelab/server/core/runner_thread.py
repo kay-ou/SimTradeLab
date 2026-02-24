@@ -152,6 +152,7 @@ def _save_history_json(runner: ServerBacktestRunner, req: object, task_id: str, 
             "daily_sell_amount": [float(v) for v in stats.daily_sell_amount],
             "daily_positions_value": [float(v) for v in stats.daily_positions_value],
             "benchmark_nav": [float(v) for v in report.get("_benchmark_nav", [])],
+            "daily_positions_snapshot": stats.daily_positions_snapshot,
         }
     else:
         series = {}

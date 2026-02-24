@@ -27,13 +27,15 @@ class BacktestStats:
     daily_sell_amount: list[float] = field(default_factory=list)
     daily_positions_value: list[float] = field(default_factory=list)
     trade_dates: list = field(default_factory=list)
+    daily_positions_snapshot: list[list] = field(default_factory=list)
 
 
 class StatsCollector:
     """回测统计数据收集器"""
 
-    def __init__(self):
+    def __init__(self, name_map: dict | None = None):
         self._stats = BacktestStats()
+        self._name_map: dict[str, str] = name_map or {}
 
     @property
     def stats(self) -> BacktestStats:
@@ -61,3 +63,15 @@ class StatsCollector:
         daily_pnl = current_value - prev_portfolio_value
         self._stats.daily_pnl.append(daily_pnl)
         self._stats.daily_positions_value.append(context.portfolio.positions_value)
+        snapshot = [
+            {
+                "c": pos.stock,
+                "nm": self._name_map.get(pos.stock, pos.stock),
+                "n": int(pos.amount),
+                "v": round(pos.market_value, 2),
+                "b": round(pos.cost_basis, 2),
+            }
+            for pos in context.portfolio.positions.values()
+            if pos.amount > 0
+        ]
+        self._stats.daily_positions_snapshot.append(snapshot)

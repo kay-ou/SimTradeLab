@@ -208,16 +208,43 @@ export function ResultPanel({
     },
   ];
 
+  const positionsSnapshot: Array<
+    Array<{ c: string; nm: string; n: number; v: number; b: number }>
+  > = series.daily_positions_snapshot ?? [];
+
   const navOption = {
     backgroundColor: "transparent",
     tooltip: {
       trigger: "axis",
-      formatter: (params: any[]) =>
-        params
+      confine: true,
+      formatter: (params: any[]) => {
+        const lines = params
+          .filter((p: any) => p.seriesType !== "scatter")
           .map(
             (p: any) => `${p.marker}${p.seriesName}: ${p.value[1].toFixed(4)}`,
-          )
-          .join("<br/>"),
+          );
+        const idx: number = params[0]?.dataIndex ?? -1;
+        const positions = idx >= 0 ? (positionsSnapshot[idx] ?? []) : [];
+        if (positions.length > 0) {
+          lines.push(
+            '<div style="margin-top:4px;border-top:1px solid rgba(128,128,128,0.3);padding-top:4px;font-size:11px">',
+          );
+          positions.forEach(({ c, nm, n, v, b }) => {
+            const pnlPct = b > 0 ? ((v / n - b) / b) * 100 : 0;
+            const color = pnlPct >= 0 ? "#ef5350" : "#26a69a";
+            lines.push(
+              `<div style="display:flex;justify-content:space-between;gap:12px">` +
+                `<span>${nm && nm !== c ? nm : c}` +
+                `<span style="color:#888;font-size:10px"> ${nm && nm !== c ? c : ""}</span></span>` +
+                `<span>${n}股</span>` +
+                `<span style="color:${color}">${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}%</span>` +
+                `</div>`,
+            );
+          });
+          lines.push("</div>");
+        }
+        return lines.join("<br/>");
+      },
     },
     legend: {
       data: ["策略净值", metrics.benchmark_name || "基准"],
@@ -280,7 +307,7 @@ export function ResultPanel({
 
   const pnlOption = {
     backgroundColor: "transparent",
-    tooltip: { trigger: "axis" },
+    tooltip: { trigger: "axis", confine: true },
     grid: { top: 8, bottom: 36, left: 60, right: 16 },
     xAxis: { ...axisStyle },
     yAxis: {
@@ -306,6 +333,7 @@ export function ResultPanel({
     backgroundColor: "transparent",
     tooltip: {
       trigger: "axis",
+      confine: true,
       formatter: (params: any[]) =>
         params
           .map(

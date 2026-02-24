@@ -135,7 +135,10 @@ class BacktestRunner:
 
             # 初始化回测组件
             context, api = self._initialize_context(config, config.start_date, log)
-            stats_collector = StatsCollector()
+            name_map: dict[str, str] = {}
+            if self.stock_metadata is not None and not self.stock_metadata.empty and "stock_name" in self.stock_metadata.columns:
+                name_map = self.stock_metadata["stock_name"].to_dict()
+            stats_collector = StatsCollector(name_map=name_map)
 
             # 创建策略执行引擎
             engine = StrategyExecutionEngine(

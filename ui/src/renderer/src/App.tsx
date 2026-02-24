@@ -171,6 +171,11 @@ export default function App() {
     refreshHistory();
   }, [refreshHistory]);
 
+  useEffect(() => {
+    window.addEventListener("focus", refreshHistory);
+    return () => window.removeEventListener("focus", refreshHistory);
+  }, [refreshHistory]);
+
   const [themeMode, setThemeMode] = useState<ThemeMode>(getStoredTheme);
   const [systemDark, setSystemDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
@@ -536,7 +541,7 @@ function ThemedLayout({
         <Allotment>
           <Allotment.Pane
             minSize={0}
-            preferredSize={220}
+            preferredSize="16.67%"
             snap
             visible={leftVisible}
           >
@@ -600,7 +605,7 @@ function ThemedLayout({
 
           <Allotment.Pane
             minSize={0}
-            preferredSize={380}
+            preferredSize="33.33%"
             snap
             visible={rightVisible}
           >
