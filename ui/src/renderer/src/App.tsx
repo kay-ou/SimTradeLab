@@ -165,6 +165,7 @@ export default function App() {
   const handleSelectHistory = useCallback(async (entry: HistoryEntry) => {
     setSelectedHistoryId(entry.id);
     setActiveTab("backtest");
+    setSelectedStrategy(entry.strategy);
 
     const cached = historyCache.current.get(entry.id);
     if (cached) {
