@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { ConfigProvider, theme, Button, Tooltip, Segmented } from "antd";
 import {
   SettingOutlined,
@@ -52,14 +52,37 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [strategyReloadKey, setStrategyReloadKey] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const historyCache = useRef<Map<string, { result: any; logs: LogMessage[] }>>(new Map());
+
+  const prefetchHistory = useCallback((entries: HistoryEntry[]) => {
+    entries.forEach(async (entry) => {
+      if (historyCache.current.has(entry.id)) return;
+      const cached: { result: any; logs: LogMessage[] } = { result: null, logs: [] };
+      if (entry.jsonPath) {
+        try {
+          const detail = await historyAPI.detail(entry.jsonPath);
+          cached.result = { metrics: detail.metrics, series: detail.series };
+        } catch {}
+      }
+      if (entry.logPath) {
+        try {
+          cached.logs = await historyAPI.getLog(entry.logPath);
+        } catch {}
+      }
+      historyCache.current.set(entry.id, cached);
+    });
+  }, []);
 
   // 从磁盘加载历史记录
   const refreshHistory = useCallback(() => {
     historyAPI
       .list()
-      .then(setHistory)
+      .then((entries) => {
+        setHistory(entries);
+        prefetchHistory(entries);
+      })
       .catch(() => {});
-  }, []);
+  }, [prefetchHistory]);
 
   useEffect(() => {
     refreshHistory();
@@ -143,7 +166,13 @@ export default function App() {
     setSelectedHistoryId(entry.id);
     setActiveTab("backtest");
 
-    // 从磁盘 JSON 读取 series，重建 ECharts
+    const cached = historyCache.current.get(entry.id);
+    if (cached) {
+      setResult(cached.result);
+      setLogs(cached.logs);
+      return;
+    }
+
     if (entry.jsonPath) {
       try {
         const detail = await historyAPI.detail(entry.jsonPath);
@@ -155,11 +184,9 @@ export default function App() {
       setResult(null);
     }
 
-    // 从磁盘 .log 读取日志
     if (entry.logPath) {
       try {
-        const lines = await historyAPI.getLog(entry.logPath);
-        setLogs(lines);
+        setLogs(await historyAPI.getLog(entry.logPath));
       } catch {
         setLogs([]);
       }
@@ -184,6 +211,7 @@ export default function App() {
     setHistory((prev) => {
       const entry = prev.find((e) => e.id === id);
       if (entry?.jsonPath) historyAPI.delete(entry.jsonPath).catch(() => {});
+      historyCache.current.delete(id);
       return prev.filter((e) => e.id !== id);
     });
   }, []);

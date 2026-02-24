@@ -257,7 +257,12 @@ export function ResultPanel({
       {history.length > 0 && (
         <>
           <Divider style={{ margin: "10px 0", fontSize: 12 }}>回测历史</Divider>
-          <HistoryTable history={history} onDelete={onDeleteHistory} />
+          <HistoryTable
+            history={history}
+            onDelete={onDeleteHistory}
+            onSelect={onSelectHistory}
+            selectedId={selectedHistoryId}
+          />
         </>
       )}
     </div>
