@@ -15,7 +15,7 @@ import { DeleteOutlined } from "@ant-design/icons";
 import { theme } from "antd";
 import { Resizable } from "react-resizable";
 import "react-resizable/css/styles.css";
-import type { HistoryEntry } from "../App";
+import type { HistoryEntry } from "../services/api";
 
 interface Props {
   result: any | null;

@@ -35,6 +35,22 @@ export type TaskStatusResp = {
   finished_at?: string;
   error?: string;
 };
+export type LogMessage = { level: string; msg: string; ts: number };
+export type HistoryEntry = {
+  id: string;
+  strategy: string;
+  startDate: string;
+  endDate: string;
+  capital: number;
+  frequency: string;
+  runAt: number;
+  duration: number;
+  metrics: Record<string, any>;
+  benchmarkName: string;
+  jsonPath?: string;
+  logPath?: string;
+  logs?: LogMessage[];  // session-only
+};
 
 export const strategiesAPI = {
   list: async (): Promise<string[]> =>
@@ -83,7 +99,39 @@ export const backtestAPI = {
     (await (await getClient()).post(`/backtest/${taskId}/cancel`)).data,
 };
 
-export const optimizerAPI = {
+export const historyAPI = {
+  list: async (): Promise<HistoryEntry[]> => {
+    const data = (await (await getClient()).get("/history")).data as any[];
+    return data.map((e) => ({
+      id: e.task_id,
+      strategy: e.strategy,
+      startDate: e.start_date,
+      endDate: e.end_date,
+      capital: e.initial_capital,
+      frequency: e.frequency,
+      runAt: e.run_at * 1000,
+      duration: e.duration,
+      metrics: e.metrics,
+      benchmarkName: e.benchmark_name,
+      jsonPath: e.json_path,
+      logPath: e.log_path ?? undefined,
+    }));
+  },
+
+  detail: async (jsonPath: string): Promise<{ series: any; metrics: any; benchmark_name: string }> =>
+    (await (await getClient()).get("/history/detail", { params: { json_path: jsonPath } })).data,
+
+  getLog: async (logPath: string): Promise<LogMessage[]> => {
+    const text: string = (await (await getClient()).get("/history/log", { params: { path: logPath } })).data;
+    return text.split("\n").filter(Boolean).map((line) => {
+      try { return JSON.parse(line) as LogMessage; }
+      catch { return { level: "INFO", msg: line, ts: 0 }; }
+    });
+  },
+
+  delete: async (jsonPath: string) =>
+    (await (await getClient()).delete("/history", { params: { json_path: jsonPath } })).data,
+};
   getScript: async (
     strategyName: string,
   ): Promise<{ source: string; exists: boolean }> =>

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ConfigProvider, theme, Button, Tooltip, Segmented } from "antd";
 import {
   SettingOutlined,
@@ -23,54 +23,14 @@ import { ResultPanel } from "./components/ResultPanel";
 import { SettingsModal } from "./components/SettingsModal";
 import { OptimizerPanel } from "./components/OptimizerPanel";
 import { createLogStream } from "./services/backtest.ws";
-import { backtestAPI, getWSBaseURL } from "./services/api";
+import { backtestAPI, historyAPI, getWSBaseURL } from "./services/api";
 import type { LogMessage } from "./components/LogConsole";
+import type { HistoryEntry } from "./services/api";
+
+export type { HistoryEntry };
 
 type ThemeMode = "light" | "dark" | "system";
 type ActiveTab = "backtest" | "optimizer";
-
-export type BacktestSeries = {
-  dates: string[];
-  portfolio_values: number[];
-  daily_pnl: number[];
-  daily_buy_amount: number[];
-  daily_sell_amount: number[];
-  daily_positions_value: number[];
-  benchmark_nav: number[];
-};
-
-export interface HistoryEntry {
-  id: string;
-  strategy: string;
-  startDate: string;
-  endDate: string;
-  capital: number;
-  frequency: string;
-  runAt: number; // ms timestamp
-  duration: number; // seconds
-  metrics: Record<string, number>;
-  benchmarkName: string;
-  series?: BacktestSeries;
-  logs?: LogMessage[];
-}
-
-const HISTORY_KEY = "simtradelab_history";
-const MAX_HISTORY = 200;
-
-function loadHistory(): HistoryEntry[] {
-  try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveHistory(entries: HistoryEntry[]) {
-  localStorage.setItem(
-    HISTORY_KEY,
-    JSON.stringify(entries.slice(0, MAX_HISTORY)),
-  );
-}
 
 function getStoredTheme(): ThemeMode {
   return (localStorage.getItem("themeMode") as ThemeMode) ?? "light";
@@ -84,7 +44,6 @@ export default function App() {
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogMessage[]>([]);
   const [result, setResult] = useState<any | null>(null);
-  const pendingRun = useRef<{ params: any; startedAt: number } | null>(null);
 
   // Optimizer state
   const [optimizerTaskId, setOptimizerTaskId] = useState<string | null>(null);
@@ -92,7 +51,19 @@ export default function App() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [strategyReloadKey, setStrategyReloadKey] = useState(0);
-  const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+
+  // 从磁盘加载历史记录
+  const refreshHistory = useCallback(() => {
+    historyAPI
+      .list()
+      .then(setHistory)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refreshHistory();
+  }, [refreshHistory]);
 
   const [themeMode, setThemeMode] = useState<ThemeMode>(getStoredTheme);
   const [systemDark, setSystemDark] = useState(
@@ -139,12 +110,11 @@ export default function App() {
   );
 
   const handleTaskStarted = useCallback(
-    async (taskId: string, params: any, startedAt: number) => {
+    async (taskId: string, _params: any, _startedAt: number) => {
       setRunningTaskId(taskId);
       setLogs([]);
       setResult(null);
       setSelectedHistoryId(null);
-      pendingRun.current = { params, startedAt };
       const base = await getWSBaseURL();
       const logsForRun: LogMessage[] = [];
       createLogStream(
@@ -159,44 +129,43 @@ export default function App() {
           try {
             const res = await backtestAPI.result(taskId);
             setResult(res);
-            const run = pendingRun.current;
-            if (run && res.metrics) {
-              const entry: HistoryEntry = {
-                id: taskId,
-                strategy: run.params.strategy_name,
-                startDate: run.params.start_date,
-                endDate: run.params.end_date,
-                capital: run.params.initial_capital,
-                frequency: run.params.frequency,
-                runAt: run.startedAt,
-                duration: (Date.now() - run.startedAt) / 1000,
-                metrics: res.metrics,
-                benchmarkName: res.metrics.benchmark_name ?? "",
-                series: res.series,
-                logs: logsForRun,
-              };
-              setHistory((prev) => {
-                const next = [entry, ...prev];
-                saveHistory(next);
-                return next;
-              });
-            }
           } catch {
             // task failed
           }
+          refreshHistory();
         },
       );
     },
-    [],
+    [refreshHistory],
   );
 
-  const handleSelectHistory = useCallback((entry: HistoryEntry) => {
-    setResult(
-      entry.series ? { metrics: entry.metrics, series: entry.series } : null,
-    );
-    setLogs(entry.logs ?? []);
+  const handleSelectHistory = useCallback(async (entry: HistoryEntry) => {
     setSelectedHistoryId(entry.id);
     setActiveTab("backtest");
+
+    // 从磁盘 JSON 读取 series，重建 ECharts
+    if (entry.jsonPath) {
+      try {
+        const detail = await historyAPI.detail(entry.jsonPath);
+        setResult({ metrics: detail.metrics, series: detail.series });
+      } catch {
+        setResult(null);
+      }
+    } else {
+      setResult(null);
+    }
+
+    // 从磁盘 .log 读取日志
+    if (entry.logPath) {
+      try {
+        const lines = await historyAPI.getLog(entry.logPath);
+        setLogs(lines);
+      } catch {
+        setLogs([]);
+      }
+    } else {
+      setLogs([]);
+    }
   }, []);
 
   const handleOptimizerTaskStarted = useCallback(async (taskId: string) => {
@@ -213,9 +182,9 @@ export default function App() {
 
   const deleteHistory = useCallback((id: string) => {
     setHistory((prev) => {
-      const next = prev.filter((e) => e.id !== id);
-      saveHistory(next);
-      return next;
+      const entry = prev.find((e) => e.id === id);
+      if (entry?.jsonPath) historyAPI.delete(entry.jsonPath).catch(() => {});
+      return prev.filter((e) => e.id !== id);
     });
   }, []);
 

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import sys
 import time
+from datetime import datetime
+from pathlib import Path
 
 from simtradelab.backtest.runner import BacktestRunner
 from simtradelab.backtest.config import BacktestConfig
@@ -61,22 +64,28 @@ class ServerBacktestRunner(BacktestRunner):
         self._log_buffer = log_buffer
 
     def _setup_logging(self, config: BacktestConfig) -> None:
-        # 完全覆盖父类实现：不加 StreamHandler(stdout)，避免与 _QueueWriter 重复
-        # logging 消息只走 ThreadSafeQueueHandler；print 消息走 _QueueWriter(stdout)
         import os
         os.makedirs(config.log_dir, exist_ok=True)
-        handlers: list[logging.Handler] = []
-        if config.enable_logging:
-            self._log_filename = config.get_log_filename()
-            handlers.append(logging.FileHandler(self._log_filename, mode='w', encoding='utf-8'))
-        if config.enable_charts:
-            self._chart_filename = config.get_chart_filename()
+
+        # 用统一时间戳生成同一 stem，保证 .log 和 .json 文件名完全一致
+        ts = datetime.now().strftime("%y%m%d_%H%M%S")
+        stem = "backtest_{}_{}_{}" .format(
+            config.start_date.strftime("%y%m%d"),  # type: ignore[union-attr]
+            config.end_date.strftime("%y%m%d"),    # type: ignore[union-attr]
+            ts,
+        )
+        self._log_filename = str(Path(config.log_dir) / (stem + ".log"))
+        self._json_filename = str(Path(config.log_dir) / (stem + ".json"))
+
+        handlers: list[logging.Handler] = [
+            logging.FileHandler(self._log_filename, mode="w", encoding="utf-8"),
+        ]
         queue_handler = ThreadSafeQueueHandler(self._log_queue, self._loop, self._log_buffer)
         queue_handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
         handlers.append(queue_handler)
         logging.basicConfig(
             level=logging.INFO,
-            format='[%(levelname)s] %(message)s',
+            format="[%(levelname)s] %(message)s",
             handlers=handlers,
             force=True,
         )
@@ -86,6 +95,7 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
     """在 ThreadPoolExecutor 子线程中执行回测。"""
     task = manager.get_task(task_id)
     req = task.request
+    assert req is not None
     log_queue = task.log_queue
     assert log_queue is not None
 
@@ -94,6 +104,7 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
         loop.call_soon_threadsafe(log_queue.put_nowait, msg)
 
     manager.mark_running(task_id)
+    run_start = time.time()
     _orig_stdout = sys.stdout
     sys.stdout = _QueueWriter(log_queue, loop, task.log_buffer)  # type: ignore[assignment]
 
@@ -104,7 +115,7 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
             end_date=req.end_date,
             initial_capital=req.initial_capital,
             frequency=req.frequency,
-            enable_charts=req.enable_charts,
+            enable_charts=False,   # UI 已生成更漂亮的图表，无需 matplotlib 再生成一遍
             sandbox=req.sandbox,
             enable_logging=True,
         )
@@ -117,6 +128,9 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
             manager.mark_failed(task_id, "回测返回空结果，请检查策略或日期范围")
             _send({**_FAIL_SENTINEL, "ts": time.time()})
             return None
+
+        duration = time.time() - run_start
+        _save_history_json(runner, req, task_id, report, run_start, duration)
 
         manager.mark_finished(task_id, report)
         _send({**_DONE_SENTINEL, "ts": time.time()})
@@ -131,3 +145,42 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
 
     finally:
         sys.stdout = _orig_stdout
+
+
+def _save_history_json(runner: ServerBacktestRunner, req: object, task_id: str, report: dict, run_start: float, duration: float) -> None:
+    if not hasattr(runner, "_json_filename"):
+        return
+    stats = report.get("_stats")
+    if stats:
+        series = {
+            "dates": [str(d.date()) if hasattr(d, "date") else str(d) for d in stats.trade_dates],
+            "portfolio_values": [float(v) for v in stats.portfolio_values],
+            "daily_pnl": [float(v) for v in stats.daily_pnl],
+            "daily_buy_amount": [float(v) for v in stats.daily_buy_amount],
+            "daily_sell_amount": [float(v) for v in stats.daily_sell_amount],
+            "daily_positions_value": [float(v) for v in stats.daily_positions_value],
+            "benchmark_nav": [float(v) for v in report.get("_benchmark_nav", [])],
+        }
+    else:
+        series = {}
+    metrics = {
+        k: v for k, v in report.items()
+        if not k.startswith("_") and isinstance(v, (str, float, int, bool))
+    }
+    data = {
+        "task_id": task_id,
+        "strategy": req.strategy_name,       # type: ignore[attr-defined]
+        "start_date": req.start_date,          # type: ignore[attr-defined]
+        "end_date": req.end_date,              # type: ignore[attr-defined]
+        "initial_capital": req.initial_capital,# type: ignore[attr-defined]
+        "frequency": req.frequency,            # type: ignore[attr-defined]
+        "run_at": run_start,
+        "duration": duration,
+        "metrics": metrics,
+        "benchmark_name": metrics.get("benchmark_name", ""),
+        "series": series,
+        "log_path": getattr(runner, "_log_filename", None),
+    }
+    Path(runner._json_filename).write_text(
+        json.dumps(data, ensure_ascii=False), encoding="utf-8"
+    )
