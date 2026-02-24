@@ -91,10 +91,20 @@ export function RunPanel({
         }}
       >
         <Form.Item name="start_date" label="开始" rules={[{ required: true }]}>
-          <DatePicker />
+          <DatePicker
+            disabledDate={(d) => {
+              const end = form.getFieldValue("end_date");
+              return end ? d.isAfter(end, "day") : false;
+            }}
+          />
         </Form.Item>
         <Form.Item name="end_date" label="结束" rules={[{ required: true }]}>
-          <DatePicker />
+          <DatePicker
+            disabledDate={(d) => {
+              const start = form.getFieldValue("start_date");
+              return start ? d.isBefore(start, "day") : false;
+            }}
+          />
         </Form.Item>
         <Form.Item name="initial_capital" label="本金">
           <InputNumber min={1000} step={10000} style={{ width: 120 }} />
