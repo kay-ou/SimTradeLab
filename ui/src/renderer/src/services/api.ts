@@ -49,7 +49,7 @@ export type HistoryEntry = {
   benchmarkName: string;
   jsonPath?: string;
   logPath?: string;
-  logs?: LogMessage[];  // session-only
+  logs?: LogMessage[]; // session-only
 };
 
 export const strategiesAPI = {
@@ -118,20 +118,42 @@ export const historyAPI = {
     }));
   },
 
-  detail: async (jsonPath: string): Promise<{ series: any; metrics: any; benchmark_name: string }> =>
-    (await (await getClient()).get("/history/detail", { params: { json_path: jsonPath } })).data,
+  detail: async (
+    jsonPath: string,
+  ): Promise<{ series: any; metrics: any; benchmark_name: string }> =>
+    (
+      await (
+        await getClient()
+      ).get("/history/detail", { params: { json_path: jsonPath } })
+    ).data,
 
   getLog: async (logPath: string): Promise<LogMessage[]> => {
-    const text: string = (await (await getClient()).get("/history/log", { params: { path: logPath } })).data;
-    return text.split("\n").filter(Boolean).map((line) => {
-      try { return JSON.parse(line) as LogMessage; }
-      catch { return { level: "INFO", msg: line, ts: 0 }; }
-    });
+    const text: string = (
+      await (
+        await getClient()
+      ).get("/history/log", { params: { path: logPath } })
+    ).data;
+    return text
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line) as LogMessage;
+        } catch {
+          return { level: "INFO", msg: line, ts: 0 };
+        }
+      });
   },
 
   delete: async (jsonPath: string) =>
-    (await (await getClient()).delete("/history", { params: { json_path: jsonPath } })).data,
+    (
+      await (
+        await getClient()
+      ).delete("/history", { params: { json_path: jsonPath } })
+    ).data,
 };
+
+export const optimizerAPI = {
   getScript: async (
     strategyName: string,
   ): Promise<{ source: string; exists: boolean }> =>
