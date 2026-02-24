@@ -38,7 +38,9 @@ function getStoredTheme(): ThemeMode {
 
 export default function App() {
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
-  const [historySource, setHistorySource] = useState<string | undefined>(undefined);
+  const [historySource, setHistorySource] = useState<string | undefined>(
+    undefined,
+  );
   const [activeTab, setActiveTab] = useState<ActiveTab>("backtest");
 
   // Backtest state
@@ -53,12 +55,17 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [strategyReloadKey, setStrategyReloadKey] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const historyCache = useRef<Map<string, { result: any; logs: LogMessage[]; source?: string }>>(new Map());
+  const historyCache = useRef<
+    Map<string, { result: any; logs: LogMessage[]; source?: string }>
+  >(new Map());
 
   const prefetchHistory = useCallback((entries: HistoryEntry[]) => {
     entries.forEach(async (entry) => {
       if (historyCache.current.has(entry.id)) return;
-      const cached: { result: any; logs: LogMessage[]; source?: string } = { result: null, logs: [] };
+      const cached: { result: any; logs: LogMessage[]; source?: string } = {
+        result: null,
+        logs: [],
+      };
       if (entry.jsonPath) {
         try {
           const detail = await historyAPI.detail(entry.jsonPath);
@@ -238,6 +245,8 @@ export default function App() {
         setActiveTab={setActiveTab}
         selectedStrategy={selectedStrategy}
         setSelectedStrategy={setSelectedStrategy}
+        historySource={historySource}
+        setHistorySource={setHistorySource}
         runningTaskId={runningTaskId}
         handleTaskStarted={handleTaskStarted}
         optimizerTaskId={optimizerTaskId}
@@ -273,6 +282,8 @@ interface ThemedLayoutProps {
   setActiveTab: (tab: ActiveTab) => void;
   selectedStrategy: string | null;
   setSelectedStrategy: (s: string) => void;
+  historySource: string | undefined;
+  setHistorySource: (s: string | undefined) => void;
   runningTaskId: string | null;
   handleTaskStarted: (taskId: string, params: any, startedAt: number) => void;
   optimizerTaskId: string | null;
@@ -305,6 +316,8 @@ function ThemedLayout({
   setActiveTab,
   selectedStrategy,
   setSelectedStrategy,
+  historySource,
+  setHistorySource,
   runningTaskId,
   handleTaskStarted,
   optimizerTaskId,
@@ -446,7 +459,10 @@ function ThemedLayout({
           >
             <StrategyPanel
               selected={selectedStrategy}
-              onSelect={(s) => { setSelectedStrategy(s); setHistorySource(undefined); }}
+              onSelect={(s) => {
+                setSelectedStrategy(s);
+                setHistorySource(undefined);
+              }}
               reloadKey={strategyReloadKey}
             />
           </Allotment.Pane>
