@@ -59,17 +59,16 @@ def handle_data(context, data):
             'close',
             [stock],
             fq=None,
-            is_dict=True
         )
 
-        if stock not in hist or len(hist[stock]) < context.long_window:
+        if stock not in hist.columns or hist[stock].count() < context.long_window:
             continue
 
-        prices = hist[stock]
+        prices = hist[stock].dropna()
 
         # 计算均线
-        short_ma = sum(prices[-context.short_window:]) / context.short_window
-        long_ma = sum(prices[-context.long_window:]) / context.long_window
+        short_ma = prices.iloc[-context.short_window:].mean()
+        long_ma = prices.iloc[-context.long_window:].mean()
 
         # 金叉：买入信号
         if short_ma > long_ma and stock not in current_stocks:

@@ -118,6 +118,7 @@ export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
         {strategies.map((name) => (
           <div
             key={name}
+            title={name}
             onClick={() => renamingName !== name && onSelect(name)}
             style={{
               display: "flex",
