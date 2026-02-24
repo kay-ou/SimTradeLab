@@ -174,3 +174,16 @@ export async function getWSBaseURL(): Promise<string> {
   const base = await getBaseURL();
   return base.replace(/^http/, "ws");
 }
+
+export type CompletionItem = {
+  label: string;
+  kind: string;
+  detail: string;
+  insertText: string;
+  doc: string;
+  scopes: string[];
+};
+
+export async function fetchEditorCompletions(): Promise<CompletionItem[]> {
+  return (await (await getClient()).get("/editor/completions")).data;
+}

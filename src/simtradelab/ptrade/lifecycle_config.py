@@ -8,21 +8,25 @@
 """
 PTrade API 生命周期限制配置
 
-根据PTrade_API_Summary.md官方文档定义每个API函数的生命周期使用限制
+基于PTrade官方各生命周期函数文档中"可调用接口"列表定义，
+而非PTrade_API_Summary.md的粗粒度 {all} 标注（该标注不区分initialize）。
 """
 
 
 from __future__ import annotations
 
+# 执行阶段（不含initialize和回调）
+_EXEC = ["before_trading_start", "handle_data", "after_trading_end", "tick_data"]
+# 两个主推回调
+_CB = ["on_order_response", "on_trade_response"]
+# 执行阶段 + 主推回调（账户/持仓查询类函数在回调中也需要）
+_EXEC_CB = _EXEC + _CB
+
 # PTrade API 生命周期限制配置
-# 基于PTrade_API_Summary.md中的完整API限制规范
+# initialize可调用接口来自官方文档"可调用接口"章节，其余函数限于执行阶段
 API_LIFECYCLE_RESTRICTIONS: dict[str, list[str]] = {
     # ==========================================
-    # 策略生命周期函数 (7个) - 框架级实现
-    # ==========================================
-    # 这些是框架函数，不是被调用的API
-    # ==========================================
-    # 设置函数 (12个) - 全部仅限initialize
+    # 设置函数 - 仅限initialize
     # ==========================================
     "set_benchmark": ["initialize"],
     "set_commission": ["initialize"],
@@ -32,142 +36,144 @@ API_LIFECYCLE_RESTRICTIONS: dict[str, list[str]] = {
     "set_limit_mode": ["initialize"],
     "run_daily": ["initialize"],
     "run_interval": ["initialize"],
-    # 设置函数 (5个) - 限initialize和before_trading_start
-    "set_universe": ["initialize","before_trading_start"],
-    "set_parameters": ["initialize","before_trading_start"],
-    "set_yesterday_position": ["initialize","before_trading_start"],
-    "set_future_commission": ["initialize","before_trading_start"],
-    "set_margin_rate": ["initialize","before_trading_start"],
+    # 设置函数 - initialize + before_trading_start
+    "set_universe": ["initialize", "before_trading_start", "tick_data"],
+    "set_parameters": ["initialize", "before_trading_start", "handle_data", "after_trading_end", "tick_data",
+                       "on_order_response", "on_trade_response"],
+    "set_yesterday_position": ["initialize", "before_trading_start"],
+    "set_future_commission": ["initialize", "before_trading_start"],
+    "set_margin_rate": ["initialize", "before_trading_start"],
     # ==========================================
-    # 交易相关函数 - 分不同使用场景
+    # 交易函数
     # ==========================================
-    # 股票交易函数 (11个)
-    "order": ["handle_data", "tick_data"],
-    "order_target": ["handle_data", "tick_data"],
-    "order_value": ["handle_data", "tick_data"],
-    "order_target_value": ["handle_data", "tick_data"],
-    "order_market": ["handle_data", "tick_data"],
-    "ipo_stocks_order": ["before_trading_start"],
-    "after_trading_order": ["after_trading_end"],
-    "after_trading_cancel_order": ["after_trading_end"],
-    "etf_basket_order": ["handle_data", "tick_data"],
-    "etf_purchase_redemption": ["handle_data", "tick_data"],
-    "get_positions": ["all"],
-    # 公共交易函数 (11个)
+    "order": ["handle_data", "tick_data"] + _CB,
+    "order_target": ["handle_data", "tick_data"] + _CB,
+    "order_value": ["handle_data", "tick_data"] + _CB,
+    "order_target_value": ["handle_data", "tick_data"] + _CB,
+    "order_market": ["handle_data", "tick_data"] + _CB,
+    "ipo_stocks_order": ["before_trading_start", "handle_data", "tick_data"] + _CB,
+    "after_trading_order": ["handle_data", "after_trading_end", "tick_data"] + _CB,
+    "after_trading_cancel_order": ["handle_data", "after_trading_end", "tick_data"] + _CB,
+    "etf_basket_order": ["handle_data", "tick_data"] + _CB,
+    "etf_purchase_redemption": ["handle_data", "tick_data"] + _CB,
     "order_tick": ["tick_data"],
-    "cancel_order": ["handle_data", "tick_data", "on_order_response"],
+    "cancel_order": ["handle_data", "tick_data"] + _CB,
     "cancel_order_ex": ["handle_data", "tick_data", "on_order_response"],
     "debt_to_stock_order": ["handle_data", "tick_data"],
-    "get_open_orders": ["all"],
-    "get_order": ["all"],
-    "get_orders": ["all"],
-    "get_all_orders": ["all"],
-    "get_trades": ["all"],
-    "get_position": ["all"],
-    # 融资融券交易函数 (7个)
-    "margin_trade": ["handle_data", "tick_data"],
-    "margincash_open": ["handle_data", "tick_data"],
-    "margincash_close": ["handle_data", "tick_data"],
-    "margincash_direct_refund": ["handle_data", "after_trading_end"],
-    "marginsec_open": ["handle_data", "tick_data"],
-    "marginsec_close": ["handle_data", "tick_data"],
-    "marginsec_direct_refund": ["handle_data", "after_trading_end"],
-    # 融资融券查询函数 (12个)
-    "get_margincash_stocks": ["all"],
-    "get_marginsec_stocks": ["all"],
-    "get_margin_contract": ["all"],
+    # 账户/持仓查询 - 执行阶段 + 回调
+    "get_positions": _EXEC_CB,
+    "get_open_orders": _EXEC_CB,
+    "get_order": _EXEC_CB,
+    "get_orders": _EXEC_CB,
+    "get_all_orders": _EXEC_CB,
+    "get_trades": _EXEC_CB,
+    "get_position": _EXEC_CB,
+    # ==========================================
+    # 融资融券
+    # ==========================================
+    "margin_trade": ["handle_data", "tick_data"] + _CB,
+    "margincash_open": ["handle_data", "tick_data"] + _CB,
+    "margincash_close": ["handle_data", "tick_data"] + _CB,
+    "margincash_direct_refund": ["handle_data", "after_trading_end", "tick_data"] + _CB,
+    "marginsec_open": ["handle_data", "tick_data"] + _CB,
+    "marginsec_close": ["handle_data", "tick_data"] + _CB,
+    "marginsec_direct_refund": ["handle_data", "after_trading_end", "tick_data"] + _CB,
+    "get_margincash_stocks": _EXEC,
+    "get_marginsec_stocks": _EXEC,
+    "get_margin_contract": _EXEC,
     "get_margin_contractreal": ["handle_data", "tick_data"],
-    "get_margin_assert": ["all"],
-    "get_assure_security_list": ["all"],
+    "get_margin_assert": _EXEC,
+    "get_assure_security_list": _EXEC,
     "get_margincash_open_amount": ["handle_data", "tick_data"],
     "get_margincash_close_amount": ["handle_data", "tick_data"],
     "get_marginsec_open_amount": ["handle_data", "tick_data"],
     "get_marginsec_close_amount": ["handle_data", "tick_data"],
     "get_margin_entrans_amount": ["handle_data", "tick_data"],
-    "get_enslo_security_info": ["all"],
-    # 期货交易函数 (4个)
+    "get_enslo_security_info": _EXEC_CB,
+    # ==========================================
+    # 期货
+    # ==========================================
     "buy_open": ["handle_data", "tick_data"],
     "sell_close": ["handle_data", "tick_data"],
     "sell_open": ["handle_data", "tick_data"],
     "buy_close": ["handle_data", "tick_data"],
-    # 期货查询函数 (3个)
-    "get_margin_rate": ["all"],
-    "get_instruments": ["all"],
-    # 期权交易函数 (9个)
+    "get_margin_rate": ["all"],   # initialize文档列出：get_margin_rate(回测(期货))
+    "get_instruments": _EXEC_CB,
+    # ==========================================
+    # 期权
+    # ==========================================
     "open_prepared": ["handle_data", "tick_data"],
     "close_prepared": ["handle_data", "tick_data"],
     "option_exercise": ["handle_data", "after_trading_end"],
     "option_covered_lock": ["handle_data", "tick_data"],
     "option_covered_unlock": ["handle_data", "tick_data"],
-    # 注意：期权的buy_open等与期货同名，在具体实现中需要区分上下文
-    # 期权查询函数 (6个)
-    "get_opt_objects": ["all"],
-    "get_opt_last_dates": ["all"],
-    "get_opt_contracts": ["all"],
-    "get_contract_info": ["all"],
+    "get_opt_objects": _EXEC,
+    "get_opt_last_dates": _EXEC,
+    "get_opt_contracts": _EXEC_CB,
+    "get_contract_info": _EXEC_CB,
     "get_covered_lock_amount": ["handle_data", "tick_data"],
     "get_covered_unlock_amount": ["handle_data", "tick_data"],
     # ==========================================
-    # 获取信息函数 (73个) - 大部分为通用
+    # 日期/交易日 - initialize文档列出
     # ==========================================
-    # 基础信息 (3个) - 全部通用
     "get_trading_day": ["all"],
     "get_all_trades_days": ["all"],
     "get_trade_days": ["all"],
-    # 市场信息 (3个) - 全部通用
-    "get_market_list": ["all"],
-    "get_market_detail": ["all"],
-    "get_cb_list": ["all"],
-    # 行情信息 (11个) - 混合限制
-    "get_history": ["all"],
-    "get_price": ["all"],
-    "get_individual_entrust": ["tick_data"],
-    "get_individual_transaction": ["tick_data"],
-    "get_tick_direction": ["tick_data"],
-    "get_sort_msg": ["handle_data", "before_trading_start", "after_trading_end"],
-    "get_etf_info": ["all"],
-    "get_etf_stock_info": ["all"],
+    # ==========================================
+    # 行情/数据查询 - 不含initialize
+    # ==========================================
+    "get_market_list": _EXEC,
+    "get_market_detail": _EXEC,
+    "get_cb_list": _EXEC_CB,
+    "get_history": _EXEC,
+    "get_price": _EXEC,
+    "get_individual_entrust": ["before_trading_start", "handle_data", "after_trading_end", "tick_data"],
+    "get_individual_transaction": ["before_trading_start", "handle_data", "after_trading_end", "tick_data"],
+    "get_tick_direction": ["handle_data", "after_trading_end", "tick_data"],
+    "get_sort_msg": ["before_trading_start", "handle_data", "after_trading_end", "tick_data"],
+    "get_etf_info": _EXEC,
+    "get_etf_stock_info": _EXEC,
     "get_gear_price": ["handle_data", "tick_data"],
     "get_snapshot": ["handle_data", "tick_data"],
-    "get_cb_info": ["all"],
-    # 股票信息 (12个) - 大部分通用
-    "get_stock_name": ["all"],
-    "get_stock_info": ["all"],
-    "get_stock_status": ["all"],
-    "get_stock_exrights": ["all"],
-    "get_stock_blocks": ["all"],
-    "get_index_stocks": ["all"],
-    "get_etf_stock_list": ["all"],
-    "get_industry_stocks": ["all"],
-    "get_fundamentals": ["all"],
-    "get_Ashares": ["all"],
-    "get_etf_list": ["all"],
-    "get_ipo_stocks": ["before_trading_start", "handle_data"],
-    # 其他信息 (8个) - 混合限制
+    "get_cb_info": _EXEC_CB,
+    # 股票信息
+    "get_stock_name": _EXEC,
+    "get_stock_info": _EXEC,
+    "get_stock_status": _EXEC,
+    "get_stock_exrights": _EXEC,
+    "get_stock_blocks": _EXEC,
+    "get_index_stocks": _EXEC,
+    "get_etf_stock_list": _EXEC,
+    "get_industry_stocks": _EXEC,
+    "get_fundamentals": _EXEC,
+    "get_Ashares": _EXEC,
+    "get_etf_list": _EXEC,
+    "get_ipo_stocks": ["before_trading_start", "handle_data", "tick_data"],
+    # 其他信息
     "get_trades_file": ["after_trading_end"],
-    "convert_position_from_csv": ["initialize"],
-    "get_user_name": ["all"],
-    "get_deliver": ["after_trading_end"],
-    "get_fundjour": ["after_trading_end"],
-    "get_research_path": ["initialize"],
-    "get_trade_name": ["all"],
+    "convert_position_from_csv": ["initialize", "before_trading_start", "handle_data"],
+    "get_user_name": ["all"],     # initialize文档列出
+    "get_deliver": ["before_trading_start", "after_trading_end"],
+    "get_fundjour": ["before_trading_start", "after_trading_end"],
+    "get_research_path": ["initialize", "before_trading_start", "handle_data", "after_trading_end", "tick_data"],
+    "get_trade_name": _EXEC,
     # ==========================================
-    # 计算函数 (4个) - 全部通用
+    # 技术指标 - 不含initialize
     # ==========================================
-    "get_MACD": ["all"],
-    "get_KDJ": ["all"],
-    "get_RSI": ["all"],
-    "get_CCI": ["all"],
+    "get_MACD": _EXEC,
+    "get_KDJ": _EXEC,
+    "get_RSI": _EXEC,
+    "get_CCI": _EXEC,
     # ==========================================
-    # 其他函数 (7个) - 混合限制
+    # 其他
     # ==========================================
-    "log": ["all"],  # 日志记录的所有级别
-    "is_trade": ["all"],
-    "check_limit": ["all"],
-    "send_email": ["after_trading_end", "on_order_response", "on_trade_response"],
-    "send_qywx": ["after_trading_end", "on_order_response", "on_trade_response"],
-    "permission_test": ["initialize"],
-    "create_dir": ["initialize"],
+    "log": ["all"],               # 日志，全阶段可用
+    "is_trade": ["all"],          # initialize文档列出
+    "check_limit": _EXEC,
+    "send_email": ["after_trading_end", "tick_data", "on_order_response", "on_trade_response"],
+    "send_qywx": ["after_trading_end", "tick_data", "on_order_response", "on_trade_response"],
+    "permission_test": ["initialize", "before_trading_start", "after_trading_end"],
+    "create_dir": ["initialize", "before_trading_start", "handle_data", "after_trading_end", "tick_data"],
 }
 
 # 生命周期阶段定义
