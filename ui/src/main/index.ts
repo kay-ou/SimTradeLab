@@ -197,7 +197,7 @@ app.whenReady().then(async () => {
   });
 
   try {
-    serverPort = await findFreePort();
+    serverPort = is.dev ? 8000 : await findFreePort();
     await startServer(serverPort, config);
     console.log("[main] Server started on port", serverPort);
   } catch (err) {

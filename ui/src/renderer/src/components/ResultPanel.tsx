@@ -378,8 +378,10 @@ export function ResultPanel({
               <Statistic
                 title={title}
                 value={value}
-                valueStyle={{ fontSize: 13, color }}
-                titleStyle={{ fontSize: 11 }}
+                styles={{
+                  content: { fontSize: 13, color },
+                  title: { fontSize: 11 }
+                }}
               />
             </Card>
           </Col>
