@@ -38,6 +38,7 @@ function getStoredTheme(): ThemeMode {
 
 export default function App() {
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
+  const [historySource, setHistorySource] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<ActiveTab>("backtest");
 
   // Backtest state
@@ -52,16 +53,17 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [strategyReloadKey, setStrategyReloadKey] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const historyCache = useRef<Map<string, { result: any; logs: LogMessage[] }>>(new Map());
+  const historyCache = useRef<Map<string, { result: any; logs: LogMessage[]; source?: string }>>(new Map());
 
   const prefetchHistory = useCallback((entries: HistoryEntry[]) => {
     entries.forEach(async (entry) => {
       if (historyCache.current.has(entry.id)) return;
-      const cached: { result: any; logs: LogMessage[] } = { result: null, logs: [] };
+      const cached: { result: any; logs: LogMessage[]; source?: string } = { result: null, logs: [] };
       if (entry.jsonPath) {
         try {
           const detail = await historyAPI.detail(entry.jsonPath);
           cached.result = { metrics: detail.metrics, series: detail.series };
+          cached.source = detail.source;
         } catch {}
       }
       if (entry.logPath) {
@@ -171,6 +173,7 @@ export default function App() {
     if (cached) {
       setResult(cached.result);
       setLogs(cached.logs);
+      setHistorySource(cached.source);
       return;
     }
 
@@ -178,11 +181,14 @@ export default function App() {
       try {
         const detail = await historyAPI.detail(entry.jsonPath);
         setResult({ metrics: detail.metrics, series: detail.series });
+        setHistorySource(detail.source);
       } catch {
         setResult(null);
+        setHistorySource(undefined);
       }
     } else {
       setResult(null);
+      setHistorySource(undefined);
     }
 
     if (entry.logPath) {
@@ -440,7 +446,7 @@ function ThemedLayout({
           >
             <StrategyPanel
               selected={selectedStrategy}
-              onSelect={setSelectedStrategy}
+              onSelect={(s) => { setSelectedStrategy(s); setHistorySource(undefined); }}
               reloadKey={strategyReloadKey}
             />
           </Allotment.Pane>
@@ -452,6 +458,7 @@ function ThemedLayout({
                   <EditorPanel
                     strategyName={selectedStrategy}
                     isDark={isDark}
+                    sourceOverride={historySource}
                   />
                 ) : (
                   <OptimizerPanel

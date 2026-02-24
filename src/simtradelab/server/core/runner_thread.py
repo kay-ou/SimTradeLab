@@ -12,6 +12,7 @@ from simtradelab.backtest.runner import BacktestRunner
 from simtradelab.backtest.config import BacktestConfig
 from simtradelab.server.core.log_streamer import ThreadSafeQueueHandler
 from simtradelab.server.core.task_manager import TaskManager
+from simtradelab.utils.paths import get_strategies_path
 
 _DONE_SENTINEL = {"level": "SYSTEM", "msg": "__DONE__", "ts": 0.0}
 _FAIL_SENTINEL = {"level": "SYSTEM", "msg": "__FAIL__", "ts": 0.0}
@@ -167,6 +168,8 @@ def _save_history_json(runner: ServerBacktestRunner, req: object, task_id: str, 
         k: v for k, v in report.items()
         if not k.startswith("_") and isinstance(v, (str, float, int, bool))
     }
+    strategy_file = get_strategies_path() / req.strategy_name / "backtest.py"  # type: ignore[attr-defined]
+    source = strategy_file.read_text(encoding="utf-8") if strategy_file.exists() else ""
     data = {
         "task_id": task_id,
         "strategy": req.strategy_name,       # type: ignore[attr-defined]
@@ -180,6 +183,7 @@ def _save_history_json(runner: ServerBacktestRunner, req: object, task_id: str, 
         "benchmark_name": metrics.get("benchmark_name", ""),
         "series": series,
         "log_path": getattr(runner, "_log_filename", None),
+        "source": source,
     }
     Path(runner._json_filename).write_text(
         json.dumps(data, ensure_ascii=False), encoding="utf-8"

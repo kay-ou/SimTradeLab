@@ -7,9 +7,10 @@ import { strategiesAPI } from "../services/api";
 interface Props {
   strategyName: string | null;
   isDark?: boolean;
+  sourceOverride?: string;
 }
 
-export function EditorPanel({ strategyName, isDark }: Props) {
+export function EditorPanel({ strategyName, isDark, sourceOverride }: Props) {
   const { token } = theme.useToken();
   const [source, setSource] = useState("");
   const [saved, setSaved] = useState(true);
@@ -17,6 +18,11 @@ export function EditorPanel({ strategyName, isDark }: Props) {
 
   useEffect(() => {
     if (!strategyName) return;
+    if (sourceOverride !== undefined) {
+      setSource(sourceOverride);
+      setSaved(true);
+      return;
+    }
     setLoading(true);
     strategiesAPI
       .get(strategyName)
@@ -25,7 +31,7 @@ export function EditorPanel({ strategyName, isDark }: Props) {
         setSaved(true);
       })
       .finally(() => setLoading(false));
-  }, [strategyName]);
+  }, [strategyName, sourceOverride]);
 
   const handleSave = async () => {
     if (!strategyName) return;

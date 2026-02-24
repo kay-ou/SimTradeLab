@@ -120,7 +120,7 @@ export const historyAPI = {
 
   detail: async (
     jsonPath: string,
-  ): Promise<{ series: any; metrics: any; benchmark_name: string }> =>
+  ): Promise<{ series: any; metrics: any; benchmark_name: string; source?: string }> =>
     (
       await (
         await getClient()
