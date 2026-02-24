@@ -64,10 +64,10 @@ reports/
 # Logs
 *.log
 logs/
+backtest*.json
 
 *.png
 !docs/sponsor/*.png
-*.log
 *.gz
 CLAUDE.md
 GEMINI.md

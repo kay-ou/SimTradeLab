@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Modal, Form, Input, Button, Space, Typography, Alert } from "antd";
 import { FolderOpenOutlined } from "@ant-design/icons";
+import { getBaseURL } from "../services/api";
 
 const { Text } = Typography;
 
@@ -18,23 +19,34 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    (window as any).electronAPI.getConfig().then((cfg: any) => {
-      setDataPath(cfg.dataPath ?? "");
-      setStrategiesPath(cfg.strategiesPath ?? "");
-    });
+    if (window.electronAPI) {
+      window.electronAPI.getConfig().then((cfg) => {
+        setDataPath(cfg.dataPath ?? "");
+        setStrategiesPath(cfg.strategiesPath ?? "");
+      });
+    } else {
+      getBaseURL().then((base) => {
+        fetch(`${base}/settings`)
+          .then((r) => r.json())
+          .then((cfg) => {
+            setDataPath(cfg.data_path ?? "");
+            setStrategiesPath(cfg.strategies_path ?? "");
+          });
+      });
+    }
   }, [open]);
 
   async function pickFolder(setter: (v: string) => void) {
-    const path = await (window as any).electronAPI.openFolderDialog();
+    if (!window.electronAPI) return;
+    const path = await window.electronAPI.openFolderDialog();
     if (path) setter(path);
   }
 
   async function handleSave() {
     setSaving(true);
     try {
-      // 更新 server 端路径
-      const port = await (window as any).electronAPI.getServerPort();
-      await fetch(`http://127.0.0.1:${port}/settings`, {
+      const base = await getBaseURL();
+      await fetch(`${base}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -42,11 +54,9 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
           strategies_path: strategiesPath,
         }),
       });
-      // 持久化到本地配置
-      await (window as any).electronAPI.saveConfig({
-        dataPath,
-        strategiesPath,
-      });
+      if (window.electronAPI) {
+        await window.electronAPI.saveConfig({ dataPath, strategiesPath });
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       onSaved?.();
@@ -74,6 +84,7 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
             <Button
               icon={<FolderOpenOutlined />}
               onClick={() => pickFolder(setDataPath)}
+              disabled={!window.electronAPI}
             />
           </Space.Compact>
           <Text type="secondary" style={{ fontSize: 12 }}>
@@ -91,6 +102,7 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
             <Button
               icon={<FolderOpenOutlined />}
               onClick={() => pickFolder(setStrategiesPath)}
+              disabled={!window.electronAPI}
             />
           </Space.Compact>
           <Text type="secondary" style={{ fontSize: 12 }}>

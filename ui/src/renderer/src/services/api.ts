@@ -4,13 +4,19 @@ declare global {
   interface Window {
     electronAPI?: {
       getServerPort: () => Promise<number>;
+      getConfig: () => Promise<{ dataPath?: string; strategiesPath?: string }>;
+      saveConfig: (config: {
+        dataPath?: string;
+        strategiesPath?: string;
+      }) => Promise<void>;
+      openFolderDialog: () => Promise<string | null>;
     };
   }
 }
 
 let _baseURL: string | null = null;
 
-async function getBaseURL(): Promise<string> {
+export async function getBaseURL(): Promise<string> {
   if (_baseURL) return _baseURL;
   if (window.electronAPI) {
     const port = await window.electronAPI.getServerPort();
@@ -35,7 +41,12 @@ export type TaskStatusResp = {
   finished_at?: string;
   error?: string;
 };
-export type LogMessage = { level: string; msg: string; ts: number };
+export type LogMessage = {
+  level: string;
+  msg: string;
+  ts: number;
+  date?: string;
+};
 export type HistoryEntry = {
   id: string;
   strategy: string;
@@ -48,7 +59,6 @@ export type HistoryEntry = {
   metrics: Record<string, any>;
   benchmarkName: string;
   jsonPath?: string;
-  logPath?: string;
   logs?: LogMessage[]; // session-only
 };
 
@@ -114,36 +124,23 @@ export const historyAPI = {
       metrics: e.metrics,
       benchmarkName: e.benchmark_name,
       jsonPath: e.json_path,
-      logPath: e.log_path ?? undefined,
     }));
   },
 
   detail: async (
     jsonPath: string,
-  ): Promise<{ series: any; metrics: any; benchmark_name: string; source?: string }> =>
+  ): Promise<{
+    series: any;
+    metrics: any;
+    benchmark_name: string;
+    source?: string;
+    logs?: LogMessage[];
+  }> =>
     (
       await (
         await getClient()
       ).get("/history/detail", { params: { json_path: jsonPath } })
     ).data,
-
-  getLog: async (logPath: string): Promise<LogMessage[]> => {
-    const text: string = (
-      await (
-        await getClient()
-      ).get("/history/log", { params: { path: logPath } })
-    ).data;
-    return text
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => {
-        try {
-          return JSON.parse(line) as LogMessage;
-        } catch {
-          return { level: "INFO", msg: line, ts: 0 };
-        }
-      });
-  },
 
   delete: async (jsonPath: string) =>
     (

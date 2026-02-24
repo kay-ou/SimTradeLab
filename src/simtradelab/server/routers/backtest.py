@@ -107,6 +107,15 @@ async def stream_logs(websocket: WebSocket, task_id: str):
         return
     log_queue = task.log_queue
     assert log_queue is not None
+    # drain 掉 log_queue 中与 log_buffer 重复的消息
+    replayed = len(task.log_buffer)
+    drained = 0
+    while drained < replayed:
+        try:
+            log_queue.get_nowait()
+            drained += 1
+        except asyncio.QueueEmpty:
+            break
     try:
         while True:
             msg = await asyncio.wait_for(log_queue.get(), timeout=30.0)

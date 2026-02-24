@@ -454,7 +454,7 @@ class BacktestRunner:
 
     def _cleanup(self):
         """清理资源"""
-        print("\n数据保持常驻内存，下次在jupyter notebook中运行无需重新加载")
+        pass
 
     def _signal_handler(self, sig, frame):
         """处理Ctrl+C信号"""

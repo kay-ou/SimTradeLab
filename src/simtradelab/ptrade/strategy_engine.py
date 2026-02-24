@@ -20,6 +20,7 @@ import traceback
 from typing import Any, Callable, Optional
 
 from .context import Context
+from simtradelab.server.core import log_streamer
 
 # 策略代码禁止导入的模块（与Ptrade平台一致）
 _BLOCKED_MODULES = frozenset({
@@ -286,8 +287,7 @@ class StrategyExecutionEngine:
             # 更新日期上下文
             self.context.current_dt = current_date
             self.context.blotter.current_dt = current_date
-
-            # 使用API获取真正的前一交易日（而非简单减1天）
+            log_streamer.backtest_date = str(current_date.date())
             prev_trade_day = self.api.get_trading_day(-1)
             if prev_trade_day:
                 self.context.previous_date = prev_trade_day
@@ -354,6 +354,7 @@ class StrategyExecutionEngine:
             # 更新日期上下文（设为开盘时间）
             self.context.current_dt = current_date
             self.context.blotter.current_dt = current_date
+            log_streamer.backtest_date = str(current_date.date())
 
             # 使用API获取真正的前一交易日
             prev_trade_day = self.api.get_trading_day(-1)

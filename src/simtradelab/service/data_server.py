@@ -46,7 +46,7 @@ class DataServer:
                 return
 
         print("=" * 70)
-        print("首次加载 - 在jupyter notebook中数据将常驻内存")
+        print("首次加载数据")
         print("=" * 70)
 
         self.data_path = resolved_path

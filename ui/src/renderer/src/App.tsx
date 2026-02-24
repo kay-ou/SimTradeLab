@@ -149,11 +149,7 @@ export default function App() {
           const detail = await historyAPI.detail(entry.jsonPath);
           cached.result = { metrics: detail.metrics, series: detail.series };
           cached.source = detail.source;
-        } catch {}
-      }
-      if (entry.logPath) {
-        try {
-          cached.logs = await historyAPI.getLog(entry.logPath);
+          cached.logs = detail.logs ?? [];
         } catch {}
       }
       historyCache.current.set(entry.id, cached);
@@ -268,22 +264,15 @@ export default function App() {
         const detail = await historyAPI.detail(entry.jsonPath);
         setResult({ metrics: detail.metrics, series: detail.series });
         setHistorySource(detail.source);
+        setLogs(detail.logs ?? []);
       } catch {
         setResult(null);
         setHistorySource(undefined);
+        setLogs([]);
       }
     } else {
       setResult(null);
       setHistorySource(undefined);
-    }
-
-    if (entry.logPath) {
-      try {
-        setLogs(await historyAPI.getLog(entry.logPath));
-      } catch {
-        setLogs([]);
-      }
-    } else {
       setLogs([]);
     }
   }, []);
@@ -522,7 +511,7 @@ function ThemedLayout({
               onClick={cycleTheme}
             />
           </Tooltip>
-          <Tooltip title="路径设置">
+          <Tooltip title="路径设置" placement="bottomRight">
             <Button
               type="text"
               size="small"

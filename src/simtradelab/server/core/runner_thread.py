@@ -10,6 +10,7 @@ from pathlib import Path
 
 from simtradelab.backtest.runner import BacktestRunner
 from simtradelab.backtest.config import BacktestConfig
+from simtradelab.server.core import log_streamer
 from simtradelab.server.core.log_streamer import ThreadSafeQueueHandler
 from simtradelab.server.core.task_manager import TaskManager
 from simtradelab.utils.paths import get_strategies_path
@@ -19,7 +20,7 @@ _FAIL_SENTINEL = {"level": "SYSTEM", "msg": "__FAIL__", "ts": 0.0}
 
 
 class _QueueWriter:
-    """将 sys.stdout 写入转发到 asyncio.Queue，同时写入 log_buffer 供 replay。"""
+    """将 sys.stdout 写入转发到 asyncio.Queue。"""
 
     def __init__(self, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop, log_buffer: list) -> None:
         self._queue = queue
@@ -33,14 +34,14 @@ class _QueueWriter:
             line, self._buf = self._buf.split("\n", 1)
             line = line.rstrip()
             if line:
-                msg = {"level": "INFO", "msg": line, "ts": time.time()}
+                msg = {"level": "INFO", "msg": line, "ts": time.time(), "date": log_streamer.backtest_date}
                 self._log_buffer.append(msg)
                 self._loop.call_soon_threadsafe(self._queue.put_nowait, msg)
         return len(text)
 
     def flush(self) -> None:
         if self._buf.strip():
-            msg = {"level": "INFO", "msg": self._buf.strip(), "ts": time.time()}
+            msg = {"level": "INFO", "msg": self._buf.strip(), "ts": time.time(), "date": log_streamer.backtest_date}
             self._log_buffer.append(msg)
             self._loop.call_soon_threadsafe(self._queue.put_nowait, msg)
             self._buf = ""
@@ -68,28 +69,17 @@ class ServerBacktestRunner(BacktestRunner):
         import os
         os.makedirs(config.log_dir, exist_ok=True)
 
-        # 用统一时间戳生成同一 stem，保证 .log 和 .json 文件名完全一致
         ts = datetime.now().strftime("%y%m%d_%H%M%S")
-        stem = "backtest_{}_{}_{}" .format(
+        self._json_filename = str(Path(config.log_dir) / "backtest_{}_{}_{}.json".format(
             config.start_date.strftime("%y%m%d"),  # type: ignore[union-attr]
             config.end_date.strftime("%y%m%d"),    # type: ignore[union-attr]
             ts,
-        )
-        self._log_filename = str(Path(config.log_dir) / (stem + ".log"))
-        self._json_filename = str(Path(config.log_dir) / (stem + ".json"))
+        ))
 
-        handlers: list[logging.Handler] = [
-            logging.FileHandler(self._log_filename, mode="w", encoding="utf-8"),
-        ]
+        self._log_filename = self._json_filename  # 满足父类对该属性的访问
         queue_handler = ThreadSafeQueueHandler(self._log_queue, self._loop, self._log_buffer)
-        queue_handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
-        handlers.append(queue_handler)
-        logging.basicConfig(
-            level=logging.INFO,
-            format="[%(levelname)s] %(message)s",
-            handlers=handlers,
-            force=True,
-        )
+        queue_handler.setFormatter(logging.Formatter("%(message)s"))
+        logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=[queue_handler], force=True)
 
 
 def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.AbstractEventLoop) -> dict | None:
@@ -107,6 +97,7 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
     manager.mark_running(task_id)
     run_start = time.time()
     _orig_stdout = sys.stdout
+    log_streamer.backtest_date = None
     sys.stdout = _QueueWriter(log_queue, loop, task.log_buffer)  # type: ignore[assignment]
 
     try:
@@ -117,7 +108,7 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
             initial_capital=req.initial_capital,
             frequency=req.frequency,
             benchmark_code=req.benchmark_code,
-            enable_charts=False,   # UI 已生成更漂亮的图表，无需 matplotlib 再生成一遍
+            enable_charts=False,
             sandbox=req.sandbox,
             enable_logging=True,
         )
@@ -132,8 +123,7 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
             return None
 
         duration = time.time() - run_start
-        _save_history_json(runner, req, task_id, report, run_start, duration)
-
+        _save_history_json(runner, req, task_id, report, task.log_buffer, run_start, duration)
         manager.mark_finished(task_id, report)
         _send({**_DONE_SENTINEL, "ts": time.time()})
         return report
@@ -149,7 +139,7 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
         sys.stdout = _orig_stdout
 
 
-def _save_history_json(runner: ServerBacktestRunner, req: object, task_id: str, report: dict, run_start: float, duration: float) -> None:
+def _save_history_json(runner: ServerBacktestRunner, req: object, task_id: str, report: dict, log_buffer: list, run_start: float, duration: float) -> None:
     if not hasattr(runner, "_json_filename"):
         return
     stats = report.get("_stats")
@@ -183,7 +173,7 @@ def _save_history_json(runner: ServerBacktestRunner, req: object, task_id: str, 
         "metrics": metrics,
         "benchmark_name": metrics.get("benchmark_name", ""),
         "series": series,
-        "log_path": getattr(runner, "_log_filename", None),
+        "logs": [m for m in log_buffer if m.get("msg") not in ("__DONE__", "__FAIL__")],
         "source": source,
     }
     Path(runner._json_filename).write_text(
