@@ -477,7 +477,7 @@ function HistoryTable({
       rowKey="id"
       pagination={false}
       scroll={{ x: true }}
-      style={{ fontSize: 11 }}
+      style={{ fontSize: 11, border: `1px solid ${token.colorBorderSecondary}` }}
       components={{ header: { cell: ResizableTitle } }}
       onRow={(record) => ({
         onClick: () => onSelect?.(record),
@@ -485,6 +485,8 @@ function HistoryTable({
           cursor: onSelect ? "pointer" : undefined,
           background:
             record.id === selectedId ? token.colorPrimaryBg : undefined,
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+          padding: "4px 8px",
         },
       })}
     />

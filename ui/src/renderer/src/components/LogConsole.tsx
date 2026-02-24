@@ -49,7 +49,7 @@ export function LogConsole({ logs, isDark }: Props) {
         <span style={{ color: emptyColor }}>等待日志输出...</span>
       )}
       {logs.map((log, i) => (
-        <div key={i} style={{ color: colors[log.level] ?? token.colorText, lineHeight: 1.8 }}>
+        <div key={i} style={{ color: colors[log.level] ?? token.colorText, lineHeight: 1.5, marginBottom: 1 }}>
           <span style={{ color: tsColor, marginRight: 8 }}>
             {new Date(log.ts * 1000).toLocaleTimeString()}
           </span>

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
-import { Button, Space, message, Tag, theme } from "antd";
+import { Button, Space, message, Tag, theme, Tooltip } from "antd";
 import { SaveOutlined } from "@ant-design/icons";
 import { strategiesAPI } from "../services/api";
+import { isMac } from "../utils/platform";
 
 interface Props {
   strategyName: string | null;
@@ -44,6 +45,25 @@ export function EditorPanel({ strategyName, isDark, sourceOverride }: Props) {
     }
   };
 
+  const handleKeyDown = (event: KeyboardEvent) => {
+    // Check for Ctrl+S (Windows/Linux) or Cmd+S (macOS)
+    if ((event.ctrlKey || (isMac && event.metaKey)) && event.key === 's') {
+      event.preventDefault(); // Prevent default browser save dialog
+      handleSave();
+      // Show a brief message to indicate the shortcut was used
+      message.info("使用 Ctrl+S 保存策略");
+    }
+  };
+
+  useEffect(() => {
+    // Add keyboard event listener
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      // Clean up event listener on component unmount
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [strategyName, source, handleSave]);
+
   if (!strategyName) {
     return (
       <div
@@ -75,14 +95,16 @@ export function EditorPanel({ strategyName, isDark, sourceOverride }: Props) {
           <span style={{ fontWeight: 600 }}>{strategyName}</span>
           {!saved && <Tag color="orange">未保存</Tag>}
         </Space>
-        <Button
-          size="small"
-          icon={<SaveOutlined />}
-          onClick={handleSave}
-          type={saved ? "default" : "primary"}
-        >
-          保存
-        </Button>
+        <Tooltip title={`保存策略 (${isMac ? "⌘" : "Ctrl"}+S)`}>
+          <Button
+            size="small"
+            icon={<SaveOutlined />}
+            onClick={handleSave}
+            type={saved ? "default" : "primary"}
+          >
+            保存
+          </Button>
+        </Tooltip>
       </div>
       <Editor
         height="100%"

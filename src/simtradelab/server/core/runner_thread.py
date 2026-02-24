@@ -169,7 +169,7 @@ def _save_history_json(runner: ServerBacktestRunner, req: object, task_id: str, 
         if not k.startswith("_") and isinstance(v, (str, float, int, bool))
     }
     strategy_file = get_strategies_path() / req.strategy_name / "backtest.py"  # type: ignore[attr-defined]
-    source = strategy_file.read_text(encoding="utf-8") if strategy_file.exists() else ""
+    source = strategy_file.read_text(encoding="utf-8").rstrip('\n\r') if strategy_file.exists() else ""
     data = {
         "task_id": task_id,
         "strategy": req.strategy_name,       # type: ignore[attr-defined]
