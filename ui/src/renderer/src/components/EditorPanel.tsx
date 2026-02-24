@@ -19,13 +19,19 @@ interface Props {
 
 let _completionRegistered = false;
 let _fetchPromise: Promise<CompletionItem[]> | null = null;
+let _apiItemsMap: Map<string, CompletionItem> | null = null;
 
 function getApiItems(): Promise<CompletionItem[]> {
   if (!_fetchPromise) {
-    _fetchPromise = fetchEditorCompletions().catch(() => {
-      _fetchPromise = null; // 失败后允许重试
-      return [];
-    });
+    _fetchPromise = fetchEditorCompletions()
+      .then((items) => {
+        _apiItemsMap = new Map(items.map((i) => [i.label, i]));
+        return items;
+      })
+      .catch(() => {
+        _fetchPromise = null;
+        return [];
+      });
   }
   return _fetchPromise;
 }
@@ -363,6 +369,39 @@ function registerPtradeCompletions(monaco: any) {
       ];
 
       return { suggestions: allItems };
+    },
+  });
+
+  monaco.languages.registerHoverProvider("python", {
+    provideHover: async (model: any, position: any) => {
+      await getApiItems(); // 确保 map 已建立
+      if (!_apiItemsMap) return null;
+
+      const word = model.getWordAtPosition(position);
+      if (!word) return null;
+
+      const item = _apiItemsMap.get(word.word);
+      if (!item) return null;
+
+      const sig = `${item.label}${item.detail}`;
+      const contents: { value: string }[] = [
+        { value: ["```python", sig, "```"].join("\n") },
+      ];
+      if (item.doc) contents.push({ value: item.doc });
+      if (!item.scopes.includes("all")) {
+        const phases = item.scopes.map((s) => `\`${s}\``).join("  ");
+        contents.push({ value: `*可用阶段:* ${phases}` });
+      }
+
+      return {
+        range: {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: word.startColumn,
+          endColumn: word.endColumn,
+        },
+        contents,
+      };
     },
   });
 }
