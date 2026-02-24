@@ -8,6 +8,7 @@ import {
   Space,
   Alert,
   theme,
+  ConfigProvider,
 } from "antd";
 import { PlayCircleOutlined, StopOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -81,77 +82,83 @@ export function RunPanel({
         borderBottom: `1px solid ${token.colorBorderSecondary}`,
       }}
     >
-      <Form
-        form={form}
-        layout="inline"
-        size="small"
-        initialValues={{
-          start_date: dayjs("2025-01-01"),
-          end_date: dayjs("2025-12-31"),
-          initial_capital: 100000,
-          frequency: "1d",
-          benchmark_code: "000300.SS",
-        }}
-      >
-        <Form.Item name="start_date" label="开始" rules={[{ required: true }]}>
-          <DatePicker
-            disabledDate={(d) => {
-              const end = form.getFieldValue("end_date");
-              return end ? d.isAfter(end, "day") : false;
-            }}
-          />
-        </Form.Item>
-        <Form.Item name="end_date" label="结束" rules={[{ required: true }]}>
-          <DatePicker
-            disabledDate={(d) => {
-              const start = form.getFieldValue("start_date");
-              return start ? d.isBefore(start, "day") : false;
-            }}
-          />
-        </Form.Item>
-        <Form.Item name="initial_capital" label="本金">
-          <InputNumber min={1000} step={10000} style={{ width: 120 }} />
-        </Form.Item>
-        <Form.Item name="frequency" label="频率">
-          <Select
-            style={{ width: 70 }}
-            options={[
-              { value: "1d", label: "日线" },
-              { value: "1m", label: "分钟" },
-            ]}
-          />
-        </Form.Item>
-        <Form.Item name="benchmark_code" label="基准">
-          <Select
-            style={{ width: 120 }}
-            options={[
-              { value: "000300.SS", label: "沪深300" },
-              { value: "000905.SS", label: "中证500" },
-              { value: "000852.SS", label: "中证1000" },
-              { value: "399001.SZ", label: "深证成指" },
-              { value: "399006.SZ", label: "创业板指" },
-            ]}
-          />
-        </Form.Item>
-        <Form.Item>
-          <Space>
-            <Button
-              type="primary"
-              icon={<PlayCircleOutlined />}
-              loading={loading}
-              disabled={!strategyName || !!runningTaskId}
-              onClick={handleRun}
-            >
-              运行
-            </Button>
-            {runningTaskId && (
-              <Button danger icon={<StopOutlined />} onClick={handleCancel}>
-                取消
+      <ConfigProvider theme={{ token: { fontSize: 12 } }}>
+        <Form
+          form={form}
+          layout="inline"
+          size="small"
+          initialValues={{
+            start_date: dayjs("2025-01-01"),
+            end_date: dayjs("2025-12-31"),
+            initial_capital: 100000,
+            frequency: "1d",
+            benchmark_code: "000300.SS",
+          }}
+        >
+          <Form.Item
+            name="start_date"
+            label="开始"
+            rules={[{ required: true }]}
+          >
+            <DatePicker
+              disabledDate={(d) => {
+                const end = form.getFieldValue("end_date");
+                return end ? d.isAfter(end, "day") : false;
+              }}
+            />
+          </Form.Item>
+          <Form.Item name="end_date" label="结束" rules={[{ required: true }]}>
+            <DatePicker
+              disabledDate={(d) => {
+                const start = form.getFieldValue("start_date");
+                return start ? d.isBefore(start, "day") : false;
+              }}
+            />
+          </Form.Item>
+          <Form.Item name="initial_capital" label="本金">
+            <InputNumber min={1000} step={10000} style={{ width: 120 }} />
+          </Form.Item>
+          <Form.Item name="frequency" label="频率">
+            <Select
+              style={{ width: 70 }}
+              options={[
+                { value: "1d", label: "日线" },
+                { value: "1m", label: "分钟" },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="benchmark_code" label="基准">
+            <Select
+              style={{ width: 120 }}
+              options={[
+                { value: "000300.SS", label: "沪深300" },
+                { value: "000905.SS", label: "中证500" },
+                { value: "000852.SS", label: "中证1000" },
+                { value: "399001.SZ", label: "深证成指" },
+                { value: "399006.SZ", label: "创业板指" },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item>
+            <Space>
+              <Button
+                type="primary"
+                icon={<PlayCircleOutlined />}
+                loading={loading}
+                disabled={!strategyName || !!runningTaskId}
+                onClick={handleRun}
+              >
+                运行
               </Button>
-            )}
-          </Space>
-        </Form.Item>
-      </Form>
+              {runningTaskId && (
+                <Button danger icon={<StopOutlined />} onClick={handleCancel}>
+                  取消
+                </Button>
+              )}
+            </Space>
+          </Form.Item>
+        </Form>
+      </ConfigProvider>
       {error && (
         <Alert
           type="error"

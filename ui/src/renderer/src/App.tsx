@@ -17,7 +17,7 @@ import {
   UpOutlined,
   DownOutlined,
 } from "@ant-design/icons";
-import { Allotment } from "allotment";
+import { Allotment, type AllotmentHandle } from "allotment";
 import "allotment/dist/style.css";
 import zhCN from "antd/locale/zh_CN";
 import { StrategyPanel } from "./components/StrategyPanel";
@@ -97,7 +97,7 @@ function CollapseHandle({
         background: token.colorBgElevated,
         border: `1px solid ${token.colorBorderSecondary}`,
         borderRadius: 3,
-        fontSize: 9,
+        fontSize: 10,
         color: token.colorTextSecondary,
         opacity: 0.5,
         transition: "opacity 0.15s",
@@ -180,6 +180,14 @@ export default function App() {
   const [systemDark, setSystemDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
+  const [editorFontSize, setEditorFontSize] = useState(() =>
+    parseInt(localStorage.getItem("editorFontSize") ?? "13"),
+  );
+
+  const handleEditorFontSizeChange = (v: number) => {
+    setEditorFontSize(v);
+    localStorage.setItem("editorFontSize", String(v));
+  };
 
   const [leftVisible, setLeftVisible] = useState(true);
   const [centerVisible, setCenterVisible] = useState(true);
@@ -310,6 +318,7 @@ export default function App() {
       locale={zhCN}
       theme={{
         algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+        token: { fontSize: 13 },
       }}
     >
       <ThemedLayout
@@ -346,6 +355,8 @@ export default function App() {
         cycleTheme={cycleTheme}
         themeIcon={themeIcon}
         themeLabel={themeLabel}
+        editorFontSize={editorFontSize}
+        onEditorFontSizeChange={handleEditorFontSizeChange}
       />
     </ConfigProvider>
   );
@@ -385,6 +396,8 @@ interface ThemedLayoutProps {
   cycleTheme: () => void;
   themeIcon: React.ReactNode;
   themeLabel: string;
+  editorFontSize: number;
+  onEditorFontSizeChange: (v: number) => void;
 }
 
 function ThemedLayout({
@@ -420,8 +433,18 @@ function ThemedLayout({
   cycleTheme,
   themeIcon,
   themeLabel,
+  editorFontSize,
+  onEditorFontSizeChange,
 }: ThemedLayoutProps) {
   const { token } = theme.useToken();
+  const [leftPanelsCollapsed, setLeftPanelsCollapsed] = useState(false);
+  const allotmentRef = useRef<AllotmentHandle>(null);
+
+  useEffect(() => {
+    if (!leftPanelsCollapsed) {
+      allotmentRef.current?.reset();
+    }
+  }, [leftPanelsCollapsed]);
 
   const headerColor = token.colorTextBase;
 
@@ -538,12 +561,12 @@ function ThemedLayout({
 
       {/* Main content */}
       <div style={allotmentStyle}>
-        <Allotment>
+        <Allotment ref={allotmentRef}>
           <Allotment.Pane
             minSize={0}
             preferredSize="16.67%"
             snap
-            visible={leftVisible}
+            visible={leftVisible && !leftPanelsCollapsed}
           >
             <StrategyPanel
               selected={selectedStrategy}
@@ -555,7 +578,11 @@ function ThemedLayout({
             />
           </Allotment.Pane>
 
-          <Allotment.Pane minSize={0} snap visible={centerVisible}>
+          <Allotment.Pane
+            minSize={0}
+            snap
+            visible={centerVisible && !leftPanelsCollapsed}
+          >
             <div style={{ position: "relative", height: "100%" }}>
               <CollapseHandle
                 direction="left"
@@ -580,6 +607,8 @@ function ThemedLayout({
                         strategyName={selectedStrategy}
                         isDark={isDark}
                         sourceOverride={historySource}
+                        editorFontSize={editorFontSize}
+                        onEditorFontSizeChange={onEditorFontSizeChange}
                       />
                     ) : (
                       <OptimizerPanel
@@ -587,6 +616,7 @@ function ThemedLayout({
                         isDark={isDark}
                         runningTaskId={optimizerTaskId}
                         onTaskStarted={handleOptimizerTaskStarted}
+                        editorFontSize={editorFontSize}
                       />
                     )}
                   </div>
@@ -612,8 +642,8 @@ function ThemedLayout({
             <div style={{ position: "relative", height: "100%" }}>
               <CollapseHandle
                 direction="left"
-                collapsed={!centerVisible}
-                onClick={() => setCenterVisible((v) => !v)}
+                collapsed={leftPanelsCollapsed}
+                onClick={() => setLeftPanelsCollapsed((v) => !v)}
               />
               <ResultPanel
                 result={result}

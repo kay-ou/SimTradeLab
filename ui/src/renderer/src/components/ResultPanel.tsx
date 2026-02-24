@@ -14,10 +14,11 @@ import {
   Tooltip,
 } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
-import { theme } from "antd";
+import { theme, ConfigProvider } from "antd";
 import { Resizable } from "react-resizable";
 import "react-resizable/css/styles.css";
 import type { HistoryEntry } from "../services/api";
+const CHART_FONT = { zoom: 9, axis: 10, tooltip: 11 } as const;
 
 interface Props {
   result: any | null;
@@ -37,21 +38,19 @@ export function ResultPanel({
   const { token } = theme.useToken();
   const navChartRef = useRef<any>(null);
   const pnlChartRef = useRef<any>(null);
-  const benchmarkChartRef = useRef<any>(null);
+  const tradeAmtChartRef = useRef<any>(null);
+  const posValChartRef = useRef<any>(null);
 
   const ZOOM_GROUP = "result-charts-zoom";
 
-  // 首次挂载时 echarts-for-react 异步初始化（等 'finished' 事件），
-  // useEffect 执行时实例还未就绪，用 onChartReady 处理首次挂载。
   const handleChartReady = useCallback((inst: echarts.ECharts) => {
     inst.group = ZOOM_GROUP;
     echarts.connect(ZOOM_GROUP);
   }, []);
 
-  // result 切换时重新 connect（实例已就绪，getEchartsInstance 有效）
   useEffect(() => {
     if (!result) return;
-    const insts = [navChartRef, pnlChartRef, benchmarkChartRef]
+    const insts = [navChartRef, pnlChartRef, tradeAmtChartRef, posValChartRef]
       .map((r) => r.current?.getEchartsInstance())
       .filter((inst): inst is echarts.ECharts => inst != null);
     if (insts.length < 2) return;
@@ -75,7 +74,7 @@ export function ResultPanel({
               justifyContent: "center",
               height: "100%",
               color: token.colorTextSecondary,
-              fontSize: 13,
+              fontSize: 12,
             }}
           >
             运行回测后结果显示在此处
@@ -125,14 +124,11 @@ export function ResultPanel({
   const bm: number[] = series.benchmark_nav ?? [];
   const bmValues = [];
   if (bm.length > 0 && dates.length > 0) {
-    // 确保基准数据与策略数据长度一致
     for (let i = 0; i < dates.length; i++) {
-      if (i < bm.length) {
-        bmValues.push([dates[i], +bm[i].toFixed(6)]);
-      } else {
-        // 如果基准数据不足，使用最后一个值
-        bmValues.push([dates[i], +bm[bm.length - 1].toFixed(6)]);
-      }
+      bmValues.push([
+        dates[i],
+        +(i < bm.length ? bm[i] : bm[bm.length - 1]).toFixed(6),
+      ]);
     }
   }
 
@@ -144,25 +140,12 @@ export function ResultPanel({
     .map((v, i) => (v > 0 ? [dates[i], navValues[i][1]] : null))
     .filter(Boolean);
 
-  // 调试信息
-  console.log("ResultPanel data:", {
-    datesLength: dates.length,
-    navValuesLength: navValues.length,
-    bmValuesLength: bmValues.length,
-    buyPointsLength: buyPoints.length,
-    sellPointsLength: sellPoints.length,
-    sampleDates: dates.slice(0, 3),
-    sampleNav: navValues.slice(0, 3),
-    sampleBm: bmValues.slice(0, 3),
-    seriesKeys: Object.keys(series),
-    hasBenchmarkNav: "benchmark_nav" in series,
-    benchmarkNavLength: series.benchmark_nav?.length || 0,
-  });
+  // 调试信息已移除
 
   const axisStyle = {
     type: "time" as const,
     axisLabel: {
-      fontSize: 10,
+      fontSize: CHART_FONT.axis,
       color: token.colorTextSecondary,
       hideOverlap: true,
     },
@@ -176,31 +159,33 @@ export function ResultPanel({
       xAxisIndex: 0,
       filterMode: "none",
       group: "zoomGroup",
+      zoomOnMouseWheel: "ctrl",
     },
     {
       type: "slider",
       xAxisIndex: 0,
       height: 18,
       bottom: 4,
-      textStyle: { fontSize: 9 },
+      textStyle: { fontSize: CHART_FONT.zoom },
       handleSize: "80%",
       filterMode: "none",
       group: "zoomGroup",
     },
   ];
-  const dataZoomPnl = [
+  const dataZoomNoSlider = [
     {
       type: "inside",
       xAxisIndex: 0,
       filterMode: "none",
       group: "zoomGroup",
+      zoomOnMouseWheel: "ctrl",
     },
     {
       type: "slider",
       xAxisIndex: 0,
       height: 18,
       bottom: 4,
-      textStyle: { fontSize: 9 },
+      textStyle: { fontSize: CHART_FONT.zoom },
       handleSize: "80%",
       filterMode: "none",
       show: false,
@@ -217,33 +202,33 @@ export function ResultPanel({
     tooltip: {
       trigger: "axis",
       confine: true,
+      textStyle: { fontSize: CHART_FONT.tooltip },
       formatter: (params: any[]) => {
-        const lines = params
+        const valueParts = params
           .filter((p: any) => p.seriesType !== "scatter")
           .map(
             (p: any) => `${p.marker}${p.seriesName}: ${p.value[1].toFixed(4)}`,
           );
         const idx: number = params[0]?.dataIndex ?? -1;
         const positions = idx >= 0 ? (positionsSnapshot[idx] ?? []) : [];
+        let html = valueParts.join("<br/>");
         if (positions.length > 0) {
-          lines.push(
-            '<div style="margin-top:4px;border-top:1px solid rgba(128,128,128,0.3);padding-top:4px;font-size:11px">',
-          );
-          positions.forEach(({ c, nm, n, v, b }) => {
-            const pnlPct = b > 0 ? ((v / n - b) / b) * 100 : 0;
-            const color = pnlPct >= 0 ? "#ef5350" : "#26a69a";
-            lines.push(
-              `<div style="display:flex;justify-content:space-between;gap:12px">` +
-                `<span>${nm && nm !== c ? nm : c}` +
-                `<span style="color:#888;font-size:10px"> ${nm && nm !== c ? c : ""}</span></span>` +
+          const rows = positions
+            .map(({ c, nm, n, v, b }) => {
+              const pnlPct = b > 0 ? ((v / n - b) / b) * 100 : 0;
+              const color = pnlPct >= 0 ? "#ef5350" : "#26a69a";
+              return (
+                `<div style="display:flex;justify-content:space-between;gap:8px">` +
+                `<span>${nm && nm !== c ? nm : c}<span style="color:#888;font-size:${CHART_FONT.axis}px"> ${nm && nm !== c ? c : ""}</span></span>` +
                 `<span>${n}股</span>` +
                 `<span style="color:${color}">${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}%</span>` +
-                `</div>`,
-            );
-          });
-          lines.push("</div>");
+                `</div>`
+              );
+            })
+            .join("");
+          html += `<div style="margin-top:4px;border-top:1px solid rgba(128,128,128,0.3);padding-top:4px;font-size:${CHART_FONT.tooltip}px">${rows}</div>`;
         }
-        return lines.join("<br/>");
+        return html;
       },
     },
     legend: {
@@ -256,7 +241,7 @@ export function ResultPanel({
     yAxis: {
       type: "value" as const,
       scale: true,
-      axisLabel: { fontSize: 10, color: token.colorTextSecondary },
+      axisLabel: { fontSize: CHART_FONT.axis, color: token.colorTextSecondary },
       splitLine: { lineStyle: { color: token.colorBorderSecondary } },
     },
     dataZoom: dataZoomNav,
@@ -305,17 +290,42 @@ export function ResultPanel({
     ],
   };
 
+  const isChinese = navigator.language.startsWith("zh");
+  const fmtMoney = (v: number) =>
+    isChinese && v >= 1e4
+      ? `${(v / 1e4).toFixed(2)}万`
+      : Math.round(v).toLocaleString();
+
+  const moneyTooltip = {
+    trigger: "axis" as const,
+    confine: true,
+    textStyle: { fontSize: CHART_FONT.tooltip },
+    formatter: (params: any[]) =>
+      params
+        .map((p: any) => `${p.marker}${p.seriesName}: ${fmtMoney(p.value[1])}`)
+        .join("<br/>"),
+  };
+
+  const moneyYAxis = {
+    type: "value" as const,
+    axisLabel: {
+      fontSize: CHART_FONT.axis,
+      color: token.colorTextSecondary,
+      formatter: (v: number) =>
+        isChinese && v >= 1e4
+          ? `${(v / 1e4).toFixed(0)}万`
+          : Math.round(v).toLocaleString(),
+    },
+    splitLine: { lineStyle: { color: token.colorBorderSecondary } },
+  };
+
   const pnlOption = {
     backgroundColor: "transparent",
-    tooltip: { trigger: "axis", confine: true },
+    tooltip: moneyTooltip,
     grid: { top: 8, bottom: 36, left: 60, right: 16 },
     xAxis: { ...axisStyle },
-    yAxis: {
-      type: "value" as const,
-      axisLabel: { fontSize: 10, color: token.colorTextSecondary },
-      splitLine: { lineStyle: { color: token.colorBorderSecondary } },
-    },
-    dataZoom: dataZoomPnl,
+    yAxis: moneyYAxis,
+    dataZoom: dataZoomNoSlider,
     series: [
       {
         name: "每日盈亏",
@@ -328,34 +338,52 @@ export function ResultPanel({
     ],
   };
 
-  // 独立基准图
-  const benchmarkOption = {
+  const tradeAmtOption = {
     backgroundColor: "transparent",
-    tooltip: {
-      trigger: "axis",
-      confine: true,
-      formatter: (params: any[]) =>
-        params
-          .map(
-            (p: any) => `${p.marker}${p.seriesName}: ${p.value[1].toFixed(4)}`,
-          )
-          .join("<br/>"),
-    },
-    grid: { top: 16, bottom: 36, left: 52, right: 16 },
-    xAxis: axisStyle,
-    yAxis: {
-      type: "value" as const,
-      scale: true,
-      axisLabel: { fontSize: 10, color: token.colorTextSecondary },
-      splitLine: { lineStyle: { color: token.colorBorderSecondary } },
-    },
-    dataZoom: dataZoomPnl,
+    tooltip: moneyTooltip,
+    legend: { show: false },
+    grid: { top: 8, bottom: 8, left: 60, right: 16 },
+    xAxis: { ...axisStyle },
+    yAxis: moneyYAxis,
+    dataZoom: dataZoomNoSlider,
     series: [
       {
-        name: metrics.benchmark_name || "基准",
+        name: "买入金额",
+        type: "bar",
+        data: (series.daily_buy_amount as number[]).map((v, i) => [
+          dates[i],
+          v,
+        ]),
+        itemStyle: { color: "#ef5350" },
+      },
+      {
+        name: "卖出金额",
+        type: "bar",
+        data: (series.daily_sell_amount as number[]).map((v, i) => [
+          dates[i],
+          v,
+        ]),
+        itemStyle: { color: "#26a69a" },
+      },
+    ],
+  };
+
+  const posValOption = {
+    backgroundColor: "transparent",
+    tooltip: moneyTooltip,
+    grid: { top: 8, bottom: 36, left: 60, right: 16 },
+    xAxis: { ...axisStyle },
+    yAxis: moneyYAxis,
+    dataZoom: dataZoomNoSlider,
+    series: [
+      {
+        name: "持仓市值",
         type: "line",
-        data: bmValues,
-        lineStyle: { width: 2, color: "#52c41a" },
+        data: (series.daily_positions_value as number[]).map((v, i) => [
+          dates[i],
+          v,
+        ]),
+        lineStyle: { width: 2, color: "#9467bd" },
         symbol: "none",
         areaStyle: {
           color: {
@@ -365,8 +393,8 @@ export function ResultPanel({
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: "rgba(82, 196, 26, 0.3)" },
-              { offset: 1, color: "rgba(82, 196, 26, 0.05)" },
+              { offset: 0, color: "rgba(148,103,189,0.3)" },
+              { offset: 1, color: "rgba(148,103,189,0.05)" },
             ],
           },
         },
@@ -406,6 +434,7 @@ export function ResultPanel({
 
   return (
     <div style={{ height: "100%", overflowY: "auto", padding: 12 }}>
+      <Divider style={{ margin: "0 0 8px 0", fontSize: 12 }}>绩效指标</Divider>
       <Row gutter={[6, 6]}>
         {statsCards.map(({ title, value, color }) => (
           <Col span={6} key={title}>
@@ -413,10 +442,8 @@ export function ResultPanel({
               <Statistic
                 title={title}
                 value={value}
-                styles={{
-                  content: { fontSize: 13, color },
-                  title: { fontSize: 11 },
-                }}
+                valueStyle={{ fontSize: 12, color }}
+                styles={{ title: { fontSize: 12, fontWeight: 600 } }}
               />
             </Card>
           </Col>
@@ -431,19 +458,24 @@ export function ResultPanel({
         style={{ height: 220 }}
         onChartReady={handleChartReady}
       />
-      <Divider style={{ margin: "10px 0", fontSize: 12 }}>
-        {metrics.benchmark_name || "基准"} 独立走势
-      </Divider>
-      <ReactECharts
-        ref={benchmarkChartRef}
-        option={benchmarkOption}
-        style={{ height: 150 }}
-        onChartReady={handleChartReady}
-      />
       <Divider style={{ margin: "10px 0", fontSize: 12 }}>每日盈亏</Divider>
       <ReactECharts
         ref={pnlChartRef}
         option={pnlOption}
+        style={{ height: 150 }}
+        onChartReady={handleChartReady}
+      />
+      <Divider style={{ margin: "10px 0", fontSize: 12 }}>每日买卖金额</Divider>
+      <ReactECharts
+        ref={tradeAmtChartRef}
+        option={tradeAmtOption}
+        style={{ height: 150 }}
+        onChartReady={handleChartReady}
+      />
+      <Divider style={{ margin: "10px 0", fontSize: 12 }}>每日持仓市值</Divider>
+      <ReactECharts
+        ref={posValChartRef}
+        option={posValOption}
         style={{ height: 150 }}
         onChartReady={handleChartReady}
       />
@@ -472,7 +504,8 @@ function num(v: number) {
 
 const ResizableTitle = (props: any) => {
   const { onResize, width, ...restProps } = props;
-  if (!width) return <th {...restProps} />;
+  if (!width)
+    return <th {...restProps} style={{ ...restProps.style, fontSize: 12 }} />;
   return (
     <Resizable
       width={width}
@@ -495,7 +528,10 @@ const ResizableTitle = (props: any) => {
       onResize={onResize}
       draggableOpts={{ enableUserSelectHack: false }}
     >
-      <th {...restProps} style={{ ...restProps.style, position: "relative" }} />
+      <th
+        {...restProps}
+        style={{ ...restProps.style, position: "relative", fontSize: 12 }}
+      />
     </Resizable>
   );
 };
@@ -664,30 +700,31 @@ function HistoryTable({
   ];
 
   return (
-    <Table
-      size="small"
-      dataSource={history}
-      columns={columns}
-      rowKey="id"
-      pagination={false}
-      scroll={{ x: true }}
-      style={{
-        fontSize: 10,
-        border: `1px solid ${token.colorBorderSecondary}`,
-      }}
-      components={{ header: { cell: ResizableTitle } }}
-      rowClassName="compact-row"
-      onRow={(record) => ({
-        onClick: () => onSelect?.(record),
-        style: {
-          cursor: onSelect ? "pointer" : undefined,
-          background:
-            record.id === selectedId ? token.colorPrimaryBg : undefined,
-          borderBottom: `1px solid ${token.colorBorderSecondary}`,
-          padding: "0 6px",
-          height: 28,
-        },
-      })}
-    />
+    <ConfigProvider theme={{ token: { fontSize: 11 } }}>
+      <Table
+        size="small"
+        dataSource={history}
+        columns={columns}
+        rowKey="id"
+        pagination={false}
+        scroll={{ x: true }}
+        style={{
+          border: `1px solid ${token.colorBorderSecondary}`,
+        }}
+        components={{ header: { cell: ResizableTitle } }}
+        rowClassName="compact-row"
+        onRow={(record) => ({
+          onClick: () => onSelect?.(record),
+          style: {
+            cursor: onSelect ? "pointer" : undefined,
+            background:
+              record.id === selectedId ? token.colorPrimaryBg : undefined,
+            borderBottom: `1px solid ${token.colorBorderSecondary}`,
+            padding: "0 6px",
+            height: 28,
+          },
+        })}
+      />
+    </ConfigProvider>
   );
 }

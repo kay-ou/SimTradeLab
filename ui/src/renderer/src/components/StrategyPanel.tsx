@@ -94,7 +94,7 @@ export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
           marginBottom: 8,
         }}
       >
-        <span style={{ fontWeight: 600, fontSize: 13 }}>策略</span>
+        <span style={{ fontWeight: 600, fontSize: token.fontSize }}>策略</span>
         <Button
           size="small"
           icon={<PlusOutlined />}
@@ -152,7 +152,7 @@ export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
-                    fontSize: 13,
+                    fontSize: token.fontSize,
                   }}
                 >
                   {name}

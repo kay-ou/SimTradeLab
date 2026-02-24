@@ -492,7 +492,12 @@ export function EditorPanel({
         <Space>
           {onEditorFontSizeChange && (
             <Space size={4}>
-              <span style={{ fontSize: 13, color: token.colorTextSecondary }}>
+              <span
+                style={{
+                  fontSize: token.fontSize,
+                  color: token.colorTextSecondary,
+                }}
+              >
                 字体
               </span>
               <InputNumber
@@ -502,7 +507,6 @@ export function EditorPanel({
                 value={editorFontSize}
                 onChange={(v) => v && onEditorFontSizeChange(v)}
                 style={{ width: 48 }}
-                styles={{ input: { fontSize: 13 } }}
               />
             </Space>
           )}
@@ -512,7 +516,6 @@ export function EditorPanel({
               icon={<SaveOutlined />}
               onClick={handleSave}
               type={saved ? "default" : "primary"}
-              style={{ fontSize: 13 }}
             >
               保存
             </Button>

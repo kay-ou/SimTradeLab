@@ -87,7 +87,7 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
               disabled={!window.electronAPI}
             />
           </Space.Compact>
-          <Text type="secondary" style={{ fontSize: 12 }}>
+          <Text type="secondary">
             包含 stocks/、manifest.json 等数据文件的目录
           </Text>
         </Form.Item>
@@ -105,7 +105,7 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
               disabled={!window.electronAPI}
             />
           </Space.Compact>
-          <Text type="secondary" style={{ fontSize: 12 }}>
+          <Text type="secondary">
             包含策略子目录的目录
           </Text>
         </Form.Item>

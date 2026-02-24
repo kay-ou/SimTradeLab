@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { theme } from "antd";
+import { useEffect, useRef, useState } from "react";
+import { theme, Badge } from "antd";
 
 export type LogMessage = {
   level: string;
@@ -30,11 +30,15 @@ interface Props {
 
 export function LogConsole({ logs, isDark }: Props) {
   const { token } = theme.useToken();
+  const [activeTab, setActiveTab] = useState<"all" | "errors">("all");
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const errorLogs = logs.filter((l) => l.level === "ERROR");
+  const displayLogs = activeTab === "all" ? logs : errorLogs;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs.length]);
+  }, [displayLogs.length]);
 
   const colors = isDark ? DARK_COLORS : LIGHT_COLORS;
   const tsColor = isDark ? "#6a9955" : "#8c959f";
@@ -44,33 +48,88 @@ export function LogConsole({ logs, isDark }: Props) {
     <div
       style={{
         height: "100%",
-        overflowY: "auto",
+        display: "flex",
+        flexDirection: "column",
         background: token.colorBgContainer,
-        padding: "8px 12px",
-        fontFamily: "monospace",
-        fontSize: 12,
         borderTop: `1px solid ${token.colorBorderSecondary}`,
       }}
     >
-      {logs.length === 0 && (
-        <span style={{ color: emptyColor }}>等待日志输出...</span>
-      )}
-      {logs.map((log, i) => (
-        <div
-          key={i}
-          style={{
-            color: colors[log.level] ?? token.colorText,
-            lineHeight: 1.5,
-            marginBottom: 1,
-          }}
-        >
-          {log.date && (
-            <span style={{ color: tsColor, marginRight: 8 }}>{log.date}</span>
-          )}
-          {log.msg}
-        </div>
-      ))}
-      <div ref={bottomRef} />
+      {/* Tab bar */}
+      <div
+        style={{
+          display: "flex",
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+          flexShrink: 0,
+          padding: "0 4px",
+        }}
+      >
+        {(["all", "errors"] as const).map((key) => (
+          <div
+            key={key}
+            onClick={() => setActiveTab(key)}
+            style={{
+              padding: "4px 10px",
+              cursor: "pointer",
+              fontSize: token.fontSize,
+              borderBottom:
+                activeTab === key
+                  ? `2px solid ${token.colorPrimary}`
+                  : "2px solid transparent",
+              color:
+                activeTab === key
+                  ? token.colorPrimary
+                  : token.colorTextSecondary,
+              marginBottom: -1,
+              userSelect: "none",
+            }}
+          >
+            {key === "all" ? (
+              "全部"
+            ) : (
+              <span
+                style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+              >
+                错误
+                <Badge count={errorLogs.length} size="small" />
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          padding: "4px 12px 8px",
+          fontFamily: "monospace",
+          fontSize: token.fontSize,
+        }}
+      >
+        {displayLogs.length === 0 && (
+          <span style={{ color: emptyColor }}>
+            {activeTab === "all" ? "等待日志输出..." : "暂无错误日志"}
+          </span>
+        )}
+        {displayLogs.map((log, i) => (
+          <div
+            key={i}
+            style={{
+              color: colors[log.level] ?? token.colorText,
+              lineHeight: 1.5,
+              marginBottom: 1,
+            }}
+          >
+            {log.date && (
+              <span style={{ color: tsColor, marginRight: 8 }}>{log.date}</span>
+            )}
+            {log.msg}
+          </div>
+        ))}
+        <div ref={bottomRef} />
+      </div>
     </div>
   );
 }

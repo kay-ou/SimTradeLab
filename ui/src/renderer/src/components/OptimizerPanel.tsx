@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { Button, Space, message, Tag, theme, Alert } from "antd";
-import { SaveOutlined, PlayCircleOutlined, StopOutlined } from "@ant-design/icons";
+import {
+  SaveOutlined,
+  PlayCircleOutlined,
+  StopOutlined,
+} from "@ant-design/icons";
 import { optimizerAPI } from "../services/api";
 
 interface Props {
@@ -9,6 +13,7 @@ interface Props {
   isDark?: boolean;
   runningTaskId: string | null;
   onTaskStarted: (taskId: string) => void;
+  editorFontSize?: number;
 }
 
 export function OptimizerPanel({
@@ -16,6 +21,7 @@ export function OptimizerPanel({
   isDark,
   runningTaskId,
   onTaskStarted,
+  editorFontSize = 13,
 }: Props) {
   const { token } = theme.useToken();
   const [source, setSource] = useState("");
@@ -117,11 +123,21 @@ export function OptimizerPanel({
           {!saved && <Tag color="orange">未保存</Tag>}
         </Space>
         <Space>
-          <Button size="small" icon={<SaveOutlined />} onClick={handleSave} type={saved ? "default" : "primary"}>
+          <Button
+            size="small"
+            icon={<SaveOutlined />}
+            onClick={handleSave}
+            type={saved ? "default" : "primary"}
+          >
             保存
           </Button>
           {runningTaskId ? (
-            <Button size="small" danger icon={<StopOutlined />} onClick={handleCancel}>
+            <Button
+              size="small"
+              danger
+              icon={<StopOutlined />}
+              onClick={handleCancel}
+            >
               取消
             </Button>
           ) : (
@@ -153,7 +169,7 @@ export function OptimizerPanel({
         loading={loading ? "加载中..." : undefined}
         theme={isDark ? "vs-dark" : "vs-light"}
         options={{
-          fontSize: 13,
+          fontSize: editorFontSize,
           minimap: { enabled: false },
           scrollBeyondLastLine: false,
           wordWrap: "on",
