@@ -21,9 +21,17 @@ interface Props {
   result: any | null;
   history: HistoryEntry[];
   onDeleteHistory: (id: string) => void;
+  onSelectHistory?: (entry: HistoryEntry) => void;
+  selectedHistoryId?: string | null;
 }
 
-export function ResultPanel({ result, history, onDeleteHistory }: Props) {
+export function ResultPanel({
+  result,
+  history,
+  onDeleteHistory,
+  onSelectHistory,
+  selectedHistoryId,
+}: Props) {
   const { token } = theme.useToken();
 
   if (!result) {
@@ -47,7 +55,12 @@ export function ResultPanel({ result, history, onDeleteHistory }: Props) {
             <Divider style={{ margin: "10px 0", fontSize: 12 }}>
               回测历史
             </Divider>
-            <HistoryTable history={history} onDelete={onDeleteHistory} />
+            <HistoryTable
+              history={history}
+              onDelete={onDeleteHistory}
+              onSelect={onSelectHistory}
+              selectedId={selectedHistoryId}
+            />
           </>
         )}
       </div>
@@ -291,9 +304,13 @@ const ResizableTitle = (props: any) => {
 function HistoryTable({
   history,
   onDelete,
+  onSelect,
+  selectedId,
 }: {
   history: HistoryEntry[];
   onDelete: (id: string) => void;
+  onSelect?: (entry: HistoryEntry) => void;
+  selectedId?: string | null;
 }) {
   const { token } = theme.useToken();
 
@@ -457,6 +474,14 @@ function HistoryTable({
       scroll={{ x: true }}
       style={{ fontSize: 11 }}
       components={{ header: { cell: ResizableTitle } }}
+      onRow={(record) => ({
+        onClick: () => onSelect?.(record),
+        style: {
+          cursor: onSelect ? "pointer" : undefined,
+          background:
+            record.id === selectedId ? token.colorPrimaryBg : undefined,
+        },
+      })}
     />
   );
 }

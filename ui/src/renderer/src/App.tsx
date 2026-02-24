@@ -29,6 +29,16 @@ import type { LogMessage } from "./components/LogConsole";
 type ThemeMode = "light" | "dark" | "system";
 type ActiveTab = "backtest" | "optimizer";
 
+export type BacktestSeries = {
+  dates: string[];
+  portfolio_values: number[];
+  daily_pnl: number[];
+  daily_buy_amount: number[];
+  daily_sell_amount: number[];
+  daily_positions_value: number[];
+  benchmark_nav: number[];
+};
+
 export interface HistoryEntry {
   id: string;
   strategy: string;
@@ -40,6 +50,8 @@ export interface HistoryEntry {
   duration: number; // seconds
   metrics: Record<string, number>;
   benchmarkName: string;
+  series?: BacktestSeries;
+  logs?: LogMessage[];
 }
 
 const HISTORY_KEY = "simtradelab_history";
@@ -122,17 +134,26 @@ export default function App() {
   const themeLabel =
     themeMode === "light" ? "浅色" : themeMode === "dark" ? "深色" : "跟随系统";
 
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(
+    null,
+  );
+
   const handleTaskStarted = useCallback(
     async (taskId: string, params: any, startedAt: number) => {
       setRunningTaskId(taskId);
       setLogs([]);
       setResult(null);
+      setSelectedHistoryId(null);
       pendingRun.current = { params, startedAt };
       const base = await getWSBaseURL();
+      const logsForRun: LogMessage[] = [];
       createLogStream(
         base,
         taskId,
-        (msg) => setLogs((prev) => [...prev, msg]),
+        (msg) => {
+          logsForRun.push(msg);
+          setLogs((prev) => [...prev, msg]);
+        },
         async () => {
           setRunningTaskId(null);
           try {
@@ -151,6 +172,8 @@ export default function App() {
                 duration: (Date.now() - run.startedAt) / 1000,
                 metrics: res.metrics,
                 benchmarkName: res.metrics.benchmark_name ?? "",
+                series: res.series,
+                logs: logsForRun,
               };
               setHistory((prev) => {
                 const next = [entry, ...prev];
@@ -166,6 +189,15 @@ export default function App() {
     },
     [],
   );
+
+  const handleSelectHistory = useCallback((entry: HistoryEntry) => {
+    setResult(
+      entry.series ? { metrics: entry.metrics, series: entry.series } : null,
+    );
+    setLogs(entry.logs ?? []);
+    setSelectedHistoryId(entry.id);
+    setActiveTab("backtest");
+  }, []);
 
   const handleOptimizerTaskStarted = useCallback(async (taskId: string) => {
     setOptimizerTaskId(taskId);
@@ -210,6 +242,8 @@ export default function App() {
         result={result}
         history={history}
         deleteHistory={deleteHistory}
+        selectHistory={handleSelectHistory}
+        selectedHistoryId={selectedHistoryId}
         settingsOpen={settingsOpen}
         setSettingsOpen={setSettingsOpen}
         strategyReloadKey={strategyReloadKey}
@@ -243,6 +277,8 @@ interface ThemedLayoutProps {
   result: any;
   history: HistoryEntry[];
   deleteHistory: (id: string) => void;
+  selectHistory: (entry: HistoryEntry) => void;
+  selectedHistoryId: string | null;
   settingsOpen: boolean;
   setSettingsOpen: (v: boolean) => void;
   strategyReloadKey: number;
@@ -273,6 +309,8 @@ function ThemedLayout({
   result,
   history,
   deleteHistory,
+  selectHistory,
+  selectedHistoryId,
   settingsOpen,
   setSettingsOpen,
   strategyReloadKey,
@@ -331,7 +369,11 @@ function ThemedLayout({
           onChange={(v) => setActiveTab(v as ActiveTab)}
           options={[
             { label: "回测", value: "backtest", icon: <PlayCircleOutlined /> },
-            { label: "优化器", value: "optimizer", icon: <ExperimentOutlined /> },
+            {
+              label: "优化器",
+              value: "optimizer",
+              icon: <ExperimentOutlined />,
+            },
           ]}
         />
         <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
@@ -409,7 +451,10 @@ function ThemedLayout({
             <Allotment vertical>
               <Allotment.Pane minSize={80}>
                 {activeTab === "backtest" ? (
-                  <EditorPanel strategyName={selectedStrategy} isDark={isDark} />
+                  <EditorPanel
+                    strategyName={selectedStrategy}
+                    isDark={isDark}
+                  />
                 ) : (
                   <OptimizerPanel
                     strategyName={selectedStrategy}
@@ -440,6 +485,8 @@ function ThemedLayout({
               result={result}
               history={history}
               onDeleteHistory={deleteHistory}
+              onSelectHistory={selectHistory}
+              selectedHistoryId={selectedHistoryId}
             />
           </Allotment.Pane>
         </Allotment>
