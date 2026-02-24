@@ -11,6 +11,7 @@ import {
   Button,
   Popconfirm,
   Tag,
+  Tooltip,
 } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
 import { theme } from "antd";
@@ -97,7 +98,7 @@ export function ResultPanel({
     try {
       return new Date(s).getTime();
     } catch (e) {
-      console.error('Invalid date:', s, e);
+      console.error("Invalid date:", s, e);
       return 0;
     }
   };
@@ -105,7 +106,7 @@ export function ResultPanel({
 
   // 检查数据有效性
   if (!dates || dates.length === 0) {
-    console.error('No dates data');
+    console.error("No dates data");
   }
 
   const initial = series.portfolio_values[0] || 1;
@@ -138,7 +139,7 @@ export function ResultPanel({
     .filter(Boolean);
 
   // 调试信息
-  console.log('ResultPanel data:', {
+  console.log("ResultPanel data:", {
     datesLength: dates.length,
     navValuesLength: navValues.length,
     bmValuesLength: bmValues.length,
@@ -148,7 +149,7 @@ export function ResultPanel({
     sampleNav: navValues.slice(0, 3),
     sampleBm: bmValues.slice(0, 3),
     seriesKeys: Object.keys(series),
-    hasBenchmarkNav: 'benchmark_nav' in series,
+    hasBenchmarkNav: "benchmark_nav" in series,
     benchmarkNavLength: series.benchmark_nav?.length || 0,
   });
 
@@ -164,9 +165,9 @@ export function ResultPanel({
   };
 
   const dataZoomNav = [
-    { 
-      type: "inside", 
-      xAxisIndex: 0, 
+    {
+      type: "inside",
+      xAxisIndex: 0,
       filterMode: "none",
       group: "zoomGroup",
     },
@@ -182,9 +183,9 @@ export function ResultPanel({
     },
   ];
   const dataZoomPnl = [
-    { 
-      type: "inside", 
-      xAxisIndex: 0, 
+    {
+      type: "inside",
+      xAxisIndex: 0,
       filterMode: "none",
       group: "zoomGroup",
     },
@@ -380,7 +381,7 @@ export function ResultPanel({
                 value={value}
                 styles={{
                   content: { fontSize: 13, color },
-                  title: { fontSize: 11 }
+                  title: { fontSize: 11 },
                 }}
               />
             </Card>
@@ -390,13 +391,25 @@ export function ResultPanel({
       <Divider style={{ margin: "10px 0", fontSize: 12 }}>
         净值 vs {metrics.benchmark_name || "基准"}
       </Divider>
-      <ReactECharts ref={navChartRef} option={navOption} style={{ height: 220 }} />
+      <ReactECharts
+        ref={navChartRef}
+        option={navOption}
+        style={{ height: 220 }}
+      />
       <Divider style={{ margin: "10px 0", fontSize: 12 }}>
         {metrics.benchmark_name || "基准"} 独立走势
       </Divider>
-      <ReactECharts ref={benchmarkChartRef} option={benchmarkOption} style={{ height: 150 }} />
+      <ReactECharts
+        ref={benchmarkChartRef}
+        option={benchmarkOption}
+        style={{ height: 150 }}
+      />
       <Divider style={{ margin: "10px 0", fontSize: 12 }}>每日盈亏</Divider>
-      <ReactECharts ref={pnlChartRef} option={pnlOption} style={{ height: 150 }} />
+      <ReactECharts
+        ref={pnlChartRef}
+        option={pnlOption}
+        style={{ height: 150 }}
+      />
 
       {history.length > 0 && (
         <>
@@ -621,7 +634,10 @@ function HistoryTable({
       rowKey="id"
       pagination={false}
       scroll={{ x: true }}
-      style={{ fontSize: 10, border: `1px solid ${token.colorBorderSecondary}` }}
+      style={{
+        fontSize: 10,
+        border: `1px solid ${token.colorBorderSecondary}`,
+      }}
       components={{ header: { cell: ResizableTitle } }}
       rowClassName="compact-row"
       onRow={(record) => ({

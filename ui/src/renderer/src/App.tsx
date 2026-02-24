@@ -9,8 +9,13 @@ import {
   MenuUnfoldOutlined,
   BarChartOutlined,
   CodeOutlined,
+  EditOutlined,
   ExperimentOutlined,
   PlayCircleOutlined,
+  LeftOutlined,
+  RightOutlined,
+  UpOutlined,
+  DownOutlined,
 } from "@ant-design/icons";
 import { Allotment } from "allotment";
 import "allotment/dist/style.css";
@@ -30,6 +35,79 @@ import type { HistoryEntry } from "./services/api";
 export type { HistoryEntry };
 
 type ThemeMode = "light" | "dark" | "system";
+
+function CollapseHandle({
+  direction,
+  collapsed,
+  onClick,
+}: {
+  direction: "left" | "right" | "top" | "bottom";
+  collapsed: boolean;
+  onClick: () => void;
+}) {
+  const { token } = theme.useToken();
+  const isH = direction === "left" || direction === "right";
+  const icon =
+    direction === "left" ? (
+      collapsed ? (
+        <RightOutlined />
+      ) : (
+        <LeftOutlined />
+      )
+    ) : direction === "right" ? (
+      collapsed ? (
+        <LeftOutlined />
+      ) : (
+        <RightOutlined />
+      )
+    ) : direction === "top" ? (
+      collapsed ? (
+        <DownOutlined />
+      ) : (
+        <UpOutlined />
+      )
+    ) : collapsed ? (
+      <UpOutlined />
+    ) : (
+      <DownOutlined />
+    );
+  const pos: React.CSSProperties =
+    direction === "left"
+      ? { left: 2, top: "50%", transform: "translateY(-50%)" }
+      : direction === "right"
+        ? { right: 2, top: "50%", transform: "translateY(-50%)" }
+        : direction === "top"
+          ? { top: 2, left: "50%", transform: "translateX(-50%)" }
+          : { bottom: 2, left: "50%", transform: "translateX(-50%)" };
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+      onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.5")}
+      style={{
+        position: "absolute",
+        zIndex: 20,
+        ...pos,
+        width: isH ? 14 : 28,
+        height: isH ? 28 : 14,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        background: token.colorBgElevated,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        borderRadius: 3,
+        fontSize: 9,
+        color: token.colorTextSecondary,
+        opacity: 0.5,
+        transition: "opacity 0.15s",
+      }}
+    >
+      {icon}
+    </div>
+  );
+}
+
 type ActiveTab = "backtest" | "optimizer";
 
 function getStoredTheme(): ThemeMode {
@@ -103,6 +181,7 @@ export default function App() {
   );
 
   const [leftVisible, setLeftVisible] = useState(true);
+  const [centerVisible, setCenterVisible] = useState(true);
   const [logVisible, setLogVisible] = useState(true);
   const [rightVisible, setRightVisible] = useState(true);
 
@@ -263,6 +342,8 @@ export default function App() {
         setStrategyReloadKey={setStrategyReloadKey}
         leftVisible={leftVisible}
         setLeftVisible={setLeftVisible}
+        centerVisible={centerVisible}
+        setCenterVisible={setCenterVisible}
         logVisible={logVisible}
         setLogVisible={setLogVisible}
         rightVisible={rightVisible}
@@ -300,6 +381,8 @@ interface ThemedLayoutProps {
   setStrategyReloadKey: (fn: (k: number) => number) => void;
   leftVisible: boolean;
   setLeftVisible: (fn: (v: boolean) => boolean) => void;
+  centerVisible: boolean;
+  setCenterVisible: (fn: (v: boolean) => boolean) => void;
   logVisible: boolean;
   setLogVisible: (fn: (v: boolean) => boolean) => void;
   rightVisible: boolean;
@@ -334,6 +417,8 @@ function ThemedLayout({
   setStrategyReloadKey,
   leftVisible,
   setLeftVisible,
+  centerVisible,
+  setCenterVisible,
   logVisible,
   setLogVisible,
   rightVisible,
@@ -402,6 +487,15 @@ function ThemedLayout({
               onClick={() => setLeftVisible((v) => !v)}
             />
           </Tooltip>
+          <Tooltip title={centerVisible ? "折叠编辑器面板" : "展开编辑器面板"}>
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              style={{ color: centerVisible ? token.colorPrimary : undefined }}
+              onClick={() => setCenterVisible((v) => !v)}
+            />
+          </Tooltip>
           <Tooltip title={logVisible ? "折叠日志面板" : "展开日志面板"}>
             <Button
               type="text"
@@ -467,33 +561,52 @@ function ThemedLayout({
             />
           </Allotment.Pane>
 
-          <Allotment.Pane minSize={200}>
-            <Allotment vertical>
-              <Allotment.Pane minSize={80}>
-                {activeTab === "backtest" ? (
-                  <EditorPanel
-                    strategyName={selectedStrategy}
-                    isDark={isDark}
-                    sourceOverride={historySource}
-                  />
-                ) : (
-                  <OptimizerPanel
-                    strategyName={selectedStrategy}
-                    isDark={isDark}
-                    runningTaskId={optimizerTaskId}
-                    onTaskStarted={handleOptimizerTaskStarted}
-                  />
-                )}
-              </Allotment.Pane>
-              <Allotment.Pane
-                minSize={0}
-                preferredSize="35%"
-                snap
-                visible={logVisible}
-              >
-                <LogConsole logs={logs} isDark={isDark} />
-              </Allotment.Pane>
-            </Allotment>
+          <Allotment.Pane minSize={0} snap visible={centerVisible}>
+            <div style={{ position: "relative", height: "100%" }}>
+              <CollapseHandle
+                direction="left"
+                collapsed={!leftVisible}
+                onClick={() => setLeftVisible((v) => !v)}
+              />
+              <CollapseHandle
+                direction="right"
+                collapsed={!rightVisible}
+                onClick={() => setRightVisible((v) => !v)}
+              />
+              <Allotment vertical>
+                <Allotment.Pane minSize={80}>
+                  <div style={{ position: "relative", height: "100%" }}>
+                    <CollapseHandle
+                      direction="bottom"
+                      collapsed={!logVisible}
+                      onClick={() => setLogVisible((v) => !v)}
+                    />
+                    {activeTab === "backtest" ? (
+                      <EditorPanel
+                        strategyName={selectedStrategy}
+                        isDark={isDark}
+                        sourceOverride={historySource}
+                      />
+                    ) : (
+                      <OptimizerPanel
+                        strategyName={selectedStrategy}
+                        isDark={isDark}
+                        runningTaskId={optimizerTaskId}
+                        onTaskStarted={handleOptimizerTaskStarted}
+                      />
+                    )}
+                  </div>
+                </Allotment.Pane>
+                <Allotment.Pane
+                  minSize={0}
+                  preferredSize="35%"
+                  snap
+                  visible={logVisible}
+                >
+                  <LogConsole logs={logs} isDark={isDark} />
+                </Allotment.Pane>
+              </Allotment>
+            </div>
           </Allotment.Pane>
 
           <Allotment.Pane
@@ -502,13 +615,20 @@ function ThemedLayout({
             snap
             visible={rightVisible}
           >
-            <ResultPanel
-              result={result}
-              history={history}
-              onDeleteHistory={deleteHistory}
-              onSelectHistory={selectHistory}
-              selectedHistoryId={selectedHistoryId}
-            />
+            <div style={{ position: "relative", height: "100%" }}>
+              <CollapseHandle
+                direction="left"
+                collapsed={!centerVisible}
+                onClick={() => setCenterVisible((v) => !v)}
+              />
+              <ResultPanel
+                result={result}
+                history={history}
+                onDeleteHistory={deleteHistory}
+                onSelectHistory={selectHistory}
+                selectedHistoryId={selectedHistoryId}
+              />
+            </div>
           </Allotment.Pane>
         </Allotment>
       </div>
