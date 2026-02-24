@@ -116,6 +116,7 @@ def run_backtest_in_thread(task_id: str, manager: TaskManager, loop: asyncio.Abs
             end_date=req.end_date,
             initial_capital=req.initial_capital,
             frequency=req.frequency,
+            benchmark_code=req.benchmark_code,
             enable_charts=False,   # UI 已生成更漂亮的图表，无需 matplotlib 再生成一遍
             sandbox=req.sandbox,
             enable_logging=True,

@@ -19,6 +19,7 @@ interface RunParams {
   end_date: string;
   initial_capital: number;
   frequency: string;
+  benchmark_code: string;
 }
 
 interface Props {
@@ -49,6 +50,7 @@ export function RunPanel({
         end_date: values.end_date.format("YYYY-MM-DD"),
         initial_capital: values.initial_capital,
         frequency: values.frequency,
+        benchmark_code: values.benchmark_code,
       };
       const { task_id } = await backtestAPI.run({
         ...params,
@@ -88,6 +90,7 @@ export function RunPanel({
           end_date: dayjs("2025-12-31"),
           initial_capital: 100000,
           frequency: "1d",
+          benchmark_code: "000300.SS",
         }}
       >
         <Form.Item name="start_date" label="开始" rules={[{ required: true }]}>
@@ -115,6 +118,18 @@ export function RunPanel({
             options={[
               { value: "1d", label: "日线" },
               { value: "1m", label: "分钟" },
+            ]}
+          />
+        </Form.Item>
+        <Form.Item name="benchmark_code" label="基准">
+          <Select
+            style={{ width: 120 }}
+            options={[
+              { value: "000300.SS", label: "沪深300" },
+              { value: "000905.SS", label: "中证500" },
+              { value: "000852.SS", label: "中证1000" },
+              { value: "399001.SZ", label: "深证成指" },
+              { value: "399006.SZ", label: "创业板指" },
             ]}
           />
         </Form.Item>

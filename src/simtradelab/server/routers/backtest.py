@@ -64,7 +64,7 @@ def get_result(task_id: str):
         }
     else:
         series_data = {k: [] for k in ["dates", "portfolio_values", "daily_pnl",
-                                        "daily_buy_amount", "daily_sell_amount", "daily_positions_value"]}
+                                        "daily_buy_amount", "daily_sell_amount", "daily_positions_value", "benchmark_nav"]}
     metrics = {
         k: v for k, v in report.items()
         if not k.startswith("_") and isinstance(v, (str, float, int, bool))

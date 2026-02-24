@@ -1,5 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import ReactECharts from "echarts-for-react";
+import * as echarts from "echarts";
 import {
   Card,
   Statistic,
@@ -33,6 +34,28 @@ export function ResultPanel({
   selectedHistoryId,
 }: Props) {
   const { token } = theme.useToken();
+  const navChartRef = useRef<any>(null);
+  const pnlChartRef = useRef<any>(null);
+  const benchmarkChartRef = useRef<any>(null);
+
+  useEffect(() => {
+    const charts = [];
+    if (navChartRef.current?.getEchartsInstance()) {
+      charts.push(navChartRef.current.getEchartsInstance());
+    }
+    if (pnlChartRef.current?.getEchartsInstance()) {
+      charts.push(pnlChartRef.current.getEchartsInstance());
+    }
+    if (benchmarkChartRef.current?.getEchartsInstance()) {
+      charts.push(benchmarkChartRef.current.getEchartsInstance());
+    }
+    if (charts.length > 1) {
+      echarts.connect(charts);
+    }
+    return () => {
+      echarts.disconnect(charts);
+    };
+  }, [result]);
 
   if (!result) {
     return (
@@ -70,8 +93,20 @@ export function ResultPanel({
   const { metrics, series } = result;
 
   // 日期 → 时间戳（ECharts time axis）
-  const toTs = (s: string) => new Date(s).getTime();
+  const toTs = (s: string) => {
+    try {
+      return new Date(s).getTime();
+    } catch (e) {
+      console.error('Invalid date:', s, e);
+      return 0;
+    }
+  };
   const dates = (series.dates as string[]).map(toTs);
+
+  // 检查数据有效性
+  if (!dates || dates.length === 0) {
+    console.error('No dates data');
+  }
 
   const initial = series.portfolio_values[0] || 1;
   const navValues = (series.portfolio_values as number[]).map((v, i) => [
@@ -79,12 +114,20 @@ export function ResultPanel({
     +(v / initial).toFixed(6),
   ]);
 
-  // 基准净值（可能长度不一致，按策略日期对齐）
+  // 基准净值（按策略日期对齐）
   const bm: number[] = series.benchmark_nav ?? [];
-  const bmValues =
-    bm.length === dates.length
-      ? bm.map((v: number, i: number) => [dates[i], +v.toFixed(6)])
-      : [];
+  const bmValues = [];
+  if (bm.length > 0 && dates.length > 0) {
+    // 确保基准数据与策略数据长度一致
+    for (let i = 0; i < dates.length; i++) {
+      if (i < bm.length) {
+        bmValues.push([dates[i], +bm[i].toFixed(6)]);
+      } else {
+        // 如果基准数据不足，使用最后一个值
+        bmValues.push([dates[i], +bm[bm.length - 1].toFixed(6)]);
+      }
+    }
+  }
 
   // 买卖点：有成交的日期取对应净值
   const buyPoints = (series.daily_buy_amount as number[])
@@ -93,6 +136,21 @@ export function ResultPanel({
   const sellPoints = (series.daily_sell_amount as number[])
     .map((v, i) => (v > 0 ? [dates[i], navValues[i][1]] : null))
     .filter(Boolean);
+
+  // 调试信息
+  console.log('ResultPanel data:', {
+    datesLength: dates.length,
+    navValuesLength: navValues.length,
+    bmValuesLength: bmValues.length,
+    buyPointsLength: buyPoints.length,
+    sellPointsLength: sellPoints.length,
+    sampleDates: dates.slice(0, 3),
+    sampleNav: navValues.slice(0, 3),
+    sampleBm: bmValues.slice(0, 3),
+    seriesKeys: Object.keys(series),
+    hasBenchmarkNav: 'benchmark_nav' in series,
+    benchmarkNavLength: series.benchmark_nav?.length || 0,
+  });
 
   const axisStyle = {
     type: "time" as const,
@@ -106,7 +164,12 @@ export function ResultPanel({
   };
 
   const dataZoomNav = [
-    { type: "inside", xAxisIndex: 0, filterMode: "none" },
+    { 
+      type: "inside", 
+      xAxisIndex: 0, 
+      filterMode: "none",
+      group: "zoomGroup",
+    },
     {
       type: "slider",
       xAxisIndex: 0,
@@ -115,9 +178,28 @@ export function ResultPanel({
       textStyle: { fontSize: 9 },
       handleSize: "80%",
       filterMode: "none",
+      group: "zoomGroup",
     },
   ];
-  const dataZoomPnl = [{ type: "inside", xAxisIndex: 0, filterMode: "none" }];
+  const dataZoomPnl = [
+    { 
+      type: "inside", 
+      xAxisIndex: 0, 
+      filterMode: "none",
+      group: "zoomGroup",
+    },
+    {
+      type: "slider",
+      xAxisIndex: 0,
+      height: 18,
+      bottom: 4,
+      textStyle: { fontSize: 9 },
+      handleSize: "80%",
+      filterMode: "none",
+      show: false,
+      group: "zoomGroup",
+    },
+  ];
 
   const navOption = {
     backgroundColor: "transparent",
@@ -212,6 +294,51 @@ export function ResultPanel({
     ],
   };
 
+  // 独立基准图
+  const benchmarkOption = {
+    backgroundColor: "transparent",
+    tooltip: {
+      trigger: "axis",
+      formatter: (params: any[]) =>
+        params
+          .map(
+            (p: any) => `${p.marker}${p.seriesName}: ${p.value[1].toFixed(4)}`,
+          )
+          .join("<br/>"),
+    },
+    grid: { top: 16, bottom: 36, left: 52, right: 16 },
+    xAxis: axisStyle,
+    yAxis: {
+      type: "value" as const,
+      scale: true,
+      axisLabel: { fontSize: 10, color: token.colorTextSecondary },
+      splitLine: { lineStyle: { color: token.colorBorderSecondary } },
+    },
+    dataZoom: dataZoomPnl,
+    series: [
+      {
+        name: metrics.benchmark_name || "基准",
+        type: "line",
+        data: bmValues,
+        lineStyle: { width: 2, color: "#52c41a" },
+        symbol: "none",
+        areaStyle: {
+          color: {
+            type: "linear",
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: "rgba(82, 196, 26, 0.3)" },
+              { offset: 1, color: "rgba(82, 196, 26, 0.05)" },
+            ],
+          },
+        },
+      },
+    ],
+  };
+
   const fmt = (v: number, pct = false) =>
     pct ? `${(v * 100).toFixed(2)}%` : v.toFixed(3);
 
@@ -228,20 +355,31 @@ export function ResultPanel({
       color: "#cf1322",
     },
     { title: "夏普比率", value: fmt(metrics.sharpe_ratio) },
+    {
+      title: "Alpha",
+      value: fmt(metrics.alpha ?? 0, true),
+      color: (metrics.alpha ?? 0) >= 0 ? "#cf1322" : "#3f8600",
+    },
+    { title: "Beta", value: fmt(metrics.beta ?? 0) },
     { title: "胜率", value: fmt(metrics.win_rate, true) },
     { title: "超额收益", value: fmt(metrics.excess_return, true) },
+    { title: "盈利天数", value: metrics.win_count ?? 0 },
+    { title: "亏损天数", value: metrics.lose_count ?? 0 },
+    { title: "盈亏比", value: fmt(metrics.profit_loss_ratio ?? 0) },
+    { title: "信息比率", value: fmt(metrics.information_ratio ?? 0) },
   ];
 
   return (
     <div style={{ height: "100%", overflowY: "auto", padding: 12 }}>
-      <Row gutter={[8, 8]}>
+      <Row gutter={[6, 6]}>
         {statsCards.map(({ title, value, color }) => (
-          <Col span={8} key={title}>
-            <Card size="small" styles={{ body: { padding: "8px 12px" } }}>
+          <Col span={6} key={title}>
+            <Card size="small" styles={{ body: { padding: "4px 8px" } }}>
               <Statistic
                 title={title}
                 value={value}
-                valueStyle={{ fontSize: 15, color }}
+                valueStyle={{ fontSize: 13, color }}
+                titleStyle={{ fontSize: 11 }}
               />
             </Card>
           </Col>
@@ -250,9 +388,13 @@ export function ResultPanel({
       <Divider style={{ margin: "10px 0", fontSize: 12 }}>
         净值 vs {metrics.benchmark_name || "基准"}
       </Divider>
-      <ReactECharts option={navOption} style={{ height: 220 }} />
+      <ReactECharts ref={navChartRef} option={navOption} style={{ height: 220 }} />
+      <Divider style={{ margin: "10px 0", fontSize: 12 }}>
+        {metrics.benchmark_name || "基准"} 独立走势
+      </Divider>
+      <ReactECharts ref={benchmarkChartRef} option={benchmarkOption} style={{ height: 150 }} />
       <Divider style={{ margin: "10px 0", fontSize: 12 }}>每日盈亏</Divider>
-      <ReactECharts option={pnlOption} style={{ height: 150 }} />
+      <ReactECharts ref={pnlChartRef} option={pnlOption} style={{ height: 150 }} />
 
       {history.length > 0 && (
         <>
@@ -320,15 +462,15 @@ function HistoryTable({
   const { token } = theme.useToken();
 
   const [colWidths, setColWidths] = useState<Record<string, number>>({
-    runAt: 80,
-    strategy: 100,
-    range: 120,
-    ret: 72,
-    ann: 68,
-    sharpe: 58,
-    dd: 68,
-    dur: 56,
-    del: 32,
+    runAt: 70,
+    strategy: 90,
+    range: 100,
+    ret: 65,
+    ann: 60,
+    sharpe: 52,
+    dd: 60,
+    dur: 50,
+    del: 28,
   });
 
   const handleResize = useCallback(
@@ -477,8 +619,9 @@ function HistoryTable({
       rowKey="id"
       pagination={false}
       scroll={{ x: true }}
-      style={{ fontSize: 11, border: `1px solid ${token.colorBorderSecondary}` }}
+      style={{ fontSize: 10, border: `1px solid ${token.colorBorderSecondary}` }}
       components={{ header: { cell: ResizableTitle } }}
+      rowClassName="compact-row"
       onRow={(record) => ({
         onClick: () => onSelect?.(record),
         style: {
@@ -486,7 +629,8 @@ function HistoryTable({
           background:
             record.id === selectedId ? token.colorPrimaryBg : undefined,
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
-          padding: "4px 8px",
+          padding: "0 6px",
+          height: 28,
         },
       })}
     />

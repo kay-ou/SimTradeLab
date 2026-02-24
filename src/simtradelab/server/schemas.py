@@ -10,6 +10,7 @@ class RunBacktestRequest(BaseModel):
     end_date: str
     initial_capital: float = Field(default=100000.0, gt=0)
     frequency: str = Field(default="1d", pattern="^(1d|1m)$")
+    benchmark_code: str = Field(default="000300.SS")
     enable_charts: bool = True
     sandbox: bool = True
 
