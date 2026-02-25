@@ -854,7 +854,7 @@ function HistoryTable({
         columns={columns}
         rowKey="id"
         pagination={false}
-        scroll={{ x: true }}
+        tableLayout="fixed"
         style={{
           border: `1px solid ${token.colorBorderSecondary}`,
         }}
