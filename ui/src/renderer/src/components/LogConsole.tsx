@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { theme, Badge } from "antd";
+import { useTranslation } from "react-i18next";
 
 export type LogMessage = {
   level: string;
@@ -30,6 +31,7 @@ interface Props {
 
 export function LogConsole({ logs, isDark }: Props) {
   const { token } = theme.useToken();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"all" | "errors">("all");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -84,12 +86,12 @@ export function LogConsole({ logs, isDark }: Props) {
             }}
           >
             {key === "all" ? (
-              "全部"
+              t("log.tab.all")
             ) : (
               <span
                 style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
               >
-                错误
+                {t("log.tab.errors")}
                 <Badge count={errorLogs.length} size="small" />
               </span>
             )}
@@ -110,7 +112,7 @@ export function LogConsole({ logs, isDark }: Props) {
       >
         {displayLogs.length === 0 && (
           <span style={{ color: emptyColor }}>
-            {activeTab === "all" ? "等待日志输出..." : "暂无错误日志"}
+            {activeTab === "all" ? t("log.empty") : t("log.noErrors")}
           </span>
         )}
         {displayLogs.map((log, i) => (

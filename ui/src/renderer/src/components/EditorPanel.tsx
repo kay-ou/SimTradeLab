@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { Button, Space, message, Tag, theme, Tooltip, InputNumber } from "antd";
 import { SaveOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import {
   strategiesAPI,
   fetchEditorCompletions,
@@ -414,6 +415,7 @@ export function EditorPanel({
   onEditorFontSizeChange,
 }: Props) {
   const { token } = theme.useToken();
+  const { t } = useTranslation();
   const [source, setSource] = useState("");
   const [saved, setSaved] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -439,10 +441,10 @@ export function EditorPanel({
     if (!strategyName) return;
     try {
       await strategiesAPI.save(strategyName, source);
-      message.success("已保存");
+      message.success(t("editor.saved"));
       setSaved(true);
     } catch {
-      message.error("保存失败");
+      message.error(t("editor.saveFailed"));
     }
   };
 
@@ -469,7 +471,7 @@ export function EditorPanel({
           color: token.colorTextSecondary,
         }}
       >
-        从左侧选择或新建策略
+        {t("editor.selectStrategy")}
       </div>
     );
   }
@@ -487,7 +489,7 @@ export function EditorPanel({
       >
         <Space>
           <span style={{ fontWeight: 600 }}>{strategyName}</span>
-          {!saved && <Tag color="orange">未保存</Tag>}
+          {!saved && <Tag color="orange">{t("editor.unsaved")}</Tag>}
         </Space>
         <Space>
           {onEditorFontSizeChange && (
@@ -498,7 +500,7 @@ export function EditorPanel({
                   color: token.colorTextSecondary,
                 }}
               >
-                字体
+                {t("editor.fontSize")}
               </span>
               <InputNumber
                 size="small"
@@ -510,14 +512,16 @@ export function EditorPanel({
               />
             </Space>
           )}
-          <Tooltip title={`保存策略 (${isMac ? "⌘" : "Ctrl"}+S)`}>
+          <Tooltip
+            title={t("editor.saveTooltip", { shortcut: isMac ? "⌘" : "Ctrl" })}
+          >
             <Button
               size="small"
               icon={<SaveOutlined />}
               onClick={handleSave}
               type={saved ? "default" : "primary"}
             >
-              保存
+              {t("editor.btn.save")}
             </Button>
           </Tooltip>
         </Space>
@@ -526,7 +530,7 @@ export function EditorPanel({
         height="100%"
         defaultLanguage="python"
         value={source}
-        loading={loading ? "加载中..." : undefined}
+        loading={loading ? t("editor.loading") : undefined}
         theme={isDark ? "vs-dark" : "vs-light"}
         onMount={(_editor, monaco) => registerPtradeCompletions(monaco)}
         options={{

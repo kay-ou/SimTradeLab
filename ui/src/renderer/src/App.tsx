@@ -20,6 +20,10 @@ import {
 import { Allotment, type AllotmentHandle } from "allotment";
 import "allotment/dist/style.css";
 import zhCN from "antd/locale/zh_CN";
+import enUS from "antd/locale/en_US";
+import deDE from "antd/locale/de_DE";
+import { useTranslation } from "react-i18next";
+import i18n from "./i18n";
 import { StrategyPanel } from "./components/StrategyPanel";
 import { EditorPanel } from "./components/EditorPanel";
 import { RunPanel } from "./components/RunPanel";
@@ -186,6 +190,15 @@ export default function App() {
   const [globalFontSize, setGlobalFontSize] = useState(() =>
     parseInt(localStorage.getItem("globalFontSize") ?? "13"),
   );
+  const [language, setLanguage] = useState<"zh" | "en" | "de">(
+    () => (localStorage.getItem("language") as "zh" | "en" | "de") ?? "zh",
+  );
+
+  const handleLanguageChange = (lang: "zh" | "en" | "de") => {
+    setLanguage(lang);
+    localStorage.setItem("language", lang);
+    i18n.changeLanguage(lang);
+  };
 
   const handleEditorFontSizeChange = (v: number) => {
     setEditorFontSize(v);
@@ -230,8 +243,6 @@ export default function App() {
     ) : (
       <LaptopOutlined />
     );
-  const themeLabel =
-    themeMode === "light" ? "浅色" : themeMode === "dark" ? "深色" : "跟随系统";
 
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(
     null,
@@ -323,7 +334,7 @@ export default function App() {
 
   return (
     <ConfigProvider
-      locale={zhCN}
+      locale={language === "en" ? enUS : language === "de" ? deDE : zhCN}
       theme={{
         algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: { fontSize: globalFontSize },
@@ -362,11 +373,12 @@ export default function App() {
         themeMode={themeMode}
         cycleTheme={cycleTheme}
         themeIcon={themeIcon}
-        themeLabel={themeLabel}
         editorFontSize={editorFontSize}
         onEditorFontSizeChange={handleEditorFontSizeChange}
         globalFontSize={globalFontSize}
         onGlobalFontSizeChange={handleGlobalFontSizeChange}
+        language={language}
+        onLanguageChange={handleLanguageChange}
       />
     </ConfigProvider>
   );
@@ -405,11 +417,12 @@ interface ThemedLayoutProps {
   themeMode: string;
   cycleTheme: () => void;
   themeIcon: React.ReactNode;
-  themeLabel: string;
   editorFontSize: number;
   onEditorFontSizeChange: (v: number) => void;
   globalFontSize: number;
   onGlobalFontSizeChange: (v: number) => void;
+  language: "zh" | "en" | "de";
+  onLanguageChange: (lang: "zh" | "en" | "de") => void;
 }
 
 function ThemedLayout({
@@ -444,13 +457,22 @@ function ThemedLayout({
   setRightVisible,
   cycleTheme,
   themeIcon,
-  themeLabel,
+  themeMode,
   editorFontSize,
   onEditorFontSizeChange,
   globalFontSize,
   onGlobalFontSizeChange,
+  language,
+  onLanguageChange,
 }: ThemedLayoutProps) {
   const { token } = theme.useToken();
+  const { t } = useTranslation();
+  const themeLabel =
+    themeMode === "light"
+      ? t("theme.light")
+      : themeMode === "dark"
+        ? t("theme.dark")
+        : t("theme.system");
   const [leftPanelsCollapsed, setLeftPanelsCollapsed] = useState(false);
   const allotmentRef = useRef<AllotmentHandle>(null);
 
@@ -501,16 +523,26 @@ function ThemedLayout({
           value={activeTab}
           onChange={(v) => setActiveTab(v as ActiveTab)}
           options={[
-            { label: "回测", value: "backtest", icon: <PlayCircleOutlined /> },
             {
-              label: "优化器",
+              label: t("tab.backtest"),
+              value: "backtest",
+              icon: <PlayCircleOutlined />,
+            },
+            {
+              label: t("tab.optimizer"),
               value: "optimizer",
               icon: <ExperimentOutlined />,
             },
           ]}
         />
         <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
-          <Tooltip title={leftVisible ? "折叠策略面板" : "展开策略面板"}>
+          <Tooltip
+            title={
+              leftVisible
+                ? t("panel.strategy.collapse")
+                : t("panel.strategy.expand")
+            }
+          >
             <Button
               type="text"
               size="small"
@@ -518,7 +550,13 @@ function ThemedLayout({
               onClick={() => setLeftVisible((v) => !v)}
             />
           </Tooltip>
-          <Tooltip title={centerVisible ? "折叠编辑器面板" : "展开编辑器面板"}>
+          <Tooltip
+            title={
+              centerVisible
+                ? t("panel.editor.collapse")
+                : t("panel.editor.expand")
+            }
+          >
             <Button
               type="text"
               size="small"
@@ -527,7 +565,9 @@ function ThemedLayout({
               onClick={() => setCenterVisible((v) => !v)}
             />
           </Tooltip>
-          <Tooltip title={logVisible ? "折叠日志面板" : "展开日志面板"}>
+          <Tooltip
+            title={logVisible ? t("panel.log.collapse") : t("panel.log.expand")}
+          >
             <Button
               type="text"
               size="small"
@@ -536,7 +576,13 @@ function ThemedLayout({
               onClick={() => setLogVisible((v) => !v)}
             />
           </Tooltip>
-          <Tooltip title={rightVisible ? "折叠结果面板" : "展开结果面板"}>
+          <Tooltip
+            title={
+              rightVisible
+                ? t("panel.result.collapse")
+                : t("panel.result.expand")
+            }
+          >
             <Button
               type="text"
               size="small"
@@ -545,7 +591,7 @@ function ThemedLayout({
               onClick={() => setRightVisible((v) => !v)}
             />
           </Tooltip>
-          <Tooltip title={`主题：${themeLabel}`}>
+          <Tooltip title={`${t("theme.label")}${themeLabel}`}>
             <Button
               type="text"
               size="small"
@@ -553,7 +599,7 @@ function ThemedLayout({
               onClick={cycleTheme}
             />
           </Tooltip>
-          <Tooltip title="路径设置" placement="bottomRight">
+          <Tooltip title={t("settings.title")} placement="bottomRight">
             <Button
               type="text"
               size="small"
@@ -677,6 +723,8 @@ function ThemedLayout({
         onSaved={() => setStrategyReloadKey((k) => k + 1)}
         globalFontSize={globalFontSize}
         onGlobalFontSizeChange={onGlobalFontSizeChange}
+        language={language}
+        onLanguageChange={onLanguageChange}
       />
     </div>
   );

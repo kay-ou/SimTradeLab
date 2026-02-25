@@ -11,6 +11,7 @@ import {
   ConfigProvider,
 } from "antd";
 import { PlayCircleOutlined, StopOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import { backtestAPI } from "../services/api";
 
@@ -35,6 +36,7 @@ export function RunPanel({
   runningTaskId,
 }: Props) {
   const { token } = theme.useToken();
+  const { t } = useTranslation();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +62,7 @@ export function RunPanel({
       });
       onTaskStarted(task_id, params, Date.now());
     } catch (e: any) {
-      setError(e.response?.data?.detail || "启动失败");
+      setError(e.response?.data?.detail || t("run.error.start"));
     } finally {
       setLoading(false);
     }
@@ -97,7 +99,7 @@ export function RunPanel({
         >
           <Form.Item
             name="start_date"
-            label="开始"
+            label={t("run.startDate")}
             rules={[{ required: true }]}
           >
             <DatePicker
@@ -107,7 +109,7 @@ export function RunPanel({
               }}
             />
           </Form.Item>
-          <Form.Item name="end_date" label="结束" rules={[{ required: true }]}>
+          <Form.Item name="end_date" label={t("run.endDate")} rules={[{ required: true }]}>
             <DatePicker
               disabledDate={(d) => {
                 const start = form.getFieldValue("start_date");
@@ -115,27 +117,27 @@ export function RunPanel({
               }}
             />
           </Form.Item>
-          <Form.Item name="initial_capital" label="本金">
+          <Form.Item name="initial_capital" label={t("run.capital")}>
             <InputNumber min={1000} step={10000} style={{ width: 120 }} />
           </Form.Item>
-          <Form.Item name="frequency" label="频率">
+          <Form.Item name="frequency" label={t("run.frequency")}>
             <Select
               style={{ width: 70 }}
               options={[
-                { value: "1d", label: "日线" },
-                { value: "1m", label: "分钟" },
+                { value: "1d", label: t("run.freq.daily") },
+                { value: "1m", label: t("run.freq.minute") },
               ]}
             />
           </Form.Item>
-          <Form.Item name="benchmark_code" label="基准">
+          <Form.Item name="benchmark_code" label={t("run.benchmark")}>
             <Select
               style={{ width: 120 }}
               options={[
-                { value: "000300.SS", label: "沪深300" },
-                { value: "000905.SS", label: "中证500" },
-                { value: "000852.SS", label: "中证1000" },
-                { value: "399001.SZ", label: "深证成指" },
-                { value: "399006.SZ", label: "创业板指" },
+                { value: "000300.SS", label: t("run.bench.hs300") },
+                { value: "000905.SS", label: t("run.bench.zz500") },
+                { value: "000852.SS", label: t("run.bench.zz1000") },
+                { value: "399001.SZ", label: t("run.bench.sz") },
+                { value: "399006.SZ", label: t("run.bench.cyb") },
               ]}
             />
           </Form.Item>
@@ -148,11 +150,11 @@ export function RunPanel({
                 disabled={!strategyName || !!runningTaskId}
                 onClick={handleRun}
               >
-                运行
+                {t("run.btn.run")}
               </Button>
               {runningTaskId && (
                 <Button danger icon={<StopOutlined />} onClick={handleCancel}>
-                  取消
+                  {t("run.btn.cancel")}
                 </Button>
               )}
             </Space>

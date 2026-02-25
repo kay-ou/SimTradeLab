@@ -6,6 +6,7 @@ import {
   PlayCircleOutlined,
   StopOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { optimizerAPI } from "../services/api";
 
 interface Props {
@@ -24,6 +25,7 @@ export function OptimizerPanel({
   editorFontSize = 13,
 }: Props) {
   const { token } = theme.useToken();
+  const { t } = useTranslation();
   const [source, setSource] = useState("");
   const [saved, setSaved] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -51,10 +53,10 @@ export function OptimizerPanel({
     if (!strategyName) return;
     try {
       await optimizerAPI.saveScript(strategyName, source);
-      message.success("已保存");
+      message.success(t("optimizer.saved"));
       setSaved(true);
     } catch {
-      message.error("保存失败");
+      message.error(t("optimizer.saveFailed"));
     }
   };
 
@@ -66,7 +68,7 @@ export function OptimizerPanel({
         await optimizerAPI.saveScript(strategyName, source);
         setSaved(true);
       } catch {
-        message.error("保存失败，无法启动优化");
+        message.error(t("optimizer.saveBeforeRun"));
         return;
       }
     }
@@ -76,7 +78,7 @@ export function OptimizerPanel({
       const { task_id } = await optimizerAPI.run(strategyName);
       onTaskStarted(task_id);
     } catch (e: any) {
-      setError(e.response?.data?.detail || "启动失败");
+      setError(e.response?.data?.detail || t("optimizer.startFailed"));
       setRunning(false);
     }
   };
@@ -101,7 +103,7 @@ export function OptimizerPanel({
           color: token.colorTextSecondary,
         }}
       >
-        从左侧选择策略
+        {t("optimizer.selectStrategy")}
       </div>
     );
   }
@@ -120,7 +122,7 @@ export function OptimizerPanel({
       >
         <Space>
           <span style={{ fontWeight: 600 }}>optimize_params.py</span>
-          {!saved && <Tag color="orange">未保存</Tag>}
+          {!saved && <Tag color="orange">{t("optimizer.unsaved")}</Tag>}
         </Space>
         <Space>
           <Button
@@ -129,7 +131,7 @@ export function OptimizerPanel({
             onClick={handleSave}
             type={saved ? "default" : "primary"}
           >
-            保存
+            {t("btn.save")}
           </Button>
           {runningTaskId ? (
             <Button
@@ -138,7 +140,7 @@ export function OptimizerPanel({
               icon={<StopOutlined />}
               onClick={handleCancel}
             >
-              取消
+              {t("optimizer.btn.cancel")}
             </Button>
           ) : (
             <Button
@@ -148,7 +150,7 @@ export function OptimizerPanel({
               loading={running}
               onClick={handleRun}
             >
-              运行优化
+              {t("optimizer.btn.run")}
             </Button>
           )}
         </Space>
@@ -166,7 +168,7 @@ export function OptimizerPanel({
         height="100%"
         defaultLanguage="python"
         value={source}
-        loading={loading ? "加载中..." : undefined}
+        loading={loading ? t("optimizer.loading") : undefined}
         theme={isDark ? "vs-dark" : "vs-light"}
         options={{
           fontSize: editorFontSize,

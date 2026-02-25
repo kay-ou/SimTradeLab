@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Input, Popconfirm, Spin, message, theme } from "antd";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { strategiesAPI } from "../services/api";
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 
 export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
   const { token } = theme.useToken();
+  const { t } = useTranslation();
   const [strategies, setStrategies] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -24,7 +26,7 @@ export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
     try {
       setStrategies(await strategiesAPI.list());
     } catch {
-      message.error("加载策略列表失败");
+      message.error(t("strategy.error.load"));
     } finally {
       setLoading(false);
     }
@@ -46,7 +48,7 @@ export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
       setCreating(false);
       await load();
     } catch (e: any) {
-      message.error(e.response?.data?.detail || "创建失败");
+      message.error(e.response?.data?.detail || t("strategy.error.create"));
     }
   };
 
@@ -71,7 +73,7 @@ export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
       if (selected === renamingName) onSelect(trimmed);
       await load();
     } catch (e: any) {
-      message.error(e.response?.data?.detail || "改名失败");
+      message.error(e.response?.data?.detail || t("strategy.error.rename"));
     } finally {
       setRenamingName(null);
     }
@@ -94,7 +96,9 @@ export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
           marginBottom: 8,
         }}
       >
-        <span style={{ fontWeight: 600, fontSize: token.fontSize }}>策略</span>
+        <span style={{ fontWeight: 600, fontSize: token.fontSize }}>
+          {t("strategy.title")}
+        </span>
         <Button
           size="small"
           icon={<PlusOutlined />}
@@ -105,8 +109,8 @@ export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
       {creating && (
         <Input.Search
           size="small"
-          placeholder="策略名称"
-          enterButton="创建"
+          placeholder={t("strategy.namePlaceholder")}
+          enterButton={t("strategy.btn.create")}
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onSearch={handleCreate}
@@ -171,7 +175,7 @@ export function StrategyPanel({ selected, onSelect, reloadKey }: Props) {
                     }}
                   />
                   <Popconfirm
-                    title="确认删除？"
+                    title={t("strategy.confirmDelete")}
                     onConfirm={() => handleDelete(name)}
                   >
                     <Button

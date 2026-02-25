@@ -12,8 +12,10 @@ import {
   Row,
   Col,
   Divider,
+  Select,
 } from "antd";
 import { FolderOpenOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { getBaseURL } from "../services/api";
 
 const { Text } = Typography;
@@ -24,6 +26,8 @@ interface Props {
   onSaved?: () => void;
   globalFontSize: number;
   onGlobalFontSizeChange: (v: number) => void;
+  language: "zh" | "en" | "de";
+  onLanguageChange: (lang: "zh" | "en" | "de") => void;
 }
 
 export function SettingsModal({
@@ -32,7 +36,10 @@ export function SettingsModal({
   onSaved,
   globalFontSize,
   onGlobalFontSizeChange,
+  language,
+  onLanguageChange,
 }: Props) {
+  const { t } = useTranslation();
   const [dataPath, setDataPath] = useState("");
   const [strategiesPath, setStrategiesPath] = useState("");
   const [saving, setSaving] = useState(false);
@@ -87,13 +94,13 @@ export function SettingsModal({
   }
 
   return (
-    <Modal title="设置" open={open} onCancel={onClose} footer={null} width={560}>
+    <Modal title={t("settings.title")} open={open} onCancel={onClose} footer={null} width={560}>
       <Form layout="vertical" style={{ marginTop: 16 }}>
         <Divider orientation="left" style={{ fontSize: 12, margin: "0 0 12px 0" }}>
-          界面
+          {t("settings.section.ui")}
         </Divider>
 
-        <Form.Item label="全局字体大小">
+        <Form.Item label={t("settings.fontSize")}>
           <Row gutter={12} align="middle">
             <Col flex="auto">
               <Slider
@@ -115,16 +122,28 @@ export function SettingsModal({
           </Row>
         </Form.Item>
 
+        <Form.Item label={t("settings.language")}>
+          <Select
+            value={language}
+            onChange={onLanguageChange}
+            style={{ width: 120 }}
+          >
+            <Select.Option value="zh">中文</Select.Option>
+            <Select.Option value="en">English</Select.Option>
+            <Select.Option value="de">Deutsch</Select.Option>
+          </Select>
+        </Form.Item>
+
         <Divider orientation="left" style={{ fontSize: 12, margin: "4px 0 12px 0" }}>
-          路径
+          {t("settings.section.paths")}
         </Divider>
 
-        <Form.Item label="数据目录">
+        <Form.Item label={t("settings.dataDir")}>
           <Space.Compact style={{ width: "100%" }}>
             <Input
               value={dataPath}
               onChange={(e) => setDataPath(e.target.value)}
-              placeholder="选择或输入 data/ 目录路径"
+              placeholder={t("settings.dataDir.placeholder")}
             />
             <Button
               icon={<FolderOpenOutlined />}
@@ -132,17 +151,15 @@ export function SettingsModal({
               disabled={!window.electronAPI}
             />
           </Space.Compact>
-          <Text type="secondary">
-            包含 stocks/、manifest.json 等数据文件的目录
-          </Text>
+          <Text type="secondary">{t("settings.dataDir.help")}</Text>
         </Form.Item>
 
-        <Form.Item label="策略目录">
+        <Form.Item label={t("settings.strategyDir")}>
           <Space.Compact style={{ width: "100%" }}>
             <Input
               value={strategiesPath}
               onChange={(e) => setStrategiesPath(e.target.value)}
-              placeholder="选择或输入 strategies/ 目录路径"
+              placeholder={t("settings.strategyDir.placeholder")}
             />
             <Button
               icon={<FolderOpenOutlined />}
@@ -150,12 +167,12 @@ export function SettingsModal({
               disabled={!window.electronAPI}
             />
           </Space.Compact>
-          <Text type="secondary">包含策略子目录的目录</Text>
+          <Text type="secondary">{t("settings.strategyDir.help")}</Text>
         </Form.Item>
 
         {saved && (
           <Alert
-            message="保存成功，当前会话立即生效"
+            message={t("settings.saveSuccess")}
             type="success"
             showIcon
             style={{ marginBottom: 12 }}
@@ -164,9 +181,9 @@ export function SettingsModal({
 
         <div style={{ textAlign: "right" }}>
           <Space>
-            <Button onClick={onClose}>取消</Button>
+            <Button onClick={onClose}>{t("btn.cancel")}</Button>
             <Button type="primary" loading={saving} onClick={handleSave}>
-              保存
+              {t("btn.save")}
             </Button>
           </Space>
         </div>

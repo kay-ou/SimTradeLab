@@ -16,6 +16,7 @@ import {
 import { DeleteOutlined } from "@ant-design/icons";
 import { theme, ConfigProvider } from "antd";
 import { Resizable } from "react-resizable";
+import { useTranslation } from "react-i18next";
 import "react-resizable/css/styles.css";
 import type { HistoryEntry } from "../services/api";
 const CHART_FONT = { zoom: 9, axis: 10, tooltip: 11 } as const;
@@ -36,6 +37,7 @@ export function ResultPanel({
   selectedHistoryId,
 }: Props) {
   const { token } = theme.useToken();
+  const { t, i18n } = useTranslation();
   const navChartRef = useRef<any>(null);
   const pnlChartRef = useRef<any>(null);
   const tradeAmtChartRef = useRef<any>(null);
@@ -93,12 +95,12 @@ export function ResultPanel({
               fontSize: 12,
             }}
           >
-            运行回测后结果显示在此处
+            {t("result.empty")}
           </div>
         ) : (
           <>
             <Divider style={{ margin: "10px 0", fontSize: 12 }}>
-              回测历史
+              {t("result.history")}
             </Divider>
             <HistoryTable
               history={history}
@@ -248,7 +250,10 @@ export function ResultPanel({
       },
     },
     legend: {
-      data: ["策略净值", metrics.benchmark_name || "基准"],
+      data: [
+        t("result.series.strategyNav"),
+        metrics.benchmark_name || t("result.series.benchmark"),
+      ],
       bottom: 0,
       textStyle: { color: token.colorText },
     },
@@ -263,7 +268,7 @@ export function ResultPanel({
     dataZoom: dataZoomNav,
     series: [
       {
-        name: "策略净值",
+        name: t("result.series.strategyNav"),
         type: "line",
         data: navValues,
         lineStyle: { width: 2, color: "#1677ff" },
@@ -273,7 +278,7 @@ export function ResultPanel({
       ...(bmValues.length > 0
         ? [
             {
-              name: metrics.benchmark_name || "基准",
+              name: metrics.benchmark_name || t("result.series.benchmark"),
               type: "line" as const,
               data: bmValues,
               lineStyle: { width: 1.5, color: "#aaa", type: "dashed" as const },
@@ -283,7 +288,7 @@ export function ResultPanel({
           ]
         : []),
       {
-        name: "买入",
+        name: t("result.series.buy"),
         type: "scatter",
         data: buyPoints,
         symbol: "triangle",
@@ -293,7 +298,7 @@ export function ResultPanel({
         tooltip: { show: false },
       },
       {
-        name: "卖出",
+        name: t("result.series.sell"),
         type: "scatter",
         data: sellPoints,
         symbol: "triangle",
@@ -306,7 +311,7 @@ export function ResultPanel({
     ],
   };
 
-  const isChinese = navigator.language.startsWith("zh");
+  const isChinese = i18n.language === "zh";
   const fmtMoney = (v: number) =>
     isChinese && v >= 1e4
       ? `${(v / 1e4).toFixed(2)}万`
@@ -344,7 +349,7 @@ export function ResultPanel({
     dataZoom: dataZoomNoSlider,
     series: [
       {
-        name: "每日盈亏",
+        name: t("result.series.pnl"),
         type: "bar",
         data: (series.daily_pnl as number[]).map((v, i) => [dates[i], v]),
         itemStyle: {
@@ -364,7 +369,7 @@ export function ResultPanel({
     dataZoom: dataZoomNoSlider,
     series: [
       {
-        name: "买入金额",
+        name: t("result.series.buyAmt"),
         type: "bar",
         data: (series.daily_buy_amount as number[]).map((v, i) => [
           dates[i],
@@ -373,7 +378,7 @@ export function ResultPanel({
         itemStyle: { color: "#ef5350" },
       },
       {
-        name: "卖出金额",
+        name: t("result.series.sellAmt"),
         type: "bar",
         data: (series.daily_sell_amount as number[]).map((v, i) => [
           dates[i],
@@ -393,7 +398,7 @@ export function ResultPanel({
     dataZoom: dataZoomNoSlider,
     series: [
       {
-        name: "持仓市值",
+        name: t("result.series.posVal"),
         type: "line",
         data: (series.daily_positions_value as number[]).map((v, i) => [
           dates[i],
@@ -423,29 +428,41 @@ export function ResultPanel({
 
   const statsCards = [
     {
-      title: "总收益",
+      title: t("result.metric.totalReturn"),
       value: fmt(metrics.total_return, true),
       color: metrics.total_return >= 0 ? "#cf1322" : "#3f8600",
     },
-    { title: "年化收益", value: fmt(metrics.annual_return, true) },
     {
-      title: "最大回撤",
+      title: t("result.metric.annualReturn"),
+      value: fmt(metrics.annual_return, true),
+    },
+    {
+      title: t("result.metric.maxDrawdown"),
       value: fmt(metrics.max_drawdown, true),
       color: "#cf1322",
     },
-    { title: "夏普比率", value: fmt(metrics.sharpe_ratio) },
+    { title: t("result.metric.sharpe"), value: fmt(metrics.sharpe_ratio) },
     {
-      title: "Alpha",
+      title: t("result.metric.alpha"),
       value: fmt(metrics.alpha ?? 0, true),
       color: (metrics.alpha ?? 0) >= 0 ? "#cf1322" : "#3f8600",
     },
-    { title: "Beta", value: fmt(metrics.beta ?? 0) },
-    { title: "胜率", value: fmt(metrics.win_rate, true) },
-    { title: "超额收益", value: fmt(metrics.excess_return, true) },
-    { title: "盈利天数", value: metrics.win_count ?? 0 },
-    { title: "亏损天数", value: metrics.lose_count ?? 0 },
-    { title: "盈亏比", value: fmt(metrics.profit_loss_ratio ?? 0) },
-    { title: "信息比率", value: fmt(metrics.information_ratio ?? 0) },
+    { title: t("result.metric.beta"), value: fmt(metrics.beta ?? 0) },
+    { title: t("result.metric.winRate"), value: fmt(metrics.win_rate, true) },
+    {
+      title: t("result.metric.excess"),
+      value: fmt(metrics.excess_return, true),
+    },
+    { title: t("result.metric.winDays"), value: metrics.win_count ?? 0 },
+    { title: t("result.metric.loseDays"), value: metrics.lose_count ?? 0 },
+    {
+      title: t("result.metric.plRatio"),
+      value: fmt(metrics.profit_loss_ratio ?? 0),
+    },
+    {
+      title: t("result.metric.infoRatio"),
+      value: fmt(metrics.information_ratio ?? 0),
+    },
   ];
 
   return (
@@ -468,7 +485,9 @@ export function ResultPanel({
         ))}
       </Row>
       <Divider style={{ margin: "10px 0", fontSize: 12 }}>
-        净值 vs {metrics.benchmark_name || "基准"}
+        {t("result.chart.nav", {
+          benchmark: metrics.benchmark_name || t("result.series.benchmark"),
+        })}
       </Divider>
       <ReactECharts
         ref={navChartRef}
@@ -476,21 +495,27 @@ export function ResultPanel({
         style={{ height: 220 }}
         onChartReady={handleChartReady}
       />
-      <Divider style={{ margin: "10px 0", fontSize: 12 }}>每日盈亏</Divider>
+      <Divider style={{ margin: "10px 0", fontSize: 12 }}>
+        {t("result.chart.pnl")}
+      </Divider>
       <ReactECharts
         ref={pnlChartRef}
         option={pnlOption}
         style={{ height: 150 }}
         onChartReady={handleChartReady}
       />
-      <Divider style={{ margin: "10px 0", fontSize: 12 }}>每日买卖金额</Divider>
+      <Divider style={{ margin: "10px 0", fontSize: 12 }}>
+        {t("result.chart.tradeAmt")}
+      </Divider>
       <ReactECharts
         ref={tradeAmtChartRef}
         option={tradeAmtOption}
         style={{ height: 150 }}
         onChartReady={handleChartReady}
       />
-      <Divider style={{ margin: "10px 0", fontSize: 12 }}>每日持仓市值</Divider>
+      <Divider style={{ margin: "10px 0", fontSize: 12 }}>
+        {t("result.chart.posVal")}
+      </Divider>
       <ReactECharts
         ref={posValChartRef}
         option={posValOption}
@@ -500,7 +525,9 @@ export function ResultPanel({
 
       {history.length > 0 && (
         <>
-          <Divider style={{ margin: "10px 0", fontSize: 12 }}>回测历史</Divider>
+          <Divider style={{ margin: "10px 0", fontSize: 12 }}>
+            {t("result.history")}
+          </Divider>
           <HistoryTable
             history={history}
             onDelete={onDeleteHistory}
@@ -566,6 +593,7 @@ function HistoryTable({
   selectedId?: string | null;
 }) {
   const { token } = theme.useToken();
+  const { t } = useTranslation();
 
   const [colWidths, setColWidths] = useState<Record<string, number>>({
     runAt: 70,
@@ -589,7 +617,7 @@ function HistoryTable({
 
   const columns = [
     {
-      title: "时间",
+      title: t("result.table.time"),
       dataIndex: "runAt",
       key: "runAt",
       width: colWidths.runAt,
@@ -607,7 +635,7 @@ function HistoryTable({
         }),
     },
     {
-      title: "策略",
+      title: t("result.table.strategy"),
       dataIndex: "strategy",
       key: "strategy",
       width: colWidths.strategy,
@@ -620,7 +648,7 @@ function HistoryTable({
       }),
     },
     {
-      title: "区间",
+      title: t("result.table.range"),
       key: "range",
       width: colWidths.range,
       onHeaderCell: (col: any) => ({
@@ -630,7 +658,7 @@ function HistoryTable({
       render: (_: any, r: HistoryEntry) => `${r.startDate} ~ ${r.endDate}`,
     },
     {
-      title: "总收益",
+      title: t("result.table.return"),
       key: "ret",
       width: colWidths.ret,
       sorter: (a: HistoryEntry, b: HistoryEntry) =>
@@ -651,7 +679,7 @@ function HistoryTable({
       },
     },
     {
-      title: "年化",
+      title: t("result.table.annual"),
       key: "ann",
       width: colWidths.ann,
       sorter: (a: HistoryEntry, b: HistoryEntry) =>
@@ -663,7 +691,7 @@ function HistoryTable({
       render: (_: any, r: HistoryEntry) => pct(r.metrics.annual_return ?? 0),
     },
     {
-      title: "夏普",
+      title: t("result.table.sharpe"),
       key: "sharpe",
       width: colWidths.sharpe,
       sorter: (a: HistoryEntry, b: HistoryEntry) =>
@@ -675,7 +703,7 @@ function HistoryTable({
       render: (_: any, r: HistoryEntry) => num(r.metrics.sharpe_ratio ?? 0),
     },
     {
-      title: "回撤",
+      title: t("result.table.drawdown"),
       key: "dd",
       width: colWidths.dd,
       sorter: (a: HistoryEntry, b: HistoryEntry) =>
@@ -691,7 +719,7 @@ function HistoryTable({
       ),
     },
     {
-      title: "耗时",
+      title: t("result.table.duration"),
       key: "dur",
       width: colWidths.dur,
       sorter: (a: HistoryEntry, b: HistoryEntry) => a.duration - b.duration,
@@ -710,7 +738,10 @@ function HistoryTable({
         onResize: handleResize("del"),
       }),
       render: (_: any, r: HistoryEntry) => (
-        <Popconfirm title="删除此记录？" onConfirm={() => onDelete(r.id)}>
+        <Popconfirm
+          title={t("result.confirmDelete")}
+          onConfirm={() => onDelete(r.id)}
+        >
           <Button type="text" size="small" danger icon={<DeleteOutlined />} />
         </Popconfirm>
       ),
