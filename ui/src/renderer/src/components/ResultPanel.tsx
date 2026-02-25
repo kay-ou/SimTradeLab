@@ -40,6 +40,7 @@ export function ResultPanel({
   const pnlChartRef = useRef<any>(null);
   const tradeAmtChartRef = useRef<any>(null);
   const posValChartRef = useRef<any>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const ZOOM_GROUP = "result-charts-zoom";
 
@@ -62,6 +63,21 @@ export function ResultPanel({
       echarts.disconnect(ZOOM_GROUP);
     };
   }, [result]);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (e.ctrlKey) return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === "CANVAS") {
+        e.stopPropagation();
+        el.scrollTop += e.deltaY;
+      }
+    };
+    el.addEventListener("wheel", handler, { capture: true, passive: false });
+    return () => el.removeEventListener("wheel", handler, { capture: true });
+  }, []);
 
   if (!result) {
     return (
@@ -433,8 +449,10 @@ export function ResultPanel({
   ];
 
   return (
-    <div style={{ height: "100%", overflowY: "auto", padding: 12 }}>
-      <Divider style={{ margin: "0 0 8px 0", fontSize: 12 }}>绩效指标</Divider>
+    <div
+      ref={scrollContainerRef}
+      style={{ height: "100%", overflowY: "auto", padding: 12 }}
+    >
       <Row gutter={[6, 6]}>
         {statsCards.map(({ title, value, color }) => (
           <Col span={6} key={title}>

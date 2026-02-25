@@ -183,10 +183,18 @@ export default function App() {
   const [editorFontSize, setEditorFontSize] = useState(() =>
     parseInt(localStorage.getItem("editorFontSize") ?? "13"),
   );
+  const [globalFontSize, setGlobalFontSize] = useState(() =>
+    parseInt(localStorage.getItem("globalFontSize") ?? "13"),
+  );
 
   const handleEditorFontSizeChange = (v: number) => {
     setEditorFontSize(v);
     localStorage.setItem("editorFontSize", String(v));
+  };
+
+  const handleGlobalFontSizeChange = (v: number) => {
+    setGlobalFontSize(v);
+    localStorage.setItem("globalFontSize", String(v));
   };
 
   const [leftVisible, setLeftVisible] = useState(true);
@@ -318,7 +326,7 @@ export default function App() {
       locale={zhCN}
       theme={{
         algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
-        token: { fontSize: 13 },
+        token: { fontSize: globalFontSize },
       }}
     >
       <ThemedLayout
@@ -357,6 +365,8 @@ export default function App() {
         themeLabel={themeLabel}
         editorFontSize={editorFontSize}
         onEditorFontSizeChange={handleEditorFontSizeChange}
+        globalFontSize={globalFontSize}
+        onGlobalFontSizeChange={handleGlobalFontSizeChange}
       />
     </ConfigProvider>
   );
@@ -398,6 +408,8 @@ interface ThemedLayoutProps {
   themeLabel: string;
   editorFontSize: number;
   onEditorFontSizeChange: (v: number) => void;
+  globalFontSize: number;
+  onGlobalFontSizeChange: (v: number) => void;
 }
 
 function ThemedLayout({
@@ -435,6 +447,8 @@ function ThemedLayout({
   themeLabel,
   editorFontSize,
   onEditorFontSizeChange,
+  globalFontSize,
+  onGlobalFontSizeChange,
 }: ThemedLayoutProps) {
   const { token } = theme.useToken();
   const [leftPanelsCollapsed, setLeftPanelsCollapsed] = useState(false);
@@ -661,6 +675,8 @@ function ThemedLayout({
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         onSaved={() => setStrategyReloadKey((k) => k + 1)}
+        globalFontSize={globalFontSize}
+        onGlobalFontSizeChange={onGlobalFontSizeChange}
       />
     </div>
   );

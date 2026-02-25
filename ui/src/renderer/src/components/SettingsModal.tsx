@@ -1,5 +1,18 @@
 import { useState, useEffect } from "react";
-import { Modal, Form, Input, Button, Space, Typography, Alert } from "antd";
+import {
+  Modal,
+  Form,
+  Input,
+  Button,
+  Space,
+  Typography,
+  Alert,
+  Slider,
+  InputNumber,
+  Row,
+  Col,
+  Divider,
+} from "antd";
 import { FolderOpenOutlined } from "@ant-design/icons";
 import { getBaseURL } from "../services/api";
 
@@ -9,9 +22,17 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onSaved?: () => void;
+  globalFontSize: number;
+  onGlobalFontSizeChange: (v: number) => void;
 }
 
-export function SettingsModal({ open, onClose, onSaved }: Props) {
+export function SettingsModal({
+  open,
+  onClose,
+  onSaved,
+  globalFontSize,
+  onGlobalFontSizeChange,
+}: Props) {
   const [dataPath, setDataPath] = useState("");
   const [strategiesPath, setStrategiesPath] = useState("");
   const [saving, setSaving] = useState(false);
@@ -66,14 +87,38 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
   }
 
   return (
-    <Modal
-      title="路径设置"
-      open={open}
-      onCancel={onClose}
-      footer={null}
-      width={560}
-    >
+    <Modal title="设置" open={open} onCancel={onClose} footer={null} width={560}>
       <Form layout="vertical" style={{ marginTop: 16 }}>
+        <Divider orientation="left" style={{ fontSize: 12, margin: "0 0 12px 0" }}>
+          界面
+        </Divider>
+
+        <Form.Item label="全局字体大小">
+          <Row gutter={12} align="middle">
+            <Col flex="auto">
+              <Slider
+                min={12}
+                max={18}
+                value={globalFontSize}
+                onChange={onGlobalFontSizeChange}
+              />
+            </Col>
+            <Col>
+              <InputNumber
+                min={12}
+                max={18}
+                value={globalFontSize}
+                onChange={(v) => v != null && onGlobalFontSizeChange(v)}
+                style={{ width: 60 }}
+              />
+            </Col>
+          </Row>
+        </Form.Item>
+
+        <Divider orientation="left" style={{ fontSize: 12, margin: "4px 0 12px 0" }}>
+          路径
+        </Divider>
+
         <Form.Item label="数据目录">
           <Space.Compact style={{ width: "100%" }}>
             <Input
@@ -105,9 +150,7 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
               disabled={!window.electronAPI}
             />
           </Space.Compact>
-          <Text type="secondary">
-            包含策略子目录的目录
-          </Text>
+          <Text type="secondary">包含策略子目录的目录</Text>
         </Form.Item>
 
         {saved && (
