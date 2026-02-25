@@ -627,7 +627,7 @@ function HistoryTable({
         onResize: handleResize("runAt"),
       }),
       render: (v: number) =>
-        new Date(v).toLocaleString(i18n.language, {
+        new Date(v).toLocaleString(localStorage.getItem('language') ?? 'zh', {
           month: "2-digit",
           day: "2-digit",
           hour: "2-digit",
