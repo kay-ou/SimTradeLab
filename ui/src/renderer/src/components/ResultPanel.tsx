@@ -125,7 +125,7 @@ export function ResultPanel({
   const pnlChartRef = useRef<any>(null);
   const tradeAmtChartRef = useRef<any>(null);
   const posValChartRef = useRef<any>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const ZOOM_GROUP = "result-charts-zoom";
 
@@ -149,24 +149,43 @@ export function ResultPanel({
     };
   }, [result]);
 
+  // 拦截容器区域内的非 ctrl 滚轮：在 window capture 阶段 stopImmediatePropagation，
+  // 使 ECharts RoamController 完全看不到该事件，手动滚动容器。
+  // ctrl+滚轮透传给 ECharts 实现图表缩放。
   useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
     const handler = (e: WheelEvent) => {
       if (e.ctrlKey) return;
-      const target = e.target as HTMLElement;
-      if (target.tagName === "CANVAS") {
-        e.stopPropagation();
-        el.scrollTop += e.deltaY;
-      }
+      const el = containerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (
+        e.clientX < rect.left ||
+        e.clientX > rect.right ||
+        e.clientY < rect.top ||
+        e.clientY > rect.bottom
+      )
+        return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      let delta = e.deltaY;
+      if (e.deltaMode === 1) delta *= 40;
+      else if (e.deltaMode === 2) delta *= el.clientHeight;
+      el.scrollTop += delta;
     };
-    el.addEventListener("wheel", handler, { capture: true, passive: false });
-    return () => el.removeEventListener("wheel", handler, { capture: true });
+    window.addEventListener("wheel", handler, {
+      capture: true,
+      passive: false,
+    });
+    return () =>
+      window.removeEventListener("wheel", handler, { capture: true });
   }, []);
 
   if (!result) {
     return (
-      <div style={{ height: "100%", overflowY: "auto", padding: 12 }}>
+      <div
+        ref={containerRef}
+        style={{ height: "100%", overflowY: "auto", padding: 12 }}
+      >
         {history.length === 0 ? (
           <div
             style={{
@@ -265,6 +284,7 @@ export function ResultPanel({
       filterMode: "none",
       group: "zoomGroup",
       zoomOnMouseWheel: "ctrl",
+      moveOnMouseWheel: false,
     },
     {
       type: "slider",
@@ -284,6 +304,7 @@ export function ResultPanel({
       filterMode: "none",
       group: "zoomGroup",
       zoomOnMouseWheel: "ctrl",
+      moveOnMouseWheel: false,
     },
     {
       type: "slider",
@@ -554,7 +575,7 @@ export function ResultPanel({
 
   return (
     <div
-      ref={scrollContainerRef}
+      ref={containerRef}
       style={{ height: "100%", overflowY: "auto", padding: 12 }}
     >
       <Row gutter={[6, 6]}>
