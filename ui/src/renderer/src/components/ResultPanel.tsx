@@ -19,6 +19,89 @@ import { Resizable } from "react-resizable";
 import { useTranslation } from "react-i18next";
 import "react-resizable/css/styles.css";
 import type { HistoryEntry } from "../services/api";
+
+// 注册德语 locale（控制时间轴月份显示）
+echarts.registerLocale("DE", {
+  time: {
+    month: [
+      "Januar",
+      "Februar",
+      "März",
+      "April",
+      "Mai",
+      "Juni",
+      "Juli",
+      "August",
+      "September",
+      "Oktober",
+      "November",
+      "Dezember",
+    ],
+    monthAbbr: [
+      "Jan",
+      "Feb",
+      "Mär",
+      "Apr",
+      "Mai",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Okt",
+      "Nov",
+      "Dez",
+    ],
+    dayOfWeek: [
+      "Sonntag",
+      "Montag",
+      "Dienstag",
+      "Mittwoch",
+      "Donnerstag",
+      "Freitag",
+      "Samstag",
+    ],
+    dayOfWeekAbbr: ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"],
+  },
+  legend: { selector: { all: "Alle", inverse: "Invertieren" } },
+  toolbox: {
+    brush: {
+      title: {
+        rect: "",
+        polygon: "",
+        lineX: "",
+        lineY: "",
+        keep: "",
+        clear: "",
+      },
+    },
+    dataView: { title: "", lang: ["", "", ""] },
+    dataZoom: { title: { zoom: "", back: "" } },
+    magicType: { title: { line: "", bar: "", stack: "", tiled: "" } },
+    restore: { title: "" },
+    saveAsImage: { title: "", lang: [""] },
+  },
+  series: { typeNames: {} as any },
+  aria: {
+    general: { withTitle: "", withoutTitle: "" },
+    series: {
+      single: { prefix: "", withName: "", withoutName: "" },
+      multiple: {
+        prefix: "",
+        withName: "",
+        withoutName: "",
+        separator: { middle: "", end: "" },
+      },
+    },
+    data: {
+      allData: "",
+      partialData: "",
+      withName: "",
+      withoutName: "",
+      separator: { middle: "", end: "" },
+    },
+  },
+} as any);
+
 const CHART_FONT = { zoom: 9, axis: 10, tooltip: 11 } as const;
 
 interface Props {
@@ -115,6 +198,10 @@ export function ResultPanel({
   }
 
   const { metrics, series } = result;
+
+  const echartsLocale =
+    i18n.language === "de" ? "DE" : i18n.language === "en" ? "EN" : "ZH";
+  const echartsOpts = { locale: echartsLocale };
 
   // 日期 → 时间戳（ECharts time axis）
   const toTs = (s: string) => {
@@ -492,6 +579,7 @@ export function ResultPanel({
       <ReactECharts
         ref={navChartRef}
         option={navOption}
+        opts={echartsOpts}
         style={{ height: 220 }}
         onChartReady={handleChartReady}
       />
@@ -501,6 +589,7 @@ export function ResultPanel({
       <ReactECharts
         ref={pnlChartRef}
         option={pnlOption}
+        opts={echartsOpts}
         style={{ height: 150 }}
         onChartReady={handleChartReady}
       />
@@ -510,6 +599,7 @@ export function ResultPanel({
       <ReactECharts
         ref={tradeAmtChartRef}
         option={tradeAmtOption}
+        opts={echartsOpts}
         style={{ height: 150 }}
         onChartReady={handleChartReady}
       />
@@ -519,6 +609,7 @@ export function ResultPanel({
       <ReactECharts
         ref={posValChartRef}
         option={posValOption}
+        opts={echartsOpts}
         style={{ height: 150 }}
         onChartReady={handleChartReady}
       />
@@ -593,7 +684,7 @@ function HistoryTable({
   selectedId?: string | null;
 }) {
   const { token } = theme.useToken();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [colWidths, setColWidths] = useState<Record<string, number>>({
     runAt: 70,
@@ -627,12 +718,19 @@ function HistoryTable({
         onResize: handleResize("runAt"),
       }),
       render: (v: number) =>
-        new Date(v).toLocaleString(localStorage.getItem('language') ?? 'zh', {
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        new Date(v).toLocaleString(
+          i18n.language === "zh"
+            ? "zh-CN"
+            : i18n.language === "de"
+              ? "de-DE"
+              : "en-US",
+          {
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          },
+        ),
     },
     {
       title: t("result.table.strategy"),

@@ -42,11 +42,15 @@ export function SettingsModal({
   const { t } = useTranslation();
   const [dataPath, setDataPath] = useState("");
   const [strategiesPath, setStrategiesPath] = useState("");
+  const [localFontSize, setLocalFontSize] = useState(globalFontSize);
+  const [localLanguage, setLocalLanguage] = useState(language);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    setLocalFontSize(globalFontSize);
+    setLocalLanguage(language);
     if (window.electronAPI) {
       window.electronAPI.getConfig().then((cfg) => {
         setDataPath(cfg.dataPath ?? "");
@@ -87,6 +91,8 @@ export function SettingsModal({
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+      onGlobalFontSizeChange(localFontSize);
+      onLanguageChange(localLanguage);
       onSaved?.();
     } finally {
       setSaving(false);
@@ -94,9 +100,18 @@ export function SettingsModal({
   }
 
   return (
-    <Modal title={t("settings.title")} open={open} onCancel={onClose} footer={null} width={560}>
+    <Modal
+      title={t("settings.title")}
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      width={560}
+    >
       <Form layout="vertical" style={{ marginTop: 16 }}>
-        <Divider orientation="left" style={{ fontSize: 12, margin: "0 0 12px 0" }}>
+        <Divider
+          orientation="left"
+          style={{ fontSize: 12, margin: "0 0 12px 0" }}
+        >
           {t("settings.section.ui")}
         </Divider>
 
@@ -106,16 +121,16 @@ export function SettingsModal({
               <Slider
                 min={12}
                 max={18}
-                value={globalFontSize}
-                onChange={onGlobalFontSizeChange}
+                value={localFontSize}
+                onChange={setLocalFontSize}
               />
             </Col>
             <Col>
               <InputNumber
                 min={12}
                 max={18}
-                value={globalFontSize}
-                onChange={(v) => v != null && onGlobalFontSizeChange(v)}
+                value={localFontSize}
+                onChange={(v) => v != null && setLocalFontSize(v)}
                 style={{ width: 60 }}
               />
             </Col>
@@ -124,8 +139,8 @@ export function SettingsModal({
 
         <Form.Item label={t("settings.language")}>
           <Select
-            value={language}
-            onChange={onLanguageChange}
+            value={localLanguage}
+            onChange={setLocalLanguage}
             style={{ width: 120 }}
           >
             <Select.Option value="zh">中文</Select.Option>
@@ -134,7 +149,10 @@ export function SettingsModal({
           </Select>
         </Form.Item>
 
-        <Divider orientation="left" style={{ fontSize: 12, margin: "4px 0 12px 0" }}>
+        <Divider
+          orientation="left"
+          style={{ fontSize: 12, margin: "4px 0 12px 0" }}
+        >
           {t("settings.section.paths")}
         </Divider>
 
