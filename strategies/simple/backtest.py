@@ -32,10 +32,9 @@ def initialize(context):
     log.info("=" * 60)
     log.info("简单双均线测试策略")
     log.info("=" * 60)
-    log.info(f"短期均线: {context.short_window} 日")
-    log.info(f"长期均线: {context.long_window} 日")
-    log.info(f"最大持仓: {context.max_stocks} 只")
-    log.info(f"测试股票: {context.test_stocks}")
+    log.info("短期均线: %d 日", context.short_window)
+    log.info("长期均线: %d 日", context.long_window)
+    log.info("最大持仓: %d 只", context.max_stocks)
     log.info("=" * 60)
 
 
@@ -60,38 +59,32 @@ def handle_data(context, data):
             'close',
             [stock],
             fq=None,
-            is_dict=True
         )
 
-        if stock not in hist or len(hist[stock]) < context.long_window:
+        if stock not in hist.columns or hist[stock].count() < context.long_window:
             continue
 
-        prices = hist[stock]
+        prices = hist[stock].dropna()
 
         # 计算均线
-        short_ma = sum(prices[-context.short_window:]) / context.short_window
-        long_ma = sum(prices[-context.long_window:]) / context.long_window
+        short_ma = prices.iloc[-context.short_window:].mean()
+        long_ma = prices.iloc[-context.long_window:].mean()
 
         # 金叉：买入信号
         if short_ma > long_ma and stock not in current_stocks:
             if len(current_stocks) < context.max_stocks:
-                # 等权重买入
                 target_value = context.portfolio.portfolio_value / context.max_stocks
                 order_value(stock, target_value)
-                log.info(f"[买入信号] {stock} 短期MA={short_ma:.2f} > 长期MA={long_ma:.2f}")
 
         # 死叉：卖出信号
         elif short_ma < long_ma and stock in current_stocks:
             order_target(stock, 0)
-            log.info(f"[卖出信号] {stock} 短期MA={short_ma:.2f} < 长期MA={long_ma:.2f}")
 
 
 def after_trading_end(context, data):
     """盘后处理"""
-    # 输出每日持仓情况
     positions = context.portfolio.positions
     position_count = sum(1 for pos in positions.values() if pos.amount > 0)
 
-    log.info(f"日终总资产: {context.portfolio.portfolio_value:.2f} | "
-             f"持仓数: {position_count} | "
-             f"现金: {context.portfolio.cash:.2f}")
+    log.info("日终总资产: %.2f | 持仓数: %d | 现金: %.2f",
+             context.portfolio.portfolio_value, position_count, context.portfolio.cash)

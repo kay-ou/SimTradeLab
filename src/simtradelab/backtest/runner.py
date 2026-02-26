@@ -40,6 +40,7 @@ class BacktestRunner:
 
         # 数据容器（延迟加载）
         self._data_loaded = False
+        self._cancel_event: object = None
         self.stock_data_dict = None
         self.stock_data_dict_1m = None
         self.valuation_dict = None
@@ -112,6 +113,9 @@ class BacktestRunner:
             # 加载数据
             benchmark_df = self._load_data(required_data, config.frequency, config.data_path)
 
+            if self._cancel_event and self._cancel_event.is_set():
+                return {}
+
             # 初始化日志
             self._setup_logging(config)
             log = logging.getLogger('backtest')
@@ -131,7 +135,10 @@ class BacktestRunner:
 
             # 初始化回测组件
             context, api = self._initialize_context(config, config.start_date, log)
-            stats_collector = StatsCollector()
+            name_map: dict[str, str] = {}
+            if self.stock_metadata is not None and not self.stock_metadata.empty and "stock_name" in self.stock_metadata.columns:
+                name_map = self.stock_metadata["stock_name"].to_dict()
+            stats_collector = StatsCollector(name_map=name_map)
 
             # 创建策略执行引擎
             engine = StrategyExecutionEngine(
@@ -140,7 +147,8 @@ class BacktestRunner:
                 stats_collector=stats_collector,
                 log=log,
                 frequency=config.frequency,
-                sandbox=config.sandbox
+                sandbox=config.sandbox,
+                cancel_event=self._cancel_event,
             )
 
             # 加载策略
@@ -156,13 +164,12 @@ class BacktestRunner:
                 return {}
 
             # 生成报告
-            return self._generate_reports(
+            return self._generate_report(
                 stats_collector.stats,
                 config,
                 benchmark_df,
                 stats_collector.stats.positions_count,
                 context,
-                log
             )
 
         finally:
@@ -331,29 +338,30 @@ class BacktestRunner:
 
         return success
 
-    def _generate_reports(
+    def _generate_report(
         self,
         stats: BacktestStats,
         config: BacktestConfig,
         benchmark_df: pd.DataFrame,
-        positions_count,
+        positions_count: list[int],
         context,
-        log
     ) -> dict:
-        """生成回测报告和图表
+        """生成回测报告
 
         Args:
-            stats: 统计数据
+            stats: 回测统计数据
             config: 回测配置
-            benchmark_df: 基准数据（默认用于创建日期范围）
+            benchmark_df: 基准数据DataFrame
             positions_count: 持仓数量数组
             context: 上下文对象（用于获取用户设置的benchmark）
 
         Returns:
             回测报告字典
         """
-        # 获取用户设置的benchmark，如果未设置则使用默认的000300.SS
-        benchmark_code = context.benchmark if context.benchmark else '000300.SS'
+        log = logging.getLogger('backtest')
+
+        # 优先使用配置中的benchmark_code，如果未设置则从context获取
+        benchmark_code = getattr(config, 'benchmark_code', None) or context.benchmark or '000300.SS'
 
         # 根据benchmark_code获取对应的基准数据
         # 优先从benchmark_data查找（指数），然后从stock_data_dict查找（普通股票）
@@ -399,11 +407,57 @@ class BacktestRunner:
         if config.enable_logging:
             print(f"\n日志已保存至: {self._log_filename}")
 
+        report["_stats"] = stats
+        if config.enable_charts and hasattr(self, '_chart_filename'):
+            report["_chart_path"] = self._chart_filename
+
+        # 基准净值序列（对齐到策略交易日，归一化到1.0起点）
+        trade_dates_set = set()
+        for d in stats.trade_dates:
+            if hasattr(d, 'date'):
+                trade_dates_set.add(str(d.date()))
+            elif hasattr(d, 'strftime'):
+                trade_dates_set.add(str(d.strftime('%Y-%m-%d')))
+            else:
+                trade_dates_set.add(str(d))
+        
+        # 确保 actual_benchmark_df 存在且不为空
+        if actual_benchmark_df is not None and not actual_benchmark_df.empty:
+            # 筛选基准数据的日期范围
+            bm_slice = actual_benchmark_df[
+                (actual_benchmark_df.index >= config.start_date) &
+                (actual_benchmark_df.index <= config.end_date)
+            ]
+            
+            # 进一步筛选到策略的交易日
+            def get_date_key(d):
+                if hasattr(d, 'date'):
+                    return str(d.date())
+                elif hasattr(d, 'strftime'):
+                    return str(d.strftime('%Y-%m-%d'))
+                else:
+                    return str(d)
+            
+            bm_slice = bm_slice[
+                bm_slice.index.map(get_date_key).isin(trade_dates_set)
+            ]
+            
+            if len(bm_slice) > 0:
+                bm_initial = bm_slice['close'].iloc[0]
+                if bm_initial > 0:
+                    report["_benchmark_nav"] = (bm_slice['close'] / bm_initial).tolist()
+                else:
+                    report["_benchmark_nav"] = []
+            else:
+                report["_benchmark_nav"] = []
+        else:
+            report["_benchmark_nav"] = []
+
         return report
 
     def _cleanup(self):
         """清理资源"""
-        print("\n数据保持常驻内存，下次在jupyter notebook中运行无需重新加载")
+        pass
 
     def _signal_handler(self, sig, frame):
         """处理Ctrl+C信号"""

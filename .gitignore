@@ -64,13 +64,14 @@ reports/
 # Logs
 *.log
 logs/
+backtest*.json
 
 *.png
 !docs/sponsor/*.png
-*.log
 *.gz
 CLAUDE.md
 GEMINI.md
 .pre-commit-config.yaml
 strategies/*/optimization/results
 data*/
+.claude
