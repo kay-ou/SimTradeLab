@@ -12,6 +12,7 @@
 """
 
 
+import os
 from pathlib import Path
 
 
@@ -55,11 +56,17 @@ def get_project_root() -> Path:
 
 def get_data_path() -> Path:
     """获取数据目录路径"""
+    env = os.environ.get('SIMTRADELAB_DATA_PATH')
+    if env:
+        return Path(env)
     return get_project_root() / 'data'
 
 
 def get_strategies_path() -> Path:
     """获取策略目录路径"""
+    env = os.environ.get('SIMTRADELAB_STRATEGIES_PATH')
+    if env:
+        return Path(env)
     return get_project_root() / 'strategies'
 
 

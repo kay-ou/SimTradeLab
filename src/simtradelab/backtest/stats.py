@@ -438,7 +438,7 @@ def generate_backtest_charts(backtest_stats: BacktestStats, start_date, end_date
     import matplotlib.dates as mdates
 
     # 设置字体 - 使用系统可用字体
-    plt.rcParams['font.sans-serif'] = ['WenQuanYi Micro Hei', 'Ubuntu', 'DejaVu Sans']
+    plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'WenQuanYi Micro Hei', 'PingFang SC', 'Hiragino Sans GB', 'Ubuntu', 'DejaVu Sans']
     plt.rcParams['axes.unicode_minus'] = False
 
     # 验证并提取数据

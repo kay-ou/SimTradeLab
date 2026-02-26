@@ -45,6 +45,9 @@ class BacktestConfig(BaseModel):
     # 回测频率配置
     frequency: str = Field(default='1d', description="回测频率: '1d'日线, '1m'分钟线")
 
+    # 基准配置
+    benchmark_code: str = Field(default='000300.SS', description="基准代码")
+
     # 性能优化配置
     enable_multiprocessing: bool = True
     num_workers: Optional[int] = Field(default=None, ge=1, description="多进程worker数量")
