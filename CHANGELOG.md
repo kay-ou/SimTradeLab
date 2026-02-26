@@ -5,6 +5,50 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
 项目遵循 [语义化版本](https://semver.org/spec/v2.0.0.html) 规范。
 
+## [2.5.0] - 2026-02-26
+
+### ✨ 新增功能
+
+- **FastAPI Server** - 新增 `simtradelab[server]` 可选依赖，内置完整 REST API + WebSocket 服务，可作为后端供任意 UI 接入
+  - `POST /backtest/run` — 异步提交回测任务
+  - `GET /backtest/{id}/status` — 轮询任务状态与进度
+  - `GET /backtest/{id}/result` — 获取指标和时序数据
+  - `WS /backtest/{id}/logs` — 实时日志流
+  - `POST /backtest/{id}/cancel` — 取消运行中的任务
+  - `GET/PUT /settings` — 数据路径动态配置
+  - `GET/POST/PUT/PATCH/DELETE /strategies/{name}` — 策略 CRUD
+  - `GET/PUT /optimizer/{name}/script` + `POST /optimizer/{name}/run` — 参数优化
+  - `GET /history` / `GET /history/detail` / `DELETE /history` — 回测历史管理
+  - `GET /editor/completions` — PTrade API 智能补全元数据
+
+- **CLI 启动命令** — `simtradelab --host 0.0.0.0 --port 8000 [--reload]`
+
+### 🔧 改进
+
+- **CLI 精简** — 移除冗余的 `command` 子命令参数，直接 `simtradelab [options]` 启动
+
+### 🗑️ 移除
+
+- **jupyter / baostock** — 从开发依赖移除，不再支持 Notebook 交互模式
+- **research 模块** — 移除 `simtradelab.research`（Jupyter 专用 API 封装）
+- **cli/data_tools.py** — 移除孤立的数据解包工具（无入口、无 server 端点）
+- **enable_charts 请求字段** — Server 不生成图表，图表由 UI 侧用 series 数据渲染
+- **chart_png_path 结果字段** — 对应移除，结果仅返回 metrics + series
+
+### 📦 升级指南
+
+```bash
+pip install --upgrade simtradelab==2.5.0
+
+# 启动 API server
+pip install simtradelab[server]==2.5.0
+simtradelab --port 8000
+```
+
+**兼容性：** ✅ 回测 API 无 breaking change。
+
+---
+
 ## [2.4.2] - 2026-02-23
 
 ### 🐛 Bug 修复

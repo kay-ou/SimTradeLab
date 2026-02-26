@@ -15,7 +15,7 @@ def strategies_dir(tmp_path):
 @pytest.fixture
 def app(strategies_dir, monkeypatch):
     import simtradelab.server.routers.strategies as mod
-    monkeypatch.setattr(mod, "STRATEGIES_PATH", strategies_dir)
+    monkeypatch.setattr(mod, "get_strategies_path", lambda: strategies_dir)
     from simtradelab.server.main import create_app
     return create_app()
 
