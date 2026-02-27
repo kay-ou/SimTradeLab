@@ -164,7 +164,6 @@ cd ~/simtrade_workspace
 # 创建必要的子目录
 mkdir -p data          # 存放数据文件
 mkdir -p strategies    # 存放策略文件
-mkdir -p research      # 存放Jupyter notebooks
 ```
 
 ### 2. 目录结构
@@ -179,14 +178,12 @@ mkdir -p research      # 存放Jupyter notebooks
 │   ├── exrights/            # 除权除息数据
 │   ├── metadata/            # 元数据（指数成分、交易日历等）
 │   └── manifest.json        # 数据清单文件
-├── strategies/
-│   ├── my_strategy/
-│   │   ├── backtest.py      # 策略代码
-│   │   └── stats/           # 回测结果
-│   └── another_strategy/
-│       └── backtest.py
-└── research/
-    └── analysis.ipynb       # Jupyter notebooks
+└── strategies/
+    ├── my_strategy/
+    │   ├── backtest.py      # 策略代码
+    │   └── stats/           # 回测结果
+    └── another_strategy/
+        └── backtest.py
 ```
 
 ---
