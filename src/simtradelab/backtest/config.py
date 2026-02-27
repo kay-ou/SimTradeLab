@@ -53,6 +53,7 @@ class BacktestConfig(BaseModel):
     num_workers: Optional[int] = Field(default=None, ge=1, description="多进程worker数量")
     enable_charts: bool = True
     enable_logging: bool = True
+    enable_export: bool = False
 
     # 沙箱模式：True=限制import和builtins（Ptrade兼容），False=本地开发无限制
     sandbox: bool = True

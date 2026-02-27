@@ -112,8 +112,14 @@ def calculate_risk_metrics(daily_returns, portfolio_values):
     # 波动率（年化）
     volatility = np.std(daily_returns) * np.sqrt(252) if len(daily_returns) > 0 else 0
 
+    # Sortino比率（仅用负收益标准差）
+    downside = daily_returns[daily_returns < 0]
+    downside_std = np.std(downside) * np.sqrt(252) if len(downside) > 0 else 0
+    sortino_ratio = (np.mean(daily_returns) * 252) / downside_std if downside_std > 0 else 0
+
     return {
         'sharpe_ratio': sharpe_ratio,
+        'sortino_ratio': sortino_ratio,
         'max_drawdown': max_drawdown,
         'volatility': volatility,
         'drawdown': drawdown
@@ -269,6 +275,12 @@ def generate_backtest_report(backtest_stats: BacktestStats, start_date, end_date
         excess_return = 0
         benchmark_metrics = {'alpha': 0, 'beta': 0, 'information_ratio': 0, 'tracking_error': 0}
 
+    # Calmar比率（年化收益 / 最大回撤绝对值）
+    calmar_ratio = (
+        returns_metrics['annual_return'] / abs(risk_metrics['max_drawdown'])
+        if risk_metrics['max_drawdown'] != 0 else 0
+    )
+
     # 交易统计
     trade_stats = calculate_trade_stats(returns_metrics['daily_returns'])
 
@@ -279,6 +291,7 @@ def generate_backtest_report(backtest_stats: BacktestStats, start_date, end_date
     report = {
         **returns_metrics,
         **risk_metrics,
+        'calmar_ratio': calmar_ratio,
         'benchmark_code': benchmark_code,
         'benchmark_name': benchmark_name,
         'benchmark_return': benchmark_return,
@@ -507,6 +520,8 @@ def print_backtest_report(report, log, start_date, end_date, time_str, positions
     log.info(f"夏普比率: {report['sharpe_ratio']:.3f}  |  "
              f"信息比率: {report['information_ratio']:.3f}  |  "
              f"本金: {report['initial_value']/10000:.0f}万 → {report['final_value']/10000:.1f}万")
+    log.info(f"索提诺比率: {report['sortino_ratio']:.3f}  |  "
+             f"卡玛比率: {report['calmar_ratio']:.3f}")
 
     # 基准对比
     log.info("")

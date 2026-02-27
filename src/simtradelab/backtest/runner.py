@@ -411,6 +411,10 @@ class BacktestRunner:
         if config.enable_charts and hasattr(self, '_chart_filename'):
             report["_chart_path"] = self._chart_filename
 
+        if config.enable_export:
+            from simtradelab.backtest.export import export_to_csv
+            export_to_csv(report, config.log_dir)
+
         # 基准净值序列（对齐到策略交易日，归一化到1.0起点）
         trade_dates_set = set()
         for d in stats.trade_dates:
