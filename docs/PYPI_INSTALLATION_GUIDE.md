@@ -14,7 +14,7 @@ pip install simtradelab[optimizer]
 
 ## 创建工作目录
 
-安装后需要创建工作目录来存放数据、策略和 notebooks：
+安装后需要创建工作目录来存放数据和策略：
 
 ```bash
 mkdir -p ~/simtrade_workspace
@@ -22,7 +22,6 @@ cd ~/simtrade_workspace
 
 mkdir -p data          # 数据文件
 mkdir -p strategies    # 策略文件
-mkdir -p notebooks     # Jupyter notebooks
 ```
 
 最终目录结构：
@@ -36,13 +35,11 @@ mkdir -p notebooks     # Jupyter notebooks
 │   ├── exrights/            # 除权数据
 │   ├── metadata/            # 元数据
 │   └── manifest.json        # 数据清单
-├── strategies/
-│   ├── my_strategy/
-│   │   └── backtest.py
-│   └── another_strategy/
-│       └── backtest.py
-└── notebooks/
-    └── research.ipynb
+└── strategies/
+    ├── my_strategy/
+    │   └── backtest.py
+    └── another_strategy/
+        └── backtest.py
 ```
 
 ## 准备数据
@@ -116,40 +113,6 @@ runner.run(config=config)
 运行：
 ```bash
 python run_backtest.py
-```
-
-## Research模式（Jupyter Notebook）
-
-### 启动 Jupyter
-
-```bash
-cd ~/simtrade_workspace/notebooks
-jupyter notebook
-```
-
-### 在 Notebook 中使用
-
-```python
-# Cell 1: 导入和初始化
-from simtradelab.research.api import init_api, get_price, get_history
-
-api = init_api(data_path='../data')
-```
-
-```python
-# Cell 2: 获取历史价格
-df = get_price(
-    '600519.SS',
-    start_date='2024-01-01',
-    end_date='2024-12-31',
-    fields=['open', 'high', 'low', 'close', 'volume']
-)
-df.head()
-```
-
-```python
-# Cell 3: 获取指数成分股
-stocks = api.get_index_stocks('000300.SS', date='2024-01-01')
 ```
 
 ## 常见问题

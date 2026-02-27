@@ -65,6 +65,9 @@ SimTradeLab 采用模块化设计，主要分为以下几个核心模块：
 | **订单处理器** | `ptrade/order_processor.py` | 订单创建、执行、验证 |
 | **缓存管理器** | `ptrade/cache_manager.py` | 多级LRU缓存 |
 | **统计收集器** | `backtest/backtest_stats.py` | 交易数据收集 |
+| **统计分析** | `backtest/stats.py` | 收益/风险/基准指标计算（含夏普/索提诺/卡玛） |
+| **批量回测** | `backtest/batch.py` | 多日期区间批量回测，数据只加载一次 |
+| **CSV导出** | `backtest/export.py` | 每日统计和持仓快照导出为CSV |
 
 ---
 
