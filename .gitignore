@@ -75,3 +75,5 @@ GEMINI.md
 strategies/*/optimization/results
 data*/
 .claude
+*.ipynb
+strategies/*/stats/*.csv

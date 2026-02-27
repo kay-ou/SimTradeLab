@@ -5,23 +5,35 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
 项目遵循 [语义化版本](https://semver.org/spec/v2.0.0.html) 规范。
 
+## [2.6.0] - 2026-02-27
+
+### ✨ 新增功能
+
+- **索提诺比率（Sortino）** — 回测报告新增 `sortino_ratio`，仅用负收益下行标准差衡量风险，比夏普比率更准确反映策略的下行风险控制能力
+- **卡玛比率（Calmar）** — 回测报告新增 `calmar_ratio`（年化收益 / 最大回撤绝对值），衡量单位回撤换取的年化收益
+- **CSV 导出** — `BacktestConfig` 新增 `enable_export: bool`，设为 `True` 后回测结束自动输出两个文件到 `strategies/{name}/stats/`：
+  - `daily_stats_{start}_{end}.csv` — 每日组合价值、盈亏、买卖金额、持仓市值
+  - `positions_history_{start}_{end}.csv` — 每日持仓快照（代码、名称、数量、市值、成本）
+  - 编码 `utf-8-sig`，Excel 直接打开无乱码
+- **批量回测** — 新增 `BatchBacktestRunner` + `BatchConfig`，对同一策略跑多个日期区间，数据只加载一次；`summary()` 打印各区间核心指标对比表
+
+### 🗑️ 移除
+
+- 移除 server, uvicorn 等不必要的依赖，让 SimTradeLab 回归纯回测引擎定位
+
+### 📦 升级指南
+
+```bash
+pip install --upgrade simtradelab==2.6.0
+```
+
+---
+
 ## [2.5.0] - 2026-02-26
 
 ### ✨ 新增功能
 
-- **FastAPI Server** - 新增 `simtradelab[server]` 可选依赖，内置完整 REST API + WebSocket 服务，可作为后端供任意 UI 接入
-  - `POST /backtest/run` — 异步提交回测任务
-  - `GET /backtest/{id}/status` — 轮询任务状态与进度
-  - `GET /backtest/{id}/result` — 获取指标和时序数据
-  - `WS /backtest/{id}/logs` — 实时日志流
-  - `POST /backtest/{id}/cancel` — 取消运行中的任务
-  - `GET/PUT /settings` — 数据路径动态配置
-  - `GET/POST/PUT/PATCH/DELETE /strategies/{name}` — 策略 CRUD
-  - `GET/PUT /optimizer/{name}/script` + `POST /optimizer/{name}/run` — 参数优化
-  - `GET /history` / `GET /history/detail` / `DELETE /history` — 回测历史管理
-  - `GET /editor/completions` — PTrade API 智能补全元数据
-
-- **CLI 启动命令** — `simtradelab --host 0.0.0.0 --port 8000 [--reload]`
+- **FastAPI Server** - 新增可选依赖
 
 ### 🔧 改进
 
