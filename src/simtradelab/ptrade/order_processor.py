@@ -78,8 +78,8 @@ class OrderProcessor:
             try:
                 current_dt = self.context.current_dt
                 if frequency == '1m':
-                    # 分钟数据：使用searchsorted查找最近的时间点
-                    idx = stock_df.index.values.view('i8').searchsorted(current_dt.value, side='right') - 1
+                    # 分钟数据：用 DatetimeIndex.searchsorted 避免 datetime64[us] vs ns 精度不匹配
+                    idx = stock_df.index.searchsorted(current_dt, side='right') - 1
                     if idx < 0:
                         return None
                 else:
@@ -238,6 +238,19 @@ class OrderProcessor:
             return False
 
         position = self.context.portfolio.positions[stock]
+
+        # T+1限制：只能卖出 enable_amount（前日持仓）
+        if position.enable_amount <= 0:
+            self.log.warning(f"【卖出失败】{stock} | 原因: T+1限制，当日买入不可卖出")
+            return False
+
+        if amount > position.enable_amount:
+            # 截断到可卖数量（整手）
+            available = (position.enable_amount // 100) * 100
+            if available <= 0:
+                available = position.enable_amount  # 零股全出
+            self.log.info(f"T+1截断: {stock} 卖出 {amount} → {available} 股")
+            amount = available
 
         if position.amount < amount:
             self.log.warning(f"【卖出失败】{stock} | 原因: 持仓不足 (持有{position.amount}, 尝试卖出{amount})")
