@@ -211,8 +211,11 @@ def load_stock_1m(data_dir, symbol):
     parquet_file = Path(data_dir) / 'stocks_1m' / (symbol + '.parquet')
     if parquet_file.exists():
         df = pd.read_parquet(parquet_file)
-        if not df.empty and 'datetime' in df.columns:
-            df.set_index('datetime', inplace=True)
+        if not df.empty:
+            if 'datetime' in df.columns:
+                df.set_index('datetime', inplace=True)
+            elif 'date' in df.columns:
+                df.set_index('date', inplace=True)
         return df
     return pd.DataFrame()
 

@@ -303,6 +303,10 @@ class StrategyExecutionEngine:
             # 收集交易前统计
             self.stats_collector.collect_pre_trading(self.context, current_date)
 
+            # T+1日切：前日持仓全部可卖（在除权事件前重置，送股后由除权处理自行更新）
+            for position in self.context.portfolio.positions.values():
+                position.enable_amount = position.amount
+
             # 处理除权除息事件（在策略执行前）
             self._process_dividend_events(current_date)
 
@@ -371,6 +375,10 @@ class StrategyExecutionEngine:
 
             # 收集交易前统计
             self.stats_collector.collect_pre_trading(self.context, current_date)
+
+            # T+1日切：前日持仓全部可卖
+            for position in self.context.portfolio.positions.values():
+                position.enable_amount = position.amount
 
             # 处理除权除息事件（在策略执行前）
             self._process_dividend_events(current_date)

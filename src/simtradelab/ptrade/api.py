@@ -588,7 +588,8 @@ class PtradeAPI:
                 try:
                     if frequency == '1m':
                         # 分钟数据：直接使用index查找
-                        idx = stock_df.index.values.view('i8').searchsorted(end_dt.value, side='right') - 1
+                        # 用 DatetimeIndex.searchsorted 避免 datetime64[us] vs ns 单位不匹配
+                        idx = stock_df.index.searchsorted(end_dt, side='right') - 1
                         if idx < 0:
                             continue
                         current_idx = idx
@@ -710,7 +711,8 @@ class PtradeAPI:
             try:
                 if frequency == '1m':
                     # 分钟数据：使用searchsorted查找
-                    idx = data_source.index.values.view('i8').searchsorted(current_dt.value, side='right') - 1
+                    # 用 DatetimeIndex.searchsorted 避免 datetime64[us] vs ns 单位不匹配
+                    idx = data_source.index.searchsorted(current_dt, side='right') - 1
                     if idx < 0:
                         continue
                     current_idx = idx
@@ -1082,7 +1084,6 @@ class PtradeAPI:
                     result[stock] = status
                     continue
 
-                current_close = stock_df['close'].values[idx]
                 current_high = stock_df['high'].values[idx]
                 current_low = stock_df['low'].values[idx]
                 prev_close = stock_df['close'].values[idx-1]
