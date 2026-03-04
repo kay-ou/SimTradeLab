@@ -26,12 +26,16 @@ def _date_to_int(dt_series: pd.Series) -> pd.Series:
 
 
 def _date_to_iso(dt_series: pd.Series) -> pd.Series:
-    """向量化将datetime转为YYYY-MM-DD字符串"""
-    return (
-        dt_series.dt.year.astype(str) + '-' +
-        dt_series.dt.month.astype(str).str.zfill(2) + '-' +
-        dt_series.dt.day.astype(str).str.zfill(2)
-    )
+    """向量化将datetime转为YYYY-MM-DD字符串
+    兼容已格式化的字符串类型"""
+    if pd.api.types.is_datetime64_any_dtype(dt_series):
+        return (
+            dt_series.dt.year.astype(str) + '-' +
+            dt_series.dt.month.astype(str).str.zfill(2) + '-' +
+            dt_series.dt.day.astype(str).str.zfill(2)
+        )
+    else:
+        return dt_series.astype(str)
 
 
 def load_stock(data_dir, symbol):
@@ -41,6 +45,8 @@ def load_stock(data_dir, symbol):
         df = pd.read_parquet(parquet_file)
         if not df.empty and 'date' in df.columns:
             df.set_index('date', inplace=True)
+            if not isinstance(df.index, pd.DatetimeIndex):
+                df.index = pd.to_datetime(df.index)
         return df
     return pd.DataFrame()
 
@@ -52,6 +58,8 @@ def load_valuation(data_dir, symbol):
         df = pd.read_parquet(parquet_file)
         if not df.empty and 'date' in df.columns:
             df.set_index('date', inplace=True)
+            if not isinstance(df.index, pd.DatetimeIndex):
+                df.index = pd.to_datetime(df.index)
         return df
     return pd.DataFrame()
 
@@ -63,6 +71,8 @@ def load_fundamentals(data_dir, symbol):
         df = pd.read_parquet(parquet_file)
         if not df.empty and 'date' in df.columns:
             df.set_index('date', inplace=True)
+            if not isinstance(df.index, pd.DatetimeIndex):
+                df.index = pd.to_datetime(df.index)
         return df
     return pd.DataFrame()
 
