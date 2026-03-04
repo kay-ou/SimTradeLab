@@ -439,5 +439,5 @@ print(sys.path)  # 应该包含项目根目录
 
 - 📖 阅读 [快速开始](../README.md#快速开始)
 - 🔧 查看 [工具脚本说明](TOOLS.md)
-- 💻 参考 [开发规范](DEVELOPMENT_RULES.md)
+- 💻 参考 [贡献指南](CONTRIBUTING.md)
 - 🤝 贡献代码 [贡献指南](CONTRIBUTING.md)
