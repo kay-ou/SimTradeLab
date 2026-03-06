@@ -478,5 +478,4 @@ bash scripts/setup_typeshed.sh
 
 - 📖 阅读 [架构设计文档](ARCHITECTURE.md)
 - 🔧 配置 [IDE开发环境](IDE_SETUP.md)
-- 💻 参考 [开发规范](DEVELOPMENT_RULES.md)
 - 🤝 贡献代码 [贡献指南](CONTRIBUTING.md)

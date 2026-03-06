@@ -722,7 +722,6 @@ cache_manager.clear_namespace('ma')
 
 ## 下一步
 
-- 📖 阅读 [API文档](PTrade_API_Implementation_Status.md)
+- 📖 阅读 [PTrade API 参考](PTrade_API_mini_Reference.md)
 - 🔧 查看 [工具脚本说明](TOOLS.md)
-- 💻 参考 [开发规范](DEVELOPMENT_RULES.md)
 - 🤝 贡献代码 [贡献指南](CONTRIBUTING.md)
