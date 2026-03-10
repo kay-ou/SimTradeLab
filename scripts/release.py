@@ -54,30 +54,36 @@ def update_version_in_files(version):
     pyproject.write_text(content, encoding="utf-8")
     print("  ✓ pyproject.toml")
 
-    readme = Path("README.md")
-    if readme.exists():
-        content = readme.read_text(encoding="utf-8")
-        content = re.sub(
-            r'(!\[Version\]\(https://img\.shields\.io/badge/Version-)[^-]+(-orange\.svg\)\]\(#\))',
-            r'\g<1>{}\g<2>'.format(version),
-            content,
-        )
-        content = re.sub(
-            r'(\*\*当前版本：\*\*\s+v)[0-9]+\.[0-9]+\.[0-9]+',
-            r'\g<1>{}'.format(version),
-            content,
-        )
-        content = re.sub(
-            r'(pip install simtradelab==)[0-9]+\.[0-9]+\.[0-9]+',
-            r'\g<1>{}'.format(version),
-            content,
-        )
-        readme.write_text(content, encoding="utf-8")
-        print("  ✓ README.md")
+    for readme_name in ["README.md", "README.zh-CN.md"]:
+        readme = Path(readme_name)
+        if readme.exists():
+            content = readme.read_text(encoding="utf-8")
+            content = re.sub(
+                r'(!\[Version\]\(https://img\.shields\.io/badge/Version-)[^-]+(-orange\.svg\)\]\(#\))',
+                r'\g<1>{}\g<2>'.format(version),
+                content,
+            )
+            content = re.sub(
+                r'(\*\*当前版本：\*\*\s+v)[0-9]+\.[0-9]+\.[0-9]+',
+                r'\g<1>{}'.format(version),
+                content,
+            )
+            content = re.sub(
+                r'(\*\*Current version:\*\*\s+v)[0-9]+\.[0-9]+\.[0-9]+',
+                r'\g<1>{}'.format(version),
+                content,
+            )
+            content = re.sub(
+                r'(pip install simtradelab==)[0-9]+\.[0-9]+\.[0-9]+',
+                r'\g<1>{}'.format(version),
+                content,
+            )
+            readme.write_text(content, encoding="utf-8")
+            print("  ✓ {}".format(readme_name))
 
 
 def commit_version_update(version):
-    run_command("git add pyproject.toml README.md")
+    run_command("git add pyproject.toml README.md README.zh-CN.md")
     run_command('git commit -m "chore: bump version to {}"'.format(version))
 
 

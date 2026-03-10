@@ -5,6 +5,27 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
 项目遵循 [语义化版本](https://semver.org/spec/v2.0.0.html) 规范。
 
+## [2.7.0] - 2026-03-10
+
+### ✨ 新增功能
+
+- **T+0 交易模式** — 新增 `t_plus_1=False` 配置项，支持 ETF 和美股等 T+0 品种回测
+
+### 🐛 修复
+
+- **数据加载类型兼容** — `load_stock` 加载 parquet 时确保 date 列转换为 DatetimeIndex，修复部分数据源下日期比较报错
+- **首日盈亏计算** — 首日 `prev_day_end_value` 改用 `starting_cash`，日盈亏图表不再将首日盈亏固定为 0
+- **多笔买入手续费** — 同一 handle_data 内连续买入时，已付手续费不再误扣后续订单的可用现金
+- **分钟线日期追踪** — 分钟级回测循环内正确更新 `_current_backtest_date`
+
+### 📦 升级指南
+
+```bash
+pip install --upgrade simtradelab==2.7.0
+```
+
+---
+
 ## [2.6.1] - 2026-03-04
 
 ### ✨ 新增功能
