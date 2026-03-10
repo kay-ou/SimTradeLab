@@ -1,8 +1,8 @@
 # Poetry configuration
 [tool.poetry]
 name = "simtradelab"
-version = "2.6.1"
-description = "开源策略回测框架，灵感来自PTrade的事件驱动模型，提供轻量、清晰、可插拔的策略验证环境"
+version = "2.7.0"
+description = "Lightweight quantitative backtesting framework with PTrade API simulation | 轻量级量化回测框架"
 authors = ["kay <kayou@duck.com>"]
 license = "AGPL-3.0-or-later"
 readme = "README.md"
