@@ -72,8 +72,7 @@ backtest*.json
 CLAUDE.md
 GEMINI.md
 .pre-commit-config.yaml
-strategies/*/optimization/results
+strategies/*
 data*/
 .claude
 *.ipynb
-strategies/*/stats/*.csv

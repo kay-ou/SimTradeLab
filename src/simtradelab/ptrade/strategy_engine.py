@@ -326,7 +326,7 @@ class StrategyExecutionEngine:
             # 收集交易后统计（用上一交易日收盘后的组合市值计算真实日盈亏）
             current_end_value = self.context.portfolio.portfolio_value
             if prev_day_end_value is None:
-                prev_day_end_value = current_end_value  # 首日无盈亏
+                prev_day_end_value = self.context.portfolio.starting_cash
             self.stats_collector.collect_post_trading(self.context, prev_day_end_value)
             prev_day_end_value = current_end_value
 
@@ -414,7 +414,7 @@ class StrategyExecutionEngine:
             # 收集交易后统计
             current_end_value = self.context.portfolio.portfolio_value
             if prev_day_end_value is None:
-                prev_day_end_value = current_end_value
+                prev_day_end_value = self.context.portfolio.starting_cash
             self.stats_collector.collect_post_trading(self.context, prev_day_end_value)
             prev_day_end_value = current_end_value
 
