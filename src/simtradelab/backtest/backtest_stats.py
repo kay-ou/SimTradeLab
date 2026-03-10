@@ -56,6 +56,7 @@ class StatsCollector:
         self._stats.daily_sell_amount.append(context._daily_sell_total)
         context._daily_buy_total = 0.0
         context._daily_sell_total = 0.0
+        context._daily_buy_commission = 0.0
 
     def collect_post_trading(self, context: Context, prev_portfolio_value: float):
         """收集交易后数据"""

@@ -73,6 +73,9 @@ class Context:
         self._daily_buy_total = 0.0
         self._daily_sell_total = 0.0
 
+        # 当日已付买入手续费（用于同一handle_data内多笔订单的可用现金检查）
+        self._daily_buy_commission = 0.0
+
         # === 设置时间 ===
         if self.current_dt is None:
             self.current_dt = datetime.now()

@@ -203,8 +203,10 @@ class OrderProcessor:
         total_cost = cost + commission
 
         if total_cost > self.context.portfolio._cash:
-            self.log.warning(f"【买入失败】{stock} | 原因: 现金不足 (需要{total_cost:.2f}, 可用{self.context.portfolio._cash:.2f})")
-            return False
+            daily_commission = getattr(self.context, '_daily_buy_commission', 0.0)
+            if cost > self.context.portfolio._cash + daily_commission:
+                self.log.warning(f"【买入失败】{stock} | 原因: 现金不足 (需要{total_cost:.2f}, 可用{self.context.portfolio._cash:.2f})")
+                return False
 
         self.context.portfolio._cash -= total_cost
 
@@ -212,6 +214,7 @@ class OrderProcessor:
         if not hasattr(self.context, 'total_commission'):
             self.context.total_commission = 0
         self.context.total_commission += commission
+        self.context._daily_buy_commission = getattr(self.context, '_daily_buy_commission', 0.0) + commission
 
         # 建仓/加仓（含批次追踪），cost_basis含佣金（与Ptrade一致）
         cost_basis = total_cost / amount

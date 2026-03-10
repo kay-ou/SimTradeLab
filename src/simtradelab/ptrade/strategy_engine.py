@@ -395,6 +395,7 @@ class StrategyExecutionEngine:
             daily_task_times = self._get_daily_task_time_set()
             for minute_dt in minute_bars:
                 self.context.current_dt = minute_dt
+                _current_backtest_date = minute_dt.strftime('%Y-%m-%d %H:%M')
                 data = Data(minute_dt, self.context.portfolio._bt_ctx)
                 if not self._safe_call('handle_data', LifecyclePhase.HANDLE_DATA, data):
                     return False
