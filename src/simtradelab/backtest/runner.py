@@ -273,7 +273,7 @@ class BacktestRunner:
         # 创建组合和上下文
         portfolio = Portfolio(config.initial_capital)
         context = Context(portfolio=portfolio, current_dt=start_date,
-                          frequency=config.frequency)
+                          frequency=config.frequency, t_plus_1=config.t_plus_1)
 
         # 设置portfolio的context引用
         portfolio._context = context

@@ -240,17 +240,18 @@ class OrderProcessor:
         position = self.context.portfolio.positions[stock]
 
         # T+1限制：只能卖出 enable_amount（前日持仓）
-        if position.enable_amount <= 0:
-            self.log.warning(f"【卖出失败】{stock} | 原因: T+1限制，当日买入不可卖出")
-            return False
+        if self.context.t_plus_1:
+            if position.enable_amount <= 0:
+                self.log.warning(f"【卖出失败】{stock} | 原因: T+1限制，当日买入不可卖出")
+                return False
 
-        if amount > position.enable_amount:
-            # 截断到可卖数量（整手）
-            available = (position.enable_amount // 100) * 100
-            if available <= 0:
-                available = position.enable_amount  # 零股全出
-            self.log.info(f"T+1截断: {stock} 卖出 {amount} → {available} 股")
-            amount = available
+            if amount > position.enable_amount:
+                # 截断到可卖数量（整手）
+                available = (position.enable_amount // 100) * 100
+                if available <= 0:
+                    available = position.enable_amount  # 零股全出
+                self.log.info(f"T+1截断: {stock} 卖出 {amount} → {available} 股")
+                amount = available
 
         if position.amount < amount:
             self.log.warning(f"【卖出失败】{stock} | 原因: 持仓不足 (持有{position.amount}, 尝试卖出{amount})")

@@ -58,6 +58,9 @@ class BacktestConfig(BaseModel):
     # 沙箱模式：True=限制import和builtins（Ptrade兼容），False=本地开发无限制
     sandbox: bool = True
 
+    # T+1交易限制：True=A股模式（当日买入不可卖），False=T+0模式（ETF/美股）
+    t_plus_1: bool = True
+
     model_config = {"arbitrary_types_allowed": True}
 
     @field_validator('start_date', 'end_date', mode='before')

@@ -59,6 +59,7 @@ class Context:
     benchmark: Optional[str] = None  # 基准
     current_dt: Optional[datetime] = None  # 当前时间
     frequency: str = '1d'  # 回测频率 '1d'日线 '1m'分钟线
+    t_plus_1: bool = True  # T+1交易限制
 
     # === 生命周期管理 ===
     _lifecycle_controller: Optional[LifecycleController] = None
