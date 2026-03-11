@@ -3,8 +3,18 @@ name: Test SimTradeLab
 on:
   push:
     branches: [main, develop]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - 'LICENSE*'
+      - 'licenses/**'
   pull_request:
     branches: [main, develop]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - 'LICENSE*'
+      - 'licenses/**'
   workflow_dispatch:
 
 permissions:

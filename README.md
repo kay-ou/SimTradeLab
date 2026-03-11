@@ -11,16 +11,23 @@ English | [中文](README.zh-CN.md)
 [![PyPI](https://img.shields.io/pypi/v/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 
-*Full PTrade API simulation — strategies transfer seamlessly between SimTradeLab and PTrade*
+> Full PTrade API simulation — strategies transfer seamlessly between SimTradeLab and PTrade. See also: [ptradeAPI](https://github.com/kay-ou/ptradeAPI)
 
 ---
 
-## 🎯 Overview
+## 🎯 Why SimTradeLab?
 
-SimTradeLab is a community-driven, open-source strategy backtesting framework inspired by PTrade's event-driven architecture. It provides a lightweight, modular, and extensible environment for strategy validation — no PTrade dependency required. Strategies written in SimTradeLab can be deployed to PTrade with zero code changes, and vice versa. See also: [ptradeAPI](https://github.com/kay-ou/ptradeAPI).
+| | SimTradeLab | PTrade |
+|---|---|---|
+| Speed | **100–160x faster** | Baseline |
+| Startup | Sub-second (data persists in memory) | Minutes |
+| API Coverage | 46 backtest/research APIs | Full platform |
+| Strategy Porting | Zero code changes | Zero code changes |
+| Environment | Local, free, open-source | Cloud, licensed |
 
-**Key features:**
-- ✅ **46 backtest/research APIs** — 100% coverage of stock backtesting scenarios (daily & minute bars)
+**Core capabilities:**
+
+- ✅ **46 APIs** — 100% coverage of stock backtesting scenarios (daily & minute bars)
 - ⚡ **100–160x faster** than PTrade platform
 - 🚀 **In-memory data persistence** — singleton pattern, sub-second startup after first load
 - 💾 **Multi-level caching** — LRU caches for MA/VWAP/adjustment factors/history, >95% hit rate
@@ -29,84 +36,40 @@ SimTradeLab is a community-driven, open-source strategy backtesting framework in
 - 📊 **Full stats reporting** — returns, risk metrics (Sharpe/Sortino/Calmar), trade details, FIFO dividend tax, CSV export
 - 🔌 **T+0 / T+1 modes** — configurable trading restrictions for A-shares, ETFs, and US stocks
 
-**Current version:** v2.7.0 | **Status:** Core features complete, continuously refined in live strategy development
+---
+
+## 🚀 Need More? Try SimTradeDesk
+
+> **[SimTradeDesk](https://github.com/kay-ou/SimTradeDesk)** is a professional desktop application built on SimTradeLab — no coding required.
+
+| Feature | SimTradeLab (this repo) | SimTradeDesk |
+|---|---|---|
+| Target users | Developers & quant engineers | All traders |
+| Interface | Python API | Desktop GUI |
+| Strategy editing | Code editor | Built-in editor with syntax highlighting |
+| Visualization | PNG charts | Interactive real-time charts |
+| Data management | Manual setup | One-click download & update |
+| Parameter tuning | Write code | Visual optimizer |
+
+**[👉 Get SimTradeDesk →](https://github.com/kay-ou/SimTradeDesk)**
 
 ---
 
-## 🚀 Quick Start
-
-### 📦 Installation
+## 📦 Quick Start
 
 ```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate   # Linux/Mac
-venv\Scripts\activate      # Windows
-
-# Install latest version
 pip install simtradelab
 
-# With technical indicators (requires system-level ta-lib, optional)
+# Optional: technical indicators (requires system ta-lib)
 pip install simtradelab[indicators]
 
-# With optimizer (optional)
+# Optional: parameter optimizer
 pip install simtradelab[optimizer]
-
-# All optional dependencies
-pip install simtradelab[all]
 ```
 
-**System dependencies (only for technical indicator APIs):**
-- macOS: `brew install ta-lib`
-- Linux: build from source — see [ta-lib docs](https://github.com/ta-lib/ta-lib-python)
-- Windows: download pre-built from [ta-lib releases](https://github.com/ta-lib/ta-lib-python)
+**Data:** Use [SimTradeData](https://github.com/kay-ou/SimTradeData) to download China A-share historical data.
 
-### 📁 Prepare Data
-
-Place data files in the `data/` directory:
-```
-data/
-├── stocks/              # Daily stock data (parquet)
-├── stocks_1m/           # Minute stock data (for minute backtesting)
-├── valuation/           # Valuation data
-├── fundamentals/        # Financial data
-├── exrights/            # Ex-rights data
-└── metadata/            # Metadata
-```
-
-**Data source:** Use [SimTradeData](https://github.com/kay-ou/SimTradeData) to download China A-share historical data.
-
-### ✍️ Write a Strategy
-
-Create `strategies/my_strategy/backtest.py`:
-
-```python
-def initialize(context):
-    set_benchmark('000300.SS')
-    context.stocks = ['600519.SS', '000858.SZ']
-
-def handle_data(context, data):
-    for stock in context.stocks:
-        hist = get_history(20, '1d', 'close', [stock], is_dict=True)
-        if stock not in hist:
-            continue
-
-        prices = hist[stock]
-        ma5 = sum(prices[-5:]) / 5
-        ma20 = sum(prices[-20:]) / 20
-
-        if ma5 > ma20 and stock not in context.portfolio.positions:
-            order_value(stock, context.portfolio.portfolio_value * 0.3)
-        elif ma5 < ma20 and stock in context.portfolio.positions:
-            order_target(stock, 0)
-```
-
-**Note:** Backtest mode strictly simulates PTrade restrictions:
-- ❌ No f-strings (use `.format()` or `%`)
-- ❌ No `io` / `sys` imports
-- ✅ Automatic Python 3.5 compatibility check on startup
-
-### ▶️ Run Backtest
+**Run a backtest:**
 
 ```python
 from simtradelab.backtest.runner import BacktestRunner
@@ -116,118 +79,58 @@ config = BacktestConfig(
     strategy_name='my_strategy',
     start_date='2024-01-01',
     end_date='2024-12-31',
-    initial_capital=1000000.0,
-    frequency='1d',             # '1d' daily (default), '1m' minute
-    benchmark_code='000300.SS', # benchmark index (default: CSI 300)
-    enable_charts=True,         # generate .png charts (default: True)
-    enable_export=False,        # generate .csv stats (default: False)
-    sandbox=True,               # PTrade compat mode (default: True)
-    t_plus_1=True,              # T+1 restriction (default: True); set False for ETFs/US stocks
 )
-
 runner = BacktestRunner()
 report = runner.run(config=config)
 ```
 
-### 📊 Output
-
-After backtesting, results are generated under the strategy directory:
-```
-strategies/my_strategy/stats/
-├── backtest_*.log                     # Detailed log
-├── backtest_*.png                     # 4-panel chart
-├── daily_stats_*.csv                  # Daily portfolio stats (enable_export=True)
-└── positions_history_*.csv            # Daily position snapshots (enable_export=True)
-```
-
-**Batch backtesting:**
-```python
-from simtradelab.backtest.batch import BatchBacktestRunner, BatchConfig
-
-runner = BatchBacktestRunner()
-results = runner.run(BatchConfig(
-    strategy_name='my_strategy',
-    date_ranges=[('2023-01-01', '2023-06-30'), ('2023-07-01', '2023-12-31')],
-))
-runner.summary(results)  # Print comparison table of Sharpe/Sortino/Calmar across periods
-```
-
 ---
 
-## 📚 API Reference
+## 📚 API Overview
 
-46 backtest/research APIs implemented — 100% stock backtesting coverage.
+46 backtest/research APIs — 100% stock backtesting coverage.
 
-| Category | Status | APIs |
-|----------|--------|------|
-| Trading | ✅ | order, order_target, order_value, order_target_value, cancel_order, get_positions, get_trades |
-| Data | ✅ | get_price, get_history, get_fundamentals, get_stock_info |
-| Sector | ✅ | get_index_stocks, get_industry_stocks, get_stock_blocks |
-| Indicators | ✅ | get_MACD, get_KDJ, get_RSI, get_CCI |
-| Config | ✅ | set_benchmark, set_commission, set_slippage, set_universe, set_parameters, set_yesterday_position |
-| Lifecycle | ✅ | initialize, before_trading_start, handle_data, after_trading_end |
-| Margin trading | — | Not in backtest scope (live trading only) |
-| Futures/Options | — | Not in backtest scope (live trading only) |
-
----
-
-## 🏗️ Project Structure
-
-```
-SimTradeLab/
-├── src/simtradelab/
-│   ├── ptrade/          # PTrade API simulation layer
-│   ├── backtest/        # Backtest engine (stats, optimizer, config)
-│   ├── service/         # Core services (data persistence)
-│   └── utils/           # Utilities (paths, perf, compat checks)
-├── strategies/          # Strategy directory
-├── data/                # Data directory
-└── docs/                # Documentation
-```
+| Category | APIs |
+|----------|------|
+| Trading | order, order_target, order_value, order_target_value, cancel_order, get_positions, get_trades |
+| Data | get_price, get_history, get_fundamentals, get_stock_info |
+| Sector | get_index_stocks, get_industry_stocks, get_stock_blocks |
+| Indicators | get_MACD, get_KDJ, get_RSI, get_CCI |
+| Config | set_benchmark, set_commission, set_slippage, set_universe, set_parameters |
+| Lifecycle | initialize, before_trading_start, handle_data, after_trading_end |
 
 ---
 
 ## 📄 License
 
-This project uses a **dual license** model:
+**Dual license** model:
 
-### 🆓 Open Source
-- **GNU Affero General Public License v3.0 (AGPL-3.0)** — see [LICENSE](LICENSE)
-- ✅ Free for open-source projects
-- ✅ Personal learning and research
-- ⚠️ Network use requires source disclosure (AGPL requirement)
-
-### 💼 Commercial
-- **Commercial License** — see [LICENSE-COMMERCIAL.md](licenses/LICENSE-COMMERCIAL.md)
-- ✅ Use in commercial / closed-source products
-- ✅ Technical support and customization
-- 📧 Contact: [kayou@duck.com](mailto:kayou@duck.com)
+- **AGPL-3.0** — Free for open-source projects and personal research. See [LICENSE](LICENSE)
+- **Commercial License** — For closed-source / commercial use. See [LICENSE-COMMERCIAL.md](licenses/LICENSE-COMMERCIAL.md) or contact [kayou@duck.com](mailto:kayou@duck.com)
 
 ---
 
 ## 🤝 Contributing
 
-We welcome community contributions!
-
 - 🐛 [Report issues](https://github.com/kay-ou/SimTradeLab/issues)
 - 💻 Implement missing API features
-- 🔧 Fix bugs and optimize performance
-- 📚 Improve documentation and examples
+- 📚 Improve documentation
 
-**Contributor License Agreement (CLA):**
-- You hold full copyright of your submitted code
-- You agree to release under AGPL-3.0
-- You agree the maintainer may use contributions under the commercial license
-
-See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for details.
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for CLA details.
 
 ---
 
 ## ⚖️ Disclaimer
 
-SimTradeLab is a community-developed, open-source backtesting framework inspired by PTrade's event-driven design. It does not contain PTrade's source code, trademarks, or any protected content. This project is not affiliated with or endorsed by PTrade.
+SimTradeLab is a community-developed, open-source backtesting framework inspired by PTrade's event-driven design. It does not contain PTrade's source code, trademarks, or any protected content. This project is not affiliated with or endorsed by PTrade. Users are responsible for compliance with local regulations and platform terms.
 
-Users are responsible for ensuring compliance with local regulations, trading platform terms, and data source agreements. The developers assume no liability for any losses arising from the use of this project.
+---
+
+<div align="center">
+
+**⭐ Star this project if you find it useful!**
+
+[🐛 Report Issue](https://github.com/kay-ou/SimTradeLab/issues) | [💡 Feature Request](https://github.com/kay-ou/SimTradeLab/issues) | [🖥️ SimTradeDesk](https://github.com/kay-ou/SimTradeDesk)
 
 ---
 
@@ -235,10 +138,7 @@ Users are responsible for ensuring compliance with local regulations, trading pl
 
 If this project helps you, consider sponsoring!
 
-<div align="center">
-
-**⭐ Star this project if you find it useful!**
-
-[🐛 Report Issue](https://github.com/kay-ou/SimTradeLab/issues) | [💡 Feature Request](https://github.com/kay-ou/SimTradeLab/issues) | [📚 Documentation](docs/)
+<img src="docs/sponsor/WechatPay.png?raw=true" alt="WeChat Pay" width="200">
+<img src="docs/sponsor/AliPay.png?raw=true" alt="Alipay" width="200">
 
 </div>
