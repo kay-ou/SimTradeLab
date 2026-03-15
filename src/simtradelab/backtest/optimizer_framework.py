@@ -32,10 +32,22 @@ import numpy as np
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, Type
-from tqdm import tqdm
 
 from simtradelab.backtest.runner import BacktestRunner
 from simtradelab.backtest.config import BacktestConfig
+
+
+class _NoFileLock:
+    """No-op file lock — safe when n_jobs=1 and only one optimizer runs at a time.
+
+    Must be at module level (not a local class) so it can be pickled by Optuna's
+    JournalStorage internals.
+    """
+    def acquire(self) -> bool:
+        return True
+
+    def release(self) -> None:
+        pass
 
 
 # ==================== 优化配置 ====================
@@ -416,6 +428,10 @@ class StrategyOptimizer:
         # 缓存原始策略代码（避免重复读取文件）
         self._cached_strategy_code: Optional[str] = None
 
+        # 临时策略目录（跨 trial 复用，优化结束后统一清理）
+        self._temp_strategy_dir: Optional[Path] = None
+        self._temp_strategy_name: Optional[str] = None
+
     @property
     def original_strategy_code(self) -> str:
         """获取原始策略代码（懒加载+缓存）"""
@@ -461,17 +477,18 @@ class StrategyOptimizer:
 
     def _run_backtest_impl(self, params: dict[str, Any], start_date: Optional[str] = None, end_date: Optional[str] = None) -> tuple[float, dict[str, Any]]:
         """实际执行回测的内部方法"""
-        temp_strategy_dir = None
         try:
-            # 创建临时策略
-            from simtradelab.utils.paths import STRATEGIES_PATH
-            import uuid
-            temp_strategy_name = f"temp_strategy_{uuid.uuid4().hex[:8]}"
-            temp_strategy_dir = Path(STRATEGIES_PATH) / temp_strategy_name
-            temp_strategy_dir.mkdir(parents=True, exist_ok=True)
-            temp_strategy_path = temp_strategy_dir / "backtest.py"
+            # 复用临时策略目录（首次创建后跨 trial 复用）
+            if self._temp_strategy_dir is None:
+                from simtradelab.utils.paths import STRATEGIES_PATH
+                import uuid
+                self._temp_strategy_name = f"temp_strategy_{uuid.uuid4().hex[:8]}"
+                self._temp_strategy_dir = Path(STRATEGIES_PATH) / self._temp_strategy_name
+                self._temp_strategy_dir.mkdir(parents=True, exist_ok=True)
 
-            # 生成策略代码
+            temp_strategy_path = self._temp_strategy_dir / "backtest.py"
+
+            # 生成策略代码（覆盖写入）
             strategy_code = self.create_strategy_code(params)
             with open(temp_strategy_path, 'w', encoding='utf-8') as f:
                 f.write(strategy_code)
@@ -485,12 +502,13 @@ class StrategyOptimizer:
                 self._runner = BacktestRunner()
 
             config = BacktestConfig(
-                strategy_name=temp_strategy_name,
+                strategy_name=self._temp_strategy_name,
                 start_date=start_date or self.start_date,
                 end_date=end_date or self.end_date,
                 initial_capital=self.initial_capital,
                 enable_logging=False,
-                enable_charts=False
+                enable_charts=False,
+                optimization_mode=True
             )
 
             with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
@@ -518,17 +536,8 @@ class StrategyOptimizer:
 
         except Exception as e:
             if self.verbose:
-                tqdm.write(f"回测执行失败: {e}")  # type: ignore[attr-defined]
+                print(f"回测执行失败: {e}", flush=True)
             return -999.0, {}
-        finally:
-            # 清理临时文件
-            import shutil
-            if temp_strategy_dir and temp_strategy_dir.exists():
-                try:
-                    shutil.rmtree(temp_strategy_dir)
-                except Exception as cleanup_error:
-                    if self.verbose:
-                        tqdm.write(f"警告：临时目录清理失败 {temp_strategy_dir}: {cleanup_error}")  # type: ignore[attr-defined]
 
     def _generate_time_windows(self) -> list[tuple[str, str, str, str]]:
         """生成Walk-Forward时间窗口
@@ -655,32 +664,35 @@ class StrategyOptimizer:
         else:
             n_trials = DEFAULT_N_TRIALS  # 降级为默认值
 
-        # 使用 SQLite 持久化存储
-        storage_path = self.results_dir / "optuna_study.db"
-        storage = f"sqlite:///{storage_path}"
+        # 使用 JournalStorage（纯文件存储，不依赖 Alembic/SQLite）
+        # 使用 no-op lock：优化器单线程运行 (n_jobs=1)，同时只有一个优化任务，
+        # 不存在并发访问，无需文件锁。使用 JournalFileOpenLock 会导致第二次运行
+        # 时因前一次的锁对象未被 GC 而陷入 while not acquire(): sleep(0.1) 死循环。
+        from optuna.storages.journal import JournalFileBackend
+
+        journal_path = self.results_dir / "optuna_journal.log"
+        storage = optuna.storages.JournalStorage(
+            JournalFileBackend(str(journal_path), lock_obj=_NoFileLock())  # type: ignore[arg-type]
+        )
 
         # 固定的 study 名称，用于断点续传
         study_name = f"{self.strategy_path.parent.name}_optimization"
 
         # 尝试加载或创建 study
-        try:
-            if resume:
-                # 尝试加载已有的 study
-                study = optuna.load_study(
-                    study_name=study_name,
-                    storage=storage
-                )
-                # 统计有效试验数（完成+剪枝）
-                completed_trials = len([t for t in study.trials
-                                       if t.state in [optuna.trial.TrialState.COMPLETE,
-                                                     optuna.trial.TrialState.PRUNED]])
-                print(f"\n发现已有优化进度: {completed_trials} 个已完成试验（含剪枝）")
-                print(f"将继续优化至最多 {n_trials} 个试验...")
+        existing_studies = optuna.get_all_study_names(storage=storage)
+        if resume and study_name in existing_studies:
+            study = optuna.load_study(study_name=study_name, storage=storage)
+            # 统计有效试验数（完成+剪枝）
+            completed_trials = len([t for t in study.trials
+                                   if t.state in [optuna.trial.TrialState.COMPLETE,
+                                                 optuna.trial.TrialState.PRUNED]])
+            print(f"\n发现已有优化进度: {completed_trials} 个已完成试验（含剪枝）")
+            print(f"将继续优化至最多 {n_trials} 个试验...")
 
-                # 恢复早停状态
-                if self.use_optimal_stopping and study.best_trial:
+            # 恢复早停状态（仅当有已完成试验时）
+            if self.use_optimal_stopping and completed_trials > 0:
+                try:
                     self._best_score = study.best_value
-                    # 计算无改进计数：从最佳trial之后有多少个完成的trial
                     best_trial_number = study.best_trial.number
                     self._no_improvement_count = len([
                         t for t in study.trials
@@ -690,29 +702,24 @@ class StrategyOptimizer:
                         and t.value <= self._best_score
                     ])
                     print(f"恢复早停状态: 最佳得分={self._best_score:.4f}, 无改进计数={self._no_improvement_count}/{self.patience}")
+                except (ValueError, KeyError):
+                    pass  # 无有效最优试验，从头开始早停计数
 
-                # 计算还需要运行多少次
-                remaining_trials = max(0, n_trials - completed_trials)
-                if remaining_trials == 0:
-                    print(f"已完成 {n_trials} 个试验，无需继续优化")
-                    return study
-            else:
-                raise optuna.exceptions.DuplicatedStudyError  # 强制创建新 study
-
-        except (optuna.exceptions.DuplicatedStudyError, KeyError):
+            # 计算还需要运行多少次
+            remaining_trials = max(0, n_trials - completed_trials)
+            if remaining_trials == 0:
+                print(f"已完成 {n_trials} 个试验，无需继续优化")
+                return study
+        else:
             # 创建新的 study
             print(f"\n创建新的优化任务: {study_name}")
 
-            # 使用更智能的采样器和剪枝器
             sampler = optuna.samplers.TPESampler(
                 seed=42,
                 n_startup_trials=10,  # 前10次随机探索
                 multivariate=True,     # 考虑参数间相关性
                 warn_independent_sampling=False
             )
-
-            # 增强剪枝策略
-            # MedianPruner: 如果中间结果低于历史中位数，剪枝
             pruner = optuna.pruners.MedianPruner(
                 n_startup_trials=5,      # 前5个trial不剪枝（积累数据）
                 n_warmup_steps=2,        # 每个trial前2个step不剪枝（观察趋势）
@@ -725,7 +732,7 @@ class StrategyOptimizer:
                 direction='maximize',
                 sampler=sampler,
                 pruner=pruner,
-                load_if_exists=False
+                load_if_exists=True
             )
             remaining_trials = n_trials
 
@@ -750,10 +757,10 @@ class StrategyOptimizer:
                         optimizer_self._no_improvement_count += 1
                         # 检查是否达到patience
                         if optimizer_self._no_improvement_count >= optimizer_self.patience:
-                            tqdm.write(f"\n" + "="*60)  # type: ignore[attr-defined]
-                            tqdm.write(f"早停触发！连续{optimizer_self.patience}次trial无改进（含剪枝）")  # type: ignore[attr-defined]
-                            tqdm.write(f"最佳得分: {optimizer_self._best_score:.4f}")  # type: ignore[attr-defined]
-                            tqdm.write("="*60)  # type: ignore[attr-defined]
+                            print(f"\n" + "="*60, flush=True)
+                            print(f"早停触发！连续{optimizer_self.patience}次trial无改进（含剪枝）", flush=True)
+                            print(f"最佳得分: {optimizer_self._best_score:.4f}", flush=True)
+                            print("="*60, flush=True)
                             study.stop()
                         return
 
@@ -763,19 +770,19 @@ class StrategyOptimizer:
                         improvement = trial.value - optimizer_self._best_score
                         optimizer_self._best_score = trial.value
                         optimizer_self._no_improvement_count = 0
-                        tqdm.write(f"\n✓ 找到更优解: {trial.value:.4f} (改进 +{improvement:.4f})")  # type: ignore[attr-defined]
-                        tqdm.write(f"  无改进计数器重置: 0/{optimizer_self.patience}")  # type: ignore[attr-defined]
+                        print(f"\n✓ 找到更优解: {trial.value:.4f} (改进 +{improvement:.4f})", flush=True)
+                        print(f"  无改进计数器重置: 0/{optimizer_self.patience}", flush=True)
                     else:
                         # 无改进：增加计数器
                         optimizer_self._no_improvement_count += 1
-                        tqdm.write(f"  无改进 ({optimizer_self._no_improvement_count}/{optimizer_self.patience}): 当前={trial.value:.4f}, 最佳={optimizer_self._best_score:.4f}")  # type: ignore[attr-defined]
+                        print(f"  无改进 ({optimizer_self._no_improvement_count}/{optimizer_self.patience}): 当前={trial.value:.4f}, 最佳={optimizer_self._best_score:.4f}", flush=True)
 
                         # 检查是否达到patience
                         if optimizer_self._no_improvement_count >= optimizer_self.patience:
-                            tqdm.write(f"\n" + "="*60)  # type: ignore[attr-defined]
-                            tqdm.write(f"早停触发！连续{optimizer_self.patience}次trial无改进")  # type: ignore[attr-defined]
-                            tqdm.write(f"最佳得分: {optimizer_self._best_score:.4f}")  # type: ignore[attr-defined]
-                            tqdm.write("="*60)  # type: ignore[attr-defined]
+                            print(f"\n" + "="*60, flush=True)
+                            print(f"早停触发！连续{optimizer_self.patience}次trial无改进", flush=True)
+                            print(f"最佳得分: {optimizer_self._best_score:.4f}", flush=True)
+                            print("="*60, flush=True)
                             study.stop()
 
             callbacks.append(EarlyStoppingCallback())
@@ -784,27 +791,42 @@ class StrategyOptimizer:
         print(f"\n开始智能优化，将运行最多 {remaining_trials} 个试验...")
         print(f"参数空间大小: {self.space_size} 种组合\n")
 
-        # 使用手动进度条实现累积显示
         completed_before = n_trials - remaining_trials
-        with tqdm(total=n_trials, initial=completed_before, desc="总优化进度") as pbar:
-            def update_progress(study, trial):
-                pbar.update(1)
+        _done = [completed_before]  # mutable int for closure
 
-            # 将进度条更新回调加入callbacks
-            progress_callbacks = callbacks + [update_progress]
+        # Emit initial progress so the UI can show total immediately
+        print(f"__PROGRESS__:{_done[0]}/{n_trials}", flush=True)
 
-            study.optimize(
-                self.objective,
-                n_trials=remaining_trials,
-                n_jobs=1,
-                callbacks=progress_callbacks,
-                show_progress_bar=False  # 禁用optuna内置进度条
-            )
+        def update_progress(_study, _trial):
+            _done[0] += 1
+            print(f"__PROGRESS__:{_done[0]}/{n_trials}", flush=True)
+
+        study.optimize(
+            self.objective,
+            n_trials=remaining_trials,
+            n_jobs=1,
+            callbacks=callbacks + [update_progress],
+            show_progress_bar=False,
+        )
 
         # 保存结果
         self.save_optimization_results(study)
 
+        # 清理临时策略目录
+        self._cleanup_temp_strategy()
+
         return study
+
+    def _cleanup_temp_strategy(self):
+        """清理临时策略目录"""
+        if self._temp_strategy_dir and self._temp_strategy_dir.exists():
+            import shutil
+            try:
+                shutil.rmtree(self._temp_strategy_dir)
+            except Exception:
+                pass
+            self._temp_strategy_dir = None
+            self._temp_strategy_name = None
 
     def validate_on_holdout(self, best_params: dict[str, Any], holdout_start: str, holdout_end: str) -> dict[str, float]:
         """在留存集上验证最佳参数
@@ -838,26 +860,13 @@ class StrategyOptimizer:
         trials_file = self.results_dir / f"trials_{timestamp}.csv"
         trials_df.to_csv(trials_file, index=False, encoding='utf-8')
 
-        # 保存study对象
-        study_file = self.results_dir / f"study_{timestamp}.pkl"
-        with open(study_file, 'wb') as f:
-            pickle.dump(study, f)
+        # 不保存 study.pkl（optuna_journal.log 已含断点续传所需数据，pkl 为冗余）
 
-        # 生成可视化
-        self._generate_plots(study, timestamp)
-
-        # 输出性能评分报告（类似机器学习）
+        # 输出性能评分报告
         self._print_performance_report(study)
 
-        print(f"\n结果保存到: {self.results_dir}")
-
     def _print_performance_report(self, study: optuna.Study):
-        """输出性能评分报告（类似机器学习格式）"""
-        print("\n" + "=" * 70)
-        print("优化性能报告")
-        print("=" * 70)
-
-        # 基本信息
+        """输出性能评分报告"""
         completed_trials = len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE])
         pruned_trials = len([t for t in study.trials if t.state == optuna.trial.TrialState.PRUNED])
         failed_trials = len([t for t in study.trials if t.state == optuna.trial.TrialState.FAIL])
@@ -865,108 +874,37 @@ class StrategyOptimizer:
         print(f"\n【优化统计】")
         print(f"  总试验次数: {len(study.trials)}")
         print(f"  完成试验数: {completed_trials}")
-        print(f"  剪枝试验数: {pruned_trials} (提前终止低效参数方向)")
+        print(f"  剪枝试验数: {pruned_trials}")
         print(f"  失败试验数: {failed_trials}")
 
-        # 检查是否有成功完成的trial
         if completed_trials == 0:
-            print("\n警告: 没有成功完成的试验，无法生成最佳参数报告")
-            print("建议检查:")
-            print("  - 参数空间设置是否合理")
-            print("  - 策略代码是否存在错误")
-            print("  - 回测时间窗口是否合适")
+            print("\n警告: 没有成功完成的试验")
             return
 
         print(f"  最佳试验ID: {study.best_trial.number}")
 
-        if len(study.trials) > 0:
-            efficiency = (completed_trials + pruned_trials) / len(study.trials) * 100
-            prune_ratio = pruned_trials / len(study.trials) * 100
-            print(f"  优化效率:   {efficiency:.1f}% (完成+剪枝)")
-            print(f"  剪枝率:     {prune_ratio:.1f}% (节省算力)")
-
-        # 最佳参数
         print(f"\n【最佳参数】")
         for param, value in study.best_params.items():
             if isinstance(value, float):
-                print(f"  {param:20s}: {value:.4f}")
+                print(f"  {param}: {value:.4f}")
             else:
-                print(f"  {param:20s}: {value}")
+                print(f"  {param}: {value}")
 
-        # 性能得分
         print(f"\n【性能得分】")
         print(f"  综合得分: {study.best_value:.4f}")
 
         if self.use_walk_forward and study.best_trial.user_attrs:
-            # Walk-Forward详细统计
             train_score = study.best_trial.user_attrs.get('avg_train_score', 0)
             test_score = study.best_trial.user_attrs.get('avg_test_score', 0)
             test_std = study.best_trial.user_attrs.get('test_score_std', 0)
             gap = study.best_trial.user_attrs.get('train_test_gap', 0)
-
-            print(f"\n  训练期得分:      {train_score:8.4f}")
-            print(f"  测试期得分:      {test_score:8.4f}")
-            print(f"  测试期标准差:    {test_std:8.4f}")
-            print(f"  训练/测试差距:   {gap:8.4f}")
-
-            # 过拟合判断
             overfitting_ratio = abs(gap) / max(abs(train_score), 0.0001)
-            print(f"  过拟合比率:      {overfitting_ratio:8.2%}")
 
-            if overfitting_ratio < 0.05:
-                status = "✓ 良好"
-            elif overfitting_ratio < 0.15:
-                status = "⚠ 轻微过拟合"
-            else:
-                status = "✗ 过拟合风险"
-            print(f"  泛化能力:        {status}")
-
-        # 详细指标（如果有）
-        if study.best_trial.user_attrs:
-            # 提取所有量化指标
-            metrics = {k: v for k, v in study.best_trial.user_attrs.items()
-                      if k not in ['avg_train_score', 'avg_test_score', 'test_score_std', 'train_test_gap']}
-
-            if metrics:
-                print(f"\n【回测指标】")
-                for metric, value in sorted(metrics.items()):
-                    if isinstance(value, (int, float)):
-                        # 特殊格式化
-                        if 'ratio' in metric.lower() or 'rate' in metric.lower():
-                            print(f"  {metric:20s}: {value:8.4f}")
-                        elif 'return' in metric.lower() or 'drawdown' in metric.lower():
-                            print(f"  {metric:20s}: {value:8.2%}")
-                        else:
-                            print(f"  {metric:20s}: {value:8.4f}")
-
-        print("=" * 70)
-
-    def _generate_plots(self, study: optuna.Study, timestamp: str):
-        """生成可视化图表"""
-        try:
-            import optuna.visualization as vis
-            plots_dir = self.results_dir / "plots"
-            plots_dir.mkdir(exist_ok=True)
-
-            plots = [
-                ('optimization_history', vis.plot_optimization_history),
-                ('param_importances', vis.plot_param_importances),
-                ('parallel_coordinate', vis.plot_parallel_coordinate),
-                ('slice', vis.plot_slice),
-            ]
-
-            for name, plot_func in plots:
-                try:
-                    fig = plot_func(study)
-                    fig.write_html(str(plots_dir / f"{name}_{timestamp}.html"))
-                    print(f"  生成{name}图")
-                except Exception as e:
-                    print(f"  跳过{name}图: {e}")
-
-            print(f"  可视化图表保存到: {plots_dir}")
-
-        except ImportError:
-            print("  警告: 未安装plotly，跳过可视化")
+            print(f"  训练期得分:   {train_score:.4f}")
+            print(f"  测试期得分:   {test_score:.4f}")
+            print(f"  测试期标准差: {test_std:.4f}")
+            print(f"  训练/测试差距: {gap:.4f}")
+            print(f"  过拟合比率:   {overfitting_ratio:.2%}")
 
 
 def create_optimized_strategy(
@@ -1008,7 +946,8 @@ def optimize_strategy(
     stability_weight: float = DEFAULT_STABILITY_WEIGHT,
     custom_mapping: Optional[dict[str, str]] = None,
     resume: bool = True,
-    verbose: bool = False
+    verbose: bool = False,
+    _script_path: Optional[str] = None,
 ):
     """一站式策略参数优化入口函数
 
@@ -1045,14 +984,15 @@ def optimize_strategy(
             holdout_period=("2025-01-01", "2025-10-25")
         )
     """
-    import inspect
+    if _script_path is not None:
+        script_filepath = Path(_script_path)
+    else:
+        import inspect
+        caller_frame = inspect.stack()[1]
+        script_filepath = Path(caller_frame.filename)
 
-    # 自动推断strategy_path（从调用文件路径推断）
-    caller_frame = inspect.stack()[1]
-    caller_filepath = Path(caller_frame.filename)
-
-    # 假设调用者在 strategies/{name}/optimization/optimize_params.py
-    strategy_path = caller_filepath.parent.parent / "backtest.py"
+    # 假设脚本在 strategies/{name}/optimization/optimize_params.py
+    strategy_path = script_filepath.parent.parent / "backtest.py"
     if not strategy_path.exists():
         raise FileNotFoundError(
             f"无法自动推断策略路径，期望位置: {strategy_path}\n"
@@ -1069,10 +1009,23 @@ def optimize_strategy(
     else:
         scoring_instance = scoring_strategy()
     if walk_forward_config is None:
+        opt_start = datetime.strptime(optimization_period[0], "%Y-%m-%d")
+        opt_end = datetime.strptime(optimization_period[1], "%Y-%m-%d")
+        hld_start = datetime.strptime(holdout_period[0], "%Y-%m-%d")
+        hld_end = datetime.strptime(holdout_period[1], "%Y-%m-%d")
+
+        opt_months = max(1, (opt_end.year - opt_start.year) * 12 + opt_end.month - opt_start.month)
+        hld_months = max(1, (hld_end.year - hld_start.year) * 12 + hld_end.month - hld_start.month)
+
+        # test = 留存期长度，train = 优化期的 1/3~1/2，step = test
+        test_months = max(1, hld_months)
+        train_months = max(test_months + 1, opt_months // 3)
+        step_months = max(1, test_months)
+
         walk_forward_config = {
-            'train_months': 12,
-            'test_months': 3,
-            'step_months': 6
+            'train_months': train_months,
+            'test_months': test_months,
+            'step_months': step_months,
         }
 
     start_date, end_date = optimization_period
@@ -1085,27 +1038,6 @@ def optimize_strategy(
     space_size = parameter_space.calculate_space_size()
     if patience is None:
         patience = int(space_size / 4)
-
-    # 输出配置信息
-    print("=" * 70)
-    print(f"{strategy_path.parent.name} 策略 - 防过拟合参数优化 (早停机制)")
-    print("=" * 70)
-    print(f"\n【时间划分】")
-    print(f"  优化期: {start_date} ~ {end_date}")
-    print(f"  泛化测试集: {holdout_start} ~ {holdout_end}")
-    print(f"  Walk-Forward: {walk_forward_config['train_months']}月训练 + {walk_forward_config['test_months']}月测试, 步长{walk_forward_config['step_months']}月")
-    print(f"\n【参数空间】")
-    print(f"  总组合数: {space_size} 种")
-    print("\n【优化策略】")
-    print("  ✓ Walk-Forward Analysis - 滚动窗口验证，使用测试期得分")
-    print("  ✓ TPE贝叶斯优化 - 考虑参数间相关性")
-    print("  ✓ MedianPruner中间剪枝 - 快速淘汰低效参数方向")
-    print("  ✓ 稳定性约束 - 惩罚测试期得分波动大的参数")
-    print("  ✓ 正则化惩罚 - 自动推导参数极值边界")
-    if use_optimal_stopping:
-        print(f"  ✓ 早停机制 - 连续{patience}次trial无改进则停止（空间的1/4向上取整）\n")
-    else:
-        print()
 
     # 创建优化器
     optimizer = StrategyOptimizer(
@@ -1153,16 +1085,5 @@ def optimize_strategy(
         output_path=str(optimized_strategy_path),
         custom_mapping=custom_mapping
     )
-
-    print("\n" + "=" * 70)
-    print("优化完成！")
-    print("=" * 70)
-    print(f"结果目录: {optimizer.results_dir}")
-    print(f"优化策略: {optimized_strategy_path}")
-    print(f"数据库: {optimizer.results_dir / 'optuna_study.db'}")
-    print("\n提示:")
-    print("  - 查看 plots/ 目录获取可视化分析")
-    print("  - 对比训练/测试差距判断是否过拟合")
-    print("  - 样本外验证指标应接近测试期平均水平")
 
     return study

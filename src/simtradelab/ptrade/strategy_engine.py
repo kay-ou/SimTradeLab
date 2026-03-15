@@ -281,7 +281,8 @@ class StrategyExecutionEngine:
         # 跨日追踪：上一交易日收盘后的组合市值（用于计算真实日盈亏）
         prev_day_end_value = None
 
-        for current_date in date_range:
+        total_days = len(date_range)
+        for i, current_date in enumerate(date_range):
             if self._cancel_event and self._cancel_event.is_set():
                 self.log.info("回测已取消")
                 return False
@@ -329,6 +330,10 @@ class StrategyExecutionEngine:
                 prev_day_end_value = self.context.portfolio.starting_cash
             self.stats_collector.collect_post_trading(self.context, prev_day_end_value)
             prev_day_end_value = current_end_value
+            # 按百分比节流：每增加 1% 才发一次，最后一天必发
+            pct = (i + 1) * 100 // total_days
+            if pct > i * 100 // total_days or i + 1 == total_days:
+                print("__PROGRESS__:{}/{}".format(i + 1, total_days))
 
         return True
 
@@ -350,7 +355,8 @@ class StrategyExecutionEngine:
         # 跨日追踪：上一交易日收盘后的组合市值
         prev_day_end_value = None
 
-        for current_date in date_range:
+        total_days = len(date_range)
+        for i, current_date in enumerate(date_range):
             if self._cancel_event and self._cancel_event.is_set():
                 self.log.info("回测已取消")
                 return False
@@ -418,6 +424,9 @@ class StrategyExecutionEngine:
                 prev_day_end_value = self.context.portfolio.starting_cash
             self.stats_collector.collect_post_trading(self.context, prev_day_end_value)
             prev_day_end_value = current_end_value
+            pct = (i + 1) * 100 // total_days
+            if pct > i * 100 // total_days or i + 1 == total_days:
+                print("__PROGRESS__:{}/{}".format(i + 1, total_days))
 
         return True
 

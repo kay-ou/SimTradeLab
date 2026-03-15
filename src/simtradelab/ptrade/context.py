@@ -72,7 +72,6 @@ class Context:
         # === 每日买卖金额累计（由OrderProcessor写入） ===
         self._daily_buy_total = 0.0
         self._daily_sell_total = 0.0
-
         # 当日已付买入手续费（用于同一handle_data内多笔订单的可用现金检查）
         self._daily_buy_commission = 0.0
 

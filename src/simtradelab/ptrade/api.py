@@ -27,7 +27,7 @@ from typing import Optional, Any, Callable
 
 from .lifecycle_controller import PTradeLifecycleError
 from .lifecycle_config import API_ALLOWED_PHASES_LOOKUP, _ALL_PHASES_FROZENSET
-from ..utils.paths import get_project_root
+from ..utils.paths import get_project_root, get_strategies_path
 from simtradelab.ptrade.object import Position
 from .order_processor import OrderProcessor
 from .cache_manager import cache_manager
@@ -36,40 +36,75 @@ from .config_manager import config
 from simtradelab.utils.perf import timer
 
 
-def _round2(values: np.ndarray) -> np.ndarray:
-    """Round to 2dp matching Ptrade's behavior.
+def _round2_scalar(fv: float) -> float:
+    """Round single float to 2dp matching Ptrade's behavior.
 
-    Default: round(float(v), 2) — Python banker's rounding.
-
-    TypeA (float64 below true .XX5, str shows '.XX5' exactly):
-      fv - rd > 0.00499, dec[2]='5', non-dyadic → round UP to .XX+1.
-      The nearest float64 to .XX5 is from below; Python rounds DOWN but Ptrade rounds UP.
-
-    Anti-TypeA (float64 one step ABOVE nearest to .XX5, str shows '.XX5000...1'):
-      rd - fv > 0.00499, len(dec) > 3 (not the nearest, one step above), non-dyadic,
-      EVEN second digit → round DOWN to .XX.
-      Ptrade's computation yields the nearest float64 to .XX5 (from below), giving .XX
-      after standard round; our numpy op gives +1 ULP, standard round gives .XX+1.
+    Default: round(fv, 2) — Python banker's rounding.
+    TypeA (nearest float64 to .XX5 is from below, str shows '.XX5'):
+      non-dyadic .XX5: float is BELOW exact midpoint, Python rounds DOWN (banker's to even),
+      but Ptrade rounds UP (round half up) → force UP to .XX+1.
+    Anti-TypeA (+1 ULP above nearest, str shows '.XX5000...1'):
+      non-dyadic .XX5: float is ABOVE exact midpoint by 1 ULP, Python rounds UP,
+      but Ptrade rounds DOWN (treats as exactly .XX5 → banker's even) → force DOWN to .XX.
+    Upper bound < 0.005: at magnitudes ~35-60, float64 subtraction fv-rd overshoots 0.005
+      due to ULP error. Ptrade skips TypeA when abs(diff)>=0.005 (treats as standard rounding).
     """
+    rd = round(fv, 2)
+    diff = fv - rd
+    if 0.00499 < abs(diff) < 0.005:
+        s = str(fv)
+        dot = s.find('.')
+        if dot >= 0:
+            frac = s[dot + 1:]
+            if len(frac) >= 3 and frac[2] == '5' and int(frac[:3]) not in {125, 375, 625, 875}:
+                if diff > 0:                                    # TypeA: below → UP
+                    return round(round(rd + 0.01, 2), 2)
+                # anti-TypeA: +1ULP above .XX5, EVEN → DOWN
+                # 排除 frac[1]='0'（X.X05+ε）：该情况 Ptrade 给标准 UP（如 300382.SZ 20.205+ε）
+                if len(frac) > 3 and int(frac[1]) % 2 == 0 and frac[1] != '0':
+                    return round(rd - 0.01, 2)
+    return rd
+
+
+def _round2(values: np.ndarray) -> np.ndarray:
     result = np.empty(len(values), dtype=np.float64)
     for i, v in enumerate(values):
-        fv = float(v)
-        rd = round(fv, 2)
-        diff = fv - rd
-        if abs(diff) > 0.00499:                                        # 边界情况才做 str 检查
-            s = str(fv)
-            dot = s.find('.')
-            if dot >= 0:
-                frac = s[dot + 1:]
-                if len(frac) >= 3 and frac[2] == '5' and int(frac[:3]) % 125 != 0:
-                    if diff > 0:                                        # TypeA: below → UP
-                        result[i] = round(round(rd + 0.01, 2), 2)
-                        continue
-                    if len(frac) > 3 and int(frac[1]) % 2 == 0:       # anti-TypeA: +1ULP above, EVEN → DOWN
-                        result[i] = round(rd - 0.01, 2)
-                        continue
-        result[i] = rd
+        result[i] = _round2_scalar(float(v))
     return result
+
+
+def _has_typeab(values: np.ndarray) -> bool:
+    """Return True if _round2 differs from round() for any value (TypeA/anti-TypeA fires)."""
+    for v in values:
+        fv = float(v)
+        if _round2_scalar(fv) != round(fv, 2):
+            return True
+    return False
+
+
+def _compute_hl_adj(adj_b: np.ndarray, h_raw: np.ndarray, l_raw: np.ndarray):
+    """计算前复权 high/low，自动决定是否使用 float64 bypass。
+
+    bypass 条件（4个同时满足）：
+      1. float64 adj >= rounded adj（系统性正偏置）
+      2. 窗口内无 TypeA/anti-TypeA 触发
+      3. float64 range ≠ rounded range（存在实际 ULP 污染）
+      4. adj_b_bias > 0.003（.XX4/.XX6，排除 .XX2/.XX8 如 300441.SZ）
+    满足时返回 float64 adj，否则返回 _round2 结果。
+    """
+    adj_h = h_raw + adj_b
+    adj_l = l_raw + adj_b
+    adj_h_r = _round2(adj_h)
+    adj_l_r = _round2(adj_l)
+    if (np.all(adj_h >= adj_h_r) and np.all(adj_l >= adj_l_r)
+            and not _has_typeab(adj_h) and not _has_typeab(adj_l)):
+        range_f = float(adj_h.max() - adj_l.min())
+        range_r = float(adj_h_r.max() - adj_l_r.min())
+        if range_f != range_r:
+            adj_b_bias = abs(float(adj_b[-1]) - round(float(adj_b[-1]), 2))
+            if adj_b_bias > 0.003:
+                return adj_h, adj_l  # float64 bypass
+    return adj_h_r, adj_l_r
 
 
 def validate_lifecycle(func: Callable) -> Callable:
@@ -112,6 +147,7 @@ class PtradeAPI:
         """
         self.data_context = data_context
         self.context = context
+        self.stats_collector = None
         self.log = log
 
         # 股票池管理
@@ -135,7 +171,8 @@ class PtradeAPI:
         if self._order_processor is None:
             self._order_processor = OrderProcessor(
                 self.context, self.data_context,
-                self.get_stock_date_index, self.log
+                self.get_stock_date_index, self.log,
+                stats_collector=self.stats_collector,
             )
         return self._order_processor
 
@@ -215,27 +252,19 @@ class PtradeAPI:
         adj_b = adj_factors.loc[common_idx, 'adj_b']
         price_cols = ['open', 'high', 'low', 'close']
 
+        # 前/后复权公式相同：adj_a * 未复权价 + adj_b
         for col in price_cols:
-            if col not in adjusted_df.columns:
-                continue
-            if fq == 'pre':
-                # 前复权: adj_a * 未复权价 + adj_b (直接使用平台 ef_a/ef_b)
-                adjusted_df.loc[common_idx, col] = (
-                    adj_a * adjusted_df.loc[common_idx, col] + adj_b
-                )
-            else:
-                # 后复权: adj_a * 未复权价 + adj_b
-                adjusted_df.loc[common_idx, col] = (
-                    adj_a * adjusted_df.loc[common_idx, col] + adj_b
-                )
+            adjusted_df.loc[common_idx, col] = adj_a * adjusted_df.loc[common_idx, col] + adj_b
 
         return adjusted_df
 
     # ==================== 基础API ====================
 
     def get_research_path(self) -> str:
-        """返回研究目录路径"""
-        return str(get_project_root()) + '/research/'
+        """返回研究目录路径（基于 strategies 同级目录）"""
+        p = get_strategies_path().parent / 'research'
+        p.mkdir(parents=True, exist_ok=True)
+        return str(p) + '/'
 
     def get_Ashares(self, date: str = None) -> list[str]:
         """返回A股代码列表，支持历史查询"""
@@ -765,6 +794,16 @@ class PtradeAPI:
                 adj_b_base = adj_factors['adj_b'].values[current_idx]
 
             stock_result = {}
+
+            # h/l bypass: adj_b -.XX4/.XX6 时 _round2 引入 ULP 污染使 pos20 误穿 0.25 边界。
+            # adj_a≡1.0 的前复权场景，预计算 high/low（_compute_hl_adj 内部判断是否 bypass）
+            hl_adj = {}
+            if adj_a is not None and not needs_adj_post and not needs_adj_dypre:
+                if 'high' in fields and 'low' in fields and np.all(adj_a == 1.0):
+                    h_raw = data_source['high'].values[start_idx:end_idx]
+                    l_raw = data_source['low'].values[start_idx:end_idx]
+                    hl_adj['high'], hl_adj['low'] = _compute_hl_adj(adj_b, h_raw, l_raw)
+
             for field_name in fields:
                 if field_name not in data_source.columns:
                     continue
@@ -775,6 +814,8 @@ class PtradeAPI:
                         stock_result[field_name] = adj_a * raw + adj_b
                     elif needs_adj_dypre:
                         stock_result[field_name] = (_round2(adj_a * raw + adj_b) - adj_b_base) / adj_a_base
+                    elif field_name in hl_adj:
+                        stock_result[field_name] = hl_adj[field_name]
                     else:
                         stock_result[field_name] = _round2(adj_a * raw + adj_b)
                 else:
@@ -1139,45 +1180,27 @@ class PtradeAPI:
             return None
         return price
 
-    def _get_prev_raw_close(self, security: str, default: float) -> float:
-        """获取前一交易日不复权收盘价。用于 order_value 的资金可负担性检查。"""
-        stock_df = self.data_context.stock_data_dict.get(security)
-        if stock_df is None:
-            return default
-        date_dict, _ = self.get_stock_date_index(security)
-        idx = date_dict.get(self.context.current_dt.value)
-        if idx is None or idx == 0:
-            return default
-        return float(stock_df['close'].values[idx - 1])
-
-    def _adjust_buy_amount(self, security: str, amount: int, price: float, prev_price: float = None) -> Optional[int]:
+    def _adjust_buy_amount(self, security: str, amount: int, price: float) -> Optional[int]:
         """买入时资金不足自动调整数量（Ptrade行为）。返回调整后的 amount 或 None。
 
-        prev_price: 前一交易日收盘价。Ptrade 用 prev_price 做最小可行性预检：
-                    若连 1 手以前日价也买不起则直接失败，不再尝试调整。
-                    后续调整计算仍用 price（今日收盘价）。
+        Ptrade 行为：同一 handle_data 内前一笔订单已付的手续费不计入后续订单的可用现金检查。
+        即 available = portfolio._cash + _daily_buy_commission（当日已付手续费）。
+        调整量以 test_cost <= available（不含手续费）为通过条件。
         """
-        available_cash = self.context.portfolio._cash
+        daily_commission = getattr(self.context, '_daily_buy_commission', 0.0)
+        available_cash = self.context.portfolio._cash + daily_commission
         min_lot = 100
-
-        # Ptrade 前置检查：以前日收盘价评估是否能负担最小1手
-        if prev_price is not None:
-            pre_commission = self.order_processor.calculate_commission(min_lot, prev_price, is_sell=False)
-            if min_lot * prev_price + pre_commission > available_cash:
-                self.log.warning(f"当前账户资金不足，{security}下单失败")
-                return None
 
         cost = amount * price
         commission = self.order_processor.calculate_commission(amount, price, is_sell=False)
-        if cost + commission <= available_cash:
+        if cost + commission <= self.context.portfolio._cash:
             return amount
 
         adjusted = int(available_cash / price / min_lot) * min_lot
 
         while adjusted >= min_lot:
             test_cost = adjusted * price
-            test_commission = self.order_processor.calculate_commission(adjusted, price, is_sell=False)
-            if test_cost + test_commission <= available_cash:
+            if test_cost <= available_cash:  # Ptrade: 手续费不计入调整量检查
                 break
             adjusted -= min_lot
 
@@ -1281,9 +1304,13 @@ class PtradeAPI:
         if price is None:
             return None
         if delta < 0:
+            sell_amount = abs(delta)
+            # 非清仓卖出：向上取整到100的整数倍（匹配Ptrade最小交易单位行为）
+            if amount > 0 and sell_amount % 100 != 0:
+                sell_amount = ((sell_amount // 100) + 1) * 100
+                delta = -sell_amount
             # 科创板非清仓卖出必须≥200股
             if security.startswith('688'):
-                sell_amount = abs(delta)
                 if sell_amount < 200 and sell_amount < current_amount:
                     self.log.warning(f"取消下单，科创板单笔申报数量应不小于200股")
                     return None
@@ -1319,8 +1346,7 @@ class PtradeAPI:
             if security.startswith('688') and target_amount < 200:
                 self.log.warning(f"取消下单，科创板单笔申报数量应不小于200股")
                 return None
-            prev_price = self._get_prev_raw_close(security, price)
-            amount = self._adjust_buy_amount(security, target_amount, price, prev_price)
+            amount = self._adjust_buy_amount(security, target_amount, price)
             if amount is None:
                 return None
             return self._submit_order(security, amount, price)

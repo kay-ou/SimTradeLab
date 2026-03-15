@@ -32,7 +32,7 @@ class OrderProcessor:
     4. 买卖执行
     """
 
-    def __init__(self, context, data_context, get_stock_date_index_func, log):
+    def __init__(self, context, data_context, get_stock_date_index_func, log, stats_collector=None):
         """初始化订单处理器
 
         Args:
@@ -40,11 +40,13 @@ class OrderProcessor:
             data_context: 数据上下文对象
             get_stock_date_index_func: 获取股票日期索引的函数
             log: 日志对象
+            stats_collector: 统计收集器（可选）
         """
         self.context = context
         self.data_context = data_context
         self.get_stock_date_index = get_stock_date_index_func
         self.log = log
+        self.stats_collector = stats_collector
 
     def get_execution_price(self, stock: str, limit_price: Optional[float] = None, is_buy: bool = True) -> Optional[float]:
         """获取交易执行价格（含滑点）
@@ -207,6 +209,7 @@ class OrderProcessor:
             if cost > self.context.portfolio._cash + daily_commission:
                 self.log.warning(f"【买入失败】{stock} | 原因: 现金不足 (需要{total_cost:.2f}, 可用{self.context.portfolio._cash:.2f})")
                 return False
+            # 手续费导致的微负：Ptrade允许（当日已付手续费不计入后续订单可用现金）
 
         self.context.portfolio._cash -= total_cost
 
@@ -222,6 +225,11 @@ class OrderProcessor:
 
         # 累计当日买入金额（gross，不含手续费）
         self.context._daily_buy_total += amount * price
+
+        if self.stats_collector:
+            self.stats_collector.collect_trade(
+                self.context.current_dt, stock, "buy", amount, price, amount * price, commission
+            )
 
         return True
 
@@ -287,6 +295,11 @@ class OrderProcessor:
 
         # 累计当日卖出金额（gross，不含手续费）
         self.context._daily_sell_total += amount * price
+
+        if self.stats_collector:
+            self.stats_collector.collect_trade(
+                self.context.current_dt, stock, "sell", amount, price, amount * price, commission
+            )
 
         # 日志
         if tax_adjustment > 0:

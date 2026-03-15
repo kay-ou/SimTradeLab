@@ -28,6 +28,7 @@ class BacktestStats:
     daily_positions_value: list[float] = field(default_factory=list)
     trade_dates: list = field(default_factory=list)
     daily_positions_snapshot: list[list] = field(default_factory=list)
+    trades: list[tuple] = field(default_factory=list)
 
 
 class StatsCollector:
@@ -64,15 +65,22 @@ class StatsCollector:
         daily_pnl = current_value - prev_portfolio_value
         self._stats.daily_pnl.append(daily_pnl)
         self._stats.daily_positions_value.append(context.portfolio.positions_value)
+        # 存元组而非字典，避免每日大量字典创建开销；build_series 时再转
         snapshot = [
-            {
-                "c": pos.stock,
-                "nm": self._name_map.get(pos.stock, pos.stock),
-                "n": int(pos.amount),
-                "v": round(pos.market_value, 2),
-                "b": round(pos.cost_basis, 2),
-            }
+            (pos.stock,
+             self._name_map.get(pos.stock, pos.stock),
+             int(pos.amount),
+             round(pos.market_value, 2),
+             round(pos.cost_basis, 2))
             for pos in context.portfolio.positions.values()
             if pos.amount > 0
         ]
         self._stats.daily_positions_snapshot.append(snapshot)
+
+    def collect_trade(self, date, stock: str, side: str, amount: int, price: float, value: float, commission: float):
+        """记录一笔交易"""
+        name = self._name_map.get(stock, stock)
+        self._stats.trades.append((
+            str(date.date()) if hasattr(date, 'date') else str(date),
+            stock, name, side, amount, round(price, 4), round(value, 2), round(commission, 2)
+        ))

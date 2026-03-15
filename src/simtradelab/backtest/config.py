@@ -61,6 +61,9 @@ class BacktestConfig(BaseModel):
     # T+1交易限制：True=A股模式（当日买入不可卖），False=T+0模式（ETF/美股）
     t_plus_1: bool = True
 
+    # 优化模式：跳过策略验证/数据分析/日志配置（由优化器管理）
+    optimization_mode: bool = False
+
     model_config = {"arbitrary_types_allowed": True}
 
     @field_validator('start_date', 'end_date', mode='before')

@@ -55,6 +55,9 @@ class BacktestRunner:
         self.dividend_cache = None
         self.trade_days = None
 
+        # 优化模式：跨 trial 共享日期索引缓存
+        self._shared_date_index: dict | None = None
+
         # 注册信号处理（仅在主线程）
         try:
             signal.signal(signal.SIGINT, self._signal_handler)
@@ -74,40 +77,46 @@ class BacktestRunner:
         """
 
         # 先验证策略，避免数据加载后才发现策略错误
-        print("检查策略...")
-        is_valid, errors, fixed_code = validate_strategy_file(
-            config.strategy_path,
-            check_py35_compat=config.sandbox
-        )
-        if not is_valid:
-            print("\n策略验证失败:")
-            for error in errors:
-                print(f"  - {error}")
-            return {}
-        if fixed_code:
-            print("已自动修复Python 3.5兼容性问题")
-        print("策略检查通过\n")
+        if not config.optimization_mode:
+            print("检查策略...")
+            is_valid, errors, fixed_code = validate_strategy_file(
+                config.strategy_path,
+                check_py35_compat=config.sandbox
+            )
+            if not is_valid:
+                print("\n策略验证失败:")
+                for error in errors:
+                    print(f"  - {error}")
+                return {}
+            if fixed_code:
+                print("已自动修复Python 3.5兼容性问题")
+            print("策略检查通过\n")
 
         # 分析策略数据依赖
-        print("分析策略数据依赖...")
-        from simtradelab.ptrade.strategy_data_analyzer import (
-            analyze_strategy_data_requirements,
-            print_dependencies
-        )
-        deps = analyze_strategy_data_requirements(config.strategy_path)
-        print_dependencies(deps)
-        print("")
+        if not config.optimization_mode:
+            print("分析策略数据依赖...")
+            from simtradelab.ptrade.strategy_data_analyzer import (
+                analyze_strategy_data_requirements,
+                print_dependencies
+            )
+            deps = analyze_strategy_data_requirements(config.strategy_path)
+            print_dependencies(deps)
+            print("")
 
         # 转换为数据加载参数
-        required_data = set()
-        if deps.needs_price_data:
-            required_data.add('price')
-        if deps.needs_valuation:
-            required_data.add('valuation')
-        if deps.needs_fundamentals:
-            required_data.add('fundamentals')
-        if deps.needs_exrights:
-            required_data.add('exrights')
+        if config.optimization_mode:
+            # 优化模式：数据已加载，跳过依赖分析
+            required_data = None
+        else:
+            required_data = set()
+            if deps.needs_price_data:
+                required_data.add('price')
+            if deps.needs_valuation:
+                required_data.add('valuation')
+            if deps.needs_fundamentals:
+                required_data.add('fundamentals')
+            if deps.needs_exrights:
+                required_data.add('exrights')
 
         try:
             # 加载数据
@@ -117,11 +126,13 @@ class BacktestRunner:
                 return {}
 
             # 初始化日志
-            self._setup_logging(config)
+            if not config.optimization_mode:
+                self._setup_logging(config)
             log = logging.getLogger('backtest')
 
-            log.info(f"开始运行回测, 策略名称: {config.strategy_name}")
-            log.info(f"回测周期: {config.start_date.date()} 至 {config.end_date.date()}")
+            if not config.optimization_mode:
+                log.info(f"开始运行回测, 策略名称: {config.strategy_name}")
+                log.info(f"回测周期: {config.start_date.date()} 至 {config.end_date.date()}")
 
             # 创建交易日序列
             date_range = self._create_date_range(benchmark_df, config.start_date, config.end_date)
@@ -139,6 +150,7 @@ class BacktestRunner:
             if self.stock_metadata is not None and not self.stock_metadata.empty and "stock_name" in self.stock_metadata.columns:
                 name_map = self.stock_metadata["stock_name"].to_dict()
             stats_collector = StatsCollector(name_map=name_map)
+            api.stats_collector = stats_collector
 
             # 创建策略执行引擎
             engine = StrategyExecutionEngine(
@@ -158,6 +170,10 @@ class BacktestRunner:
 
             # 执行回测
             success = self._execute_backtest(engine, date_range)
+
+            # 优化模式：保存日期索引缓存供后续 trial 复用
+            if config.optimization_mode and self._shared_date_index is None:
+                self._shared_date_index = api._stock_date_index
 
             if not success:
                 log.error("回测中断")
@@ -219,6 +235,12 @@ class BacktestRunner:
             config: 回测配置
         """
         import sys
+        from simtradelab.ptrade import strategy_engine as _se
+
+        class BacktestDateFilter(logging.Filter):
+            def filter(self, record):
+                record.backtest_dt = _se._current_backtest_date or ''
+                return True
 
         handlers = [logging.StreamHandler(sys.stdout)]
 
@@ -231,9 +253,12 @@ class BacktestRunner:
         if config.enable_charts:
             self._chart_filename = config.get_chart_filename()
 
+        for h in handlers:
+            h.addFilter(BacktestDateFilter())
+
         logging.basicConfig(
             level=logging.INFO,
-            format='[%(levelname)s] %(message)s',
+            format='%(backtest_dt)s [%(levelname)s] %(message)s',
             handlers=handlers,
             force=True
         )
@@ -301,6 +326,10 @@ class BacktestRunner:
             context=context,
             log=log
         )
+
+        # 优化模式：复用日期索引缓存
+        if self._shared_date_index is not None:
+            api._stock_date_index = self._shared_date_index
 
         # 初始化回测上下文
         bt_ctx = BacktestContext(

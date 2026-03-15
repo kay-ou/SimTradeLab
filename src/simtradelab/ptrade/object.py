@@ -511,6 +511,7 @@ class Portfolio:
             new_cost = (position.amount * position.cost_basis + amount * price) / new_amount
             position.amount = new_amount
             position.cost_basis = new_cost
+            position.enable_amount = new_amount
             position.market_value = new_amount * new_cost
             self._position_lots[stock].append({'date': date, 'amount': amount, 'dividends': [], 'dividends_total': 0.0})
         self._invalidate_cache()
@@ -654,7 +655,7 @@ class Position:
         self.sid = stock  # 别名，保持兼容
         self.amount = amount
         self.cost_basis = cost_basis
-        self.enable_amount = 0  # T+1：当日买入不可卖，日切时由引擎重置
+        self.enable_amount = amount
         self.last_sale_price = cost_basis
         self.today_amount = 0
         self.business_type = 'STOCK'
