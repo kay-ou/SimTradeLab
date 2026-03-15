@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![License: Commercial](https://img.shields.io/badge/License-Commercial--Available-red)](licenses/LICENSE-COMMERCIAL.md)
-[![Version](https://img.shields.io/badge/Version-2.7.0-orange.svg)](#)
+[![Version](https://img.shields.io/badge/Version-2.8.0-orange.svg)](#)
 [![PyPI](https://img.shields.io/pypi/v/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 
@@ -34,7 +34,8 @@
 - 🧠 **智能数据加载** — AST静态分析策略代码，按需加载数据，节省内存
 - 🔧 **生命周期控制** — 7个生命周期阶段，严格模拟PTrade的API调用限制
 - 📊 **完整统计报告** — 收益、风险（夏普/索提诺/卡玛）、交易明细、FIFO分红税、CSV导出
-- 🔌 **T+0 / T+1 模式** — 可配置A股、ETF、美股交易限制
+- 🔌 **多市场支持** — 内置 A 股 / 美股市场配置，自动适配交易规则（T+1、涨跌停、手数、手续费）
+- 🌐 **国际化** — 回测输出支持中文/英文/德文
 
 ---
 
@@ -67,7 +68,7 @@ pip install simtradelab[indicators]
 pip install simtradelab[optimizer]
 ```
 
-**数据获取：** 使用 [SimTradeData](https://github.com/kay-ou/SimTradeData) 获取A股历史数据。
+**数据获取：** 使用 [SimTradeData](https://github.com/kay-ou/SimTradeData) 获取A股和美股历史数据。
 
 **运行回测：**
 

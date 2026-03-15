@@ -7,7 +7,7 @@ English | [中文](README.zh-CN.md)
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![License: Commercial](https://img.shields.io/badge/License-Commercial--Available-red)](licenses/LICENSE-COMMERCIAL.md)
-[![Version](https://img.shields.io/badge/Version-2.7.0-orange.svg)](#)
+[![Version](https://img.shields.io/badge/Version-2.8.0-orange.svg)](#)
 [![PyPI](https://img.shields.io/pypi/v/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 
@@ -34,7 +34,8 @@ English | [中文](README.zh-CN.md)
 - 🧠 **Smart data loading** — AST analysis of strategy code, loads only required data
 - 🔧 **Lifecycle control** — 7 lifecycle phases, strict simulation of PTrade's API restrictions
 - 📊 **Full stats reporting** — returns, risk metrics (Sharpe/Sortino/Calmar), trade details, FIFO dividend tax, CSV export
-- 🔌 **T+0 / T+1 modes** — configurable trading restrictions for A-shares, ETFs, and US stocks
+- 🔌 **Multi-market** — Built-in CN (A-shares) and US market profiles with automatic trading rule adaptation
+- 🌐 **i18n** — Backtest output in Chinese, English, or German
 
 ---
 
@@ -67,7 +68,7 @@ pip install simtradelab[indicators]
 pip install simtradelab[optimizer]
 ```
 
-**Data:** Use [SimTradeData](https://github.com/kay-ou/SimTradeData) to download China A-share historical data.
+**Data:** Use [SimTradeData](https://github.com/kay-ou/SimTradeData) to download China A-share and US stock historical data.
 
 **Run a backtest:**
 

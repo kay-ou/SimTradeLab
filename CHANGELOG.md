@@ -1,9 +1,33 @@
-# 更新日志
+# Changelog
 
-本项目的所有重要变更都将记录在此文件中。
+All notable changes to this project will be documented in this file.
 
-格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
-项目遵循 [语义化版本](https://semver.org/spec/v2.0.0.html) 规范。
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.8.0] - 2026-03-15
+
+### ✨ Added
+
+- **Multi-market support** — New `market` config (`CN`/`US`); `MarketProfile` auto-adapts trading rules (T+1, price limits, lot size, commissions, default benchmark)
+- **i18n** — Backtest output in zh/en/de via `locale` config
+- **Trade log** — `StatsCollector` + `PtradeAPI` integration, records every trade
+- **Optimization mode** — `optimization_mode` skips strategy validation/data analysis/logging; shares date-index cache across trials
+
+### 🔧 Improved
+
+- **Optimizer refactor** — `optimizer_framework.py` slimmed by ~400 lines
+- **Log format** — Backtest date prefix in log lines
+- **Benchmark default** — `benchmark_code` defaults to empty string, auto-selects market default
+- **Data loading** — `storage.py` ensures date columns are datetime, compatible with string/int parquet formats
+
+### 📦 Upgrade
+
+```bash
+pip install --upgrade simtradelab==2.8.0
+```
+
+---
 
 ## [2.7.0] - 2026-03-10
 
