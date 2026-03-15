@@ -17,6 +17,8 @@ from __future__ import annotations
 import ast
 from pydantic import BaseModel, Field
 
+from simtradelab.i18n import t
+
 
 class DataDependencies(BaseModel):
     """策略数据依赖项"""
@@ -105,7 +107,7 @@ def analyze_strategy_data_requirements(strategy_path: str) -> DataDependencies:
 
     except Exception as e:
         # 分析失败时返回全量依赖
-        print(f"策略分析失败: {e}, 加载全部数据")
+        print(t("deps.failed", error=e))
         return DataDependencies(
             needs_price_data=True,
             needs_valuation=True,
@@ -118,16 +120,16 @@ def print_dependencies(deps: DataDependencies):
     """打印数据依赖摘要"""
     items = []
     if deps.needs_price_data:
-        items.append("价格")
+        items.append(t("deps.price"))
     if deps.needs_valuation:
-        items.append("估值")
+        items.append(t("deps.valuation"))
     if deps.needs_fundamentals:
-        tables = ','.join(deps.fundamental_tables) if deps.fundamental_tables else '全部'
-        items.append(f"财务({tables})")
+        tables = ','.join(deps.fundamental_tables) if deps.fundamental_tables else 'ALL'
+        items.append(t("deps.fundamentals", tables=tables))
     if deps.needs_exrights:
-        items.append("除权")
+        items.append(t("deps.exrights"))
 
     if items:
-        print(f"策略数据依赖: {' | '.join(items)}")
+        print(t("deps.result", items=' | '.join(items)))
     else:
-        print("策略数据依赖: 无")
+        print(t("deps.none"))

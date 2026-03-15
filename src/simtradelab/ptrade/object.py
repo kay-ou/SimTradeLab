@@ -130,7 +130,8 @@ class LazyDataDict:
                 chunks = [all_keys_list[i:i+chunk_size]
                          for i in range(0, len(all_keys_list), chunk_size)]
 
-                print(f"  使用{num_workers}进程并行加载 {len(all_keys_list)} 只...")
+                from simtradelab.i18n import t
+                print(t("data.parallel_loading", workers=num_workers, count=len(all_keys_list)))
                 import time
                 start_time = time.perf_counter()
 
@@ -145,7 +146,7 @@ class LazyDataDict:
                     self._cache.update(chunk_result)
 
                 elapsed = time.perf_counter() - start_time
-                print(f"  ✓ 加载完成，耗时 {elapsed:.1f}秒")
+                print(t("data.parallel_done", time="{:.1f}".format(elapsed)))
             else:
                 # 串行加载（带进度条）
                 load_func = self._load_map[self.data_type]
@@ -502,7 +503,8 @@ class Portfolio:
     def add_position(self, stock, amount, price, date):
         """买入建仓/加仓"""
         if stock not in self.positions:
-            self.positions[stock] = Position(stock, amount, price)
+            t_plus_1 = self._context.t_plus_1 if self._context else True
+            self.positions[stock] = Position(stock, amount, price, t_plus_1=t_plus_1)
             self._position_lots[stock] = [{'date': date, 'amount': amount, 'dividends': [], 'dividends_total': 0.0}]
         else:
             # 可变模式：直接修改现有position
@@ -650,12 +652,12 @@ class Portfolio:
 
 class Position:
     """模拟持仓对象"""
-    def __init__(self, stock: str, amount: float, cost_basis: float):
+    def __init__(self, stock: str, amount: float, cost_basis: float, t_plus_1: bool = True):
         self.stock = stock
         self.sid = stock  # 别名，保持兼容
         self.amount = amount
         self.cost_basis = cost_basis
-        self.enable_amount = amount
+        self.enable_amount = 0 if t_plus_1 else amount
         self.last_sale_price = cost_basis
         self.today_amount = 0
         self.business_type = 'STOCK'

@@ -46,7 +46,7 @@ class BacktestConfig(BaseModel):
     frequency: str = Field(default='1d', description="回测频率: '1d'日线, '1m'分钟线")
 
     # 基准配置
-    benchmark_code: str = Field(default='000300.SS', description="基准代码")
+    benchmark_code: str = Field(default='', description="基准代码，空串时使用市场默认基准")
 
     # 性能优化配置
     enable_multiprocessing: bool = True
@@ -58,11 +58,17 @@ class BacktestConfig(BaseModel):
     # 沙箱模式：True=限制import和builtins（Ptrade兼容），False=本地开发无限制
     sandbox: bool = True
 
-    # T+1交易限制：True=A股模式（当日买入不可卖），False=T+0模式（ETF/美股）
-    t_plus_1: bool = True
+    # 市场选择: CN=A股, US=美股
+    market: str = Field(default="CN", description="市场代码")
+
+    # T+1 覆盖：None=使用市场默认（CN=True, US=False），显式值覆盖市场默认
+    t_plus_1: Optional[bool] = None
 
     # 优化模式：跳过策略验证/数据分析/日志配置（由优化器管理）
     optimization_mode: bool = False
+
+    # 语言：zh=中文, en=英文
+    locale: str = Field(default="zh", description="语言")
 
     model_config = {"arbitrary_types_allowed": True}
 

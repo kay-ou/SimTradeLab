@@ -16,7 +16,7 @@ import os
 import json
 import numpy as np
 from simtradelab.utils.plot import save_figure
-
+from simtradelab.i18n import t
 from simtradelab.utils.perf import timer
 from simtradelab.backtest.backtest_stats import BacktestStats
 
@@ -432,7 +432,7 @@ def _plot_positions_value(ax, dates, daily_positions_val):
     ax.grid(True, alpha=0.3)
 
 
-@timer(name="图表生成")
+@timer(name="perf.name.chart")
 def generate_backtest_charts(backtest_stats: BacktestStats, start_date, end_date, benchmark_data, chart_filename, benchmark_code='000300.SS'):
     """生成回测图表
 
@@ -503,38 +503,54 @@ def print_backtest_report(report, log, start_date, end_date, time_str, positions
         log: 日志对象
         start_date: 回测开始日期
         end_date: 回测结束日期
-        time_str: 格式化后的耗时字符串（如：3分32秒）
+        time_str: 格式化后的耗时字符串
         positions_count: 持仓数量数组
     """
     log.info("")
     log.info("=" * 70)
-    log.info(f"回测报告 {start_date.strftime('%Y%m%d')}-{end_date.strftime('%Y%m%d')} | "
-             f"周期: {report['trading_days']}天 | 耗时: {time_str}")
+    log.info(t("report.header",
+               start=start_date.strftime('%Y%m%d'),
+               end=end_date.strftime('%Y%m%d'),
+               days=report['trading_days'],
+               time=time_str))
     log.info("=" * 70)
 
     # 核心指标
     log.info("")
-    log.info(f"总收益率: {report['total_return']*100:+.2f}%  |  "
-             f"年化收益: {report['annual_return']*100:+.2f}%  |  "
-             f"最大回撤: {report['max_drawdown']*100:.2f}%")
-    log.info(f"夏普比率: {report['sharpe_ratio']:.3f}  |  "
-             f"信息比率: {report['information_ratio']:.3f}  |  "
-             f"本金: {report['initial_value']/10000:.0f}万 → {report['final_value']/10000:.1f}万")
-    log.info(f"索提诺比率: {report['sortino_ratio']:.3f}  |  "
-             f"卡玛比率: {report['calmar_ratio']:.3f}")
+    log.info(t("report.returns",
+               total="{:+.2f}".format(report['total_return'] * 100),
+               annual="{:+.2f}".format(report['annual_return'] * 100),
+               drawdown="{:.2f}".format(report['max_drawdown'] * 100)))
+    log.info(t("report.ratios",
+               sharpe="{:.3f}".format(report['sharpe_ratio']),
+               info="{:.3f}".format(report['information_ratio']),
+               start_wan="{:.0f}".format(report['initial_value'] / 10000),
+               end_wan="{:.1f}".format(report['final_value'] / 10000),
+               start_val="{:,.0f}".format(report['initial_value']),
+               end_val="{:,.0f}".format(report['final_value'])))
+    log.info(t("report.ratios2",
+               sortino="{:.3f}".format(report['sortino_ratio']),
+               calmar="{:.3f}".format(report['calmar_ratio'])))
 
     # 基准对比
     log.info("")
     benchmark_name = report.get('benchmark_name', 'Benchmark')
-    log.info(f"vs {benchmark_name}: 超额收益 {report['excess_return']*100:+.2f}% | "
-             f"Alpha {report['alpha']*100:+.2f}% | Beta {report['beta']:.3f}")
+    log.info(t("report.benchmark",
+               name=benchmark_name,
+               excess="{:+.2f}".format(report['excess_return'] * 100),
+               alpha="{:+.2f}".format(report['alpha'] * 100),
+               beta="{:.3f}".format(report['beta'])))
 
     # 交易统计
     avg_pos = np.mean(positions_count) if len(positions_count) > 0 else 0
     max_pos = np.max(positions_count) if len(positions_count) > 0 else 0
     log.info("")
-    log.info(f"盈利天数: {report['win_count']}/{report['trading_days']}天 ({report['win_rate']*100:.1f}%) | "
-             f"盈亏比: {report['profit_loss_ratio']:.2f} | "
-             f"持仓: {avg_pos:.1f}只(最大{max_pos}只)")
+    log.info(t("report.win_stats",
+               wins=report['win_count'],
+               total=report['trading_days'],
+               rate="{:.1f}".format(report['win_rate'] * 100),
+               plr="{:.2f}".format(report['profit_loss_ratio']),
+               avg="{:.1f}".format(avg_pos),
+               max=max_pos))
 
     log.info("=" * 70)

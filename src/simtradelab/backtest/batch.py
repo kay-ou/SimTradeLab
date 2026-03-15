@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from simtradelab.backtest.config import BacktestConfig
 from simtradelab.backtest.runner import BacktestRunner
+from simtradelab.i18n import t
 
 
 class BatchConfig(BaseModel):
@@ -45,7 +46,7 @@ class BatchBacktestRunner:
         results = []
         total = len(batch_config.date_ranges)
         for i, (start, end) in enumerate(batch_config.date_ranges, 1):
-            print(f"\n[{i}/{total}] 回测区间: {start} → {end}")
+            print(t("batch.period", i=i, total=total, start=start, end=end))
             config = BacktestConfig(
                 strategy_name=batch_config.strategy_name,
                 start_date=start,
@@ -91,7 +92,7 @@ class BatchBacktestRunner:
             rows.append(row)
         df = pd.DataFrame(rows)
         print("\n" + "=" * 70)
-        print("批量回测汇总")
+        print(t("batch.summary"))
         print("=" * 70)
         print(df.to_string(index=False))
         print("=" * 70 + "\n")

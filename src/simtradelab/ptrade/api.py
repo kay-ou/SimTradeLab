@@ -34,6 +34,7 @@ from .cache_manager import cache_manager
 from cachetools import LRUCache
 from .config_manager import config
 from simtradelab.utils.perf import timer
+from simtradelab.i18n import t
 
 
 def _round2_scalar(fv: float) -> float:
@@ -149,6 +150,8 @@ class PtradeAPI:
         self.context = context
         self.stats_collector = None
         self.log = log
+        self.lot_size = 100
+        self.has_price_limit = True
 
         # 股票池管理
         self.active_universe: set = set()
@@ -174,6 +177,7 @@ class PtradeAPI:
                 self.get_stock_date_index, self.log,
                 stats_collector=self.stats_collector,
             )
+            self._order_processor.lot_size = self.lot_size
         return self._order_processor
 
     def prebuild_date_index(self, stocks: Optional[list[str]] = None) -> None:
@@ -182,11 +186,11 @@ class PtradeAPI:
             return
 
         target_stocks = stocks if stocks else list(self.data_context.stock_data_dict.keys())
-        print(f"预构建 {len(target_stocks)} 只股票的日期索引...")
+        print(t("api.prebuilding", count=len(target_stocks)))
 
         for i, stock in enumerate(target_stocks):
             if (i + 1) % 1000 == 0:
-                print(f"  已构建 {i + 1}/{len(target_stocks)}")
+                print(t("api.prebuild_progress", done=i + 1, total=len(target_stocks)))
             try:
                 stock_df = self.data_context.stock_data_dict[stock]
                 if isinstance(stock_df, pd.DataFrame) and isinstance(stock_df.index, pd.DatetimeIndex):
@@ -197,7 +201,7 @@ class PtradeAPI:
                 pass
 
         self._prebuilt_index = True
-        print(f"  完成！已构建 {len(self._stock_date_index)} 只股票的索引")
+        print(t("api.prebuild_done", count=len(self._stock_date_index)))
 
     def get_stock_date_index(self, stock: str) -> tuple[dict, 'np.ndarray']:
         """获取股票日期索引，返回 (date_dict, sorted_i8) 元组
@@ -531,7 +535,7 @@ class PtradeAPI:
                     result_data[stock] = stock_data
 
             except Exception as e:
-                print(f"读取{table}数据失败: stock={stock}, fields={fields}, error={e}")
+                print(t("api.read_failed", table=table, stock=stock, fields=fields, error=e))
                 traceback.print_exc()
                 raise
 
@@ -662,13 +666,13 @@ class PtradeAPI:
                     result[stock] = self._apply_adj_factors(stock_df, stock, fq)
 
         if not result:
-            self.log.warning("get_price 返回空结果 | stocks=%s, frequency=%s, fq=%s", security, frequency, fq)
+            self.log.warning(t("api.get_price_empty", stocks=security, frequency=frequency, fq=fq))
             return pd.DataFrame()
 
         if is_single_stock:
             stock_df = result.get(security)
             if stock_df is None:
-                self.log.warning("get_price 单只股票无数据 | stock=%s, frequency=%s, fq=%s", security, frequency, fq)
+                self.log.warning(t("api.get_price_no_data", stock=security, frequency=frequency, fq=fq))
                 return pd.DataFrame()
             return stock_df[fields_list] if len(fields_list) > 0 else stock_df
 
@@ -826,8 +830,7 @@ class PtradeAPI:
 
         # 转换为返回格式并缓存
         if not result:
-            self.log.warning("get_history 返回空结果 | stocks=%s, count=%d, frequency=%s, fq=%s",
-                           security_list, count, frequency, fq)
+            self.log.warning(t("api.get_history_empty", stocks=security_list, count=count, frequency=frequency, fq=fq))
             final_result = {} if is_dict else pd.DataFrame()
         elif is_dict:
             # Ptrade返回 OrderedDict[stock → structured numpy array]
@@ -1081,6 +1084,8 @@ class PtradeAPI:
 
     def _get_price_limit_ratio(self, stock: str) -> float:
         """获取股票涨跌停幅度"""
+        if not self.has_price_limit:
+            return None
         if stock.startswith('688') and stock.endswith('.SS'):
             return 0.20
         elif stock.startswith('30') and stock.endswith('.SZ'):
@@ -1092,6 +1097,9 @@ class PtradeAPI:
 
     def check_limit(self, security: str | list[str], query_date: str = None) -> dict[str, int]:
         """检查涨跌停状态"""
+        if not self.has_price_limit:
+            return {s: 0 for s in (security if isinstance(security, list) else [security])}
+
         if isinstance(security, str):
             securities = [security]
         else:
@@ -1173,7 +1181,7 @@ class PtradeAPI:
         is_buy = amount > 0
         price = self.order_processor.get_execution_price(security, limit_price, is_buy)
         if price is None:
-            self.log.warning(f"订单失败 {security} | 原因: 无法获取价格")
+            self.log.warning(t("api.order_no_price", stock=security))
             return None
         limit_status = self.check_limit(security, self.context.current_dt)[security]
         if not self.order_processor.check_limit_status(security, amount, limit_status):
@@ -1189,7 +1197,7 @@ class PtradeAPI:
         """
         daily_commission = getattr(self.context, '_daily_buy_commission', 0.0)
         available_cash = self.context.portfolio._cash + daily_commission
-        min_lot = 100
+        min_lot = self.lot_size
 
         cost = amount * price
         commission = self.order_processor.calculate_commission(amount, price, is_sell=False)
@@ -1205,16 +1213,16 @@ class PtradeAPI:
             adjusted -= min_lot
 
         if adjusted < min_lot:
-            self.log.warning(f"【买入失败】{security} | 原因: 现金不足")
+            self.log.warning(t("api.buy_no_cash", stock=security))
             return None
 
-        self.log.warning(f"当前账户资金不足，调整{security}下单数量为{adjusted}")
+        self.log.warning(t("api.buy_adjusted", stock=security, amount=adjusted))
         return adjusted
 
     def _adjust_sell_amount(self, security: str, amount: int) -> int:
         """卖出时整手约束（Ptrade行为）。amount为负数，返回调整后的负数或0。"""
         abs_amount = abs(amount)
-        min_lot = 100
+        min_lot = self.lot_size
         rounded = (abs_amount // min_lot) * min_lot
 
         # 剩余不足一手时卖出全部（清零股）
@@ -1225,10 +1233,10 @@ class PtradeAPI:
                 rounded = current.amount
 
         # 科创板单笔申报数量不足200股约束（非清仓时）
-        if security.startswith('688') and rounded < 200:
+        if self.lot_size == 100 and security.startswith('688') and rounded < 200:
             current_amount = current.amount if current else 0
             if rounded < current_amount:  # 非清仓
-                self.log.warning(f"取消下单，科创板单笔申报数量应不小于200股")
+                self.log.warning(t("api.star_min_200"))
                 return 0
 
         return -rounded
@@ -1240,10 +1248,10 @@ class PtradeAPI:
             self.context.blotter.all_orders.append(order)
 
         if amount > 0:
-            self.log.info(f"生成订单，订单号:{order_id}，股票代码：{security}，数量：买入{amount}股")
+            self.log.info(t("api.order_buy", order_id=order_id, stock=security, amount=amount))
             success = self.order_processor.execute_buy(security, amount, price)
         else:
-            self.log.info(f"生成订单，订单号:{order_id}，股票代码：{security}，数量：卖出{abs(amount)}股")
+            self.log.info(t("api.order_sell", order_id=order_id, stock=security, amount=abs(amount)))
             success = self.order_processor.execute_sell(security, abs(amount), price)
 
         if success:
@@ -1310,9 +1318,9 @@ class PtradeAPI:
                 sell_amount = ((sell_amount // 100) + 1) * 100
                 delta = -sell_amount
             # 科创板非清仓卖出必须≥200股
-            if security.startswith('688'):
+            if self.lot_size == 100 and security.startswith('688'):
                 if sell_amount < 200 and sell_amount < current_amount:
-                    self.log.warning(f"取消下单，科创板单笔申报数量应不小于200股")
+                    self.log.warning(t("api.star_min_200"))
                     return None
         return self._submit_order(security, delta, price)
 
@@ -1335,16 +1343,16 @@ class PtradeAPI:
         if price is None:
             return None
 
-        min_lot = 100
+        min_lot = self.lot_size
 
         if is_buy:
             target_amount = int(value / price / min_lot) * min_lot
             if target_amount < min_lot:
-                self.log.warning(f"【下单失败】{security} | 原因: 分配金额不足{min_lot}股 (分配{value:.2f}元, 价格{price:.2f}元, 可用现金{self.context.portfolio._cash:.2f}元)")
+                self.log.warning(t("api.order_value_insufficient", stock=security, min_lot=min_lot, value="{:.2f}".format(value), price="{:.2f}".format(price), cash="{:.2f}".format(self.context.portfolio._cash)))
                 return None
             # 科创板买入最小申报数量 200 股
-            if security.startswith('688') and target_amount < 200:
-                self.log.warning(f"取消下单，科创板单笔申报数量应不小于200股")
+            if self.lot_size == 100 and security.startswith('688') and target_amount < 200:
+                self.log.warning(t("api.star_min_200"))
                 return None
             amount = self._adjust_buy_amount(security, target_amount, price)
             if amount is None:
@@ -1355,14 +1363,14 @@ class PtradeAPI:
             target_amount = int(sell_value / price / min_lot) * min_lot
 
             if security not in self.context.portfolio.positions:
-                self.log.warning(f"【卖出失败】{security} | 原因: 无持仓")
+                self.log.warning(t("api.sell_no_position", stock=security))
                 return None
 
             position = self.context.portfolio.positions[security]
             if target_amount >= position.amount:
                 target_amount = position.amount
             elif target_amount < min_lot:
-                self.log.warning(f"【下单失败】{security} | 原因: 卖出金额不足{min_lot}股 (金额{sell_value:.2f}元, 价格{price:.2f}元)")
+                self.log.warning(t("api.sell_value_insufficient", stock=security, min_lot=min_lot, value="{:.2f}".format(sell_value), price="{:.2f}".format(price)))
                 return None
 
             return self._submit_order(security, -target_amount, price)
@@ -1386,10 +1394,10 @@ class PtradeAPI:
         is_buy = value > current_amount * (self.context.portfolio.positions[security].last_sale_price if current_amount > 0 else 0)
         execution_price = self.order_processor.get_execution_price(security, limit_price, is_buy)
         if execution_price is None:
-            self.log.warning(f"订单失败 {security} | 原因: 无法获取价格")
+            self.log.warning(t("api.order_no_price", stock=security))
             return None
 
-        min_lot = 100
+        min_lot = self.lot_size
         if value <= 0:
             target_amount = 0
         else:
@@ -1505,7 +1513,7 @@ class PtradeAPI:
         # 优先从benchmark_data中查找（指数）
         if benchmark in self.data_context.benchmark_data:
             self.context.benchmark = benchmark
-            self.log.info(f"设置基准（指数）: {benchmark}")
+            self.log.info(t("api.benchmark_index", benchmark=benchmark))
             return
 
         # 如果不在benchmark_data中，检查stock_data_dict（普通股票/指数）
@@ -1513,11 +1521,11 @@ class PtradeAPI:
             self.context.benchmark = benchmark
             # 动态添加到benchmark_data供后续使用
             self.data_context.benchmark_data[benchmark] = self.data_context.stock_data_dict[benchmark]
-            self.log.info(f"设置基准（股票/指数）: {benchmark}")
+            self.log.info(t("api.benchmark_stock", benchmark=benchmark))
             return
 
         # 都不存在，警告
-        self.log.warning(f"基准 {benchmark} 不存在于指数或股票数据中，保持当前基准")
+        self.log.warning(t("api.benchmark_not_found", benchmark=benchmark))
         return
 
     @validate_lifecycle
@@ -1594,7 +1602,7 @@ class PtradeAPI:
             poslist: 持仓列表，每个元素为字典 {'security': 股票代码, 'amount': 数量, 'cost_basis': 成本价}
         """
         if not isinstance(poslist, list):
-            self.log.warning("set_yesterday_position 参数必须是列表")
+            self.log.warning(t("api.pos_not_list"))
             return
 
         for pos_info in poslist:
@@ -1603,8 +1611,8 @@ class PtradeAPI:
             cost_basis = pos_info.get('cost_basis', 0)
 
             if security and amount > 0 and cost_basis > 0:
-                self.context.portfolio.positions[security] = Position(security, amount, cost_basis)
-                self.log.info(f"设置底仓: {security}, 数量:{amount}, 成本价:{cost_basis}")
+                self.context.portfolio.positions[security] = Position(security, amount, cost_basis, t_plus_1=self.context.t_plus_1)
+                self.log.info(t("api.set_position", stock=security, amount=amount, cost=cost_basis))
 
     def run_interval(self, context: Any, func: Callable, seconds: int = 10) -> None:
         """定时运行函数（秒级，仅实盘）

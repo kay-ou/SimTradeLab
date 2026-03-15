@@ -20,6 +20,7 @@ import traceback
 from typing import Any, Callable, Optional
 
 from .context import Context
+from simtradelab.i18n import t
 
 # 策略代码禁止导入的模块（与Ptrade平台一致）
 _current_backtest_date: str | None = None
@@ -232,7 +233,7 @@ class StrategyExecutionEngine:
         self._is_running = True
 
         try:
-            self.log.info(f"Starting strategy execution: {self._strategy_name}")
+            self.log.info(t("engine.start", strategy=self._strategy_name))
 
             # 1. 执行初始化
             self._execute_initialize()
@@ -244,12 +245,12 @@ class StrategyExecutionEngine:
                 success = self._run_daily_loop(date_range)
 
             if success:
-                self.log.info("Strategy execution completed successfully")
+                self.log.info(t("engine.completed"))
 
             return success
 
         except Exception as e:
-            self.log.error(f"Strategy execution failed: {e}")
+            self.log.error(t("engine.failed", error=e))
             traceback.print_exc()
             return False
 
@@ -260,7 +261,7 @@ class StrategyExecutionEngine:
         """执行初始化阶段"""
         from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
 
-        self.log.info("Executing initialize phase")
+        self.log.info(t("engine.initialize"))
         self.lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
         self._strategy_functions["initialize"](self.context)
         self.context.initialized = True
@@ -284,7 +285,7 @@ class StrategyExecutionEngine:
         total_days = len(date_range)
         for i, current_date in enumerate(date_range):
             if self._cancel_event and self._cancel_event.is_set():
-                self.log.info("回测已取消")
+                self.log.info(t("engine.cancelled"))
                 return False
             # 更新日期上下文
             self.context.current_dt = current_date
@@ -358,7 +359,7 @@ class StrategyExecutionEngine:
         total_days = len(date_range)
         for i, current_date in enumerate(date_range):
             if self._cancel_event and self._cancel_event.is_set():
-                self.log.info("回测已取消")
+                self.log.info(t("engine.cancelled"))
                 return False
             # 确保是 pd.Timestamp（防止 datetime.date 无法 replace 时间分量）
             current_date = pd.Timestamp(current_date)
@@ -462,7 +463,7 @@ class StrategyExecutionEngine:
             try:
                 func(self.context)
             except Exception as e:
-                self.log.error(f"run_daily任务执行失败: {e}")
+                self.log.error(t("engine.daily_task_failed", error=e))
                 self.log.error(traceback.format_exc())
 
     def _get_daily_task_time_set(self) -> set[str]:
@@ -476,7 +477,7 @@ class StrategyExecutionEngine:
                 try:
                     func(self.context)
                 except Exception as e:
-                    self.log.error(f"run_daily任务({hhmm})执行失败: {e}")
+                    self.log.error(t("engine.daily_task_time_failed", time=hhmm, error=e))
                     self.log.error(traceback.format_exc())
 
     def _execute_lifecycle(self, data) -> bool:
@@ -525,7 +526,7 @@ class StrategyExecutionEngine:
         try:
             self.lifecycle_controller.set_phase(phase)
         except Exception as e:
-            self.log.error(f"设置生命周期阶段 {phase} 失败: {e}")
+            self.log.error(t("engine.phase_failed", phase=phase, error=e))
             return False
 
         # 如果函数不存在，阶段已设置，直接返回成功
@@ -537,10 +538,10 @@ class StrategyExecutionEngine:
             self._strategy_functions[func_name](self.context, data)
             return True
         except ValueError as e:
-            self.log.error(f"{func_name}执行失败: {e}")
+            self.log.error(t("engine.func_failed", func=func_name, error=e))
             return allow_fail
         except Exception as e:
-            self.log.error(f"{func_name}执行失败: {e}")
+            self.log.error(t("engine.func_failed", func=func_name, error=e))
             traceback.print_exc()
             return allow_fail
 
@@ -597,7 +598,7 @@ class StrategyExecutionEngine:
                     self.context.portfolio.add_dividend(stock_code, dividend_per_share_before_tax)
 
         except Exception as e:
-            self.log.warning(f"除权除息处理失败: {e}")
+            self.log.warning(t("engine.dividend_failed", error=e))
             traceback.print_exc()
 
     # ==========================================
@@ -606,7 +607,7 @@ class StrategyExecutionEngine:
 
     def reset_strategy(self) -> None:
         """重置策略状态"""
-        self.log.info("Resetting strategy state")
+        self.log.info(t("engine.resetting"))
 
         self._strategy_functions.clear()
         self._strategy_name = None

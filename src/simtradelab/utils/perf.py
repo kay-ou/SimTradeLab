@@ -20,14 +20,15 @@ def format_elapsed_time(elapsed: float) -> str:
         elapsed: 耗时（秒）
 
     Returns:
-        格式化后的字符串（如：3分32秒 或 45.23秒）
+        格式化后的字符串
     """
+    from simtradelab.i18n import t
     minutes = int(elapsed / 60)
     seconds = int(elapsed % 60)
     if minutes > 0:
-        return f"{minutes}分{seconds}秒"
+        return t("perf.elapsed_ms", m=minutes, s=seconds)
     else:
-        return f"{elapsed:.2f}秒"
+        return t("perf.elapsed_s", s="{:.2f}".format(elapsed))
 
 
 def timer(threshold=0.1, name=None):
@@ -67,24 +68,31 @@ def timer(threshold=0.1, name=None):
 
             if elapsed > threshold:
                 func_name = name or func.__name__
+                if name:
+                    from simtradelab.i18n import t as _t
+                    func_name = _t(name)
                 # 尝试获取第一个参数的类型信息
                 if args and hasattr(args[0], '__dict__'):
                     class_name = args[0].__class__.__name__
                     if class_name == 'PtradeAPI':
                         # 如果是批量操作，显示批次大小
+                        from simtradelab.i18n import t as _t
                         if len(args) > 1 and isinstance(args[1], (list, tuple)):
-                            print(f"  [PERF] {func_name}(批量{len(args[1])}只) 耗时: {elapsed:.2f}s", flush=True)
+                            print(_t("perf.batch_timing", name=func_name, count=len(args[1]), time="{:.2f}".format(elapsed)), flush=True)
                         else:
-                            print(f"  [PERF] {func_name} 耗时: {elapsed:.2f}s", flush=True)
-                    elif class_name in ['BacktestRunner', 'StrategyExecutionEngine']:
+                            print(_t("perf.timing", name=func_name, time="{:.2f}".format(elapsed)), flush=True)
+                    elif class_name in ['BacktestRunner', 'StrategyExecutionEngine', 'ServerBacktestRunner']:
                         # 回测相关类显示耗时
-                        print(f"✓ {func_name} 完成，耗时: {format_elapsed_time(elapsed)}", flush=True)
+                        from simtradelab.i18n import t
+                        print(t("perf.complete", name=func_name, time=format_elapsed_time(elapsed)), flush=True)
                     else:
                         # 其他类默认格式
-                        print(f"  [PERF] {func_name} 耗时: {elapsed:.2f}s", flush=True)
+                        from simtradelab.i18n import t as _t
+                        print(_t("perf.timing", name=func_name, time="{:.2f}".format(elapsed)), flush=True)
                 else:
                     # 没有实例的情况（模块级函数）
-                    print(f"  [PERF] {func_name} 耗时: {elapsed:.2f}s", flush=True)
+                    from simtradelab.i18n import t as _t
+                    print(_t("perf.timing", name=func_name, time="{:.2f}".format(elapsed)), flush=True)
             return result
         return wrapper
     return decorator
@@ -105,11 +113,12 @@ def get_current_elapsed_time(instance, func_name: str) -> str:
         if start_time > 0:
             elapsed = time.perf_counter() - start_time
             return format_elapsed_time(elapsed)
-    return '0秒'
+    from simtradelab.i18n import t
+    return t("perf.elapsed_zero")
 
 
 @contextmanager
-def timed(name="操作", threshold=0.1):
+def timed(name="", threshold=0.1):
     """性能计时上下文管理器
 
     Args:
@@ -129,4 +138,5 @@ def timed(name="操作", threshold=0.1):
     finally:
         elapsed = time.perf_counter() - start
         if elapsed >= threshold:
-            print(f"  [PERF] {name} 耗时: {elapsed:.2f}s", flush=True)
+            from simtradelab.i18n import t as _t
+            print(_t("perf.timing", name=name, time="{:.2f}".format(elapsed)), flush=True)

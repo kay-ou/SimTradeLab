@@ -15,6 +15,7 @@ import os
 import pandas as pd
 
 from simtradelab.backtest.backtest_stats import BacktestStats
+from simtradelab.i18n import t
 
 
 def export_to_csv(report: dict, output_dir: str) -> dict[str, str]:
@@ -39,9 +40,9 @@ def export_to_csv(report: dict, output_dir: str) -> dict[str, str]:
     daily_path = _export_daily_stats(stats, output_dir, suffix)
     positions_path = _export_positions(stats, output_dir, suffix)
 
-    print("CSV 已导出:")
-    print(f"  每日统计: {daily_path}")
-    print(f"  持仓历史: {positions_path}")
+    print(t("export.done"))
+    print(t("export.daily", path=daily_path))
+    print(t("export.positions", path=positions_path))
 
     return {'daily_stats': daily_path, 'positions': positions_path}
 

@@ -107,7 +107,7 @@ def _parquet_to_adj_cache(cache_path):
     return adj_factors_cache
 
 
-@timer(threshold=0.1, name="前复权因子缓存创建")
+@timer(threshold=0.1, name="perf.name.adj_pre_create")
 def create_adj_pre_cache(data_context):
     """创建并保存所有股票的前复权因子缓存"""
     import logging
@@ -182,7 +182,7 @@ def create_adj_pre_cache(data_context):
         raise
 
 
-@timer(threshold=0.1, name="前复权因子缓存加载")
+@timer(threshold=0.1, name="perf.name.adj_pre_load")
 def load_adj_pre_cache(data_context):
     """加载前复权因子缓存
 
@@ -272,7 +272,7 @@ def _calculate_adj_post_factors_from_events(stock, stock_df, exrights_events):
         return None
 
 
-@timer(threshold=0.1, name="后复权因子缓存创建")
+@timer(threshold=0.1, name="perf.name.adj_post_create")
 def create_adj_post_cache(data_context):
     """创建并保存所有股票的后复权因子缓存"""
     import logging
@@ -347,7 +347,7 @@ def create_adj_post_cache(data_context):
         raise
 
 
-@timer(threshold=0.1, name="后复权因子缓存加载")
+@timer(threshold=0.1, name="perf.name.adj_post_load")
 def load_adj_post_cache(data_context):
     """加载后复权因子缓存
 

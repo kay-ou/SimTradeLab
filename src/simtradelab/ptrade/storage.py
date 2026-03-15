@@ -16,8 +16,16 @@ import pandas as pd
 from pathlib import Path
 
 
+def _ensure_datetime(series: pd.Series) -> pd.Series:
+    """确保 Series 为 datetime 类型（兼容字符串/整数格式）"""
+    if not pd.api.types.is_datetime64_any_dtype(series):
+        return pd.to_datetime(series)
+    return series
+
+
 def _date_to_int(dt_series: pd.Series) -> pd.Series:
     """向量化将datetime转为YYYYMMDD整数"""
+    dt_series = _ensure_datetime(dt_series)
     return (
         dt_series.dt.year * 10000 +
         dt_series.dt.month * 100 +
@@ -27,6 +35,7 @@ def _date_to_int(dt_series: pd.Series) -> pd.Series:
 
 def _date_to_iso(dt_series: pd.Series) -> pd.Series:
     """向量化将datetime转为YYYY-MM-DD字符串"""
+    dt_series = _ensure_datetime(dt_series)
     return (
         dt_series.dt.year.astype(str) + '-' +
         dt_series.dt.month.astype(str).str.zfill(2) + '-' +
@@ -40,6 +49,7 @@ def load_stock(data_dir, symbol):
     if parquet_file.exists():
         df = pd.read_parquet(parquet_file)
         if not df.empty and 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'])
             df.set_index('date', inplace=True)
         return df
     return pd.DataFrame()
@@ -51,6 +61,7 @@ def load_valuation(data_dir, symbol):
     if parquet_file.exists():
         df = pd.read_parquet(parquet_file)
         if not df.empty and 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'])
             df.set_index('date', inplace=True)
         return df
     return pd.DataFrame()
@@ -62,6 +73,7 @@ def load_fundamentals(data_dir, symbol):
     if parquet_file.exists():
         df = pd.read_parquet(parquet_file)
         if not df.empty and 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'])
             df.set_index('date', inplace=True)
         return df
     return pd.DataFrame()
@@ -213,8 +225,10 @@ def load_stock_1m(data_dir, symbol):
         df = pd.read_parquet(parquet_file)
         if not df.empty:
             if 'datetime' in df.columns:
+                df['datetime'] = pd.to_datetime(df['datetime'])
                 df.set_index('datetime', inplace=True)
             elif 'date' in df.columns:
+                df['date'] = pd.to_datetime(df['date'])
                 df.set_index('date', inplace=True)
         return df
     return pd.DataFrame()

@@ -26,13 +26,13 @@ class TradingConfig(BaseModel):
     """
     commission_ratio: float = Field(
         default=0.0003,
-        gt=0,
-        description="佣金费率，必须大于0"
+        ge=0,
+        description="佣金费率"
     )
     min_commission: float = Field(
         default=5.0,
-        gt=0,
-        description="最低佣金，必须大于0"
+        ge=0,
+        description="最低佣金"
     )
     slippage: float = Field(
         default=0.001,
@@ -174,6 +174,19 @@ class ConfigurationManager:
         self.trading = TradingConfig()
         self.cache = CacheConfig()
         self.performance = PerformanceConfig()
+
+    def apply_market_defaults(self, profile) -> None:
+        """按市场配置初始化交易参数默认值
+
+        在策略 initialize() 之前调用，用户仍可通过 set_*() 覆盖
+        """
+        self.trading = TradingConfig(
+            commission_ratio=profile.commission_ratio,
+            min_commission=profile.min_commission,
+            stamp_tax_rate=profile.stamp_tax_rate,
+            transfer_fee_rate=profile.transfer_fee_rate,
+            slippage=profile.default_slippage,
+        )
 
     def export_config(self) -> dict[str, Any]:
         """导出所有配置为字典

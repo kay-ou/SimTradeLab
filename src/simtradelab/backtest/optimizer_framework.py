@@ -35,6 +35,7 @@ from typing import Any, Optional, Type
 
 from simtradelab.backtest.runner import BacktestRunner
 from simtradelab.backtest.config import BacktestConfig
+from simtradelab.i18n import t
 
 
 class _NoFileLock:
@@ -536,7 +537,7 @@ class StrategyOptimizer:
 
         except Exception as e:
             if self.verbose:
-                print(f"回测执行失败: {e}", flush=True)
+                print(t("opt.bt_failed", error=e), flush=True)
             return -999.0, {}
 
     def _generate_time_windows(self) -> list[tuple[str, str, str, str]]:
@@ -686,8 +687,8 @@ class StrategyOptimizer:
             completed_trials = len([t for t in study.trials
                                    if t.state in [optuna.trial.TrialState.COMPLETE,
                                                  optuna.trial.TrialState.PRUNED]])
-            print(f"\n发现已有优化进度: {completed_trials} 个已完成试验（含剪枝）")
-            print(f"将继续优化至最多 {n_trials} 个试验...")
+            print(t("opt.resume_found", count=completed_trials))
+            print(t("opt.resume_continue", count=n_trials))
 
             # 恢复早停状态（仅当有已完成试验时）
             if self.use_optimal_stopping and completed_trials > 0:
@@ -701,18 +702,18 @@ class StrategyOptimizer:
                         and t.value is not None
                         and t.value <= self._best_score
                     ])
-                    print(f"恢复早停状态: 最佳得分={self._best_score:.4f}, 无改进计数={self._no_improvement_count}/{self.patience}")
+                    print(t("opt.resume_state", score="{:.4f}".format(self._best_score), count=self._no_improvement_count, patience=self.patience))
                 except (ValueError, KeyError):
                     pass  # 无有效最优试验，从头开始早停计数
 
             # 计算还需要运行多少次
             remaining_trials = max(0, n_trials - completed_trials)
             if remaining_trials == 0:
-                print(f"已完成 {n_trials} 个试验，无需继续优化")
+                print(t("opt.all_done", count=n_trials))
                 return study
         else:
             # 创建新的 study
-            print(f"\n创建新的优化任务: {study_name}")
+            print(t("opt.new_study", name=study_name))
 
             sampler = optuna.samplers.TPESampler(
                 seed=42,
@@ -758,8 +759,8 @@ class StrategyOptimizer:
                         # 检查是否达到patience
                         if optimizer_self._no_improvement_count >= optimizer_self.patience:
                             print(f"\n" + "="*60, flush=True)
-                            print(f"早停触发！连续{optimizer_self.patience}次trial无改进（含剪枝）", flush=True)
-                            print(f"最佳得分: {optimizer_self._best_score:.4f}", flush=True)
+                            print(t("opt.early_stop_pruned", patience=optimizer_self.patience), flush=True)
+                            print(t("opt.best_score", score="{:.4f}".format(optimizer_self._best_score)), flush=True)
                             print("="*60, flush=True)
                             study.stop()
                         return
@@ -770,26 +771,26 @@ class StrategyOptimizer:
                         improvement = trial.value - optimizer_self._best_score
                         optimizer_self._best_score = trial.value
                         optimizer_self._no_improvement_count = 0
-                        print(f"\n✓ 找到更优解: {trial.value:.4f} (改进 +{improvement:.4f})", flush=True)
-                        print(f"  无改进计数器重置: 0/{optimizer_self.patience}", flush=True)
+                        print(t("opt.better_found", value="{:.4f}".format(trial.value), improvement="{:.4f}".format(improvement)), flush=True)
+                        print(t("opt.counter_reset", patience=optimizer_self.patience), flush=True)
                     else:
                         # 无改进：增加计数器
                         optimizer_self._no_improvement_count += 1
-                        print(f"  无改进 ({optimizer_self._no_improvement_count}/{optimizer_self.patience}): 当前={trial.value:.4f}, 最佳={optimizer_self._best_score:.4f}", flush=True)
+                        print(t("opt.no_improvement", count=optimizer_self._no_improvement_count, patience=optimizer_self.patience, current="{:.4f}".format(trial.value), best="{:.4f}".format(optimizer_self._best_score)), flush=True)
 
                         # 检查是否达到patience
                         if optimizer_self._no_improvement_count >= optimizer_self.patience:
                             print(f"\n" + "="*60, flush=True)
-                            print(f"早停触发！连续{optimizer_self.patience}次trial无改进", flush=True)
-                            print(f"最佳得分: {optimizer_self._best_score:.4f}", flush=True)
+                            print(t("opt.early_stop", patience=optimizer_self.patience), flush=True)
+                            print(t("opt.best_score", score="{:.4f}".format(optimizer_self._best_score)), flush=True)
                             print("="*60, flush=True)
                             study.stop()
 
             callbacks.append(EarlyStoppingCallback())
 
         # 执行优化（单线程）
-        print(f"\n开始智能优化，将运行最多 {remaining_trials} 个试验...")
-        print(f"参数空间大小: {self.space_size} 种组合\n")
+        print(t("opt.starting", count=remaining_trials))
+        print(t("opt.space_size", size=self.space_size))
 
         completed_before = n_trials - remaining_trials
         _done = [completed_before]  # mutable int for closure
@@ -839,9 +840,9 @@ class StrategyOptimizer:
         Returns:
             dict[str, float]: 留存集指标
         """
-        print(f"\n样本外验证: {holdout_start} 至 {holdout_end}")
+        print(t("opt.holdout_title", start=holdout_start, end=holdout_end))
         score, metrics = self.run_backtest_with_params(best_params, holdout_start, holdout_end)
-        print(f"样本外得分: {score:.4f}")
+        print(t("opt.holdout_score", score="{:.4f}".format(score)))
         for key, value in metrics.items():
             print(f"  {key}: {value:.4f}")
         return metrics
@@ -871,27 +872,27 @@ class StrategyOptimizer:
         pruned_trials = len([t for t in study.trials if t.state == optuna.trial.TrialState.PRUNED])
         failed_trials = len([t for t in study.trials if t.state == optuna.trial.TrialState.FAIL])
 
-        print(f"\n【优化统计】")
-        print(f"  总试验次数: {len(study.trials)}")
-        print(f"  完成试验数: {completed_trials}")
-        print(f"  剪枝试验数: {pruned_trials}")
-        print(f"  失败试验数: {failed_trials}")
+        print(t("opt.stats_title"))
+        print(t("opt.stats_total", count=len(study.trials)))
+        print(t("opt.stats_completed", count=completed_trials))
+        print(t("opt.stats_pruned", count=pruned_trials))
+        print(t("opt.stats_failed", count=failed_trials))
 
         if completed_trials == 0:
-            print("\n警告: 没有成功完成的试验")
+            print(t("opt.no_completed"))
             return
 
-        print(f"  最佳试验ID: {study.best_trial.number}")
+        print(t("opt.best_trial_id", id=study.best_trial.number))
 
-        print(f"\n【最佳参数】")
+        print(t("opt.best_params_title"))
         for param, value in study.best_params.items():
             if isinstance(value, float):
                 print(f"  {param}: {value:.4f}")
             else:
                 print(f"  {param}: {value}")
 
-        print(f"\n【性能得分】")
-        print(f"  综合得分: {study.best_value:.4f}")
+        print(t("opt.perf_title"))
+        print(t("opt.combined_score", score="{:.4f}".format(study.best_value)))
 
         if self.use_walk_forward and study.best_trial.user_attrs:
             train_score = study.best_trial.user_attrs.get('avg_train_score', 0)
@@ -900,11 +901,11 @@ class StrategyOptimizer:
             gap = study.best_trial.user_attrs.get('train_test_gap', 0)
             overfitting_ratio = abs(gap) / max(abs(train_score), 0.0001)
 
-            print(f"  训练期得分:   {train_score:.4f}")
-            print(f"  测试期得分:   {test_score:.4f}")
-            print(f"  测试期标准差: {test_std:.4f}")
-            print(f"  训练/测试差距: {gap:.4f}")
-            print(f"  过拟合比率:   {overfitting_ratio:.2%}")
+            print(t("opt.train_score", score="{:.4f}".format(train_score)))
+            print(t("opt.test_score", score="{:.4f}".format(test_score)))
+            print(t("opt.test_std", value="{:.4f}".format(test_std)))
+            print(t("opt.train_test_gap", value="{:.4f}".format(gap)))
+            print(t("opt.overfit_ratio", value="{:.2%}".format(overfitting_ratio)))
 
 
 def create_optimized_strategy(
@@ -929,7 +930,7 @@ def create_optimized_strategy(
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(modified_code)
 
-    print(f"优化后的策略已保存到: {output_path}")
+    print(t("opt.strategy_saved", path=output_path))
 
 
 # ==================== 简化的顶层API ====================
@@ -1064,7 +1065,7 @@ def optimize_strategy(
 
     # 泛化测试
     print("\n" + "=" * 70)
-    print(f"泛化测试 - 使用完全未参与优化的{holdout_start[:4]}年数据")
+    print(t("opt.holdout_test", year=holdout_start[:4]))
     print("=" * 70)
     _ = optimizer.validate_on_holdout(
         best_params=study.best_params,
