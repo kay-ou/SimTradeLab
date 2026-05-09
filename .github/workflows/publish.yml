@@ -125,10 +125,25 @@ jobs:
     needs: [check-version, publish]
     runs-on: ubuntu-latest
     steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Verify PyPI publication
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
         run: |
-          sleep 30
-          pip install "simtradelab==$VERSION"
+          python -m pip install --upgrade pip
+          for i in 1 2 3 4 5 6; do
+            if pip install "simtradelab==$VERSION"; then
+              break
+            fi
+            if [ "$i" -eq 6 ]; then
+              echo "Failed to install simtradelab==$VERSION from PyPI after retries."
+              exit 1
+            fi
+            echo "Package not available yet on PyPI, retrying in 30s..."
+            sleep 30
+          done
           python -c "import simtradelab; print('SimTradeLab ' + simtradelab.__version__ + ' installed successfully')"
