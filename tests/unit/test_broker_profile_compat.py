@@ -12,6 +12,40 @@ def _set_broker_profile(ptrade_api, profile):
 
 
 class TestBrokerProfileCompat:
+    def test_get_history_1m_context_with_1d_frequency_aligns_trade_day(self, ptrade_api):
+        _set_broker_profile(ptrade_api, "auto")
+        ptrade_api.context.frequency = "1m"
+        ptrade_api.context.current_dt = pd.Timestamp("2024-01-04 09:32:00")
+
+        result = ptrade_api.get_history(
+            count=2,
+            frequency="1d",
+            field="close",
+            security_list=["600000.SH"],
+            fq="pre",
+        )
+        assert isinstance(result, pd.DataFrame)
+        assert "600000.SH" in result.columns
+        assert len(result) > 0
+        assert not result["600000.SH"].isna().all()
+
+    def test_get_price_1m_context_with_1d_frequency_aligns_trade_day(self, ptrade_api):
+        _set_broker_profile(ptrade_api, "auto")
+        ptrade_api.context.frequency = "1m"
+        ptrade_api.context.current_dt = pd.Timestamp("2024-01-04 09:32:00")
+
+        result = ptrade_api.get_price(
+            "600000.SH",
+            count=2,
+            frequency="1d",
+            fields="close",
+            fq="pre",
+        )
+        assert isinstance(result, pd.DataFrame)
+        assert "close" in result.columns
+        assert len(result) > 0
+        assert not result["close"].isna().all()
+
     def test_get_history_default_fields_is_multi_field(self, ptrade_api, test_dates):
         _set_broker_profile(ptrade_api, "auto")
         ptrade_api.context.current_dt = test_dates[-1]

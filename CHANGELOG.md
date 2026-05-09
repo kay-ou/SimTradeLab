@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.3] - 2026-05-09
+
+### 🐛 Fixed
+
+- **daily index resolution** — Add `_resolve_daily_index` fallback logic for day-level queries from minute timestamps (`exact -> normalize -> previous trading day`) to avoid lookup failures in `get_price`, `history`, and limit-status related flows.
+- **data query robustness** — When day index cannot be resolved for a symbol, skip gracefully instead of raising index/location errors in multi-symbol queries.
+
+### 🔧 Changed
+
+- **api typing** — Standardize multiple optional API parameters from `x: T = None` to `x: T | None = None` across PTrade-compatible interfaces for clearer signatures and static analysis friendliness.
+- **repo hygiene** — Ignore local Codex workspace metadata via `.codex` in `.gitignore`.
+
+### ✅ Tests
+
+- **broker profile compatibility** — Extend broker-compat test coverage for the updated daily index resolution behavior.
+
+### 📦 Upgrade
+
+```bash
+pip install --upgrade simtradelab==2.10.3
+```
+
+---
+
 ## [2.10.2] - 2026-04-14
 
 ### ✨ Added

@@ -76,3 +76,4 @@ strategies/*
 data*/
 .claude
 *.ipynb
+.codex
