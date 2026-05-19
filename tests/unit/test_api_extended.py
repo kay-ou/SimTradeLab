@@ -6,6 +6,7 @@
 """
 
 import pytest
+import numpy as np
 import pandas as pd
 
 from simtradelab.ptrade.lifecycle_controller import LifecyclePhase, PTradeLifecycleError
@@ -49,12 +50,13 @@ class TestMoreTradingAPI:
         ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
         ptrade_api.context.current_dt = pd.Timestamp('2024-01-02')
 
-        # 查询持仓（应该为空或Position对象）
+        # 查询持仓（文档示例允许直接访问get_position(...).amount）
         position = ptrade_api.get_position('600000.SH')
 
-        # 应该返回None或Position对象
+        # 应返回Position对象；空仓时amount为0
         from simtradelab.ptrade.object import Position
-        assert position is None or isinstance(position, Position)
+        assert isinstance(position, Position)
+        assert position.amount == 0
 
 
 class TestDataAPI:
@@ -82,12 +84,13 @@ class TestDataAPI:
 
         # 查询单个股票名称
         result = ptrade_api.get_stock_name('600000.SH')
-        # 应该返回字符串（可能为空）
-        assert result is None or isinstance(result, str)
+        # PTrade文档: 单只和多只都返回股票名称字典
+        assert result is None or isinstance(result, dict)
+        if isinstance(result, dict):
+            assert '600000.SH' in result
 
         # 查询多个股票名称
         result = ptrade_api.get_stock_name(['600000.SH', '000001.SZ'])
-        # 应该返回dict
         assert result is None or isinstance(result, dict)
 
     def test_get_trade_days(self, ptrade_api):
@@ -97,8 +100,8 @@ class TestDataAPI:
         # get_trade_days可能需要完整的数据context，测试其不报错即可
         try:
             result = ptrade_api.get_trade_days(start_date='2024-01-01', end_date='2024-01-31')
-            # 应该返回list或None
-            assert result is None or isinstance(result, list)
+            # PTrade文档: 返回numpy.ndarray；本地子类保留 `if not days:` 兼容语义。
+            assert isinstance(result, np.ndarray)
         except (TypeError, AttributeError):
             # 如果缺少数据也可以接受
             assert True

@@ -8,7 +8,8 @@
 import pytest
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from pathlib import Path
+from datetime import date, datetime
 
 from simtradelab.ptrade.lifecycle_controller import LifecyclePhase, PTradeLifecycleError
 from simtradelab.ptrade.config_manager import config
@@ -41,7 +42,7 @@ class TestTradingDaysAPI:
         ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
 
         result = ptrade_api.get_all_trades_days(date='2024-01-01')
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, np.ndarray)
 
     def test_get_trading_day(self, ptrade_api):
         """测试get_trading_day - 获取指定偏移的交易日"""
@@ -51,11 +52,18 @@ class TestTradingDaysAPI:
 
         # 获取当天
         result = ptrade_api.get_trading_day(day=0)
-        assert result is None or isinstance(result, str)
+        assert result is None or isinstance(result, date)
 
         # 获取前一天
         result = ptrade_api.get_trading_day(day=-1)
-        assert result is None or isinstance(result, str)
+        assert result is None or isinstance(result, date)
+
+    def test_get_trading_day_by_date(self, ptrade_api):
+        """测试get_trading_day_by_date返回datetime.date"""
+        ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+
+        result = ptrade_api.get_trading_day_by_date('2024-01-02')
+        assert result is None or isinstance(result, date)
 
     def test_is_trade(self, ptrade_api):
         """测试is_trade - 判断是否交易日"""
@@ -112,9 +120,9 @@ class TestOrderManagementAPI:
         ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
         ptrade_api.context.current_dt = pd.Timestamp('2024-01-02')
 
-        # 不存在的订单返回None
+        # 文档要求返回只包含指定Order对象的list；不存在时为空list
         result = ptrade_api.get_order(order_id='non_existent_order')
-        assert result is None
+        assert result == []
 
     def test_get_trades(self, ptrade_api):
         """测试get_trades - 获取成交记录"""
@@ -123,7 +131,7 @@ class TestOrderManagementAPI:
         ptrade_api.context.current_dt = pd.Timestamp('2024-01-02')
 
         result = ptrade_api.get_trades()
-        assert isinstance(result, list)
+        assert isinstance(result, dict)
 
 
 class TestAdvancedConfigAPI:
@@ -141,15 +149,25 @@ class TestAdvancedConfigAPI:
         """测试set_yesterday_position - 设置昨日持仓"""
         ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
 
-        # 设置昨日持仓
         poslist = [
-            {'stock': '600000.SH', 'amount': 1000, 'price': 10.0},
-            {'stock': '000001.SZ', 'amount': 500, 'price': 15.0}
+            {'sid': '600000.SH', 'enable_amount': 600, 'amount': 1000, 'cost_basis': 10.0},
+            {'sid': '000001.SZ', 'enable_amount': 500, 'amount': 500, 'cost_basis': 15.0}
         ]
         ptrade_api.set_yesterday_position(poslist)
 
-        # 验证方法调用成功(实际逻辑由API处理)
-        assert True
+        position = ptrade_api.context.portfolio.positions['600000.SH']
+        assert position.amount == 1000
+        assert position.enable_amount == 600
+
+    def test_convert_position_from_csv_document_fields(self, ptrade_api, tmp_path):
+        """文档: CSV字段为sid,enable_amount,amount,cost_basis"""
+        ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+        csv_path = Path(tmp_path) / 'Poslist.csv'
+        csv_path.write_text('sid,enable_amount,amount,cost_basis\n600570.SS,10000,10000,45\n', encoding='utf-8')
+
+        result = ptrade_api.convert_position_from_csv(str(csv_path))
+
+        assert result == [{'sid': '600570.SS', 'enable_amount': 10000, 'amount': 10000, 'cost_basis': 45.0}]
 
     def test_run_daily(self, ptrade_api):
         """测试run_daily - 设置每日定时任务"""
@@ -245,8 +263,7 @@ class TestLifecycleStrictness:
         ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
         ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
         result = ptrade_api.cancel_order(None)
-        # 应该不报错
-        assert result is not None or result is None
+        assert result is None
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (c) 2025 Kay
@@ -331,7 +348,7 @@ class TestOrderQueryEnhanced:
 
         # 查询不存在的订单ID
         result = ptrade_api.get_order('nonexistent_id_123456')
-        assert result is None
+        assert result == []
 
     def test_get_order_with_valid_id(self, ptrade_api):
         """测试用有效ID查询订单"""
@@ -345,7 +362,8 @@ class TestOrderQueryEnhanced:
         if order_id:
             # 用订单ID查询
             result = ptrade_api.get_order(order_id)
-            assert result is not None or result is None
+            assert isinstance(result, list)
+            assert len(result) <= 1
 
     def test_get_trades_empty(self, ptrade_api):
         """测试没有成交记录时"""
@@ -354,13 +372,20 @@ class TestOrderQueryEnhanced:
         ptrade_api.context.current_dt = pd.Timestamp('2024-01-02')
 
         result = ptrade_api.get_trades()
-        assert isinstance(result, list)
-        # 初始应该是空的
-        assert len(result) == 0
+        assert result == {}
 
 
 class TestConfigEnhanced:
     """加强配置API测试"""
+
+    def test_set_slippage_default_is_point001(self, ptrade_api):
+        """通用文档: set_slippage默认slippage=0.001"""
+        ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+        config.update_trading_config(slippage=0.0)
+
+        ptrade_api.set_slippage()
+
+        assert config.trading.slippage == 0.001
 
     def test_set_fixed_slippage_zero(self, ptrade_api):
         """测试设置0滑点"""
@@ -368,6 +393,15 @@ class TestConfigEnhanced:
 
         ptrade_api.set_fixed_slippage(fixedslippage=0.0)
         # 配置通过config管理,不需要检查context属性
+
+    def test_set_fixed_slippage_default_is_zero(self, ptrade_api):
+        """通用文档: set_fixed_slippage默认fixedslippage=0.0"""
+        ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+        config.update_trading_config(fixed_slippage=0.05)
+
+        ptrade_api.set_fixed_slippage()
+
+        assert config.trading.fixed_slippage == 0.0
 
     def test_set_fixed_slippage_large(self, ptrade_api):
         """测试设置大滑点"""
@@ -413,8 +447,8 @@ class TestTradingDaysEnhanced:
         ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
 
         result = ptrade_api.get_all_trades_days(date='2024-01-01')
-        assert result is None or isinstance(result, list)
-        if isinstance(result, list) and len(result) > 0:
+        assert isinstance(result, np.ndarray)
+        if result:
             # 验证返回的是日期字符串
             assert isinstance(result[0], str)
 
@@ -423,7 +457,7 @@ class TestTradingDaysEnhanced:
         ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
 
         result = ptrade_api.get_all_trades_days(date=None)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, np.ndarray)
 
     def test_get_trade_days_date_range(self, ptrade_api):
         """测试日期范围获取交易日"""
@@ -433,10 +467,9 @@ class TestTradingDaysEnhanced:
             start_date='2024-01-01',
             end_date='2024-01-31'
         )
-        assert result is None or isinstance(result, list)
-        if isinstance(result, list):
-            # 验证返回的交易日数量合理
-            assert len(result) <= 31  # 一个月最多31天
+        assert isinstance(result, np.ndarray)
+        # 验证返回的交易日数量合理
+        assert len(result) <= 31  # 一个月最多31天
 
     def test_get_trade_days_with_count(self, ptrade_api):
         """测试用count参数获取交易日"""
@@ -445,10 +478,9 @@ class TestTradingDaysEnhanced:
         # 根据PTrade文档,start_date和count不能同时使用
         # 只使用count获取最近10个交易日
         result = ptrade_api.get_trade_days(count=10)
-        assert result is None or isinstance(result, list)
-        if isinstance(result, list) and result:
-            # 验证数量不超过count
-            assert len(result) <= 10
+        assert isinstance(result, np.ndarray)
+        # 验证数量不超过count
+        assert len(result) <= 10
 
     def test_is_trade_different_dates(self, ptrade_api):
         """测试不同日期是否交易日"""
@@ -658,7 +690,8 @@ class TestPositionQueryEnhanced:
         position = ptrade_api.get_position('600000.SH')
 
         from simtradelab.ptrade.object import Position
-        assert position is None or isinstance(position, Position)
+        assert isinstance(position, Position)
+        assert position.amount == 0
 
     def test_get_position_after_buy(self, ptrade_api, portfolio):
         """测试买入后查询持仓"""
@@ -692,9 +725,9 @@ class TestPositionQueryEnhanced:
         pos2 = ptrade_api.get_position('000001.SZ')
         pos3 = ptrade_api.get_position('600519.SH')  # 未持有
 
-        assert pos1 is not None
-        assert pos2 is not None
-        assert pos3 is None
+        assert pos1.amount == 100
+        assert pos2.amount == 200
+        assert pos3.amount == 0
 
 
 class TestOrderTargetBehavior:
@@ -731,8 +764,7 @@ class TestCancelOrderBehavior:
         if order_id:
             # 取消订单
             result = ptrade_api.cancel_order(order_id)
-            # 应该返回True或False
-            assert isinstance(result, bool) or result is None
+            assert result is None
 
     def test_cancel_order_nonexistent(self, ptrade_api):
         """测试取消不存在的订单"""
@@ -743,8 +775,7 @@ class TestCancelOrderBehavior:
         # 取消不存在的订单
         result = ptrade_api.cancel_order('nonexistent_order_id_12345')
 
-        # 应该返回False
-        assert result is False or result is None
+        assert result is None
 
     def test_cancel_order_none(self, ptrade_api):
         """测试取消None订单"""
@@ -755,8 +786,7 @@ class TestCancelOrderBehavior:
         # 取消None订单
         result = ptrade_api.cancel_order(None)
 
-        # 应该返回False
-        assert result is False or result is None
+        assert result is None
 
 
 class TestOrderQueryBehavior:
@@ -805,7 +835,7 @@ class TestOrderQueryBehavior:
 
         # 查询执行前的成交记录
         trades_before = ptrade_api.get_trades()
-        assert isinstance(trades_before, list)
+        assert isinstance(trades_before, dict)
         initial_count = len(trades_before)
 
         # 下单（如果成功执行会产生成交记录）
@@ -814,7 +844,8 @@ class TestOrderQueryBehavior:
         if order_id:
             # 查询成交记录
             trades_after = ptrade_api.get_trades()
-            assert isinstance(trades_after, list)
-            # 成交记录可能增加
+            assert isinstance(trades_after, dict)
             assert len(trades_after) >= initial_count
-
+            trade_rows = trades_after[str(order_id)]
+            assert len(trade_rows[0]) == 8
+            assert trade_rows[0][2] == '600000.XSHG'

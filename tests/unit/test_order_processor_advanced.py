@@ -140,39 +140,6 @@ class TestOrderProcessorEdgeCases:
         assert buy_price == base_price
         assert sell_price == base_price
 
-    def test_check_limit_status_up_limit(self, context, data_context, simple_log):
-        """测试涨停限制"""
-        from simtradelab.ptrade.order_processor import OrderProcessor
-
-        def mock_get_index(stock):
-            return {}, []
-
-        processor = OrderProcessor(context, data_context, mock_get_index, simple_log)
-
-        # 涨停时买入应失败
-        can_trade = processor.check_limit_status("TEST.SH", delta=100, limit_status=1)
-        assert can_trade is False
-
-        # 涨停时卖出应成功
-        can_trade = processor.check_limit_status("TEST.SH", delta=-100, limit_status=1)
-        assert can_trade is True
-
-    def test_check_limit_status_down_limit(self, context, data_context, simple_log):
-        """测试跌停限制"""
-        from simtradelab.ptrade.order_processor import OrderProcessor
-
-        def mock_get_index(stock):
-            return {}, []
-
-        processor = OrderProcessor(context, data_context, mock_get_index, simple_log)
-
-        # 跌停时卖出应失败
-        can_trade = processor.check_limit_status("TEST.SH", delta=-100, limit_status=-1)
-        assert can_trade is False
-
-        # 跌停时买入应成功
-        can_trade = processor.check_limit_status("TEST.SH", delta=100, limit_status=-1)
-        assert can_trade is True
 
     def test_calculate_commission_minimum_rate(self, context, data_context, simple_log):
         """测试极低手续费率（TradingConfig要求commission_ratio > 0）"""

@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.11.0] - 2026-05-19
+
+### ✨ Added
+
+- **api coverage** — Add 40+ PTrade-compatible API stubs with clear `NotImplementedError` messages, covering:
+  - trading: `order_market`, `ipo_stocks_order`, `after_trading_order`, `after_trading_cancel_order`, `order_tick`, `cancel_order_ex`, `get_all_orders`, `get_ipo_stocks`, `get_deliver`, `get_fundjour`, `get_trade_name`
+  - margin: `margincash_open/close/direct_refund`, `marginsec_open/close/direct_refund`, `get_margincash_stocks`, `get_marginsec_stocks`, `get_margin_contract/contractreal`, `get_assure_security_list`, `get_margincash_open_amount` etc.
+  - ETF: `get_etf_info`, `get_etf_stock_info`, `get_etf_stock_list`, `etf_basket_order`, `etf_purchase_redemption`, `get_etf_list`
+  - options: `open_prepared`, `close_prepared`, `option_exercise`, `option_covered_lock/unlock`, `get_covered_lock_amount`, `get_covered_unlock_amount`
+  - convertible bonds: `get_cb_info`, `get_cb_list`, `debt_to_stock_order`
+  - market data: `get_individual_entrust`, `get_tick_direction`, `get_sort_msg`, `get_gear_price`, `get_snapshot`
+  - notifications: `send_email`, `send_qywx`, `permission_test`
+- **get_fundamentals** — Significantly enhanced: fields now optional (auto-selects all table fields), expanded field lists per table (20+ fields for valuation), table aliases (`balance_statement`, `income_statement`, `cashflow_statement`, `eps`), auto-fill `secu_code`/`secu_abbr`/`trading_day`/`end_date`, better date resolution for financial reports
+
+### 🔧 Changed
+
+- **return type alignment** — Multiple API return types adjusted to match PTrade platform behavior:
+  - `get_trade_days` / `get_all_trades_days` return `np.ndarray` with list-like truthiness
+  - `get_trading_day` / `get_trading_day_by_date` return `datetime.date` instead of `str`
+  - `get_order` returns `list[Order]` (single-element or empty) instead of `Order | None`
+  - `get_trades` returns `dict[str, list[list]]` grouped by order id instead of raw order list
+  - `get_stock_name` returns `dict[str, str | None] | None` (never bare string)
+  - `get_stock_status` returns `dict[str, bool | None] | None`
+  - `get_position` always returns `Position` (never `None`), empty position when not held
+  - `cancel_order` returns `None` (not `bool`)
+  - `get_stock_blocks` returns `None` when no data (not `{}`)
+- **parameter alignment** — Multiple API signatures adjusted:
+  - `set_parameters`: removed `params` dict, only accepts `**kwargs`
+  - `get_user_name`: removed `login_account` parameter
+  - `get_stock_info`: default fields changed to `["stock_name"]`
+  - `set_slippage` default: `0.0` → `0.001`; `set_fixed_slippage` default: `0.001` → `0.0`
+  - `set_position`: uses `sid` key (was `security`), adds `enable_amount` support
+  - `convert_position_from_csv`: returns `sid`-keyed format
+  - `get_individual_transaction/transcation`: removed `is_dict` parameter
+  - `run_interval`: removed `interval_timer_ranges` parameter
+  - `buy_open/sell_open/sell_close/buy_close`: renamed `security` to `contract`, removed `close_today` kwargs
+  - Kwarg alias map direction reversed and expanded for better broker compatibility
+- **order processing** — Removed internal `check_limit_status` from `OrderProcessor`, limit check now handled externally
+- **get_fundamentals** — `fields` moved from required to optional parameter, `get_market_list` updated exchange list, `get_security_type` uses actual stock name lookup
+- **broker compatibility** — `check_limit` returns `{}` for guosheng; `get_trading_day` uses next-trading-day lookup for guosheng day=0
+
+### 🗑️ Removed
+
+- `check_limit_status` method from `OrderProcessor` (limit_status parameter removed from `process_order`)
+- `_submit_derivative_order` convenience method
+- `_get_price_and_check_limit` → renamed to `_get_execution_price` (no longer checks limit)
+
+### 🌍 i18n
+
+- New strings: `api.local_backtest_api_unsupported`, `api.gf_invalid_table`, `api.gf_fields_omitted_requires_named_date`
+
+### 📦 Upgrade
+
+```bash
+pip install --upgrade simtradelab==2.11.0
+```
+
+---
+
 ## [2.10.3] - 2026-05-09
 
 ### 🐛 Fixed

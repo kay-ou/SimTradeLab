@@ -134,19 +134,6 @@ class OrderProcessor:
 
         return final_price
 
-    def check_limit_status(self, stock: str, delta: int, limit_status: int) -> bool:
-        """检查涨跌停限制
-
-        涨停（1）禁止买入；跌停（-1）禁止卖出。
-        其余状态不限制。
-        """
-        _ = stock
-        if limit_status == 1 and delta > 0:
-            return False
-        if limit_status == -1 and delta < 0:
-            return False
-        return True
-
     def create_order(self, stock: str, amount: int, price: float) -> tuple[str, object]:
         """创建订单对象
 
@@ -316,15 +303,13 @@ class OrderProcessor:
 
         return True
 
-    def process_order(self, stock: str, target_amount: int, limit_price: Optional[float] = None,
-                     limit_status: int = 0) -> bool:
+    def process_order(self, stock: str, target_amount: int, limit_price: Optional[float] = None) -> bool:
         """处理订单的完整流程
 
         Args:
             stock: 股票代码
             target_amount: 目标数量
             limit_price: 限价
-            limit_status: 涨跌停状态
 
         Returns:
             是否成功
@@ -345,11 +330,7 @@ class OrderProcessor:
         if delta == 0:
             return True  # 无需交易
 
-        # 3. 检查涨跌停
-        if not self.check_limit_status(stock, delta, limit_status):
-            return False
-
-        # 4. 执行交易
+        # 3. 执行交易
         if delta > 0:
             return self.execute_buy(stock, delta, price)
         else:

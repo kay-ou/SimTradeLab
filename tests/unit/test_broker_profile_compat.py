@@ -283,7 +283,7 @@ class TestBrokerProfileCompat:
         arr = result["600000.SH"]
         assert arr.dtype.names == ("close", "volume")
 
-    def test_alias_kwargs_for_futures_apis(self, ptrade_api):
+    def test_documented_kwargs_for_futures_apis(self, ptrade_api):
         _set_broker_profile(ptrade_api, "auto")
 
         with pytest.raises(NotImplementedError):
@@ -294,6 +294,14 @@ class TestBrokerProfileCompat:
             ptrade_api.margin_trade(security="510300.SH", amount=100, market_type="CASH")
         with pytest.raises(NotImplementedError):
             ptrade_api.get_instruments(contract="IF")
+
+    def test_extra_alias_kwargs_rejected(self, ptrade_api):
+        _set_broker_profile(ptrade_api, "auto")
+
+        with pytest.raises(TypeError):
+            ptrade_api.buy_open(sid="IF88", amount=1)
+        with pytest.raises(TypeError):
+            ptrade_api.run_interval(ptrade_api.context, lambda _context: None, unsupported="09:30-10:00")
 
     def test_strict_broker_guard(self, ptrade_api):
         _set_broker_profile(ptrade_api, "dongguan")

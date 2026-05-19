@@ -28,8 +28,18 @@
       }
     },
     "get_fundamentals": {
-      "required_params": ["security", "table", "fields"],
-      "optional_params": ["date", "start_year", "end_year", "report_types", "date_type", "merge_type", "is_dataframe"]
+      "required_params": ["security", "table"],
+      "optional_params": ["fields", "date", "start_year", "end_year", "report_types", "date_type", "merge_type", "is_dataframe"],
+      "default_values": {
+        "fields": null,
+        "date": null,
+        "start_year": null,
+        "end_year": null,
+        "report_types": null,
+        "date_type": null,
+        "merge_type": null,
+        "is_dataframe": null
+      }
     },
     "create_dir": {
       "required_params": [],
@@ -40,9 +50,8 @@
     },
     "set_parameters": {
       "required_params": [],
-      "optional_params": ["params"],
+      "optional_params": [],
       "must_have_var_keyword": true
     }
   }
 }
-

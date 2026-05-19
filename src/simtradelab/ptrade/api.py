@@ -19,6 +19,7 @@ import json
 import traceback
 from collections import OrderedDict
 from collections.abc import Callable
+from datetime import date as datetime_date
 from functools import wraps
 from pathlib import Path
 from typing import Any, Optional
@@ -52,25 +53,25 @@ _PTRADE_SUFFIX_MAP = {
 
 # 兼容各券商文档中的参数名差异（alias -> canonical）
 _API_KWARG_ALIASES = {
-    "buy_open": {"contract": "security"},
-    "sell_open": {"contract": "security"},
-    "sell_close": {"contract": "security"},
-    "buy_close": {"contract": "security"},
+    "buy_open": {"security": "contract"},
+    "sell_open": {"security": "contract"},
+    "sell_close": {"security": "contract"},
+    "buy_close": {"security": "contract"},
+    "option_buy_open": {"security": "contract"},
+    "option_sell_open": {"security": "contract"},
+    "option_sell_close": {"security": "contract"},
+    "option_buy_close": {"security": "contract"},
     "set_benchmark": {"benchmark": "sids"},
-    "set_universe": {"stocks": "security_list"},
+    "set_universe": {"stocks": "security_list", "securities": "security_list"},
     "convert_position_from_csv": {"file_path": "path"},
-    "get_stock_blocks": {"stock": "stock_code"},
+    "get_stock_blocks": {"stock": "stock_code", "security_list": "stock_code"},
     "set_margin_rate": {"security": "transaction_code", "rate": "margin_rate"},
     "get_margin_rate": {"security": "transaction_code"},
 }
 
-# 兼容各券商文档中的“可传但当前实现不使用”的扩展参数
+# 兼容文档中可传但本地回测不使用的扩展参数
 _API_OPTIONAL_DROP_KWARGS = {
-    "buy_close": frozenset(["close_today"]),
-    "sell_close": frozenset(["close_today"]),
-    "margin_trade": frozenset(["market_type"]),
     "run_interval": frozenset(["interval_timer_ranges"]),
-    "set_future_commission": frozenset(["transaction_code"]),
 }
 
 _FREQ_ALIASES = {
@@ -98,11 +99,35 @@ _PERIOD_FREQ_RULE = {
 }
 
 
+class _TradeDaysArray(np.ndarray):
+    """numpy.ndarray with list-like truthiness for legacy strategy compatibility."""
+
+    def __new__(cls, values: list[str]):
+        return np.asarray(values, dtype=object).view(cls)
+
+    def __bool__(self) -> bool:
+        return len(self) > 0
+
+
 def _normalize_code(code: str) -> str:
     """Convert PTrade-style code (e.g. 000300.XSHG) to data format (000300.SS)."""
     for ptrade_suffix, data_suffix in _PTRADE_SUFFIX_MAP.items():
         if code.endswith(ptrade_suffix):
             return code[: -len(ptrade_suffix)] + data_suffix
+    return code
+
+
+def _to_ptrade_long_suffix(code: str) -> str:
+    suffix_map = {
+        ".XSHG": ".XSHG",
+        ".XSHE": ".XSHE",
+        ".SS": ".XSHG",
+        ".SH": ".XSHG",
+        ".SZ": ".XSHE",
+    }
+    for suffix, ptrade_suffix in suffix_map.items():
+        if code.endswith(suffix):
+            return code[: -len(suffix)] + ptrade_suffix
     return code
 
 
@@ -186,9 +211,10 @@ def validate_lifecycle(func: Callable) -> Callable:
     api_name = func.__name__
     allowed_phases = API_ALLOWED_PHASES_LOOKUP.get(api_name, _ALL_PHASES_FROZENSET)
     need_broker_guard = needs_broker_support_guard(api_name)
+    has_kwarg_compat = api_name in _API_KWARG_ALIASES or api_name in _API_OPTIONAL_DROP_KWARGS
 
     # all-phase 且无券商差异：直接返回原函数，无任何包装
-    if allowed_phases is _ALL_PHASES_FROZENSET and not need_broker_guard:
+    if allowed_phases is _ALL_PHASES_FROZENSET and not need_broker_guard and not has_kwarg_compat:
         return func
 
     @wraps(func)
@@ -275,6 +301,11 @@ class PtradeAPI:
             )
             self._order_processor.lot_size = self.lot_size
         return self._order_processor
+
+    def _unsupported_api(self, api_name: str, category: str = "接口") -> None:
+        """Raise a consistent error for PTrade APIs not supported by local backtesting."""
+        _ = category
+        raise NotImplementedError(t("api.local_backtest_api_unsupported", api_name=api_name))
 
     def prebuild_date_index(self, stocks: Optional[list[str]] = None) -> None:
         """预构建股票日期索引（显著提升性能）"""
@@ -441,7 +472,7 @@ class PtradeAPI:
 
     def get_trade_days(
         self, start_date: str | None = None, end_date: str | None = None, count: int | None = None
-    ) -> list[str]:
+    ) -> np.ndarray:
         """获取指定范围交易日列表
 
         Args:
@@ -464,7 +495,7 @@ class PtradeAPI:
             # 找到end_date的位置
             valid_days = all_trade_days[all_trade_days <= end_dt]
             if len(valid_days) == 0:
-                return []
+                return _TradeDaysArray([])
             # 往前取count个交易日（包含end_date）
             trade_days = valid_days[-count:]
         else:
@@ -474,9 +505,9 @@ class PtradeAPI:
                 start_dt = pd.Timestamp(start_date)
                 trade_days = trade_days[trade_days >= start_dt]
 
-        return [d.strftime("%Y-%m-%d") for d in trade_days]
+        return _TradeDaysArray([d.strftime("%Y-%m-%d") for d in trade_days])
 
-    def get_all_trades_days(self, date: str | None = None) -> list[str]:
+    def get_all_trades_days(self, date: str | None = None) -> np.ndarray:
         """获取某日期之前的所有交易日列表
 
         Args:
@@ -484,14 +515,14 @@ class PtradeAPI:
         """
         return self.get_trade_days(end_date=date)
 
-    def get_trading_day(self, day: int = 0) -> Optional[str]:
+    def get_trading_day(self, day: int = 0) -> Optional[datetime_date]:
         """获取当前时间数天前或数天后的交易日期
 
         Args:
             day: 偏移天数（正数向后，负数向前，0表示当天或上一交易日，默认0）
 
         Returns:
-            交易日期字符串，如 '2024-01-15'
+            datetime.date类型交易日对象
         """
         base_date = self.context.current_dt
 
@@ -507,22 +538,30 @@ class PtradeAPI:
         if base_date in all_trade_days:
             base_idx = all_trade_days.get_loc(base_date)
         else:
-            valid_days = all_trade_days[all_trade_days <= base_date]
-            if len(valid_days) == 0:
-                base_idx = 0
+            if self.broker_profile == "guosheng" and day == 0:
+                valid_days = all_trade_days[all_trade_days >= base_date]
+                base_idx = all_trade_days.get_loc(valid_days[0]) if len(valid_days) else len(all_trade_days)
             else:
-                base_idx = all_trade_days.get_loc(valid_days[-1])
+                valid_days = all_trade_days[all_trade_days <= base_date]
+                if len(valid_days) == 0:
+                    base_idx = 0
+                else:
+                    base_idx = all_trade_days.get_loc(valid_days[-1])
 
         target_idx = base_idx + day
 
         if target_idx < 0 or target_idx >= len(all_trade_days):
             return None
 
-        return all_trade_days[target_idx].strftime("%Y-%m-%d")
+        return pd.Timestamp(all_trade_days[target_idx]).date()
 
     @validate_lifecycle
-    def get_trading_day_by_date(self, query_date: str, day: int = 0) -> Optional[str]:
-        """按指定日期获取交易日"""
+    def get_trading_day_by_date(self, query_date: str, day: int = 0) -> Optional[datetime_date]:
+        """按指定日期获取交易日
+
+        Returns:
+            datetime.date类型交易日对象
+        """
         if self.data_context.trade_days is None:
             raise RuntimeError("交易日历数据未加载")
 
@@ -540,7 +579,7 @@ class PtradeAPI:
         target_idx = base_idx + day
         if target_idx < 0 or target_idx >= len(all_trade_days):
             return None
-        return all_trade_days[target_idx].strftime("%Y-%m-%d")
+        return pd.Timestamp(all_trade_days[target_idx]).date()
 
     @validate_lifecycle
     def get_market_list(self) -> pd.DataFrame:
@@ -550,8 +589,7 @@ class PtradeAPI:
                 {"finance_mic": "XSHG", "finance_name": "上海证券交易所"},
                 {"finance_mic": "XSHE", "finance_name": "深圳证券交易所"},
                 {"finance_mic": "CCFX", "finance_name": "中国金融期货交易所"},
-                {"finance_mic": "SHO", "finance_name": "上交所期权"},
-                {"finance_mic": "SZO", "finance_name": "深交所期权"},
+                {"finance_mic": "XSHO", "finance_name": "上海个股期权"},
             ]
         )
 
@@ -575,7 +613,7 @@ class PtradeAPI:
                 {
                     "hq_type_code": "EQUITY",
                     "prod_code": code,
-                    "prod_name": self.get_stock_name(code),
+                    "prod_name": self.get_stock_name(code).get(code),
                     "trade_time_rule": 0,
                 }
             )
@@ -587,8 +625,35 @@ class PtradeAPI:
 
     # 定义字段所属表的映射
     FUNDAMENTAL_TABLES = {
-        "valuation": ["pe_ttm", "pb", "ps_ttm", "pcf", "total_value", "float_value"],
+        "valuation": [
+            "trading_day",
+            "total_value",
+            "float_value",
+            "naps",
+            "pcf",
+            "secu_abbr",
+            "secu_code",
+            "ps",
+            "ps_ttm",
+            "pe_ttm",
+            "a_shares",
+            "a_floats",
+            "pe_dynamic",
+            "pe_static",
+            "b_floats",
+            "b_shares",
+            "h_shares",
+            "total_shares",
+            "turnover_rate",
+            "dividend_ratio",
+            "pb",
+            "roe",
+        ],
         "profit_ability": [
+            "secu_code",
+            "secu_abbr",
+            "publ_date",
+            "end_date",
             "roe",
             "roa",
             "gross_income_ratio",
@@ -599,6 +664,10 @@ class PtradeAPI:
             "net_profit_ratio_ttm",
         ],
         "growth_ability": [
+            "secu_code",
+            "secu_abbr",
+            "publ_date",
+            "end_date",
             "operating_revenue_grow_rate",
             "net_profit_grow_rate",
             "total_asset_grow_rate",
@@ -606,6 +675,10 @@ class PtradeAPI:
             "np_parent_company_yoy",
         ],
         "operating_ability": [
+            "secu_code",
+            "secu_abbr",
+            "publ_date",
+            "end_date",
             "total_asset_turnover_rate",
             "current_assets_turnover_rate",
             "accounts_receivables_turnover_rate",
@@ -613,6 +686,10 @@ class PtradeAPI:
             "turnover_rate",
         ],
         "debt_paying_ability": [
+            "secu_code",
+            "secu_abbr",
+            "publ_date",
+            "end_date",
             "current_ratio",
             "quick_ratio",
             "debt_equity_ratio",
@@ -621,13 +698,39 @@ class PtradeAPI:
             "roa_ebit_ttm",
         ],
     }
+    FUNDAMENTAL_TABLE_ALIASES = {
+        "balance_statement",
+        "income_statement",
+        "cashflow_statement",
+        "eps",
+    }
+    FUNDAMENTAL_DEFAULT_FIELDS = ["secu_code", "secu_abbr", "publ_date", "end_date"]
+
+    @staticmethod
+    def _latest_row_idx_by_date(df: pd.DataFrame, date_column: str, query_ts: pd.Timestamp) -> int | None:
+        """返回date_column不晚于query_ts的最后一行位置。"""
+        dates = pd.to_datetime(df[date_column], errors="coerce")
+        valid_positions = np.flatnonzero((dates <= query_ts).to_numpy())
+        if len(valid_positions) == 0:
+            return None
+        return int(valid_positions[-1])
+
+    @staticmethod
+    def _date_value_from_row(df: pd.DataFrame, idx: int, *columns: str):
+        """从字段列或日期索引中取行日期，用于对齐 PTrade 对外字段名。"""
+        for column in columns:
+            if column in df.columns:
+                return df[column].values[idx]
+        if isinstance(df.index, pd.DatetimeIndex):
+            return df.index[idx]
+        return None
 
     @timer()
     def get_fundamentals(
         self,
         security: str | list[str],
         table: str,
-        fields: list[str],
+        fields: str | list[str] | None = None,
         date: str | None = None,
         start_year: int | None = None,
         end_year: int | None = None,
@@ -648,7 +751,7 @@ class PtradeAPI:
             date: 查询日期（默认为回测当前日期）
         """
         profile = self.broker_profile
-        _ = (start_year, end_year, report_types, merge_type)
+        _ = (report_types, merge_type)
         # 券商参数差异
         if profile == "guosheng":
             if is_dataframe is not None:
@@ -673,17 +776,28 @@ class PtradeAPI:
             stocks = security
 
         if table == "valuation":
+            if fields is None:
+                fields = ["trading_day", "total_value", "secu_code"]
+            elif isinstance(fields, str):
+                fields = [fields]
             data_dict = self.data_context.valuation_dict
         else:
-            if table not in self.FUNDAMENTAL_TABLES:
-                raise ValueError(f"Invalid table: {table}. Valid tables: {list(self.FUNDAMENTAL_TABLES.keys())}")
-
-            valid_fields = self.FUNDAMENTAL_TABLES[table]
-            for field in fields:
-                if field not in valid_fields:
-                    raise ValueError(
-                        f"Field '{field}' does not belong to table '{table}'. Valid fields: {valid_fields}"
+            valid_tables = set(self.FUNDAMENTAL_TABLES) | self.FUNDAMENTAL_TABLE_ALIASES
+            if table not in valid_tables:
+                raise ValueError(
+                    t(
+                        "api.gf_invalid_table",
+                        table=table,
+                        valid_tables=sorted(valid_tables),
                     )
+                )
+
+            if fields is None:
+                if date is None and start_year is None and end_year is None:
+                    raise ValueError(t("api.gf_fields_omitted_requires_named_date"))
+                fields = self.FUNDAMENTAL_TABLES.get(table, self.FUNDAMENTAL_DEFAULT_FIELDS)
+            elif isinstance(fields, str):
+                fields = [fields]
 
             data_dict = self.data_context.fundamentals_dict
 
@@ -714,25 +828,31 @@ class PtradeAPI:
                     if table != "valuation" and "publ_date" in df.columns:
                         # 过滤出查询日期前已公告的财报（不修改原DataFrame）
                         publ_dates = pd.to_datetime(df["publ_date"], errors="coerce")
-                        valid_mask = publ_dates <= query_ts
-                        valid_indices = df.index[valid_mask]
+                        valid_mask = (publ_dates <= query_ts).to_numpy()
+                        valid_positions = np.flatnonzero(valid_mask)
 
-                        if len(valid_indices) > 0:
-                            # 选择最新的财报（最大的end_date）
-                            latest_end_date = valid_indices.max()
-                            idx = df.index.get_loc(latest_end_date)
-                            date_indices[stock] = idx
+                        if len(valid_positions) > 0:
+                            # 选择已公告记录中报告期最新的一行；本地数据通常以date列保存报告期。
+                            period_column = "end_date" if "end_date" in df.columns else "date" if "date" in df.columns else None
+                            if period_column:
+                                periods = pd.to_datetime(df.iloc[valid_positions][period_column], errors="coerce")
+                                latest_pos = periods.to_numpy().argmax()
+                                date_indices[stock] = int(valid_positions[latest_pos])
+                            else:
+                                date_indices[stock] = int(valid_positions[-1])
                         else:
                             # 没有已公告的财报，跳过
                             continue
                     else:
-                        # 对于valuation表，返回查询日当天数据
-                        # side='right' 找到第一个 > query_ts 的位置，idx-1 即为 <= query_ts 的最新数据
-                        idx = df.index.values.view("i8").searchsorted(query_ts.value, side="right")
-                        if idx > 0:
-                            date_indices[stock] = idx - 1
-                        elif len(df.index) > 0:
-                            date_indices[stock] = 0
+                        # 对于valuation表，按交易日期列返回查询日前最近数据；兼容日期索引数据。
+                        if "date" in df.columns:
+                            idx = self._latest_row_idx_by_date(df, "date", query_ts)
+                            if idx is not None:
+                                date_indices[stock] = idx
+                        elif isinstance(df.index, pd.DatetimeIndex):
+                            idx = df.index.values.view("i8").searchsorted(query_ts.value, side="right")
+                            if idx > 0:
+                                date_indices[stock] = idx - 1
                 except Exception:
                     # 静默忽略错误，继续处理其他股票
                     continue
@@ -790,6 +910,24 @@ class PtradeAPI:
                             stock_data[field] = close_prices[stock] * a_floats
                         elif field in df.columns:
                             stock_data[field] = df[field].values[idx]
+                    elif field == "secu_code":
+                        stock_data[field] = stock
+                    elif field == "secu_abbr":
+                        if (
+                            not self.data_context.stock_metadata.empty
+                            and stock in self.data_context.stock_metadata.index
+                        ):
+                            stock_data[field] = self.data_context.stock_metadata.loc[stock, "stock_name"]
+                        else:
+                            stock_data[field] = stock
+                    elif field == "trading_day":
+                        value = self._date_value_from_row(df, idx, "date", "trading_day")
+                        if value is not None:
+                            stock_data[field] = value
+                    elif field == "end_date":
+                        value = self._date_value_from_row(df, idx, "end_date", "date")
+                        if value is not None:
+                            stock_data[field] = value
                     elif field in df.columns:
                         stock_data[field] = df[field].values[idx]
 
@@ -1021,22 +1159,14 @@ class PtradeAPI:
         if profile in ("guosheng", "dongguan") and is_dict:
             raise ValueError(t("api.get_price_unsupported_is_dict", profile=profile))
 
-        # 兼容策略历史写法：
-        # - 执行生命周期内（phase 已设置）：允许两者都不传，默认截止到 current_dt
-        # - 生命周期未初始化：按文档严格要求 start_date/count 二选一
-        lifecycle_phase = None
-        if hasattr(self.context, "_lifecycle_controller") and self.context._lifecycle_controller is not None:
-            lifecycle_phase = self.context._lifecycle_controller.current_phase_name
-
         has_start_date = start_date is not None
         has_count = count is not None
-        has_lifecycle = lifecycle_phase is not None
 
         # 参数互斥：start_date 与 count 不能同时存在
         if has_start_date and has_count:
             raise ValueError(t("api.get_price_start_count_exclusive"))
-        # 生命周期未初始化时，必须二选一提供 start_date/count
-        if (not has_start_date) and (not has_count) and (not has_lifecycle):
+        # 文档要求 start_date 与 count 必须且只能选择一个
+        if (not has_start_date) and (not has_count):
             raise ValueError(t("api.get_price_start_count_exclusive"))
 
         # 券商差异：山西支持 dypre，国盛/东莞不支持
@@ -1242,10 +1372,21 @@ class PtradeAPI:
         data_count: int = 50,
         start_pos: int = 0,
         search_direction: int = 1,
-        is_dict: bool = False,
     ) -> OrderedDict:
         """获取逐笔成交行情（本地股票回测不支持逐笔流）"""
-        return self._get_individual_transaction_impl(stocks, data_count, start_pos, search_direction, is_dict)
+        return self._get_individual_transaction_impl(stocks, data_count, start_pos, search_direction)
+
+    @validate_lifecycle
+    def get_individual_entrust(
+        self,
+        stocks: str | list[str] | None = None,
+        data_count: int = 50,
+        start_pos: int = 0,
+        search_direction: int = 1,
+    ) -> None:
+        """获取逐笔委托行情（当前本地回测不支持交易/L2行情接口）"""
+        _ = (stocks, data_count, start_pos, search_direction)
+        self._unsupported_api("get_individual_entrust", "交易行情接口")
 
     def _get_individual_transaction_impl(
         self,
@@ -1253,13 +1394,10 @@ class PtradeAPI:
         data_count: int = 50,
         start_pos: int = 0,
         search_direction: int = 1,
-        is_dict: bool = False,
     ) -> OrderedDict:
         """逐笔成交内部实现（兼容别名共用）"""
-        if self.broker_profile in ("guosheng", "dongguan") and is_dict:
-            raise ValueError(t("api.get_individual_transaction_unsupported_is_dict", profile=self.broker_profile))
-        _ = (stocks, data_count, start_pos, search_direction, is_dict)
-        raise NotImplementedError("当前本地回测暂不支持交易逐笔接口 get_individual_transaction")
+        _ = (stocks, data_count, start_pos, search_direction)
+        self._unsupported_api("get_individual_transaction", "交易逐笔接口")
 
     @validate_lifecycle
     def get_individual_transcation(
@@ -1268,10 +1406,63 @@ class PtradeAPI:
         data_count: int = 50,
         start_pos: int = 0,
         search_direction: int = 1,
-        is_dict: bool = False,
     ) -> OrderedDict:
         """国盛历史拼写兼容：get_individual_transcation -> get_individual_transaction"""
-        return self._get_individual_transaction_impl(stocks, data_count, start_pos, search_direction, is_dict)
+        return self._get_individual_transaction_impl(stocks, data_count, start_pos, search_direction)
+
+    @validate_lifecycle
+    def get_tick_direction(
+        self,
+        symbols: str | list[str] | None = None,
+        query_date: int | str = 0,
+        start_pos: int = 0,
+        search_direction: int = 1,
+        data_count: int = 50,
+    ) -> None:
+        """获取分时成交行情（当前本地回测不支持交易/L2行情接口）"""
+        _ = (symbols, query_date, start_pos, search_direction, data_count)
+        self._unsupported_api("get_tick_direction", "交易行情接口")
+
+    @validate_lifecycle
+    def get_sort_msg(
+        self,
+        sort_type_grp: str | list[str] | None = None,
+        sort_field_name: str | None = None,
+        sort_type: int = 1,
+        data_count: int = 100,
+    ) -> None:
+        """获取板块/行业涨幅排名（当前本地回测不支持交易行情接口）"""
+        _ = (sort_type_grp, sort_field_name, sort_type, data_count)
+        self._unsupported_api("get_sort_msg", "交易行情接口")
+
+    @validate_lifecycle
+    def get_etf_info(self, etf_code: str | list[str]) -> None:
+        """获取ETF信息（当前本地回测不支持ETF交易接口）"""
+        _ = etf_code
+        self._unsupported_api("get_etf_info", "ETF交易接口")
+
+    @validate_lifecycle
+    def get_etf_stock_info(self, etf_code: str, security: str | list[str]) -> None:
+        """获取ETF成分券信息（当前本地回测不支持ETF交易接口）"""
+        _ = (etf_code, security)
+        self._unsupported_api("get_etf_stock_info", "ETF交易接口")
+
+    @validate_lifecycle
+    def get_gear_price(self, sids: str | list[str]) -> None:
+        """获取档位行情价格（当前本地回测不支持实时行情接口）"""
+        _ = sids
+        self._unsupported_api("get_gear_price", "实时行情接口")
+
+    @validate_lifecycle
+    def get_snapshot(self, security: str | list[str]) -> None:
+        """获取实时行情快照（当前本地回测不支持交易实时行情接口）"""
+        _ = security
+        self._unsupported_api("get_snapshot", "实时行情接口")
+
+    @validate_lifecycle
+    def get_cb_info(self) -> None:
+        """获取可转债基础信息（当前本地回测不支持可转债交易接口）"""
+        self._unsupported_api("get_cb_info", "可转债交易接口")
 
     @timer()
     def get_history(
@@ -1402,15 +1593,21 @@ class PtradeAPI:
                 adj_b_base = adj_factors["adj_b"].values[current_idx]
 
             stock_result = {}
-
-            # h/l bypass: adj_b -.XX4/.XX6 时 _round2 引入 ULP 污染使 pos20 误穿 0.25 边界。
-            # adj_a≡1.0 的前复权场景，预计算 high/low（_compute_hl_adj 内部判断是否 bypass）
             hl_adj = {}
-            if adj_a is not None and not needs_adj_post and not needs_adj_dypre:
-                if "high" in fields and "low" in fields and np.all(adj_a == 1.0):
-                    h_raw = data_source["high"].values[start_idx:end_idx]
-                    l_raw = data_source["low"].values[start_idx:end_idx]
-                    hl_adj["high"], hl_adj["low"] = _compute_hl_adj(adj_b, h_raw, l_raw)
+            if (
+                needs_adj_pre
+                and adj_a is not None
+                and np.all(adj_a == 1.0)
+                and "high" in fields
+                and "low" in fields
+                and "high" in data_source.columns
+                and "low" in data_source.columns
+            ):
+                hl_adj["high"], hl_adj["low"] = _compute_hl_adj(
+                    adj_b,
+                    data_source["high"].values[start_idx:end_idx],
+                    data_source["low"].values[start_idx:end_idx],
+                )
 
             for field_name in fields:
                 if field_name not in data_source.columns:
@@ -1531,7 +1728,8 @@ class PtradeAPI:
 
     # ==================== 股票信息API ====================
 
-    def get_stock_blocks(self, stock_code: str) -> dict:
+    @validate_lifecycle
+    def get_stock_blocks(self, stock_code: str) -> dict | None:
         """获取股票所属板块"""
         stock = stock_code
         if not self.data_context.stock_metadata.empty and stock in self.data_context.stock_metadata.index:
@@ -1541,7 +1739,7 @@ class PtradeAPI:
                     return json.loads(blocks_str)
             except (KeyError, json.JSONDecodeError):
                 pass
-        return {}
+        return None
 
     def get_stock_info(self, stocks: str | list[str], field: str | list[str] | None = None) -> dict[str, dict]:
         """获取股票基础信息"""
@@ -1549,7 +1747,7 @@ class PtradeAPI:
             stocks = [stocks]
 
         if field is None:
-            field = ["stock_name", "listed_date", "de_listed_date"]
+            field = ["stock_name"]
         elif isinstance(field, str):
             field = [field]
 
@@ -1565,8 +1763,6 @@ class PtradeAPI:
 
             if "stock_name" in field and "stock_name" not in stock_info:
                 stock_info["stock_name"] = stock
-            if "listed_date" in field and "listed_date" not in stock_info:
-                stock_info["listed_date"] = "2010-01-01"
             if "de_listed_date" in field and "de_listed_date" not in stock_info:
                 stock_info["de_listed_date"] = "2900-01-01"
 
@@ -1574,10 +1770,12 @@ class PtradeAPI:
 
         return result
 
-    def get_stock_name(self, stocks: str | list[str]) -> str | dict[str, str]:
+    def get_stock_name(self, stocks: str | list[str]) -> dict[str, str | None] | None:
         """获取股票名称"""
-        is_single = isinstance(stocks, str)
-        if is_single:
+        if not isinstance(stocks, (str, list)):
+            return None
+
+        if isinstance(stocks, str):
             stocks = [stocks]
 
         result = {}
@@ -1585,17 +1783,20 @@ class PtradeAPI:
             if not self.data_context.stock_metadata.empty and stock in self.data_context.stock_metadata.index:
                 result[stock] = self.data_context.stock_metadata.loc[stock, "stock_name"]
             else:
-                result[stock] = stock
+                result[stock] = None
 
-        return result[stocks[0]] if is_single else result
+        return result
 
     def get_stock_status(
         self, stocks: str | list[str], query_type: str = "ST", query_date: str | None = None
-    ) -> dict[str, bool]:
+    ) -> dict[str, bool | None] | None:
         """获取股票状态（ST/HALT/DELISTING）
 
         基于日频 stock_status_history 数据，用 bisect 查找当日快照。
         """
+        if not isinstance(stocks, (str, list)):
+            return None
+
         if isinstance(stocks, str):
             stocks = [stocks]
 
@@ -1620,19 +1821,31 @@ class PtradeAPI:
         result = {}
         for stock in stocks:
             cache_key = (dt_value, stock, query_type)
-            cached = self._stock_status_cache.get(cache_key)
-            if cached is not None:
-                result[stock] = cached
+            if cache_key in self._stock_status_cache:
+                result[stock] = self._stock_status_cache[cache_key]
                 continue
+
+            has_stock_data = (
+                stock in self.data_context.stock_data_dict
+                or (
+                    not self.data_context.stock_metadata.empty
+                    and stock in self.data_context.stock_metadata.index
+                )
+            )
+            is_match = None
 
             # 快照路径
             if status_dict is not None:
-                is_match = status_dict.get(stock, False) is True
+                if stock in status_dict:
+                    is_match = status_dict.get(stock) is True
+                elif has_stock_data:
+                    is_match = False
             # fallback: 无快照数据时用 volume=0 判停牌
             elif query_type == "HALT":
                 stock_df = self.data_context.stock_data_dict.get(stock)
-                is_match = stock_df is not None and query_dt in stock_df.index and stock_df.loc[query_dt, "volume"] == 0
-            else:
+                if stock_df is not None:
+                    is_match = query_dt in stock_df.index and stock_df.loc[query_dt, "volume"] == 0
+            elif has_stock_data:
                 is_match = False
 
             self._stock_status_cache[cache_key] = is_match
@@ -1640,21 +1853,41 @@ class PtradeAPI:
 
         return result
 
-    def get_stock_exrights(self, stock_code: str, date: str | None = None) -> Optional[pd.DataFrame]:
+    def get_stock_exrights(self, stock_code: str, date: str | int | datetime_date | None = None) -> Optional[pd.DataFrame]:
         """获取股票除权除息信息"""
         exrights_df = self.data_context.exrights_dict.get(stock_code)
         if exrights_df is None or exrights_df.empty:
             return None
 
         if date is not None:
-            query_date = pd.Timestamp(date)
+            if isinstance(date, int):
+                date_int = int(date)
+                query_date = pd.to_datetime(str(date_int), format="%Y%m%d", errors="coerce")
+            else:
+                query_date = pd.Timestamp(date)
+                date_int = int(query_date.strftime("%Y%m%d"))
+
+            if date_int in exrights_df.index:
+                return exrights_df.loc[[date_int]]
+
             if query_date in exrights_df.index:
                 return exrights_df.loc[[query_date]]
+
+            index_as_dates = pd.to_datetime(exrights_df.index.astype(str), format="%Y%m%d", errors="coerce")
+            match_positions = np.flatnonzero(np.asarray(index_as_dates == query_date.normalize()))
+            if len(match_positions) > 0:
+                return exrights_df.iloc[[int(match_positions[0])]]
             return None
 
         return exrights_df
 
     # ==================== 指数/行业API ====================
+
+    @validate_lifecycle
+    def get_etf_stock_list(self, etf_code: str) -> None:
+        """获取ETF成分券列表（当前本地回测不支持ETF交易接口）"""
+        _ = etf_code
+        self._unsupported_api("get_etf_stock_list", "ETF交易接口")
 
     @staticmethod
     def _csi_rebalance_day(year: int, month: int) -> int:
@@ -1720,13 +1953,13 @@ class PtradeAPI:
     def get_instruments(self, contract: str | None = None) -> pd.DataFrame:
         """获取合约信息（当前本地回测不支持期货）"""
         _ = contract
-        raise NotImplementedError("当前本地回测暂不支持期货接口 get_instruments")
+        self._unsupported_api("get_instruments", "期货接口")
 
     @validate_lifecycle
     def get_dominant_contract(self, contract: str, date: str | None = None) -> Optional[str]:
         """获取主力合约代码（当前本地回测不支持期货）"""
         _ = (contract, date)
-        raise NotImplementedError("当前本地回测暂不支持期货接口 get_dominant_contract")
+        self._unsupported_api("get_dominant_contract", "期货接口")
 
     def get_industry_stocks(self, industry_code: str | None = None) -> dict | list[str]:
         """推导行业成份股（带缓存）"""
@@ -1770,6 +2003,10 @@ class PtradeAPI:
 
     def check_limit(self, security: str | list[str], query_date: str | None = None) -> dict[str, int]:
         """检查涨跌停状态"""
+        if self.broker_profile == "guosheng":
+            return {}
+        if not isinstance(security, (str, list)):
+            return {}
         if not self.has_price_limit:
             return {s: 0 for s in (security if isinstance(security, list) else [security])}
 
@@ -1889,16 +2126,11 @@ class PtradeAPI:
 
     # ==================== 交易API ====================
 
-    def _get_price_and_check_limit(self, security: str, limit_price: Optional[float], amount: int) -> Optional[float]:
-        """获取执行价格并检查涨跌停。返回 price 或 None。"""
-        is_buy = amount > 0
-        price = self.order_processor.get_execution_price(security, limit_price, is_buy)
+    def _get_execution_price(self, security: str, limit_price: Optional[float], amount: int) -> Optional[float]:
+        """获取执行价格，失败时记录警告并返回 None。"""
+        price = self.order_processor.get_execution_price(security, limit_price, amount > 0)
         if price is None:
             self.log.warning(t("api.order_no_price", stock=security))
-            return None
-        limit_status = self.check_limit(security, self.context.current_dt)[security]
-        if not self.order_processor.check_limit_status(security, amount, limit_status):
-            return None
         return price
 
     def _adjust_buy_amount(self, security: str, amount: int, price: float) -> Optional[int]:
@@ -2009,14 +2241,6 @@ class PtradeAPI:
 
         return order_id if success else None
 
-    def _submit_derivative_order(self, security: str, amount: int, limit_price: float | None = None) -> Optional[str]:
-        """衍生品下单（不做A股整手调整）"""
-        if amount == 0:
-            return None
-        price = self._get_price_and_check_limit(security, limit_price, amount)
-        if price is None:
-            return None
-        return self._submit_order(security, amount, price)
 
     @validate_lifecycle
     def order(self, security: str, amount: int, limit_price: float | None = None) -> Optional[str]:
@@ -2032,7 +2256,7 @@ class PtradeAPI:
         """
         if amount == 0:
             return None
-        price = self._get_price_and_check_limit(security, limit_price, amount)
+        price = self._get_execution_price(security, limit_price, amount)
         if price is None:
             return None
         if amount > 0:
@@ -2047,12 +2271,137 @@ class PtradeAPI:
         return self._submit_order(security, amount, price)
 
     @validate_lifecycle
+    def order_market(
+        self, security: str, amount: int, market_type: int, limit_price: float | None = None
+    ) -> None:
+        """市价委托（当前本地回测不支持交易市价接口）"""
+        _ = (security, amount, market_type, limit_price)
+        self._unsupported_api("order_market", "交易接口")
+
+    @validate_lifecycle
+    def ipo_stocks_order(self, market_type: int | None = None, black_stocks: str | list[str] | None = None) -> None:
+        """新股一键申购（当前本地回测不支持交易申购接口）"""
+        _ = (market_type, black_stocks)
+        self._unsupported_api("ipo_stocks_order", "交易接口")
+
+    @validate_lifecycle
+    def after_trading_order(self, security: str, amount: int, entrust_price: float) -> None:
+        """盘后固定价委托（当前本地回测不支持交易盘后委托接口）"""
+        _ = (security, amount, entrust_price)
+        self._unsupported_api("after_trading_order", "交易接口")
+
+    @validate_lifecycle
+    def after_trading_cancel_order(self, order_param: Any) -> None:
+        """盘后固定价委托撤单（当前本地回测不支持交易盘后委托接口）"""
+        _ = order_param
+        self._unsupported_api("after_trading_cancel_order", "交易接口")
+
+    @validate_lifecycle
+    def etf_basket_order(
+        self,
+        etf_code: str,
+        amount: int,
+        price_style: str | None = None,
+        position: bool = True,
+        info: dict[str, Any] | None = None,
+    ) -> None:
+        """ETF成分券篮子下单（当前本地回测不支持ETF交易接口）"""
+        _ = (etf_code, amount, price_style, position, info)
+        self._unsupported_api("etf_basket_order", "ETF交易接口")
+
+    @validate_lifecycle
+    def etf_purchase_redemption(
+        self, etf_code: str, amount: int, limit_price: float | None = None
+    ) -> None:
+        """ETF基金申赎（当前本地回测不支持ETF交易接口）"""
+        _ = (etf_code, amount, limit_price)
+        self._unsupported_api("etf_purchase_redemption", "ETF交易接口")
+
+    @validate_lifecycle
+    def order_tick(
+        self, sid: str, amount: int, priceGear: str = "1", limit_price: float | None = None
+    ) -> None:
+        """tick行情触发买卖（当前本地回测不支持tick交易接口）"""
+        _ = (sid, amount, priceGear, limit_price)
+        self._unsupported_api("order_tick", "tick交易接口")
+
+    @validate_lifecycle
+    def cancel_order_ex(self, order_param: dict[str, Any]) -> None:
+        """交易账户撤单（当前本地回测不支持账户级订单接口）"""
+        _ = order_param
+        self._unsupported_api("cancel_order_ex", "交易接口")
+
+    @validate_lifecycle
+    def debt_to_stock_order(self, security: str, amount: int) -> None:
+        """债转股委托（当前本地回测不支持可转债交易接口）"""
+        _ = (security, amount)
+        self._unsupported_api("debt_to_stock_order", "可转债交易接口")
+
+    @validate_lifecycle
     def margin_trade(
         self, security: str, amount: int, limit_price: float | None = None, market_type: str | None = None
     ) -> Optional[str]:
         """担保品买卖（当前本地回测不支持两融）"""
         _ = (security, amount, limit_price, market_type)
-        raise NotImplementedError("当前本地回测暂不支持两融接口 margin_trade")
+        self._unsupported_api("margin_trade", "两融接口")
+
+    @validate_lifecycle
+    def margincash_open(
+        self, security: str, amount: int, limit_price: float | None = None, market_type: int | None = None
+    ) -> Optional[str]:
+        """融资买入（当前本地回测不支持两融交易）"""
+        _ = (security, amount, limit_price, market_type)
+        self._unsupported_api("margincash_open", "两融接口")
+
+    @validate_lifecycle
+    def margincash_close(self, security: str, amount: int, limit_price: float | None = None) -> Optional[str]:
+        """卖券还款（当前本地回测不支持两融交易）"""
+        _ = (security, amount, limit_price)
+        self._unsupported_api("margincash_close", "两融接口")
+
+    @validate_lifecycle
+    def margincash_direct_refund(self, value: float) -> None:
+        """直接还款（当前本地回测不支持两融交易）"""
+        _ = value
+        self._unsupported_api("margincash_direct_refund", "两融接口")
+
+    @validate_lifecycle
+    def marginsec_open(self, security: str, amount: int, limit_price: float | None = None) -> Optional[str]:
+        """融券卖出（当前本地回测不支持两融交易）"""
+        _ = (security, amount, limit_price)
+        self._unsupported_api("marginsec_open", "两融接口")
+
+    @validate_lifecycle
+    def marginsec_close(self, security: str, amount: int, limit_price: float | None = None) -> Optional[str]:
+        """买券还券（当前本地回测不支持两融交易）"""
+        _ = (security, amount, limit_price)
+        self._unsupported_api("marginsec_close", "两融接口")
+
+    @validate_lifecycle
+    def marginsec_direct_refund(self, security: str, amount: int) -> None:
+        """直接还券（当前本地回测不支持两融交易）"""
+        _ = (security, amount)
+        self._unsupported_api("marginsec_direct_refund", "两融接口")
+
+    @validate_lifecycle
+    def get_margincash_stocks(self) -> None:
+        """获取融资标的列表（当前本地回测不支持两融查询）"""
+        self._unsupported_api("get_margincash_stocks", "两融接口")
+
+    @validate_lifecycle
+    def get_marginsec_stocks(self) -> None:
+        """获取融券标的列表（当前本地回测不支持两融查询）"""
+        self._unsupported_api("get_marginsec_stocks", "两融接口")
+
+    @validate_lifecycle
+    def get_margin_contract(self) -> None:
+        """合约查询（当前本地回测不支持两融查询）"""
+        self._unsupported_api("get_margin_contract", "两融接口")
+
+    @validate_lifecycle
+    def get_margin_contractreal(self) -> None:
+        """实时合约流水查询（当前本地回测不支持两融查询）"""
+        self._unsupported_api("get_margin_contractreal", "两融接口")
 
     @validate_lifecycle
     def get_margin_assert(self) -> dict[str, Any]:
@@ -2062,7 +2411,7 @@ class PtradeAPI:
     def _get_margin_asset_impl(self, api_name: str) -> dict[str, Any]:
         """信用资产查询内部实现（兼容别名共用）"""
         _ = api_name
-        raise NotImplementedError("当前本地回测暂不支持两融接口 %s" % api_name)
+        self._unsupported_api(api_name, "两融接口")
 
     @validate_lifecycle
     def get_margin_asset(self) -> dict[str, Any]:
@@ -2070,48 +2419,138 @@ class PtradeAPI:
         return self._get_margin_asset_impl("get_margin_asset")
 
     @validate_lifecycle
-    def buy_open(self, security: str, amount: int, limit_price: float | None = None) -> Optional[str]:
+    def get_assure_security_list(self) -> None:
+        """担保券查询（当前本地回测不支持两融查询）"""
+        self._unsupported_api("get_assure_security_list", "两融接口")
+
+    @validate_lifecycle
+    def get_margincash_open_amount(self, security: str, price: float | None = None) -> None:
+        """融资标的最大可买数量查询（当前本地回测不支持两融查询）"""
+        _ = (security, price)
+        self._unsupported_api("get_margincash_open_amount", "两融接口")
+
+    @validate_lifecycle
+    def get_margincash_close_amount(self, security: str, price: float | None = None) -> None:
+        """卖券还款标的最大可卖数量查询（当前本地回测不支持两融查询）"""
+        _ = (security, price)
+        self._unsupported_api("get_margincash_close_amount", "两融接口")
+
+    @validate_lifecycle
+    def get_marginsec_open_amount(self, security: str, price: float | None = None) -> None:
+        """融券标的最大可卖数量查询（当前本地回测不支持两融查询）"""
+        _ = (security, price)
+        self._unsupported_api("get_marginsec_open_amount", "两融接口")
+
+    @validate_lifecycle
+    def get_marginsec_close_amount(self, security: str, price: float | None = None) -> None:
+        """买券还券标的最大可买数量查询（当前本地回测不支持两融查询）"""
+        _ = (security, price)
+        self._unsupported_api("get_marginsec_close_amount", "两融接口")
+
+    @validate_lifecycle
+    def get_margin_entrans_amount(self, security: str) -> None:
+        """现券还券数量查询（当前本地回测不支持两融查询）"""
+        _ = security
+        self._unsupported_api("get_margin_entrans_amount", "两融接口")
+
+    @validate_lifecycle
+    def get_enslo_security_info(self) -> None:
+        """融券头寸信息查询（当前本地回测不支持两融查询）"""
+        self._unsupported_api("get_enslo_security_info", "两融接口")
+
+    @validate_lifecycle
+    def buy_open(self, contract: str, amount: int, limit_price: float | None = None) -> Optional[str]:
         """期货多开（当前本地回测不支持期货）"""
-        _ = (security, amount, limit_price)
-        raise NotImplementedError("当前本地回测暂不支持期货接口 buy_open")
+        _ = (contract, amount, limit_price)
+        self._unsupported_api("buy_open", "期货接口")
 
     @validate_lifecycle
-    def sell_close(self, security: str, amount: int, limit_price: float | None = None) -> Optional[str]:
+    def sell_close(
+        self, contract: str, amount: int, limit_price: float | None = None, close_today: bool = False
+    ) -> Optional[str]:
         """期货多平（当前本地回测不支持期货）"""
-        _ = (security, amount, limit_price)
-        raise NotImplementedError("当前本地回测暂不支持期货接口 sell_close")
+        _ = (contract, amount, limit_price, close_today)
+        self._unsupported_api("sell_close", "期货接口")
 
     @validate_lifecycle
-    def sell_open(self, security: str, amount: int, limit_price: float | None = None) -> Optional[str]:
+    def sell_open(self, contract: str, amount: int, limit_price: float | None = None) -> Optional[str]:
         """期货空开（当前本地回测不支持期货）"""
-        _ = (security, amount, limit_price)
-        raise NotImplementedError("当前本地回测暂不支持期货接口 sell_open")
+        _ = (contract, amount, limit_price)
+        self._unsupported_api("sell_open", "期货接口")
 
     @validate_lifecycle
-    def buy_close(self, security: str, amount: int, limit_price: float | None = None) -> Optional[str]:
+    def buy_close(
+        self, contract: str, amount: int, limit_price: float | None = None, close_today: bool = False
+    ) -> Optional[str]:
         """期货空平（当前本地回测不支持期货）"""
-        _ = (security, amount, limit_price)
-        raise NotImplementedError("当前本地回测暂不支持期货接口 buy_close")
+        _ = (contract, amount, limit_price, close_today)
+        self._unsupported_api("buy_close", "期货接口")
 
     @validate_lifecycle
     def option_buy_open(self, contract: str, amount: int, limit_price: float | None = None) -> Optional[str]:
-        """期权权利仓开仓"""
-        return self._submit_derivative_order(contract, abs(int(amount)), limit_price)
+        """期权权利仓开仓（当前本地回测不支持期权交易）"""
+        _ = (contract, amount, limit_price)
+        self._unsupported_api("option_buy_open", "期权接口")
 
     @validate_lifecycle
     def option_sell_close(self, contract: str, amount: int, limit_price: float | None = None) -> Optional[str]:
-        """期权权利仓平仓（卖出）"""
-        return self._submit_derivative_order(contract, -abs(int(amount)), limit_price)
+        """期权权利仓平仓（当前本地回测不支持期权交易）"""
+        _ = (contract, amount, limit_price)
+        self._unsupported_api("option_sell_close", "期权接口")
 
     @validate_lifecycle
     def option_sell_open(self, contract: str, amount: int, limit_price: float | None = None) -> Optional[str]:
-        """期权义务仓开仓（卖出）"""
-        return self._submit_derivative_order(contract, -abs(int(amount)), limit_price)
+        """期权义务仓开仓（当前本地回测不支持期权交易）"""
+        _ = (contract, amount, limit_price)
+        self._unsupported_api("option_sell_open", "期权接口")
 
     @validate_lifecycle
     def option_buy_close(self, contract: str, amount: int, limit_price: float | None = None) -> Optional[str]:
-        """期权义务仓平仓（买入）"""
-        return self._submit_derivative_order(contract, abs(int(amount)), limit_price)
+        """期权义务仓平仓（当前本地回测不支持期权交易）"""
+        _ = (contract, amount, limit_price)
+        self._unsupported_api("option_buy_close", "期权接口")
+
+    @validate_lifecycle
+    def open_prepared(self, contract: str, amount: int, limit_price: float | None = None) -> None:
+        """备兑开仓（当前本地回测不支持期权备兑交易）"""
+        _ = (contract, amount, limit_price)
+        self._unsupported_api("open_prepared", "期权接口")
+
+    @validate_lifecycle
+    def close_prepared(self, contract: str, amount: int, limit_price: float | None = None) -> None:
+        """备兑平仓（当前本地回测不支持期权备兑交易）"""
+        _ = (contract, amount, limit_price)
+        self._unsupported_api("close_prepared", "期权接口")
+
+    @validate_lifecycle
+    def option_exercise(self, contract: str, amount: int) -> None:
+        """期权行权（当前本地回测不支持期权行权）"""
+        _ = (contract, amount)
+        self._unsupported_api("option_exercise", "期权接口")
+
+    @validate_lifecycle
+    def option_covered_lock(self, code: str, amount: int) -> None:
+        """期权标的备兑锁定（当前本地回测不支持期权备兑交易）"""
+        _ = (code, amount)
+        self._unsupported_api("option_covered_lock", "期权接口")
+
+    @validate_lifecycle
+    def option_covered_unlock(self, code: str, amount: int) -> None:
+        """期权标的备兑解锁（当前本地回测不支持期权备兑交易）"""
+        _ = (code, amount)
+        self._unsupported_api("option_covered_unlock", "期权接口")
+
+    @validate_lifecycle
+    def get_covered_lock_amount(self, code: str) -> None:
+        """获取期权标的允许备兑锁定数量（当前本地回测不支持期权备兑查询）"""
+        _ = code
+        self._unsupported_api("get_covered_lock_amount", "期权接口")
+
+    @validate_lifecycle
+    def get_covered_unlock_amount(self, code: str) -> None:
+        """获取期权标的允许备兑解锁数量（当前本地回测不支持期权备兑查询）"""
+        _ = code
+        self._unsupported_api("get_covered_unlock_amount", "期权接口")
 
     @validate_lifecycle
     def order_target(self, security: str, amount: int, limit_price: float | None = None) -> Optional[str]:
@@ -2131,7 +2570,7 @@ class PtradeAPI:
         delta = amount - current_amount
         if delta == 0:
             return None
-        price = self._get_price_and_check_limit(security, limit_price, delta)
+        price = self._get_execution_price(security, limit_price, delta)
         if price is None:
             return None
         if delta < 0:
@@ -2162,7 +2601,7 @@ class PtradeAPI:
         if abs(value) < 1:
             return None
         is_buy = value > 0
-        price = self._get_price_and_check_limit(security, limit_price, 1 if is_buy else -1)
+        price = self._get_execution_price(security, limit_price, 1 if is_buy else -1)
         if price is None:
             return None
 
@@ -2279,52 +2718,76 @@ class PtradeAPI:
         else:
             return [o for o in all_orders if o.symbol == security]
 
-    def get_order(self, order_id: str) -> Optional[Any]:
+    @validate_lifecycle
+    def get_all_orders(self, security: str | None = None) -> None:
+        """获取账户当日全部订单（当前本地回测不支持账户级订单接口）"""
+        _ = security
+        self._unsupported_api("get_all_orders", "交易接口")
+
+    def get_order(self, order_id: str) -> list[Any]:
         """获取指定订单
 
         Args:
             order_id: 订单id
 
         Returns:
-            Order对象或None
-        """
-        if not self.context or not self.context.blotter:
-            return None
-
-        for order in self.context.blotter.all_orders:
-            if order.id == order_id:
-                return order
-        return None
-
-    def get_trades(self, security: str | None = None) -> list:
-        """获取当日成交订单
-
-        Args:
-            security: 股票代码，None表示获取所有成交
-
-        Returns:
-            成交订单列表
+            只包含指定Order对象的列表；未找到返回空列表
         """
         if not self.context or not self.context.blotter:
             return []
 
-        filled = getattr(self.context.blotter, "filled_orders", [])
-        if security is None:
-            return filled
-        return [o for o in filled if o.symbol == security]
+        for order in self.context.blotter.all_orders:
+            if order.id == order_id:
+                return [order]
+        return []
 
-    def get_position(self, security: str) -> Optional[Position]:
+    def _iter_filled_orders(self) -> list[Any]:
+        """Return raw filled Order objects for internal accounting/export."""
+        if not self.context or not self.context.blotter:
+            return []
+        return list(getattr(self.context.blotter, "filled_orders", []))
+
+    def get_trades(self) -> dict[str, list[list[Any]]]:
+        """获取当日成交订单
+
+        Returns:
+            按订单编号分组的成交明细字典
+        """
+        trades = {}
+        for order in self._iter_filled_orders():
+            volume = float(abs(order.filled if order.filled else order.amount))
+            price = float(order.limit) if order.limit is not None else 0.0
+            side = "买" if order.amount > 0 else "卖"
+            order_id = str(order.id)
+            trades.setdefault(order_id, []).append(
+                [
+                    order_id[:8],
+                    order.entrust_no or order_id[:6],
+                    _to_ptrade_long_suffix(order.symbol),
+                    side,
+                    volume,
+                    price,
+                    volume * price,
+                    str(order.dt) if order.dt else "",
+                ]
+            )
+        return trades
+
+    def get_position(self, security: str) -> Position:
         """获取持仓信息
 
         Args:
             security: 股票代码
 
         Returns:
-            Position对象或None
+            Position对象；未持仓时返回amount为0的空持仓对象
         """
         if self.context and self.context.portfolio:
-            return self.context.portfolio.positions.get(security)
-        return None
+            position = self.context.portfolio.positions.get(security)
+            if position is not None:
+                return position
+            return Position(security, 0, 0.0, t_plus_1=self.context.t_plus_1)
+        return Position(security, 0, 0.0)
 
     def get_positions(self, security: str | list[str] | None = None) -> dict[str, Position]:
         """获取多支股票持仓信息
@@ -2344,11 +2807,11 @@ class PtradeAPI:
         security_list = [security] if isinstance(security, str) else security
         return {s: positions[s] for s in security_list if s in positions}
 
-    def cancel_order(self, order_param: Any) -> bool:
+    def cancel_order(self, order_param: Any) -> None:
         """取消订单"""
         if self.context and self.context.blotter:
-            return self.context.blotter.cancel_order(order_param)
-        return False
+            self.context.blotter.cancel_order(order_param)
+        return None
 
     def flush_order_callbacks(self) -> list[dict]:
         """取出并清空待处理的订单回调数据"""
@@ -2433,13 +2896,13 @@ class PtradeAPI:
             config.update_trading_config(**kwargs)
 
     @validate_lifecycle
-    def set_slippage(self, slippage: float = 0.0) -> None:
+    def set_slippage(self, slippage: float = 0.001) -> None:
         """设置滑点"""
         if slippage is not None:
             config.update_trading_config(slippage=slippage)
 
     @validate_lifecycle
-    def set_fixed_slippage(self, fixedslippage: float = 0.001) -> None:
+    def set_fixed_slippage(self, fixedslippage: float = 0.0) -> None:
         """设置固定滑点"""
         if fixedslippage is not None:
             config.update_trading_config(fixed_slippage=fixedslippage)
@@ -2463,47 +2926,44 @@ class PtradeAPI:
         """设置底仓（回测用）
 
         Args:
-            poslist: 持仓列表，每个元素为字典 {'security': 股票代码, 'amount': 数量, 'cost_basis': 成本价}
+            poslist: 持仓列表，每个元素为字典 {'sid': 股票代码, 'amount': 数量, 'enable_amount': 可用数量, 'cost_basis': 成本价}
         """
         if not isinstance(poslist, list):
             self.log.warning(t("api.pos_not_list"))
             return
 
         for pos_info in poslist:
-            security = pos_info.get("security")
-            amount = pos_info.get("amount", 0)
-            cost_basis = pos_info.get("cost_basis", 0)
+            security = pos_info.get("sid")
+            amount = int(pos_info.get("amount", 0))
+            cost_basis = float(pos_info.get("cost_basis", 0))
+            enable_amount = int(pos_info.get("enable_amount", amount))
 
             if security and amount > 0 and cost_basis > 0:
-                self.context.portfolio.positions[security] = Position(
-                    security, amount, cost_basis, t_plus_1=self.context.t_plus_1
-                )
+                position = Position(security, amount, cost_basis, t_plus_1=self.context.t_plus_1)
+                position.enable_amount = enable_amount
+                self.context.portfolio.positions[security] = position
                 self.log.info(t("api.set_position", stock=security, amount=amount, cost=cost_basis))
 
     @validate_lifecycle
-    def set_future_commission(self, transaction_code: str | None = None, commission: float | None = None) -> None:
+    def set_future_commission(self, transaction_code: str, commission: float) -> None:
         """设置期货手续费（当前本地回测不支持期货）"""
-        if commission is None and isinstance(transaction_code, (int, float)):
-            commission = float(transaction_code)
-            transaction_code = None
         _ = (transaction_code, commission)
-        raise NotImplementedError("当前本地回测暂不支持期货接口 set_future_commission")
+        self._unsupported_api("set_future_commission", "期货接口")
 
     @validate_lifecycle
     def set_margin_rate(self, transaction_code: str, margin_rate: float) -> None:
         """设置期货保证金比例（当前本地回测不支持期货）"""
         _ = (transaction_code, margin_rate)
-        raise NotImplementedError("当前本地回测暂不支持期货接口 set_margin_rate")
+        self._unsupported_api("set_margin_rate", "期货接口")
 
     @validate_lifecycle
-    def get_margin_rate(self, transaction_code: str | None = None) -> float | dict[str, float] | None:
+    def get_margin_rate(self, transaction_code: str) -> float | dict[str, float] | None:
         """获取期货保证金比例（当前本地回测不支持期货）"""
         _ = transaction_code
-        raise NotImplementedError("当前本地回测暂不支持期货接口 get_margin_rate")
+        self._unsupported_api("get_margin_rate", "期货接口")
 
-    def run_interval(
-        self, context: Any, func: Callable, seconds: int = 10, interval_timer_ranges: str | None = None
-    ) -> None:
+    @validate_lifecycle
+    def run_interval(self, context: Any, func: Callable, seconds: int = 10) -> None:
         """定时运行函数（秒级，仅实盘）
 
         Args:
@@ -2511,7 +2971,7 @@ class PtradeAPI:
             func: 自定义函数，接受context参数
             seconds: 时间间隔（秒），最小3秒
         """
-        _ = (context, func, seconds, interval_timer_ranges)  # 回测中不执行
+        _ = (context, func, seconds)  # 回测中不执行
         pass
 
     @validate_lifecycle
@@ -2526,21 +2986,17 @@ class PtradeAPI:
         self._daily_tasks.append((func, time))
 
     @validate_lifecycle
-    def set_parameters(self, params: dict | None = None, **kwargs) -> None:
+    def set_parameters(self, **kwargs) -> None:
         """设置策略配置参数
 
         Args:
-            params: dict，策略参数字典
+            kwargs: a=b形式的策略参数
         """
-        if params is None:
-            params = {}
-        if kwargs:
-            params.update(kwargs)
+        if "broker_profile" in kwargs:
+            raise ValueError(t("api.set_parameters_broker_profile_readonly"))
         if not hasattr(self.context, "params"):
             self.context.params = {}
-        if "broker_profile" in params:
-            raise ValueError(t("api.set_parameters_broker_profile_readonly"))
-        self.context.params.update(params)
+        self.context.params.update(kwargs)
 
     @validate_lifecycle
     def convert_position_from_csv(self, path: str) -> list[dict]:
@@ -2550,28 +3006,29 @@ class PtradeAPI:
             path: CSV文件路径
 
         Returns:
-            list: 持仓列表，格式为 [{'security': 股票代码, 'amount': 数量, 'cost_basis': 成本价}, ...]
+            list: 持仓列表，格式为 [{'sid': 股票代码, 'enable_amount': 可用数量, 'amount': 数量, 'cost_basis': 成本价}, ...]
         """
         file_path = path
         df = pd.read_csv(file_path)
         positions = []
         for _, row in df.iterrows():
+            amount = int(row.get("amount", 0))
             positions.append(
                 {
-                    "security": row.get("security", row.get("stock", row.get("code"))),
-                    "amount": int(row.get("amount", row.get("qty", 0))),
-                    "cost_basis": float(row.get("cost_basis", row.get("cost", row.get("price", 0)))),
+                    "sid": row.get("sid"),
+                    "enable_amount": int(row.get("enable_amount", amount)),
+                    "amount": amount,
+                    "cost_basis": float(row.get("cost_basis", 0)),
                 }
             )
         return positions
 
-    def get_user_name(self, login_account: str | None = None) -> str:
+    def get_user_name(self) -> str:
         """获取登录终端的资金账号
 
         Returns:
             str: 资金账号（回测返回模拟账号）
         """
-        _ = login_account
         return "backtest_user"
 
     @validate_lifecycle
@@ -2602,7 +3059,7 @@ class PtradeAPI:
         file_path = target_dir / ("trades_%s.csv" % date_str)
 
         rows = []
-        for order in self.get_trades():
+        for order in self._iter_filled_orders():
             side = "buy" if order.amount > 0 else "sell"
             rows.append(
                 {
@@ -2632,11 +3089,45 @@ class PtradeAPI:
         """获取当前策略业务类型"""
         return str(getattr(self.context.g, "business_type", "stock")).upper()
 
+    @validate_lifecycle
+    def get_cb_list(self) -> None:
+        """获取可转债市场代码表（当前本地回测不支持可转债交易接口）"""
+        self._unsupported_api("get_cb_list", "可转债交易接口")
+
+    @validate_lifecycle
+    def get_etf_list(self) -> None:
+        """获取ETF代码列表（当前本地回测不支持ETF交易接口）"""
+        self._unsupported_api("get_etf_list", "ETF交易接口")
+
+    @validate_lifecycle
+    def get_ipo_stocks(self) -> None:
+        """获取当日IPO申购标的（当前本地回测不支持交易申购接口）"""
+        self._unsupported_api("get_ipo_stocks", "交易接口")
+
+    @validate_lifecycle
+    def get_deliver(self, start_date: str, end_date: str) -> None:
+        """获取历史交割单信息（当前本地回测不支持交易账户查询）"""
+        _ = (start_date, end_date)
+        self._unsupported_api("get_deliver", "交易接口")
+
+    @validate_lifecycle
+    def get_fundjour(self, start_date: str, end_date: str) -> None:
+        """获取历史资金流水信息（当前本地回测不支持交易账户查询）"""
+        _ = (start_date, end_date)
+        self._unsupported_api("get_fundjour", "交易接口")
+
+    @validate_lifecycle
+    def get_trade_name(self) -> None:
+        """获取交易名称（当前本地回测不支持交易账户查询）"""
+        self._unsupported_api("get_trade_name", "交易接口")
+
+    @validate_lifecycle
     def get_opt_objects(self, date: str | None = None) -> list[str]:
         """获取期权标的列表（回测简化版）"""
         _ = date
         return []
 
+    @validate_lifecycle
     def get_opt_last_dates(
         self, security: str | None = None, date: str | None = None, underlying: str | None = None
     ) -> list[str]:
@@ -2644,6 +3135,7 @@ class PtradeAPI:
         _ = (security, date, underlying)
         return []
 
+    @validate_lifecycle
     def get_opt_contracts(
         self,
         security: str | None = None,
@@ -2655,9 +3147,28 @@ class PtradeAPI:
         _ = (security, date, underlying, last_date)
         return []
 
+    @validate_lifecycle
     def get_contract_info(self, contract: str) -> dict[str, Any]:
         """获取合约信息（回测简化版）"""
         return {"contract": contract}
+
+    @validate_lifecycle
+    def send_email(self, *args, **kwargs) -> None:
+        """发送邮件（当前本地回测不支持交易通知接口）"""
+        _ = (args, kwargs)
+        self._unsupported_api("send_email", "交易通知接口")
+
+    @validate_lifecycle
+    def send_qywx(self, *args, **kwargs) -> None:
+        """发送企业微信消息（当前本地回测不支持交易通知接口）"""
+        _ = (args, kwargs)
+        self._unsupported_api("send_qywx", "交易通知接口")
+
+    @validate_lifecycle
+    def permission_test(self, account: str | None = None, end_date: str | None = None) -> None:
+        """权限校验（当前本地回测不支持交易授权接口）"""
+        _ = (account, end_date)
+        self._unsupported_api("permission_test", "交易授权接口")
 
     # ==================== 技术指标API ====================
 

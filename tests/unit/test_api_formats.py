@@ -8,7 +8,37 @@ API高级格式测试 - 提升覆盖率到71%
 import numpy as np
 import pandas as pd
 
+from simtradelab.ptrade.api import _compute_hl_adj, _has_typeab, _round2
 from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
+
+
+class TestPTradeRounding:
+    """测试PTrade前复权舍入边界"""
+
+    def test_compute_hl_adj_bypasses_xx4_range_pollution(self):
+        """测试.XX4 high/low range污染时使用float64值"""
+        adj_b = np.array([-1.506] * 20)
+        high = np.array([5.79] + [5.0] * 19)
+        low = np.array([4.5] * 19 + [4.07])
+
+        adj_high, adj_low = _compute_hl_adj(adj_b, high, low)
+
+        assert adj_high[0] == high[0] + adj_b[0]
+        assert adj_low[-1] == low[-1] + adj_b[-1]
+        assert _round2(high + adj_b)[0] == 4.28
+        assert _round2(low + adj_b)[-1] == 2.56
+
+    def test_compute_hl_adj_keeps_typeab_rounded(self):
+        """测试TypeA/anti-TypeA窗口不触发high/low bypass"""
+        adj_b = np.array([-0.395] * 20)
+        high = np.array([10.03] + [10.0] * 19)
+        low = np.array([9.0] * 19 + [8.0])
+
+        adj_high, adj_low = _compute_hl_adj(adj_b, high, low)
+
+        assert _has_typeab(high + adj_b)
+        np.testing.assert_array_equal(adj_high, _round2(high + adj_b))
+        np.testing.assert_array_equal(adj_low, _round2(low + adj_b))
 
 
 class TestAPIAdvancedFormats:
@@ -160,12 +190,12 @@ class TestAPIComplexBranches:
             assert isinstance(result, dict)
 
     def test_get_stock_blocks_invalid_stock(self, ptrade_api):
-        """测试get_stock_blocks无效股票返回空字典"""
+        """测试get_stock_blocks无效股票返回None"""
         ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
         ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
 
         result = ptrade_api.get_stock_blocks("INVALID.XX")
-        assert result == {}
+        assert result is None
 
     def test_get_stock_info_field_not_in_metadata(self, ptrade_api):
         """测试get_stock_info字段不在metadata中的处理"""
