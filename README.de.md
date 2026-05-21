@@ -83,36 +83,35 @@ config = BacktestConfig(
     end_date='2024-12-31',             # Backtest-Enddatum
 
     # --- Kapital & Markt ---
-    # initial_capital=100000.0,        # Startkapital (muss > 0 sein)
-    # market='CN',                     # Markt: 'CN' (A-Aktien) | 'US'
-    # broker_profile='auto',           # Broker-API-Profil: 'auto' | 'guosheng' | 'dongguan' | 'shanxi'
-    # t_plus_1=None,                   # T+1-Override: None=Marktstandard (CN=True, US=False)
-    # benchmark_code='',               # Benchmark-Code, leer=Marktstandard
+    initial_capital=100000.0,          # Startkapital (muss > 0 sein)
+    market='CN',                       # Markt: 'CN' (A-Aktien) | 'US'
+    broker_profile='auto',             # Broker-API-Profil: 'auto' | 'guosheng' | 'dongguan' | 'shanxi'
+    t_plus_1=None,                     # T+1-Override: None=Marktstandard (CN=True, US=False)
+    benchmark_code='',                 # Benchmark-Code, leer=Marktstandard
 
     # --- Frequenz ---
-    # frequency='1d',                  # Balkenfrequenz: '1d' (täglich) | '1m' (Minute)
+    frequency='1d',                    # Balkenfrequenz: '1d' (täglich) | '1m' (Minute)
 
     # --- Pfade ---
-    # data_path='~/.simtradelab/data', # Marktdatenverzeichnis
-    # strategies_path='./strategies',  # Strategien-Stammverzeichnis
+    data_path='~/.simtradelab/data',   # Marktdatenverzeichnis
+    strategies_path='./strategies',    # Strategien-Stammverzeichnis
 
     # --- Leistung ---
-    # enable_multiprocessing=True,     # Paralleles Datenladen aktivieren
-    # num_workers=None,                # Anzahl Worker (None=auto, muss >= 1 sein)
-    # use_data_server=True,            # In-Memory-Datenserver verwenden (Singleton)
+    enable_multiprocessing=True,       # Paralleles Datenladen aktivieren
+    num_workers=None,                  # Anzahl Worker (None=auto, muss >= 1 sein)
+    use_data_server=True,              # In-Memory-Datenserver verwenden (Singleton)
 
     # --- Ausgabe ---
-    # enable_charts=True,              # PNG-Chart generieren
-    # enable_logging=True,             # Logdatei schreiben
-    # enable_export=False,             # Handelsdetails als CSV exportieren
+    enable_charts=True,                # PNG-Chart generieren
+    enable_logging=True,               # Logdatei schreiben
+    enable_export=False,               # Handelsdetails als CSV exportieren
 
-    # --- Sandbox & i18n ---
-    # sandbox=True,                    # PTrade-Sandbox: Import- & Builtin-Beschränkungen
-    # locale='auto',                   # Log-Sprache: 'zh' | 'en' | 'de' (auto: CN-Markt→zh, sonst Systemsprache)
-    # optimization_mode=False,         # Optimierungsmodus: Validierung/Datenanalyse/Log-Setup überspringen (vom Optimierer gesteuert)
+    # --- i18n ---
+    locale='auto',                     # Log-Sprache: 'zh' | 'en' | 'de' (auto: CN-Markt→zh, sonst Systemsprache)
+    optimization_mode=False,           # Optimierungsmodus (vom Optimierer gesteuert)
 
     # --- Einstiegsdatei ---
-    # strategy_file='backtest.py',     # Einstiegsdatei: 'backtest.py' | 'live.py'
+    strategy_file='backtest.py',       # Einstiegsdatei: 'backtest.py' | 'live.py'
 )
 runner = BacktestRunner()
 report = runner.run(config=config)

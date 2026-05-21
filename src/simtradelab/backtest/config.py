@@ -58,9 +58,6 @@ class BacktestConfig(BaseModel):
     enable_logging: bool = True
     enable_export: bool = False
 
-    # 沙箱模式：True=限制import和builtins（Ptrade兼容），False=本地开发无限制
-    sandbox: bool = True
-
     # 市场选择: CN=A股, US=美股
     market: str = Field(default="CN", description="市场代码")
 

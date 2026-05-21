@@ -73,11 +73,9 @@ class StrategyExecutionEngine:
         stats_collector: Any,
         log: logging.Logger,
         frequency: str = '1d',
-        sandbox: bool = True,
         cancel_event=None,
     ):
-        """
-        初始化策略执行引擎
+        """初始化策略执行引擎
 
         Args:
             context: PTrade Context对象
@@ -85,7 +83,6 @@ class StrategyExecutionEngine:
             stats_collector: 统计收集器
             log: 日志对象
             frequency: 回测频率 '1d'日线 '1m'分钟线
-            sandbox: 是否启用沙箱（限制import和builtins）
         """
         # 核心组件（外部注入）
         self.context = context
@@ -93,7 +90,6 @@ class StrategyExecutionEngine:
         self.stats_collector = stats_collector
         self.log = log
         self.frequency = frequency
-        self.sandbox = sandbox
         self._cancel_event = cancel_event
 
         # 获取生命周期控制器
@@ -121,7 +117,7 @@ class StrategyExecutionEngine:
 
         # 构建命名空间
         strategy_namespace = {
-            '__builtins__': _SAFE_BUILTINS if self.sandbox else builtins.__dict__.copy(),
+            '__builtins__': _SAFE_BUILTINS,
             '__name__': '__main__',
             '__file__': strategy_path,
             'g': self.context.g,

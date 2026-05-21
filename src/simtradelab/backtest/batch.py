@@ -28,7 +28,6 @@ class BatchConfig(BaseModel):
     benchmark_code: str = '000300.SS'
     enable_charts: bool = False
     enable_export: bool = False
-    sandbox: bool = True
 
 
 class BatchBacktestRunner:
@@ -56,7 +55,6 @@ class BatchBacktestRunner:
                 benchmark_code=batch_config.benchmark_code,
                 enable_charts=batch_config.enable_charts,
                 enable_export=batch_config.enable_export,
-                sandbox=batch_config.sandbox,
                 enable_logging=False,
             )
             report = self._runner.run(config)

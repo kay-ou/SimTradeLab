@@ -1555,11 +1555,12 @@ class PtradeAPI:
 
         # 优化3+4: 批量切片+复权（减少循环开销）
         result = {}
+        result_dates = {}  # {stock: DatetimeIndex} 对齐 ptrade 返回的 datetime 行索引
         # 分钟数据不支持复权
         needs_adj_pre = frequency == "1d" and fq == "pre" and self.data_context.adj_pre_cache
         needs_adj_dypre = frequency == "1d" and fq == "dypre" and self.data_context.adj_pre_cache
         needs_adj_post = frequency == "1d" and fq == "post" and self.data_context.adj_post_cache
-        price_fields = {"open", "high", "low", "close"}  # 预先构建集合,提升查找速度
+        price_fields = {"open", "high", "low", "close"}
 
         for stock, (data_source, current_idx) in stock_info.items():
             if include:
@@ -1569,12 +1570,9 @@ class PtradeAPI:
                 start_idx = max(0, current_idx - count)
                 end_idx = current_idx
 
-                # 边界检查：如果end_idx == 0，无法获取历史数据，自动包含当前日
                 if end_idx == 0 and current_idx == 0:
                     end_idx = 1
 
-            # ── numpy 快路径：所有复权模式统一处理 ──
-            # adj 因子与 stock_data_dict 同源生成，长度必然匹配
             adj_factors = None
             adj_a = adj_b = None
 
@@ -1587,7 +1585,6 @@ class PtradeAPI:
                 adj_a = adj_factors["adj_a"].values[start_idx:end_idx]
                 adj_b = adj_factors["adj_b"].values[start_idx:end_idx]
 
-            # dypre 基准日因子（用 numpy 索引替代 pandas .loc）
             if needs_adj_dypre and adj_a is not None:
                 adj_a_base = adj_factors["adj_a"].values[current_idx]
                 adj_b_base = adj_factors["adj_b"].values[current_idx]
@@ -1627,17 +1624,19 @@ class PtradeAPI:
                     stock_result[field_name] = raw
 
             if stock_result and fill == "pre" and frequency in _MINUTE_FREQ_MINUTES:
-                # 分钟频 fill=pre：按分钟频率补齐同日缺口，价格前值填充，成交量/额补0
                 day_idx = data_source.index[start_idx:end_idx]
                 if len(day_idx) > 0:
                     tmp_df = pd.DataFrame(stock_result, index=day_idx)
                     tmp_df = self._fill_minute_gaps(tmp_df, _MINUTE_FREQ_MINUTES[frequency])
                     stock_result = {c: tmp_df[c].values for c in tmp_df.columns}
+                    result_dates[stock] = tmp_df.index
+            elif stock_result:
+                result_dates[stock] = data_source.index[start_idx:end_idx]
 
             if stock_result:
                 result[stock] = stock_result
 
-        # 转换为返回格式并缓存
+        # ── 转换为返回格式（与 ptrade 对齐）──
         if not result:
             self.log.warning(t("api.get_history_empty", stocks=security_list, count=count, frequency=frequency, fq=fq))
             final_result = {} if is_dict else pd.DataFrame()
@@ -1661,6 +1660,37 @@ class PtradeAPI:
                         if field_name in result[stocks_list[0]]
                     }
                     final_result = pd.DataFrame(df_data)
+
+            elif profile == "shanxi":
+                # 山西证券：MultiIndex(field, stock) + datetime 行索引
+                all_dates = {}
+                for stock in stocks_list:
+                    if stock in result_dates:
+                        all_dates[stock] = result_dates[stock]
+                if not all_dates:
+                    final_result = pd.DataFrame()
+                else:
+                    ref_stock = max(all_dates, key=lambda s: len(all_dates[s]))
+                    ref_dates = all_dates[ref_stock]
+
+                    col_data = {}
+                    for field_name in fields:
+                        for stock in stocks_list:
+                            if stock not in result or field_name not in result[stock]:
+                                continue
+                            stock_dates = all_dates.get(stock)
+                            vals = result[stock][field_name]
+                            if stock_dates is not None and len(stock_dates) == len(ref_dates) and stock_dates.equals(ref_dates):
+                                col_data[(field_name, stock)] = vals
+                            else:
+                                s = pd.Series(vals, index=stock_dates.to_pydatetime() if stock_dates is not None else None)
+                                s = s.reindex(ref_dates.to_pydatetime())
+                                col_data[(field_name, stock)] = s.values
+
+                    final_result = pd.DataFrame(col_data, index=ref_dates.to_pydatetime())
+                    final_result.columns = pd.MultiIndex.from_tuples(
+                        final_result.columns, names=["field", "code"]
+                    )
 
             elif len(fields) == 1:
                 field_name = fields[0]
@@ -1714,12 +1744,14 @@ class PtradeAPI:
 
                 final_result = self.PanelLike(panel_data)
 
-            # 券商差异：unlimited 返回类型
-            if isinstance(final_result, pd.DataFrame) and "unlimited" in final_result.columns:
+        # 券商差异：unlimited 返回类型（shanxi=int64, 其他=float64）
+        if isinstance(final_result, pd.DataFrame) and not final_result.empty:
+            ul_cols = [c for c in final_result.columns if c == "unlimited" or (isinstance(c, tuple) and c[0] == "unlimited")]
+            for col in ul_cols:
                 if profile == "shanxi":
-                    final_result["unlimited"] = final_result["unlimited"].astype("int64", copy=False)
+                    final_result[col] = final_result[col].astype("int64", copy=False)
                 else:
-                    final_result["unlimited"] = final_result["unlimited"].astype("float64", copy=False)
+                    final_result[col] = final_result[col].astype("float64", copy=False)
 
         # 缓存结果 (LRUCache自动管理大小)
         self._history_cache[cache_key] = final_result

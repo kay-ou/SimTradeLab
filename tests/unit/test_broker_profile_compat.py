@@ -255,7 +255,6 @@ class TestBrokerProfileCompat:
     def test_get_history_unlimited_dtype_shanxi(self, ptrade_api, test_dates):
         _set_broker_profile(ptrade_api, "shanxi")
         ptrade_api.context.current_dt = test_dates[-1]
-        # 为测试补充 unlimited 字段
         ptrade_api.data_context.stock_data_dict["600000.SH"]["unlimited"] = np.array(
             [0.0] * len(test_dates), dtype=float
         )
@@ -266,7 +265,8 @@ class TestBrokerProfileCompat:
             security_list=["600000.SH"],
         )
         assert isinstance(result, pd.DataFrame)
-        assert str(result["600000.SH"].dtype) == "int64"
+        # shanxi 多股票返回 MultiIndex(field, code) 列
+        assert str(result[("unlimited", "600000.SH")].dtype) == "int64"
 
     def test_get_price_is_dict_structured_auto(self, ptrade_api, test_dates):
         _set_broker_profile(ptrade_api, "auto")

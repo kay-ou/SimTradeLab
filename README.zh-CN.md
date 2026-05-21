@@ -83,36 +83,35 @@ config = BacktestConfig(
     end_date='2024-12-31',             # 回测结束日期
 
     # --- 资金与市场 ---
-    # initial_capital=100000.0,        # 初始资金（必须 > 0）
-    # market='CN',                     # 市场: 'CN'(A股) | 'US'(美股)
-    # broker_profile='auto',           # 券商API口径: 'auto' | 'guosheng' | 'dongguan' | 'shanxi'
-    # t_plus_1=None,                   # T+1覆盖: None=市场默认(CN=True, US=False)
-    # benchmark_code='',               # 基准代码，空串=市场默认基准
+    initial_capital=100000.0,          # 初始资金（必须 > 0）
+    market='CN',                       # 市场: 'CN'(A股) | 'US'(美股)
+    broker_profile='auto',             # 券商API口径: 'auto' | 'guosheng' | 'dongguan' | 'shanxi'
+    t_plus_1=None,                     # T+1覆盖: None=市场默认(CN=True, US=False)
+    benchmark_code='',                 # 基准代码，空串=市场默认基准
 
     # --- 频率 ---
-    # frequency='1d',                  # K线频率: '1d'(日线) | '1m'(分钟线)
+    frequency='1d',                    # K线频率: '1d'(日线) | '1m'(分钟线)
 
     # --- 路径 ---
-    # data_path='~/.simtradelab/data', # 行情数据目录
-    # strategies_path='./strategies',  # 策略根目录
+    data_path='~/.simtradelab/data',   # 行情数据目录
+    strategies_path='./strategies',    # 策略根目录
 
     # --- 性能 ---
-    # enable_multiprocessing=True,     # 启用多进程数据加载
-    # num_workers=None,                # 进程数（None=自动, 必须 >= 1）
-    # use_data_server=True,            # 使用内存数据服务（单例模式）
+    enable_multiprocessing=True,       # 启用多进程数据加载
+    num_workers=None,                  # 进程数（None=自动, 必须 >= 1）
+    use_data_server=True,              # 使用内存数据服务（单例模式）
 
     # --- 输出 ---
-    # enable_charts=True,              # 生成PNG图表
-    # enable_logging=True,             # 写入日志文件
-    # enable_export=False,             # 导出交易明细CSV
+    enable_charts=True,                # 生成PNG图表
+    enable_logging=True,               # 写入日志文件
+    enable_export=False,               # 导出交易明细CSV
 
-    # --- 沙箱与国际化 ---
-    # sandbox=True,                    # PTrade沙箱模式: 限制import和内置函数
-    # locale='auto',                   # 日志语言: 'zh' | 'en' | 'de'（自动：CN市场→zh，其他→系统语言）
-    # optimization_mode=False,         # 优化模式: 跳过策略校验/数据分析/日志配置（由优化器管理）
+    # --- 国际化 ---
+    locale='auto',                     # 日志语言: 'zh' | 'en' | 'de'（自动：CN市场→zh，其他→系统语言）
+    optimization_mode=False,           # 优化模式: 跳过策略校验/日志配置（由优化器管理）
 
     # --- 入口文件 ---
-    # strategy_file='backtest.py',     # 入口文件: 'backtest.py' | 'live.py'
+    strategy_file='backtest.py',       # 入口文件: 'backtest.py' | 'live.py'
 )
 runner = BacktestRunner()
 report = runner.run(config=config)

@@ -6,7 +6,7 @@
 # commercial license. See LICENSE-COMMERCIAL.md or contact kayou@duck.com
 #
 """
-策略静态验证器 - 在运行前检查生命周期错误和Python 3.5兼容性
+策略静态验证器 - 在运行前检查生命周期错误和券商 Python 版本兼容性
 """
 
 
@@ -15,13 +15,16 @@ from __future__ import annotations
 import ast
 from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
 from simtradelab.ptrade.lifecycle_config import API_LIFECYCLE_RESTRICTIONS
+from simtradelab.ptrade.broker_profile import normalize_broker_profile
 from simtradelab.utils.py35_compat_checker import check_python35_compatibility
+
+# 仅支持 Python 3.5 的券商（需检查 3.6+ 特性兼容性）
+_BROKER_PY35 = frozenset(["guosheng", "dongguan"])
 
 
 class StrategyValidator:
     """策略静态验证器"""
 
-    # 阶段函数名映射
     PHASE_FUNCTION_MAP = {
         'initialize': LifecyclePhase.INITIALIZE,
         'before_trading_start': LifecyclePhase.BEFORE_TRADING_START,
@@ -29,17 +32,17 @@ class StrategyValidator:
         'after_trading_end': LifecyclePhase.AFTER_TRADING_END,
     }
 
-    def __init__(self, strategy_code: str, check_py35_compat: bool = True):
+    def __init__(self, strategy_code: str, broker_profile: str = "auto"):
         """初始化验证器
 
         Args:
             strategy_code: 策略源代码
-            check_py35_compat: 是否检查Python 3.5兼容性（禁止使用3.6+特性）
+            broker_profile: 券商API口径
         """
         self.strategy_code = strategy_code
         self.tree = None
         self.errors: list[str] = []
-        self.check_py35_compat = check_py35_compat
+        self._check_py35 = normalize_broker_profile(broker_profile) in _BROKER_PY35
 
         try:
             self.tree = ast.parse(strategy_code)
@@ -49,40 +52,29 @@ class StrategyValidator:
             self.errors.append(f"解析失败: {str(e)}")
 
     def validate(self) -> bool:
-        """验证策略
-
-        Returns:
-            是否通过验证
-        """
-        # 如果解析失败，直接返回
+        """验证策略"""
         if self.tree is None:
             return False
 
-        # 提取每个阶段函数中调用的API
         phase_api_calls = self._extract_api_calls()
 
-        # 验证每个API调用是否在正确的阶段
         for phase, api_calls in phase_api_calls.items():
             for api_name, lineno in api_calls:
                 if api_name in API_LIFECYCLE_RESTRICTIONS:
                     allowed_phase_names = API_LIFECYCLE_RESTRICTIONS[api_name]
 
-                    # 跳过"all"阶段的API
                     if "all" in allowed_phase_names:
                         continue
 
-                    # 检查当前阶段是否被允许
                     if phase.value not in allowed_phase_names:
                         self.errors.append(
                             f"行 {lineno}: API '{api_name}' 不能在 '{phase.value}' 阶段调用。"
                             f"允许的阶段: {allowed_phase_names}"
                         )
 
-        # Python 3.5兼容性检查
-        if self.check_py35_compat:
-            is_compat, compat_errors = check_python35_compatibility(self.strategy_code)
-            if not is_compat:
-                self.errors.extend(compat_errors)
+        if self._check_py35:
+            _compat, compat_errors = check_python35_compatibility(self.strategy_code)
+            self.errors.extend(compat_errors)
 
         return len(self.errors) == 0
 
@@ -128,16 +120,15 @@ class StrategyValidator:
         return self.errors
 
 
-def validate_strategy_file(strategy_path: str, check_py35_compat: bool = True, auto_fix: bool = True) -> tuple:
+def validate_strategy_file(strategy_path: str, broker_profile: str = "auto") -> tuple:
     """验证策略文件
 
     Args:
         strategy_path: 策略文件路径
-        check_py35_compat: 是否检查Python 3.5兼容性
-        auto_fix: 是否自动修复f-string等兼容性问题
+        broker_profile: 券商API口径（guosheng/dongguan 会禁用 f-string）
 
     Returns:
-        (是否通过, 错误列表, 修复后的代码或None)
+        (是否通过, 错误列表, None)
     """
     try:
         with open(strategy_path, 'r', encoding='utf-8') as f:
@@ -149,23 +140,7 @@ def validate_strategy_file(strategy_path: str, check_py35_compat: bool = True, a
     except Exception as e:
         return False, [f"读取文件失败: {str(e)}"], None
 
-    # 如果需要检查兼容性且启用自动修复，先尝试修复
-    fixed_code = None
-    if check_py35_compat and auto_fix:
-        from simtradelab.utils.py35_compat_checker import check_and_fix_file
-        is_compat, errors, fixed = check_and_fix_file(strategy_path, auto_fix=True)
-
-        if fixed:
-            # 有修复内容，写回文件
-            try:
-                with open(strategy_path, 'w', encoding='utf-8') as f:
-                    f.write(fixed)
-                strategy_code = fixed
-                fixed_code = fixed
-            except Exception as e:
-                return False, [f"写入修复后的代码失败: {str(e)}"], None
-
-    validator = StrategyValidator(strategy_code, check_py35_compat=check_py35_compat)
+    validator = StrategyValidator(strategy_code, broker_profile=broker_profile)
     is_valid = validator.validate()
 
-    return is_valid, validator.get_errors(), fixed_code
+    return is_valid, validator.get_errors(), None

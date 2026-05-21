@@ -84,7 +84,7 @@ class BacktestRunner:
             print(t("bt.checking_strategy"))
             is_valid, errors, fixed_code = validate_strategy_file(
                 config.strategy_path,
-                check_py35_compat=config.sandbox
+                broker_profile=config.broker_profile,
             )
             if not is_valid:
                 print(t("bt.validation_failed"))
@@ -166,7 +166,6 @@ class BacktestRunner:
                 stats_collector=stats_collector,
                 log=log,
                 frequency=config.frequency,
-                sandbox=config.sandbox,
                 cancel_event=self._cancel_event,
             )
 
