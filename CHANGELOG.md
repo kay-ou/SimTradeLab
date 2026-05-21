@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.12.0] - 2026-05-21
+
+### Changed
+
+- **Remove sandbox config** — `sandbox` field removed from `BacktestConfig`; safe builtins always enforced
+- **Broker-gated py35 check** — Python 3.5 compat check scoped to `guosheng`/`dongguan`; `auto` and `shanxi` skip f-string validation
+- **shanxi multi-stock format** — `get_history` returns `MultiIndex(field, code)` with datetime index for `shanxi` profile
+
 ## [2.11.0] - 2026-05-19
 
 ### ✨ Added
