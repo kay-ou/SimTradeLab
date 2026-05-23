@@ -22,10 +22,15 @@ from ..utils.config import config as global_config
 from ..i18n import t
 
 
+_KNOWN_MARKET_DIRS = {"cn", "us"}
+
+
 def _migrate_legacy_data(data_path):
     """旧版扁平目录自动迁移到 data/cn/ 结构（一次性）"""
     from pathlib import Path
     data_path = Path(data_path)
+    if data_path.name in _KNOWN_MARKET_DIRS:
+        return
     if (data_path / "stocks").exists() and not (data_path / "cn").exists():
         cn_path = data_path / "cn"
         cn_path.mkdir()
@@ -58,9 +63,13 @@ class DataServer:
         # 旧版扁平目录自动迁移到 data/cn/
         _migrate_legacy_data(Path(base_path))
 
-        # 解析市场子目录
-        candidate = Path(base_path) / profile.data_dir_name
-        resolved_path = str(candidate) if candidate.exists() else base_path
+        # 解析市场子目录：若 base_path 已是市场目录则不再追加
+        base = Path(base_path)
+        if base.name == profile.data_dir_name:
+            resolved_path = str(base)
+        else:
+            candidate = base / profile.data_dir_name
+            resolved_path = str(candidate) if candidate.exists() else str(base)
 
         # 路径变更时强制重新初始化
         if DataServer._initialized:
