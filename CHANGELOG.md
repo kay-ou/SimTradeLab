@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.12.1] - 2026-05-23
+
+### Fixed
+
+- **get_fundamentals keyword arg** — `strategy_data_analyzer` now detects `table='valuation'` as a keyword argument, not just positional. Previously keyword-passed table names were silently ignored, causing valuation data not to load and `get_fundamentals` to return empty results.
+
 ## [2.12.0] - 2026-05-21
 
 ### Changed

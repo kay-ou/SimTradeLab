@@ -51,10 +51,17 @@ class StrategyDataAnalyzer(ast.NodeVisitor):
         if func_name:
             self.api_calls.add(func_name)
 
-            # 特殊处理get_fundamentals,提取表名参数
-            if func_name == 'get_fundamentals' and len(node.args) >= 2:
-                table_arg = node.args[1]
-                if isinstance(table_arg, ast.Constant) and isinstance(table_arg.value, str):
+            # 特殊处理get_fundamentals,提取表名参数（位置参数 + 关键字参数）
+            if func_name == 'get_fundamentals':
+                table_arg = None
+                if len(node.args) >= 2:
+                    table_arg = node.args[1]
+                else:
+                    for kw in node.keywords:
+                        if kw.arg == 'table' and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
+                            table_arg = kw.value
+                            break
+                if table_arg is not None and isinstance(table_arg, ast.Constant) and isinstance(table_arg.value, str):
                     self.fundamental_tables.add(table_arg.value)
 
         self.generic_visit(node)
