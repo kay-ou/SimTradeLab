@@ -252,6 +252,104 @@ class TestBrokerProfileCompat:
         assert isinstance(result_1w, pd.DataFrame)
         assert len(result_1w) > 0
 
+    # ── 跨频率回退路径：日线回测 + 分钟/周期数据 ──
+
+    def test_daily_context_1m_frequency_get_history(self, ptrade_api):
+        """日线回测取1分钟数据 — searchsorted(midnight) 触发 idx<0 回退"""
+        _set_broker_profile(ptrade_api, "auto")
+        ptrade_api.context.frequency = "1d"
+        ptrade_api.context.current_dt = pd.Timestamp("2024-01-04 00:00:00")
+
+        idx_1m = pd.date_range("2024-01-04 09:31:00", periods=240, freq="min").union(
+            pd.date_range("2024-01-04 13:01:00", periods=120, freq="min")
+        )
+        ptrade_api.data_context.stock_data_dict_1m = {
+            "600000.SH": pd.DataFrame(
+                {
+                    "open": np.linspace(10.0, 10.5, len(idx_1m)),
+                    "close": np.linspace(10.0, 10.5, len(idx_1m)),
+                    "volume": np.ones(len(idx_1m)) * 100.0,
+                    "money": np.ones(len(idx_1m)) * 1000.0,
+                },
+                index=idx_1m,
+            ),
+        }
+
+        result = ptrade_api.get_history(
+            count=1, frequency="1m", field="close", security_list=["600000.SH"]
+        )
+        assert isinstance(result, pd.DataFrame)
+        assert not result.empty, "回退后不应返回空结果"
+        assert len(result) == 1
+
+    def test_daily_context_1m_frequency_get_price(self, ptrade_api):
+        """日线回测 get_price 取1分钟数据 — get_price 同名回退路径"""
+        _set_broker_profile(ptrade_api, "auto")
+        ptrade_api.context.frequency = "1d"
+        ptrade_api.context.current_dt = pd.Timestamp("2024-01-04 00:00:00")
+
+        idx_1m = pd.date_range("2024-01-04 09:31:00", periods=240, freq="min").union(
+            pd.date_range("2024-01-04 13:01:00", periods=120, freq="min")
+        )
+        ptrade_api.data_context.stock_data_dict_1m = {
+            "600000.SH": pd.DataFrame(
+                {
+                    "open": np.linspace(10.0, 10.5, len(idx_1m)),
+                    "close": np.linspace(10.0, 10.5, len(idx_1m)),
+                    "volume": np.ones(len(idx_1m)) * 100.0,
+                    "money": np.ones(len(idx_1m)) * 1000.0,
+                },
+                index=idx_1m,
+            ),
+        }
+
+        result = ptrade_api.get_price(
+            "600000.SH", count=1, frequency="1m", fields="close"
+        )
+        assert isinstance(result, pd.DataFrame)
+        assert not result.empty
+
+    def test_daily_context_5m_frequency(self, ptrade_api):
+        """日线回测取5分钟数据 — 聚合频率同样经过 searchsorted 回退"""
+        _set_broker_profile(ptrade_api, "auto")
+        ptrade_api.context.frequency = "1d"
+        ptrade_api.context.current_dt = pd.Timestamp("2024-01-04 00:00:00")
+
+        idx_1m = pd.date_range("2024-01-04 09:31:00", periods=240, freq="min").union(
+            pd.date_range("2024-01-04 13:01:00", periods=120, freq="min")
+        )
+        ptrade_api.data_context.stock_data_dict_1m = {
+            "600000.SH": pd.DataFrame(
+                {
+                    "open": np.linspace(10.0, 10.5, len(idx_1m)),
+                    "close": np.linspace(10.0, 10.5, len(idx_1m)),
+                    "volume": np.ones(len(idx_1m)) * 100.0,
+                    "money": np.ones(len(idx_1m)) * 1000.0,
+                },
+                index=idx_1m,
+            ),
+        }
+
+        result = ptrade_api.get_history(
+            count=3, frequency="5m", field="close", security_list=["600000.SH"]
+        )
+        assert isinstance(result, pd.DataFrame)
+        assert not result.empty
+
+    def test_daily_context_no_data_still_skipped(self, ptrade_api):
+        """无数据的股票回退后仍正确跳过，不报错"""
+        _set_broker_profile(ptrade_api, "auto")
+        ptrade_api.context.frequency = "1d"
+        ptrade_api.context.current_dt = pd.Timestamp("2024-01-04 00:00:00")
+
+        ptrade_api.data_context.stock_data_dict_1m = {}
+
+        result = ptrade_api.get_history(
+            count=1, frequency="1m", field="close", security_list=["000001.SZ"]
+        )
+        assert isinstance(result, pd.DataFrame)
+        assert result.empty
+
     def test_get_history_unlimited_dtype_shanxi(self, ptrade_api, test_dates):
         _set_broker_profile(ptrade_api, "shanxi")
         ptrade_api.context.current_dt = test_dates[-1]

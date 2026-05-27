@@ -1199,11 +1199,14 @@ class PtradeAPI:
 
                 try:
                     if frequency in _MINUTE_FREQ_MINUTES or frequency in _PERIOD_FREQ_RULE:
-                        # 分钟数据：直接使用index查找
+                        # 分钟/周期数据：使用searchsorted查找
                         # 用 DatetimeIndex.searchsorted 避免 datetime64[us] vs ns 单位不匹配
                         idx = stock_df.index.searchsorted(end_dt, side="right") - 1
                         if idx < 0:
-                            continue
+                            end_of_day = end_dt.normalize() + pd.Timedelta(hours=15)
+                            idx = stock_df.index.searchsorted(end_of_day, side="right") - 1
+                            if idx < 0:
+                                continue
                         current_idx = idx
                     else:
                         current_idx = self._resolve_daily_index(stock, stock_df, end_dt)
@@ -1539,11 +1542,17 @@ class PtradeAPI:
                 continue
             try:
                 if frequency in _MINUTE_FREQ_MINUTES or frequency in _PERIOD_FREQ_RULE:
-                    # 分钟数据：使用searchsorted查找
+                    # 分钟/周期数据：使用searchsorted查找
                     # 用 DatetimeIndex.searchsorted 避免 datetime64[us] vs ns 单位不匹配
                     idx = data_source.index.searchsorted(current_dt, side="right") - 1
                     if idx < 0:
-                        continue
+                        # 跨频率场景：日线回测取分钟/周期数据时，
+                        # current_dt 是当天 00:00:00，searchsorted 返回 0 导致 idx=-1。
+                        # 对齐到当天收盘时间后重试，向前取最近的 bar。
+                        end_of_day = current_dt.normalize() + pd.Timedelta(hours=15)
+                        idx = data_source.index.searchsorted(end_of_day, side="right") - 1
+                        if idx < 0:
+                            continue
                     current_idx = idx
                 else:
                     current_idx = self._resolve_daily_index(stock, data_source, current_dt)
