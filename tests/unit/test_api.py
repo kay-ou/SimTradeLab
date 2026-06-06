@@ -5,8 +5,9 @@
 测试交易API
 """
 
-import pytest
+import numpy as np
 import pandas as pd
+import pytest
 
 from simtradelab.ptrade.lifecycle_controller import LifecyclePhase, PTradeLifecycleError
 
@@ -81,6 +82,21 @@ class TestDataQueryAPI:
 
         # 应该返回DataFrame或dict
         assert result is None or isinstance(result, (pd.DataFrame, dict))
+
+    def test_prebuilt_date_index_matches_lazy_contract(self, ptrade_api):
+        """预构建索引应与懒加载索引使用相同的 int64 日期契约。"""
+        stock = '600000.SH'
+        query_dt = pd.Timestamp('2024-01-02 14:30')
+
+        ptrade_api.prebuild_date_index(stocks=[stock])
+
+        date_dict, sorted_i8 = ptrade_api.get_stock_date_index(stock)
+        assert isinstance(sorted_i8, np.ndarray)
+        assert sorted_i8.dtype == np.dtype('int64')
+        assert date_dict[pd.Timestamp('2024-01-02').value] == 1
+
+        stock_df = ptrade_api.data_context.stock_data_dict[stock]
+        assert ptrade_api._resolve_daily_index(stock, stock_df, query_dt) == 1
 
 
 class TestStockStatusAPI:

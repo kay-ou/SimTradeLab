@@ -98,6 +98,8 @@ _PERIOD_FREQ_RULE = {
     "1y": "Y",
 }
 
+_VALID_PRICE_FREQUENCIES = frozenset(["1d", *_MINUTE_FREQ_MINUTES, *_PERIOD_FREQ_RULE])
+
 
 class _TradeDaysArray(np.ndarray):
     """numpy.ndarray with list-like truthiness for legacy strategy compatibility."""
@@ -107,6 +109,37 @@ class _TradeDaysArray(np.ndarray):
 
     def __bool__(self) -> bool:
         return len(self) > 0
+
+
+class _PTradeSeries(pd.Series):
+    """Series returned by market-data APIs with PTrade-style positional int access."""
+
+    @property
+    def _constructor(self):
+        return _PTradeSeries
+
+    @property
+    def _constructor_expanddim(self):
+        return _PTradeDataFrame
+
+    def __getitem__(self, key):
+        if isinstance(key, (int, np.integer)) and not isinstance(key, bool):
+            fallback = getattr(self.index, "_should_fallback_to_positional", None)
+            if fallback is True:
+                return self.iloc[int(key)]
+        return super().__getitem__(key)
+
+
+class _PTradeDataFrame(pd.DataFrame):
+    """DataFrame returned by market-data APIs."""
+
+    @property
+    def _constructor(self):
+        return _PTradeDataFrame
+
+    @property
+    def _constructor_sliced(self):
+        return _PTradeSeries
 
 
 def _normalize_code(code: str) -> str:
@@ -201,6 +234,17 @@ def _compute_hl_adj(adj_b: np.ndarray, h_raw: np.ndarray, l_raw: np.ndarray):
     return adj_h_r, adj_l_r
 
 
+def _datetime_index_ns(index: pd.DatetimeIndex) -> np.ndarray:
+    """Return int64 nanoseconds, independent of pandas' stored datetime resolution."""
+    return index.to_numpy(dtype="datetime64[ns]").view("i8")
+
+
+def _build_date_index(index: pd.DatetimeIndex) -> tuple[dict[int, int], np.ndarray]:
+    """Build the shared fast date lookup contract used by all daily data paths."""
+    idx_i8 = _datetime_index_ns(index)
+    return {int(date_value): idx for idx, date_value in enumerate(idx_i8)}, idx_i8
+
+
 def validate_lifecycle(func: Callable) -> Callable:
     """生命周期验证装饰器
 
@@ -274,7 +318,7 @@ class PtradeAPI:
 
         # 缓存 - 使用统一缓存管理器
         self._stock_status_cache = LRUCache(maxsize=50000)
-        self._stock_date_index: dict[str, tuple[dict, list]] = {}
+        self._stock_date_index: dict[str, tuple[dict[int, int], np.ndarray]] = {}
         self._prebuilt_index: bool = False
         self._sorted_status_dates: Optional[list[str]] = None
         self._daily_tasks: list[tuple[Callable, str]] = []  # (func, time_str)
@@ -309,10 +353,11 @@ class PtradeAPI:
 
     def prebuild_date_index(self, stocks: Optional[list[str]] = None) -> None:
         """预构建股票日期索引（显著提升性能）"""
-        if self._prebuilt_index:
+        if self._prebuilt_index and stocks is None:
             return
 
         target_stocks = stocks if stocks else list(self.data_context.stock_data_dict.keys())
+        target_stocks = [stock for stock in target_stocks if stock not in self._stock_date_index]
         print(t("api.prebuilding", count=len(target_stocks)))
 
         for i, stock in enumerate(target_stocks):
@@ -321,16 +366,15 @@ class PtradeAPI:
             try:
                 stock_df = self.data_context.stock_data_dict[stock]
                 if isinstance(stock_df, pd.DataFrame) and isinstance(stock_df.index, pd.DatetimeIndex):
-                    date_dict = {date: idx for idx, date in enumerate(stock_df.index)}
-                    sorted_dates = list(stock_df.index)
-                    self._stock_date_index[stock] = (date_dict, sorted_dates)
+                    self._stock_date_index[stock] = _build_date_index(stock_df.index)
             except Exception:
                 pass
 
-        self._prebuilt_index = True
+        if stocks is None:
+            self._prebuilt_index = True
         print(t("api.prebuild_done", count=len(self._stock_date_index)))
 
-    def get_stock_date_index(self, stock: str) -> tuple[dict, np.ndarray]:
+    def get_stock_date_index(self, stock: str) -> tuple[dict[int, int], np.ndarray]:
         """获取股票日期索引，返回 (date_dict, sorted_i8) 元组
 
         date_dict: {int64_nanoseconds: row_index} — 用 ts.value 查找
@@ -349,9 +393,7 @@ class PtradeAPI:
                 and isinstance(stock_df.index, pd.DatetimeIndex)
             ):
                 # int64 nanoseconds 作为 dict key，避免 pd.Timestamp 构造开销
-                idx_i8 = stock_df.index.values.view("i8")
-                date_dict = dict(zip(idx_i8.tolist(), range(len(idx_i8))))
-                self._stock_date_index[stock] = (date_dict, idx_i8)
+                self._stock_date_index[stock] = _build_date_index(stock_df.index)
             else:
                 self._stock_date_index[stock] = ({}, np.array([], dtype="i8"))
         return self._stock_date_index[stock]
@@ -850,7 +892,7 @@ class PtradeAPI:
                             if idx is not None:
                                 date_indices[stock] = idx
                         elif isinstance(df.index, pd.DatetimeIndex):
-                            idx = df.index.values.view("i8").searchsorted(query_ts.value, side="right")
+                            idx = _datetime_index_ns(df.index).searchsorted(query_ts.value, side="right")
                             if idx > 0:
                                 date_indices[stock] = idx - 1
                 except Exception:
@@ -879,7 +921,7 @@ class PtradeAPI:
                     continue
                 stock_df = self.data_context.stock_data_dict.get(stock)
                 if stock_df is not None and isinstance(stock_df, pd.DataFrame) and not stock_df.empty:
-                    idx = stock_df.index.values.view("i8").searchsorted(query_ts.value, side="right")
+                    idx = _datetime_index_ns(stock_df.index).searchsorted(query_ts.value, side="right")
                     if idx > 0 and stock_df["volume"].values[idx - 1] > 0:
                         close_prices[stock] = stock_df["close"].values[idx - 1]
 
@@ -1152,8 +1194,7 @@ class PtradeAPI:
     ) -> pd.DataFrame | PtradeAPI.PanelLike | OrderedDict | None:
         """获取历史行情数据"""
         frequency = self._normalize_frequency(frequency)
-        valid_freq = set(["1d", "1m", "1w", "mo", "1q", "1y"] + list(_MINUTE_FREQ_MINUTES.keys()))
-        if frequency not in valid_freq:
+        if frequency not in _VALID_PRICE_FREQUENCIES:
             raise ValueError("function get_price: invalid frequency argument, got %s" % frequency)
         profile = self.broker_profile
         if profile in ("guosheng", "dongguan") and is_dict:
@@ -1271,7 +1312,7 @@ class PtradeAPI:
             self.log.warning(t("api.get_price_empty", stocks=security, frequency=frequency, fq=fq))
             if is_dict and profile == "shanxi":
                 return None
-            return OrderedDict() if is_dict else pd.DataFrame()
+            return OrderedDict() if is_dict else _PTradeDataFrame()
 
         if is_dict:
             out = OrderedDict()
@@ -1300,18 +1341,18 @@ class PtradeAPI:
             stock_df = result.get(security)
             if stock_df is None:
                 self.log.warning(t("api.get_price_no_data", stock=security, frequency=frequency, fq=fq))
-                return pd.DataFrame()
+                return _PTradeDataFrame()
             selected_fields = [f for f in fields_list if f in stock_df.columns]
             ret = stock_df[selected_fields] if len(fields_list) > 0 else stock_df
             if profile == "shanxi" and "unlimited" in ret.columns:
                 ret = ret.copy()
                 ret["unlimited"] = ret["unlimited"].astype("int64")
-            return ret
+            return _PTradeDataFrame(ret)
 
         if len(fields_list) == 1:
             field_name = fields_list[0]
             data = {stock: stock_df[field_name] for stock, stock_df in result.items() if field_name in stock_df.columns}
-            ret = pd.DataFrame(data) if data else pd.DataFrame()
+            ret = _PTradeDataFrame(data) if data else _PTradeDataFrame()
             if profile == "shanxi" and field_name == "unlimited" and not ret.empty:
                 ret = ret.astype("int64")
             return ret
@@ -1319,7 +1360,7 @@ class PtradeAPI:
         panel_data = {}
         for field_name in fields_list:
             data = {stock: stock_df[field_name] for stock, stock_df in result.items() if field_name in stock_df.columns}
-            df = pd.DataFrame(data)
+            df = _PTradeDataFrame(data)
             if profile == "shanxi" and field_name == "unlimited" and not df.empty:
                 df = df.astype("int64")
             panel_data[field_name] = df
@@ -1481,8 +1522,7 @@ class PtradeAPI:
     ) -> pd.DataFrame | dict | PtradeAPI.PanelLike:
         """模拟通用ptrade的get_history（优化批量处理+缓存）"""
         frequency = self._normalize_frequency(frequency)
-        valid_freq = set(["1d", "1m", "1w", "mo", "1q", "1y"] + list(_MINUTE_FREQ_MINUTES.keys()))
-        if frequency not in valid_freq:
+        if frequency not in _VALID_PRICE_FREQUENCIES:
             raise ValueError("function get_history: invalid frequency argument, got %s" % frequency)
         profile = self.broker_profile
         if fill not in ("nan", "pre"):
@@ -1520,8 +1560,9 @@ class PtradeAPI:
         current_dt = self.context.current_dt
 
         # 缓存键：frozenset 归一化顺序 O(n)，比 tuple(sorted()) O(n log n) 更快
+        is_single_stock = isinstance(security_list, str)
         field_key = tuple(fields) if len(fields) > 1 else fields[0]
-        cache_key = (frozenset(stocks), count, field_key, fq, current_dt, include, is_dict, frequency)
+        cache_key = (is_single_stock, frozenset(stocks), count, field_key, fq, current_dt, include, is_dict, frequency)
 
         # 检查缓存
         if cache_key in self._history_cache:
@@ -1648,7 +1689,7 @@ class PtradeAPI:
         # ── 转换为返回格式（与 ptrade 对齐）──
         if not result:
             self.log.warning(t("api.get_history_empty", stocks=security_list, count=count, frequency=frequency, fq=fq))
-            final_result = {} if is_dict else pd.DataFrame()
+            final_result = {} if is_dict else _PTradeDataFrame()
         elif is_dict:
             # 兼容历史测试契约：{stock: {field: ndarray}}
             final_result = OrderedDict()
@@ -1656,19 +1697,22 @@ class PtradeAPI:
                 if stock in result:
                     final_result[stock] = result[stock]
         else:
-            is_single_stock = isinstance(security_list, str)
             stocks_list = [security_list] if is_single_stock else stocks
 
             if is_single_stock:
                 if stocks_list[0] not in result:
-                    final_result = pd.DataFrame()
+                    final_result = _PTradeDataFrame()
                 else:
+                    stock_dates = result_dates.get(stocks_list[0])
                     df_data = {
                         field_name: result[stocks_list[0]][field_name]
                         for field_name in fields
                         if field_name in result[stocks_list[0]]
                     }
-                    final_result = pd.DataFrame(df_data)
+                    final_result = _PTradeDataFrame(
+                        df_data,
+                        index=stock_dates.to_pydatetime() if stock_dates is not None else None,
+                    )
 
             elif profile == "shanxi":
                 # 山西证券：MultiIndex(field, stock) + datetime 行索引
@@ -1677,7 +1721,7 @@ class PtradeAPI:
                     if stock in result_dates:
                         all_dates[stock] = result_dates[stock]
                 if not all_dates:
-                    final_result = pd.DataFrame()
+                    final_result = _PTradeDataFrame()
                 else:
                     ref_stock = max(all_dates, key=lambda s: len(all_dates[s]))
                     ref_dates = all_dates[ref_stock]
@@ -1696,24 +1740,42 @@ class PtradeAPI:
                                 s = s.reindex(ref_dates.to_pydatetime())
                                 col_data[(field_name, stock)] = s.values
 
-                    final_result = pd.DataFrame(col_data, index=ref_dates.to_pydatetime())
+                    final_result = _PTradeDataFrame(col_data, index=ref_dates.to_pydatetime())
                     final_result.columns = pd.MultiIndex.from_tuples(
                         final_result.columns, names=["field", "code"]
                     )
 
             elif len(fields) == 1:
                 field_name = fields[0]
-                df_data = {
-                    stock: result[stock][field_name]
-                    for stock in stocks_list
-                    if stock in result and field_name in result[stock]
-                }
+                all_dates = {stock: result_dates[stock] for stock in stocks_list if stock in result_dates}
+                ref_dates = all_dates[max(all_dates, key=lambda s: len(all_dates[s]))] if all_dates else None
+                if ref_dates is not None:
+                    df_data = {}
+                    ref_index = ref_dates.to_pydatetime()
+                    for stock in stocks_list:
+                        if stock not in result or field_name not in result[stock]:
+                            continue
+                        stock_dates = result_dates.get(stock)
+                        vals = result[stock][field_name]
+                        if stock_dates is not None:
+                            series = pd.Series(vals, index=stock_dates.to_pydatetime()).reindex(ref_index)
+                            if fill == "pre":
+                                series = series.ffill().bfill()
+                            df_data[stock] = series.values
+                        else:
+                            df_data[stock] = vals
+                else:
+                    df_data = {
+                        stock: result[stock][field_name]
+                        for stock in stocks_list
+                        if stock in result and field_name in result[stock]
+                    }
                 if field_name == "unlimited":
                     target_dtype = "int64" if profile == "shanxi" else "float64"
                     df_data = {k: v.astype(target_dtype, copy=False) for k, v in df_data.items()}
                 # Newly-listed stocks may have fewer bars than count;
                 # left-pad with NaN to align to trading calendar (PTrade convention)
-                if df_data and len(set(len(v) for v in df_data.values())) > 1:
+                if ref_dates is None and df_data and len(set(len(v) for v in df_data.values())) > 1:
                     mx = max(len(v) for v in df_data.values())
                     df_data = {
                         k: np.concatenate(
@@ -1726,17 +1788,38 @@ class PtradeAPI:
                         else v
                         for k, v in df_data.items()
                     }
-                final_result = pd.DataFrame(df_data)
+                final_result = _PTradeDataFrame(
+                    df_data,
+                    index=ref_dates.to_pydatetime() if ref_dates is not None else None,
+                )
 
             else:
+                all_dates = {stock: result_dates[stock] for stock in stocks_list if stock in result_dates}
+                ref_dates = all_dates[max(all_dates, key=lambda s: len(all_dates[s]))] if all_dates else None
+                ref_index = ref_dates.to_pydatetime() if ref_dates is not None else None
                 panel_data = {}
                 for field_name in fields:
-                    df_data = {
-                        stock: result[stock][field_name]
-                        for stock in stocks_list
-                        if stock in result and field_name in result[stock]
-                    }
-                    if df_data and len(set(len(v) for v in df_data.values())) > 1:
+                    if ref_index is not None:
+                        df_data = {}
+                        for stock in stocks_list:
+                            if stock not in result or field_name not in result[stock]:
+                                continue
+                            stock_dates = result_dates.get(stock)
+                            vals = result[stock][field_name]
+                            if stock_dates is not None:
+                                series = pd.Series(vals, index=stock_dates.to_pydatetime()).reindex(ref_index)
+                                if fill == "pre":
+                                    series = series.ffill().bfill()
+                                df_data[stock] = series.values
+                            else:
+                                df_data[stock] = vals
+                    else:
+                        df_data = {
+                            stock: result[stock][field_name]
+                            for stock in stocks_list
+                            if stock in result and field_name in result[stock]
+                        }
+                    if ref_index is None and df_data and len(set(len(v) for v in df_data.values())) > 1:
                         mx = max(len(v) for v in df_data.values())
                         df_data = {
                             k: np.concatenate(
@@ -1749,7 +1832,7 @@ class PtradeAPI:
                             else v
                             for k, v in df_data.items()
                         }
-                    panel_data[field_name] = pd.DataFrame(df_data)
+                    panel_data[field_name] = _PTradeDataFrame(df_data, index=ref_index)
 
                 final_result = self.PanelLike(panel_data)
 

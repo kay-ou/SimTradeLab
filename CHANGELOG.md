@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.12.3] - 2026-06-06
+
+### Fixed
+
+- **PTrade market-data compatibility** — `get_history` and `get_price` DataFrame returns now preserve legacy PTrade-style integer positional access for column Series, avoiding pandas `FutureWarning`/`KeyError` when strategies use examples like `series[-1]`.
+- **history cache shape isolation** — `get_history` now distinguishes single-stock string requests from one-element list requests in its cache key, preventing call-order-dependent return shapes.
+- **daily date-index resolution** — prebuilt and lazy daily date indexes now use the same int64 nanosecond contract. Datetime indexes stored at non-nanosecond resolution, including pandas 3 `datetime64[us]`, no longer miss exact dates and fall back to the wrong trading day.
+- **valuation date lookup** — `get_fundamentals(table="valuation")` normalizes datetime-index lookups to nanoseconds before searching, keeping realtime market-cap calculations on the requested trading day.
+
+### Tests
+
+- Added contract tests for lazy vs prebuilt daily date indexes, PTrade market-data return shapes, legacy positional Series access, fundamentals/valuation date behavior, and pandas 3 non-nanosecond datetime indexes.
+
 ## [2.12.2] - 2026-05-27
 
 ### Fixed
