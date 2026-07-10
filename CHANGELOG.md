@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.0] - 2026-07-10
+
+### Added
+
+- Added the `simtradelab` console entry point with `--help` and `--version` support.
+- Added integration coverage for incremental DataServer price, ex-rights, adjustment-factor, and dividend-cache loading.
+
+### Fixed
+
+- Corrected minute-bar execution and valuation, T+1 availability, post-trading returns, benchmark alignment, optimizer cache isolation, locale resolution, and incremental adjustment-cache initialization.
+- Vectorized PTrade-compatible adjusted-price rounding, removing a major `get_history(fq='pre')` bottleneck without changing price results.
+- Restored separate unit, integration, installed-wheel, CLI, and coverage checks in CI.
+
 ## [2.12.3] - 2026-06-06
 
 ### Fixed

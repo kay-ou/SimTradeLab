@@ -55,6 +55,21 @@ class TestPortfolio:
         # 成本=(1000*10 + 500*11)/1500 = 10.333...
         assert abs(position.cost_basis - 10.333333) < 0.001
 
+    def test_add_position_preserves_enable_amount_for_t_plus_1(self):
+        """T+1 加仓时，当日买入数量不可立即卖出。"""
+        from types import SimpleNamespace
+
+        context = SimpleNamespace(t_plus_1=True)
+        portfolio = Portfolio(initial_capital=1000000.0, context_obj=context)
+        portfolio.add_position('600000.SH', 100, 10.0, datetime(2024, 1, 1))
+        portfolio.positions['600000.SH'].enable_amount = 100
+
+        portfolio.add_position('600000.SH', 100, 11.0, datetime(2024, 1, 2))
+
+        position = portfolio.positions['600000.SH']
+        assert position.amount == 200
+        assert position.enable_amount == 100
+
     def test_remove_position_partial(self):
         """测试减仓"""
         portfolio = Portfolio(initial_capital=1000000.0)

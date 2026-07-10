@@ -58,7 +58,7 @@ class DataServer:
         from ..ptrade.market_profile import get_market_profile
 
         profile = get_market_profile(market)
-        base_path = str(Path(data_path).resolve()) if data_path else global_config.data_path
+        base_path = str(Path(data_path).expanduser().resolve()) if data_path else global_config.data_path
 
         # 旧版扁平目录自动迁移到 data/cn/
         _migrate_legacy_data(Path(base_path))
@@ -305,26 +305,31 @@ class DataServer:
 
         # 加载复权缓存
         if 'price' in required_data or 'exrights' in required_data:
-            from ..ptrade.adj_cache import load_adj_pre_cache, load_adj_post_cache, create_dividend_cache
-            from ..ptrade.data_context import DataContext
-            temp_context = DataContext(
-                stock_data_dict=self.stock_data_dict,
-                valuation_dict=self.valuation_dict,
-                fundamentals_dict=self.fundamentals_dict,
-                exrights_dict=self.exrights_dict,
-                benchmark_data=self.benchmark_data,
-                stock_metadata=self.stock_metadata,
-                index_constituents=self.index_constituents,
-                stock_status_history=self.stock_status_history,
-                adj_pre_cache=None,
-                adj_post_cache=None,
-                trade_days=self.trade_days
-            )
-            self.adj_pre_cache = load_adj_pre_cache(temp_context)
-            self.adj_post_cache = load_adj_post_cache(temp_context)
-            self.dividend_cache = create_dividend_cache(temp_context)
+            self._initialize_adjustment_caches()
 
         print(t("data.complete"))
+
+    def _initialize_adjustment_caches(self):
+        """根据当前价格和除权数据初始化复权、分红缓存。"""
+        from ..ptrade.adj_cache import create_dividend_cache, load_adj_post_cache, load_adj_pre_cache
+        from ..ptrade.data_context import DataContext
+
+        temp_context = DataContext(
+            stock_data_dict=self.stock_data_dict,
+            valuation_dict=self.valuation_dict,
+            fundamentals_dict=self.fundamentals_dict,
+            exrights_dict=self.exrights_dict,
+            benchmark_data=self.benchmark_data,
+            stock_metadata=self.stock_metadata,
+            index_constituents=self.index_constituents,
+            stock_status_history=self.stock_status_history,
+            adj_pre_cache=None,
+            adj_post_cache=None,
+            trade_days=self.trade_days
+        )
+        self.adj_pre_cache = load_adj_pre_cache(temp_context)
+        self.adj_post_cache = load_adj_post_cache(temp_context)
+        self.dividend_cache = create_dividend_cache(temp_context)
 
     def _ensure_data_loaded(self, required_data, frequency='1d'):
         """确保所需数据已加载,动态补充缺失的数据
@@ -338,6 +343,10 @@ class DataServer:
 
         # 计算缺失的数据类型
         missing = set(required_data) - self._loaded_data_types
+
+        # 复权缓存重建依赖日线价格；仅补载除权数据时也必须先补载价格。
+        if 'exrights' in missing and 'price' not in self._loaded_data_types:
+            missing.add('price')
 
         # 分钟回测需要加载分钟数据
         if frequency == '1m' and self.stock_data_dict_1m is None:
@@ -385,6 +394,9 @@ class DataServer:
                 self.data_path, 'stock_1m', self._stock_1m_keys_cache,
                 preload=True
             )
+
+        if {'price', 'exrights'} & missing:
+            self._initialize_adjustment_caches()
 
         # 更新已加载记录
         self._loaded_data_types.update(missing)

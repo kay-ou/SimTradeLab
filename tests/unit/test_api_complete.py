@@ -159,6 +159,21 @@ class TestAdvancedConfigAPI:
         assert position.amount == 1000
         assert position.enable_amount == 600
 
+    def test_set_yesterday_position_initializes_portfolio_state(self, ptrade_api):
+        """底仓应初始化批次、失效净值缓存，并支持后续同股加仓。"""
+        ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+        portfolio = ptrade_api.context.portfolio
+        portfolio._cached_portfolio_value = 123456.0
+
+        ptrade_api.set_yesterday_position([
+            {'sid': '600000.SH', 'enable_amount': 100, 'amount': 100, 'cost_basis': 10.0}
+        ])
+
+        assert portfolio._cached_portfolio_value is None
+        assert portfolio._position_lots['600000.SH'][0]['amount'] == 100
+        portfolio.add_position('600000.SH', 100, 11.0, datetime(2024, 1, 2))
+        assert len(portfolio._position_lots['600000.SH']) == 2
+
     def test_convert_position_from_csv_document_fields(self, ptrade_api, tmp_path):
         """文档: CSV字段为sid,enable_amount,amount,cost_basis"""
         ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
@@ -179,8 +194,18 @@ class TestAdvancedConfigAPI:
         # 设置每日9:31执行
         ptrade_api.run_daily(ptrade_api.context, my_daily_func, time='9:31')
 
-        # 不报错即可
-        assert True
+        assert ptrade_api._daily_tasks == [(my_daily_func, '09:31')]
+
+    def test_run_daily_normalizes_default_time(self, ptrade_api):
+        """默认任务时间应与分钟循环使用相同的零填充格式。"""
+        ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+
+        def my_daily_func(context):
+            pass
+
+        ptrade_api.run_daily(ptrade_api.context, my_daily_func)
+
+        assert ptrade_api._daily_tasks == [(my_daily_func, '09:31')]
 
     def test_run_interval(self, ptrade_api):
         """测试run_interval - 设置定时任务"""

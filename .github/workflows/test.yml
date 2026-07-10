@@ -75,9 +75,6 @@ jobs:
       - name: Run integration tests
         run: poetry run pytest tests/integration/ -v --tb=short
 
-      - name: Test CLI functionality
-        run: poetry run simtradelab --help
-
       - name: Test package build and install
         run: |
           poetry build
@@ -86,6 +83,7 @@ jobs:
           WHEEL_FILE=$(find dist -name "simtradelab-*.whl" | head -1)
           pip install "$WHEEL_FILE"
           python -c "import simtradelab; print('Package install test passed: ' + simtradelab.__version__)"
+          simtradelab --help
 
       - name: Generate coverage report
         if: matrix.python-version == '3.11'

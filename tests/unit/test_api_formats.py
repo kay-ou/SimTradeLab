@@ -8,12 +8,39 @@ API高级格式测试 - 提升覆盖率到71%
 import numpy as np
 import pandas as pd
 
+from simtradelab.ptrade import api as api_module
 from simtradelab.ptrade.api import _compute_hl_adj, _has_typeab, _round2
 from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
 
 
 class TestPTradeRounding:
     """测试PTrade前复权舍入边界"""
+
+    def test_round2_vectorized_path_only_falls_back_for_half_cent_boundaries(self, monkeypatch):
+        values = np.linspace(1.001, 250.999, 100_000, dtype=np.float64)
+        expected = np.array([api_module._round2_scalar(float(value)) for value in values])
+        original = api_module._round2_scalar
+        fallback_calls = 0
+
+        def counting_round(value):
+            nonlocal fallback_calls
+            fallback_calls += 1
+            return original(value)
+
+        monkeypatch.setattr(api_module, "_round2_scalar", counting_round)
+
+        actual = api_module._round2(values)
+
+        np.testing.assert_array_equal(actual, expected)
+        assert fallback_calls < len(values) // 100
+
+        fallback_calls = 0
+        expected_has_typeab = any(
+            original(float(value)) != round(float(value), 2)
+            for value in values
+        )
+        assert api_module._has_typeab(values) is expected_has_typeab
+        assert fallback_calls < len(values) // 100
 
     def test_compute_hl_adj_bypasses_xx4_range_pollution(self):
         """测试.XX4 high/low range污染时使用float64值"""

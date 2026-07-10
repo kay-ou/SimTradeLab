@@ -15,6 +15,7 @@
 import os
 import json
 import numpy as np
+import pandas as pd
 from simtradelab.utils.plot import save_figure
 from simtradelab.i18n import t
 from simtradelab.utils.perf import timer
@@ -48,7 +49,7 @@ def _get_benchmark_name(benchmark_code):
     return index_names.get(benchmark_code, benchmark_code)
 
 
-def calculate_returns(portfolio_values):
+def calculate_returns(portfolio_values, initial_value=None):
     """计算收益率指标
 
     Args:
@@ -67,12 +68,16 @@ def calculate_returns(portfolio_values):
             'trading_days': 0
         }
 
-    initial_value = portfolio_values[0]
+    if initial_value is None:
+        initial_value = portfolio_values[0]
+        values_for_returns = portfolio_values
+    else:
+        values_for_returns = np.concatenate(([initial_value], portfolio_values))
     final_value = portfolio_values[-1]
     total_return = (final_value - initial_value) / initial_value if initial_value > 0 else 0
 
     # 每日收益率
-    daily_returns = np.diff(portfolio_values) / portfolio_values[:-1]
+    daily_returns = np.diff(values_for_returns) / values_for_returns[:-1]
 
     # 年化收益率（假设252个交易日）
     trading_days = len(portfolio_values)
@@ -158,8 +163,8 @@ def calculate_benchmark_metrics(daily_returns, benchmark_daily_returns, annual_r
             'tracking_error': 0
         }
 
-    strategy_returns = daily_returns[:min_len]
-    benchmark_returns = benchmark_daily_returns[:min_len]
+    strategy_returns = daily_returns[-min_len:]
+    benchmark_returns = benchmark_daily_returns[-min_len:]
 
     # 转换为numpy数组
     strategy_returns = np.array(strategy_returns)
@@ -167,7 +172,7 @@ def calculate_benchmark_metrics(daily_returns, benchmark_daily_returns, annual_r
 
     # 计算Beta
     covariance = np.cov(strategy_returns, benchmark_returns)[0][1]
-    benchmark_variance = np.var(benchmark_returns)
+    benchmark_variance = np.var(benchmark_returns, ddof=1)
     beta = covariance / benchmark_variance if benchmark_variance > 0 else 0
 
     # 计算Alpha
@@ -241,25 +246,38 @@ def generate_backtest_report(backtest_stats: BacktestStats, start_date, end_date
         dict: 完整的回测报告指标
     """
     portfolio_values = np.array(backtest_stats.portfolio_values)
+    initial_value = backtest_stats.initial_value
+    if initial_value is None and len(portfolio_values) > 0 and len(backtest_stats.daily_pnl) > 0:
+        initial_value = portfolio_values[0] - backtest_stats.daily_pnl[0]
 
     # 基本收益指标
-    returns_metrics = calculate_returns(portfolio_values)
+    returns_metrics = calculate_returns(portfolio_values, initial_value=initial_value)
 
     # 风险指标
-    risk_metrics = calculate_risk_metrics(returns_metrics['daily_returns'], portfolio_values)
+    risk_portfolio_values = (
+        np.concatenate(([initial_value], portfolio_values))
+        if initial_value is not None
+        else portfolio_values
+    )
+    risk_metrics = calculate_risk_metrics(returns_metrics['daily_returns'], risk_portfolio_values)
 
     # 基准对比
+    first_trade_date = backtest_stats.trade_dates[0] if backtest_stats.trade_dates else start_date
+    last_trade_date = backtest_stats.trade_dates[-1] if backtest_stats.trade_dates else end_date
     benchmark_slice = benchmark_df.loc[
-        (benchmark_df.index >= start_date) &
-        (benchmark_df.index <= end_date)
+        (benchmark_df.index >= first_trade_date) &
+        (benchmark_df.index <= last_trade_date)
     ]
 
     if len(benchmark_slice) > 0:
-        benchmark_initial = benchmark_slice['close'].iloc[0]
+        previous_benchmark = benchmark_df.loc[benchmark_df.index < first_trade_date].tail(1)
+        benchmark_comparison = pd.concat([previous_benchmark, benchmark_slice])
+        benchmark_initial = benchmark_comparison['close'].iloc[0]
         benchmark_final = benchmark_slice['close'].iloc[-1]
         benchmark_return = (benchmark_final - benchmark_initial) / benchmark_initial
-        benchmark_annual_return = (benchmark_final / benchmark_initial) ** (252 / len(benchmark_slice)) - 1
-        benchmark_daily_returns = benchmark_slice['close'].pct_change().dropna().values
+        benchmark_daily_returns = benchmark_comparison['close'].pct_change().dropna().values
+        benchmark_trading_days = len(benchmark_daily_returns) or len(benchmark_slice)
+        benchmark_annual_return = (benchmark_final / benchmark_initial) ** (252 / benchmark_trading_days) - 1
 
         excess_return = returns_metrics['total_return'] - benchmark_return
 
@@ -334,7 +352,18 @@ def _validate_chart_data(backtest_stats: BacktestStats):
     return dates, portfolio_values, daily_pnl, daily_buy, daily_sell, daily_positions_val
 
 
-def _plot_nav_curve(ax, dates, portfolio_values, daily_buy, daily_sell, benchmark_data, start_date, end_date, benchmark_code='000300.SS'):
+def _plot_nav_curve(
+    ax,
+    dates,
+    portfolio_values,
+    daily_buy,
+    daily_sell,
+    benchmark_data,
+    start_date,
+    end_date,
+    benchmark_code='000300.SS',
+    initial_value=None,
+):
     """绘制净值曲线子图
 
     Args:
@@ -350,7 +379,7 @@ def _plot_nav_curve(ax, dates, portfolio_values, daily_buy, daily_sell, benchmar
 
     """
     # 策略净值曲线
-    strategy_nav = portfolio_values / portfolio_values[0]
+    strategy_nav = portfolio_values / (initial_value if initial_value is not None else portfolio_values[0])
     ax.plot(dates, strategy_nav, linewidth=2, label='策略净值', color='#1f77b4')
 
     # 基准净值曲线
@@ -362,7 +391,13 @@ def _plot_nav_curve(ax, dates, portfolio_values, daily_buy, daily_sell, benchmar
             (benchmark_df_data.index <= end_date)
         ]
         if len(benchmark_slice) > 0:
-            benchmark_nav = benchmark_slice['close'] / benchmark_slice['close'].iloc[0]
+            previous_benchmark = benchmark_df_data.loc[benchmark_df_data.index < start_date].tail(1)
+            benchmark_initial = (
+                previous_benchmark['close'].iloc[0]
+                if len(previous_benchmark) > 0
+                else benchmark_slice['close'].iloc[0]
+            )
+            benchmark_nav = benchmark_slice['close'] / benchmark_initial
             ax.plot(benchmark_slice.index[:len(dates)], benchmark_nav[:len(dates)],
                    linewidth=2, label=benchmark_name, color='#ff7f0e', alpha=0.7)
 
@@ -456,12 +491,24 @@ def generate_backtest_charts(backtest_stats: BacktestStats, start_date, end_date
 
     # 验证并提取数据
     dates, portfolio_values, daily_pnl, daily_buy, daily_sell, daily_positions_val = _validate_chart_data(backtest_stats)
+    initial_value = portfolio_values[0] - daily_pnl[0] if len(portfolio_values) > 0 and len(daily_pnl) > 0 else None
 
     # 创建图表 - 4行1列布局
     _, axes = plt.subplots(4, 1, figsize=(16, 20), sharex=True)
 
     # 绘制4个子图
-    _plot_nav_curve(axes[0], dates, portfolio_values, daily_buy, daily_sell, benchmark_data, start_date, end_date, benchmark_code)
+    _plot_nav_curve(
+        axes[0],
+        dates,
+        portfolio_values,
+        daily_buy,
+        daily_sell,
+        benchmark_data,
+        start_date,
+        end_date,
+        benchmark_code,
+        initial_value=initial_value,
+    )
     _plot_daily_pnl(axes[1], dates, daily_pnl)
     _plot_trade_amounts(axes[2], dates, daily_buy, daily_sell)
     _plot_positions_value(axes[3], dates, daily_positions_val)

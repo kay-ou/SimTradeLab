@@ -195,16 +195,23 @@ def _round2_scalar(fv: float) -> float:
 
 
 def _round2(values: np.ndarray) -> np.ndarray:
-    result = np.empty(len(values), dtype=np.float64)
-    for i, v in enumerate(values):
-        result[i] = _round2_scalar(float(v))
+    values = np.asarray(values, dtype=np.float64)
+    result = np.round(values, 2)
+    diff = np.abs(values - result)
+    boundary_indices = np.flatnonzero((diff > 0.00499) & (diff < 0.0050000000001))
+    for i in boundary_indices:
+        result[i] = _round2_scalar(float(values[i]))
     return result
 
 
 def _has_typeab(values: np.ndarray) -> bool:
     """Return True if _round2 differs from round() for any value (TypeA/anti-TypeA fires)."""
-    for v in values:
-        fv = float(v)
+    values = np.asarray(values, dtype=np.float64)
+    rounded = np.round(values, 2)
+    diff = np.abs(values - rounded)
+    boundary_indices = np.flatnonzero((diff > 0.00499) & (diff < 0.0050000000001))
+    for i in boundary_indices:
+        fv = float(values[i])
         if _round2_scalar(fv) != round(fv, 2):
             return True
     return False
@@ -3065,7 +3072,13 @@ class PtradeAPI:
             if security and amount > 0 and cost_basis > 0:
                 position = Position(security, amount, cost_basis, t_plus_1=self.context.t_plus_1)
                 position.enable_amount = enable_amount
-                self.context.portfolio.positions[security] = position
+                portfolio = self.context.portfolio
+                portfolio.positions[security] = position
+                lot_date = self.context.previous_date or self.context.current_dt
+                portfolio._position_lots[security] = [
+                    {'date': lot_date, 'amount': amount, 'dividends': [], 'dividends_total': 0.0}
+                ]
+                portfolio._invalidate_cache()
                 self.log.info(t("api.set_position", stock=security, amount=amount, cost=cost_basis))
 
     @validate_lifecycle
@@ -3107,7 +3120,9 @@ class PtradeAPI:
             func: 自定义函数，接受context参数
             time: 触发时间，格式HH:MM
         """
-        self._daily_tasks.append((func, time))
+        hour, minute = time.split(':')
+        normalized_time = f'{hour.zfill(2)}:{minute.zfill(2)}'
+        self._daily_tasks.append((func, normalized_time))
 
     @validate_lifecycle
     def set_parameters(self, **kwargs) -> None:

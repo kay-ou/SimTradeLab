@@ -20,6 +20,7 @@ from simtradelab.ptrade.context import Context
 @dataclass
 class BacktestStats:
     """回测统计数据——StatsCollector 与 stats.py 之间的显式契约"""
+    initial_value: float | None = None
     portfolio_values: list[float] = field(default_factory=list)
     positions_count: list[int] = field(default_factory=list)
     daily_pnl: list[float] = field(default_factory=list)
@@ -45,7 +46,8 @@ class StatsCollector:
 
     def collect_pre_trading(self, context: Context, current_date):
         """收集交易前数据"""
-        self._stats.portfolio_values.append(context.portfolio.portfolio_value)
+        if self._stats.initial_value is None:
+            self._stats.initial_value = context.portfolio.portfolio_value
         self._stats.positions_count.append(
             sum(1 for p in context.portfolio.positions.values() if p.amount > 0)
         )
@@ -63,6 +65,7 @@ class StatsCollector:
         """收集交易后数据"""
         current_value = context.portfolio.portfolio_value
         daily_pnl = current_value - prev_portfolio_value
+        self._stats.portfolio_values.append(current_value)
         self._stats.daily_pnl.append(daily_pnl)
         self._stats.daily_positions_value.append(context.portfolio.positions_value)
         # 存元组而非字典，避免每日大量字典创建开销；build_series 时再转

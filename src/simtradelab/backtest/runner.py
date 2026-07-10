@@ -23,7 +23,7 @@ from simtradelab.ptrade.context import Context
 from simtradelab.ptrade.object import Portfolio, BacktestContext
 from simtradelab.ptrade.config_manager import config as ptrade_config
 from simtradelab.backtest.stats import generate_backtest_report, generate_backtest_charts, print_backtest_report
-from simtradelab.ptrade.api import PtradeAPI
+from simtradelab.ptrade.api import PtradeAPI, _build_date_index
 from simtradelab.service.data_server import DataServer
 from simtradelab.backtest.config import BacktestConfig
 from simtradelab.ptrade.market_profile import get_market_profile
@@ -127,7 +127,15 @@ class BacktestRunner:
 
         try:
             # 加载数据
-            benchmark_df = self._load_data(required_data, config.frequency, config.data_path, config.market)
+            benchmark_df = self._load_data(
+                required_data,
+                config.frequency,
+                config.data_path,
+                config.market,
+                enable_multiprocessing=config.enable_multiprocessing,
+                num_workers=config.num_workers,
+                use_data_server=config.use_data_server,
+            )
 
             if self._cancel_event and self._cancel_event.is_set():
                 return {}
@@ -198,17 +206,43 @@ class BacktestRunner:
             self._cleanup()
 
     @timer(name="perf.name.data_load")
-    def _load_data(self, required_data=None, frequency='1d', data_path: str = None, market: str = "CN") -> pd.DataFrame:
+    def _load_data(
+        self,
+        required_data=None,
+        frequency='1d',
+        data_path: str = None,
+        market: str = "CN",
+        enable_multiprocessing: bool = True,
+        num_workers: int | None = None,
+        use_data_server: bool = True,
+    ) -> pd.DataFrame:
         """加载数据
 
         Args:
             required_data: 需要加载的数据集合
             frequency: 回测频率 '1d'日线 '1m'分钟线
+            enable_multiprocessing: 是否启用多进程预加载
+            num_workers: 预加载进程数，None表示自动
+            use_data_server: 是否复用DataServer和runner缓存
 
         Returns:
             基准数据DataFrame
         """
-        if self._data_loaded:
+        from multiprocessing import cpu_count
+
+        from simtradelab.utils.performance_config import get_performance_config
+
+        performance_config = get_performance_config()
+        performance_config.set_multiprocessing(enable_multiprocessing)
+        performance_config.set_num_workers(num_workers or max(1, cpu_count() - 1))
+
+        if not use_data_server:
+            if DataServer._initialized and DataServer._instance is not None:
+                DataServer._instance._clear_all_caches()
+            DataServer._instance = None
+            DataServer._initialized = False
+            self._data_loaded = False
+        elif self._data_loaded:
             # 数据已加载，直接返回
             print(t("bt.data_cached"))
             # 从 benchmark_data 获取默认基准(会在后续根据 context.benchmark 重新选择)
@@ -343,9 +377,28 @@ class BacktestRunner:
             api._stock_date_index = self._shared_date_index
 
         # 初始化回测上下文
+        execution_stock_data = (
+            self.stock_data_dict_1m
+            if config.frequency == '1m'
+            else self.stock_data_dict
+        )
+        if config.frequency == '1m':
+            execution_date_index = {}
+
+            def get_execution_stock_date_index(stock):
+                if stock not in execution_date_index:
+                    stock_df = execution_stock_data.get(stock)
+                    if isinstance(stock_df, pd.DataFrame) and isinstance(stock_df.index, pd.DatetimeIndex):
+                        execution_date_index[stock] = _build_date_index(stock_df.index)
+                    else:
+                        execution_date_index[stock] = ({}, np.array([], dtype="i8"))
+                return execution_date_index[stock]
+        else:
+            get_execution_stock_date_index = api.get_stock_date_index
+
         bt_ctx = BacktestContext(
-            stock_data_dict=self.stock_data_dict,
-            get_stock_date_index_func=api.get_stock_date_index,
+            stock_data_dict=execution_stock_data,
+            get_stock_date_index_func=get_execution_stock_date_index,
             check_limit_func=api.check_limit,
             log_obj=log,
             context_obj=context,

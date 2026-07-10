@@ -25,11 +25,13 @@
 
 from __future__ import annotations
 
+import hashlib
+import inspect
 import json
 import optuna
 import pickle
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional, Type
 
@@ -448,11 +450,31 @@ class StrategyOptimizer:
 
     def run_backtest_with_params(self, params: dict[str, Any], start_date: Optional[str] = None, end_date: Optional[str] = None) -> tuple[float, dict[str, Any]]:
         """使用给定参数运行回测（支持缓存）"""
-        import hashlib
-
         # 生成缓存key
-        cache_key_str = f"{sorted(params.items())}_{start_date}_{end_date}"
-        cache_key = hashlib.md5(cache_key_str.encode()).hexdigest()
+        scoring_type = type(self.scoring_strategy)
+        try:
+            scoring_source = inspect.getsource(scoring_type)
+        except (OSError, TypeError):
+            scoring_source = ""
+        cache_payload = {
+            "params": params,
+            "start_date": start_date or self.start_date,
+            "end_date": end_date or self.end_date,
+            "strategy_code": self.original_strategy_code,
+            "initial_capital": self.initial_capital,
+            "scoring_type": f"{scoring_type.__module__}.{scoring_type.__qualname__}",
+            "scoring_source": scoring_source,
+            "scoring_state": vars(self.scoring_strategy),
+            "custom_mapping": self.custom_mapping,
+            "regularization_weight": self.regularization_weight,
+            "stability_weight": self.stability_weight,
+            "use_walk_forward": self.use_walk_forward,
+            "train_months": self.train_months,
+            "test_months": self.test_months,
+            "step_months": self.step_months,
+        }
+        cache_key_str = json.dumps(cache_payload, sort_keys=True, default=repr)
+        cache_key = hashlib.sha256(cache_key_str.encode()).hexdigest()
         cache_file = self.cache_dir / f"{cache_key}.pkl"
 
         # 尝试从缓存读取
@@ -557,11 +579,11 @@ class StrategyOptimizer:
         while True:
             # 训练窗口
             train_start = current_start
-            train_end = train_start + relativedelta(months=self.train_months)
+            train_end = train_start + relativedelta(months=self.train_months) - timedelta(days=1)
 
             # 测试窗口
-            test_start = train_end
-            test_end = test_start + relativedelta(months=self.test_months)
+            test_start = train_end + timedelta(days=1)
+            test_end = test_start + relativedelta(months=self.test_months) - timedelta(days=1)
 
             # 如果测试窗口超出范围，停止
             if test_end > end:

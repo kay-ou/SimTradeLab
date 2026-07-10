@@ -2,8 +2,8 @@
 
 ## 🎯 当前状态
 
-✅ **247个测试全部通过**（精简后，质量优化）
-📊 **代码覆盖率 38% (核心API 71%, context 71%, order_processor 64%)**
+✅ **单元测试与集成测试均由 CI 执行**
+📊 **覆盖率由完整 `tests/` 测试集生成**
 🛡️ **严格遵循PTrade API文档**
 ⭐ **仅测试文档公开API**
 🎯 **聚焦核心兼容性保护**
@@ -29,23 +29,26 @@
 ### 安装依赖
 
 ```bash
-poetry install --with dev
+poetry install
 ```
 
 ### 运行测试
 
 ```bash
-# 简洁输出
+# 单元测试
 poetry run pytest tests/unit -q
 
-# 详细输出
-poetry run pytest tests/unit -v
+# 集成测试
+poetry run pytest tests/integration -q
+
+# 完整测试集
+poetry run pytest tests -q
 
 # 带覆盖率
-poetry run pytest tests/unit --cov=simtradelab --cov-report=term-missing
+poetry run pytest tests --cov=simtradelab --cov-report=term-missing
 
 # HTML覆盖率报告
-poetry run pytest tests/unit --cov=simtradelab --cov-report=html
+poetry run pytest tests --cov=simtradelab --cov-report=html
 # Linux: xdg-open htmlcov/index.html
 # macOS: open htmlcov/index.html
 # Windows: start htmlcov/index.html
@@ -87,25 +90,10 @@ poetry run pytest tests/unit -x
 ```
 tests/
 ├── conftest.py              # 测试fixtures和配置
-├── pytest.ini              # pytest配置
 ├── README.md               # 本文档
-├── API_TEST_COVERAGE.md    # API测试覆盖分析
-└── unit/                   # 单元测试 (247个)
-    ├── test_api.py         # 核心API (9个)
-    ├── test_api_boundaries.py # 边界测试 (19个)
-    ├── test_api_complete.py # 完整API (59个)
-    ├── test_api_extended.py # 扩展API (17个)
-    ├── test_api_advanced.py # 高级场景 (17个)
-    ├── test_api_formats.py # API格式测试 (18个) ← 优化
-    ├── test_object.py      # Portfolio/Position (23个)
-    ├── test_object_advanced.py # 对象高级功能 (9个)
-    ├── test_order_system.py # 订单系统 (14个)
-    ├── test_order_processor.py # 订单处理器 (12个)
-    ├── test_order_processor_advanced.py # 订单处理器高级 (7个)
-    ├── test_cache.py       # 缓存管理 (12个)
-    ├── test_lifecycle.py   # 生命周期控制 (11个)
-    ├── test_context_lifecycle.py # Context生命周期 (13个)
-    └── test_data_context.py # 数据上下文 (1个) ← 精简
+├── unit/                    # API、对象、订单、回测与统计单元测试
+└── integration/             # 跨组件及真实临时数据测试
+    └── test_data_server_incremental_loading.py
 ```
 
 ---
@@ -114,27 +102,21 @@ tests/
 
 **基于PTrade API官方文档，仅测试文档公开的API**
 
-### API测试 (140个)
-- test_api.py (9) - 核心API
-- test_api_boundaries.py (19) - 边界测试
-- test_api_complete.py (59) - 完整覆盖
-- test_api_extended.py (17) - 扩展功能
-- test_api_advanced.py (17) - 高级场景
-- test_api_formats.py (18) - 多格式返回测试
+### API测试
+- `test_api*.py` - 核心API、边界、格式与兼容性
 
-### 对象和订单测试 (65个)
-- test_object.py (23) - Portfolio/Position
-- test_object_advanced.py (9) - 对象高级功能
-- test_order_system.py (14) - 订单系统
-- test_order_processor.py (12) - 订单处理器
-- test_order_processor_advanced.py (7) - 订单处理器高级场景
+### 对象和订单测试
+- `test_object*.py` - Portfolio/Position
+- `test_order*.py` - 订单系统与成交处理
 
-### 基础设施测试 (42个)
-- test_cache.py (12) - 缓存管理
-- test_lifecycle.py (11) - 生命周期控制
-- test_context_lifecycle.py (13) - Context生命周期管理
-- test_data_context.py (1) - 数据上下文（精简）
-- test_config.py (5) - 配置管理
+### 回测与基础设施测试
+- `test_minute_runner_regressions.py` - 分钟回测与数据加载配置
+- `test_stats_optimizer_regressions.py` - 收益统计与参数优化
+- `test_trade_flow_regressions.py` - 佣金、T+1 与跨日交易流程
+- `test_cache.py`、`test_lifecycle.py`、`test_data_context.py` - 缓存与生命周期
+
+### 集成测试
+- `integration/test_data_server_incremental_loading.py` - 真实临时 Parquet 数据的增量补载
 
 ### 已删除的非文档API测试
 ❌ `get_adjusted_price` - 内部辅助方法，非公开API
@@ -147,17 +129,11 @@ tests/
 
 ## 代码覆盖率
 
-| 模块 | 覆盖率 | 说明 |
-|------|--------|------|
-| data_context.py | 100% | 数据上下文 |
-| cache_manager.py | 97% | 缓存管理 |
-| lifecycle_config.py | 83% | 生命周期配置 |
-| config_manager.py | 77% | 配置管理 |
-| **api.py** | **71%** | **核心API（+5%）** |
-| context.py | 71% | 上下文 |
-| lifecycle_controller.py | 71% | 生命周期控制 |
-| order_processor.py | 64% | 订单处理（+20%） |
-| object.py | 53% | 核心对象 |
+覆盖率会随测试集持续变化，以 CI 生成的 XML/HTML 报告为准：
+
+```bash
+poetry run pytest tests --cov=simtradelab --cov-report=term-missing --cov-report=html
+```
 
 ---
 
@@ -204,11 +180,15 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Install dependencies
-        run: poetry install --with dev
-      - name: Run tests
-        run: poetry run pytest tests/unit --cov=simtradelab --cov-fail-under=25
+        run: poetry install
+      - name: Run unit tests
+        run: poetry run pytest tests/unit
+      - name: Run integration tests
+        run: poetry run pytest tests/integration
+      - name: Run coverage
+        run: poetry run pytest tests --cov=simtradelab
 ```
 
 ---
@@ -221,7 +201,7 @@ jobs:
 - strategy_engine.py - 策略执行测试
 
 **集成测试** - tests/integration/
-- 完整回测流程
+- 扩展完整回测流程覆盖
 - 多策略并发
 - 大数据集性能
 
@@ -229,32 +209,15 @@ jobs:
 
 ## 总结
 
-✅ 247个测试全部通过（精简2个冗余测试）
-✅ 核心模块覆盖率38%
+✅ 单元测试与集成测试分层执行
+✅ 完整测试集生成覆盖率报告
 ✅ 严格遵循PTrade API官方文档
 ✅ 仅测试文档公开API，保证兼容性
 
-**测试质量优化**:
-- 精简test_data_context.py（3→1个测试）
-- 删除冗余的属性赋值验证
-- 加强test_api_formats.py断言
-- 移除过于宽松的`or result is None`断言
-- 添加数据内容和结构验证
-
-**总体优化成果（两轮合计）**:
-- Context生命周期测试（13个）
-- DataContext数据上下文测试（1个，精简优化）
-- OrderProcessor边界场景测试（7个）
-- API格式返回测试（18个，加强断言）
-- context.py: 55% → 71% (+16%)
-- data_context.py: 0% → 100% (+100%)
-- order_processor.py: 57% → 64% (+7%)
-- **api.py: 66% → 71% (+5%)**
-- 总覆盖率: 36% → 38%
-- **测试质量**: 优化断言强度，删除冗余测试
+**测试质量要求**：优先验证真实行为与返回结构，避免宽松断言；跨组件行为放入集成测试。
 
 **每次修改代码前后都要运行测试！**
 
 ```bash
-poetry run pytest tests/unit -v
+poetry run pytest tests -v
 ```

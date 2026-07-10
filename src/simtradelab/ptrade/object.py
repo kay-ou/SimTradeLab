@@ -239,8 +239,10 @@ class StockData:
         if self._stock_df is not None and isinstance(self._stock_df, pd.DataFrame):
             if self._bt_ctx and self._bt_ctx.get_stock_date_index:
                 date_dict, sorted_i8 = self._bt_ctx.get_stock_date_index(self.stock)
-                current_date_norm = self.current_date.normalize()
-                dt_value = current_date_norm.value
+                if self._bt_ctx.context and self._bt_ctx.context.frequency == '1m':
+                    dt_value = self.current_date.value
+                else:
+                    dt_value = self.current_date.normalize().value
 
                 # 通过LifecycleController判断当前阶段
                 controller = self._bt_ctx.context._lifecycle_controller if self._bt_ctx.context else None
@@ -513,7 +515,9 @@ class Portfolio:
             new_cost = (position.amount * position.cost_basis + amount * price) / new_amount
             position.amount = new_amount
             position.cost_basis = new_cost
-            position.enable_amount = new_amount
+            t_plus_1 = self._context.t_plus_1 if self._context else True
+            if not t_plus_1:
+                position.enable_amount = new_amount
             position.market_value = new_amount * new_cost
             self._position_lots[stock].append({'date': date, 'amount': amount, 'dividends': [], 'dividends_total': 0.0})
         self._invalidate_cache()
@@ -662,4 +666,3 @@ class Position:
         self.today_amount = 0
         self.business_type = 'STOCK'
         self.market_value = amount * cost_basis
-

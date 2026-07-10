@@ -94,7 +94,7 @@ class BacktestConfig(BaseModel):
         """
         if self.start_date >= self.end_date:  # type: ignore
             raise ValueError("start_date必须早于end_date")
-        if self.locale is None:
+        if self.locale in (None, "auto"):
             self.locale = "zh" if self.market == "CN" else _DEFAULT_LOCALE
         self.broker_profile = normalize_broker_profile(self.broker_profile)
         return self

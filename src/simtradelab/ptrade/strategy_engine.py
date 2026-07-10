@@ -324,7 +324,7 @@ class StrategyExecutionEngine:
             # 收集交易后统计（用上一交易日收盘后的组合市值计算真实日盈亏）
             current_end_value = self.context.portfolio.portfolio_value
             if prev_day_end_value is None:
-                prev_day_end_value = self.context.portfolio.starting_cash
+                prev_day_end_value = self.stats_collector.stats.initial_value
             self.stats_collector.collect_post_trading(self.context, prev_day_end_value)
             prev_day_end_value = current_end_value
             # 按百分比节流：每增加 1% 才发一次，最后一天必发
@@ -420,7 +420,7 @@ class StrategyExecutionEngine:
             # 收集交易后统计
             current_end_value = self.context.portfolio.portfolio_value
             if prev_day_end_value is None:
-                prev_day_end_value = self.context.portfolio.starting_cash
+                prev_day_end_value = self.stats_collector.stats.initial_value
             self.stats_collector.collect_post_trading(self.context, prev_day_end_value)
             prev_day_end_value = current_end_value
             pct = (i + 1) * 100 // total_days
@@ -437,9 +437,9 @@ class StrategyExecutionEngine:
         """生成分钟时间偏移模板（惰性初始化，仅一次）"""
         if cls._MINUTE_OFFSETS is None:
             from datetime import timedelta
-            # A股交易时间: 9:30-11:30 (121分钟), 13:00-15:00 (121分钟)
-            morning = [timedelta(hours=9, minutes=30) + timedelta(minutes=i) for i in range(121)]
-            afternoon = [timedelta(hours=13) + timedelta(minutes=i) for i in range(121)]
+            # A股分钟bar: 9:31-11:30, 13:01-15:00（各120分钟）
+            morning = [timedelta(hours=9, minutes=31) + timedelta(minutes=i) for i in range(120)]
+            afternoon = [timedelta(hours=13, minutes=1) + timedelta(minutes=i) for i in range(120)]
             cls._MINUTE_OFFSETS = morning + afternoon
         return cls._MINUTE_OFFSETS
 

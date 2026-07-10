@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![License: Commercial](https://img.shields.io/badge/License-Commercial--Available-red)](licenses/LICENSE-COMMERCIAL.md)
-[![Version](https://img.shields.io/badge/Version-2.12.3-orange.svg)](#)
+[![Version](https://img.shields.io/badge/Version-2.13.0-orange.svg)](#)
 [![PyPI](https://img.shields.io/pypi/v/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 
@@ -66,6 +66,13 @@ pip install simtradelab[indicators]
 
 # 可选：参数优化器
 pip install simtradelab[optimizer]
+```
+
+验证安装后的命令行入口：
+
+```bash
+simtradelab --help
+simtradelab --version
 ```
 
 **数据获取：** 使用 [SimTradeData](https://github.com/kay-ou/SimTradeData) 获取A股和美股历史数据。
