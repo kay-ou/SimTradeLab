@@ -401,6 +401,85 @@ def test_get_history_cache_preserves_requested_stock_order(ptrade_api):
     assert list(second.columns) == second_order
 
 
+def test_get_history_cache_separates_single_stock_and_list_return_shapes(ptrade_api):
+    stock = "600000.SH"
+    ptrade_api.context.current_dt = pd.Timestamp("2024-01-03")
+
+    single = ptrade_api.get_history(2, field="close", security_list=stock)
+    listed = ptrade_api.get_history(2, field="close", security_list=[stock])
+
+    assert list(single.columns) == ["close"]
+    assert list(listed.columns) == [stock]
+
+
+def test_get_history_cache_separates_frequency(ptrade_api):
+    stock = "600000.SH"
+    current_dt = pd.Timestamp("2024-01-03 15:00:00")
+    ptrade_api.context.current_dt = current_dt
+    ptrade_api.data_context.stock_data_dict_1m = {
+        stock: pd.DataFrame(
+            {"close": [101.0, 102.0]},
+            index=pd.to_datetime(["2024-01-03 14:59:00", "2024-01-03 15:00:00"]),
+        )
+    }
+
+    daily = ptrade_api.get_history(
+        1, frequency="1d", field="close", security_list=stock, include=True
+    )
+    minute = ptrade_api.get_history(
+        1, frequency="1m", field="close", security_list=stock, include=True
+    )
+
+    assert daily.iloc[0, 0] != 102.0
+    assert minute.iloc[0, 0] == 102.0
+
+
+def test_get_history_cache_separates_requested_count(ptrade_api):
+    stock = "600000.SH"
+    ptrade_api.context.current_dt = pd.Timestamp("2024-01-03")
+
+    one_bar = ptrade_api.get_history(1, field="close", security_list=stock)
+    two_bars = ptrade_api.get_history(2, field="close", security_list=stock)
+
+    assert len(one_bar) == 1
+    assert len(two_bars) == 2
+
+
+def test_get_history_cache_separates_requested_fields(ptrade_api):
+    stock = "600000.SH"
+    ptrade_api.context.current_dt = pd.Timestamp("2024-01-03")
+
+    close = ptrade_api.get_history(2, field="close", security_list=stock)
+    open_ = ptrade_api.get_history(2, field="open", security_list=stock)
+
+    assert list(close.columns) == ["close"]
+    assert list(open_.columns) == ["open"]
+
+
+def test_get_history_cache_separates_adjustment_mode(ptrade_api):
+    stock = "600000.SH"
+    dates = pd.date_range("2024-01-01", periods=3)
+    ptrade_api.context.current_dt = dates[-1]
+    ptrade_api.data_context.stock_data_dict[stock] = pd.DataFrame(
+        {"close": [10.0, 11.0, 12.0]}, index=dates
+    )
+    ptrade_api.data_context.adj_pre_cache = {
+        stock: pd.DataFrame(
+            {"adj_a": [0.5, 0.5, 0.5], "adj_b": [1.0, 1.0, 1.0]}, index=dates
+        )
+    }
+
+    raw = ptrade_api.get_history(
+        3, field="close", security_list=stock, fq=None, include=True
+    )
+    adjusted = ptrade_api.get_history(
+        3, field="close", security_list=stock, fq="pre", include=True
+    )
+
+    assert raw["close"].tolist() == [10.0, 11.0, 12.0]
+    assert adjusted["close"].tolist() == [6.0, 6.5, 7.0]
+
+
 def test_get_history_cache_isolated_by_data_context(ptrade_api, simple_log):
     stock = "600000.SH"
     ptrade_api.context.current_dt = pd.Timestamp("2024-01-03")
@@ -640,6 +719,23 @@ def test_get_history_cache_hits_same_day_and_clears_on_date_change(
     assert calls == 2
     assert len(ptrade_api._history_cache) == 1
     assert ptrade_api._history_cache_date == pd.Timestamp("2024-01-04")
+
+
+def test_get_history_cache_evicts_at_configured_capacity(
+    ptrade_api, simple_log, monkeypatch
+):
+    monkeypatch.setattr(
+        config, "cache", config.cache.model_copy(update={"history_cache_size": 2})
+    )
+    api = PtradeAPI(ptrade_api.data_context, ptrade_api.context, simple_log)
+    api.context.current_dt = pd.Timestamp("2024-01-03")
+
+    api.get_history(1, field="close", security_list="600000.SH")
+    api.get_history(1, field="close", security_list="000001.SZ")
+    api.get_history(1, field="close", security_list="600519.SH")
+
+    assert api._history_cache.maxsize == 2
+    assert len(api._history_cache) == 2
 
 
 def test_get_history_complete_daily_window_avoids_reindex_allocations(

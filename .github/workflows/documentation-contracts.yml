@@ -1,0 +1,71 @@
+name: Documentation Contracts
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'README*.md'
+      - 'docs/STRATEGY_RUNTIME_BOUNDARIES.md'
+      - 'docs/PTrade_Backtest_API_Support_Matrix.md'
+      - 'docs/PTrade_Backtest_Available_APIs.md'
+      - 'tests/ptrade_api_contracts.py'
+      - 'tests/unit/test_ptrade_support_contracts.py'
+      - 'tests/unit/test_api_advanced.py'
+      - 'tests/unit/test_api_complete.py'
+      - 'tests/unit/test_api_date_index_contract.py'
+      - 'tests/unit/test_api_fundamentals_contract.py'
+      - 'tests/unit/test_broker_profile_compat.py'
+      - 'tests/unit/test_market_data_behavior_contracts.py'
+      - 'tests/unit/test_trade_flow_regressions.py'
+      - 'tests/unit/test_trading_config_propagation.py'
+      - 'tests/conftest.py'
+      - 'src/simtradelab/ptrade/**'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - '.github/workflows/documentation-contracts.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'README*.md'
+      - 'docs/STRATEGY_RUNTIME_BOUNDARIES.md'
+      - 'docs/PTrade_Backtest_API_Support_Matrix.md'
+      - 'docs/PTrade_Backtest_Available_APIs.md'
+      - 'tests/ptrade_api_contracts.py'
+      - 'tests/unit/test_ptrade_support_contracts.py'
+      - 'tests/unit/test_api_advanced.py'
+      - 'tests/unit/test_api_complete.py'
+      - 'tests/unit/test_api_date_index_contract.py'
+      - 'tests/unit/test_api_fundamentals_contract.py'
+      - 'tests/unit/test_broker_profile_compat.py'
+      - 'tests/unit/test_market_data_behavior_contracts.py'
+      - 'tests/unit/test_trade_flow_regressions.py'
+      - 'tests/unit/test_trading_config_propagation.py'
+      - 'tests/conftest.py'
+      - 'src/simtradelab/ptrade/**'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - '.github/workflows/documentation-contracts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  documentation-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: python -m pip install 'poetry>=2,<3'
+
+      - name: Install test dependencies
+        run: poetry install --no-interaction
+
+      - name: Run documentation contracts
+        run: poetry run pytest tests/unit/test_ptrade_support_contracts.py -q

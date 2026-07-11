@@ -60,6 +60,7 @@ pickles_test/
 temp_*.py
 reports/
 !reports/.gitkeep
+.simtradelab-strategy-regression*
 
 # Logs
 *.log

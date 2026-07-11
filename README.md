@@ -11,7 +11,7 @@ English | [中文](README.zh-CN.md) | [Deutsch](README.de.md)
 [![PyPI](https://img.shields.io/pypi/v/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 
-> Full PTrade API simulation — strategies transfer seamlessly between SimTradeLab and PTrade. See also: [ptradeAPI](https://github.com/kay-ou/ptradeAPI)
+> Local compatibility for a tested subset of PTrade backtest APIs. Portability depends on the APIs and broker behavior a strategy uses; review the [support matrix](docs/PTrade_Backtest_API_Support_Matrix.md). See also: [ptradeAPI](https://github.com/kay-ou/ptradeAPI)
 
 ---
 
@@ -21,13 +21,13 @@ English | [中文](README.zh-CN.md) | [Deutsch](README.de.md)
 |---|---|---|
 | Speed | **100–160x faster** | Baseline |
 | Startup | Sub-second (data persists in memory) | Minutes |
-| API Coverage | 62 backtest/research APIs | Full platform |
-| Strategy Porting | Zero code changes | Zero code changes |
+| API Coverage | See the tested [support matrix](docs/PTrade_Backtest_API_Support_Matrix.md) | Full platform |
+| Strategy Porting | Depends on the tested API subset | Native platform |
 | Environment | Local, free, open-source | Cloud, licensed |
 
 **Core capabilities:**
 
-- ✅ **62 APIs** — 100% coverage of stock backtesting scenarios (daily & minute bars)
+- ✅ **Tested API classifications** — current full, partial, pending, and unsupported behavior is tracked in the [support matrix](docs/PTrade_Backtest_API_Support_Matrix.md)
 - ⚡ **100–160x faster** than PTrade platform
 - 🚀 **In-memory data persistence** — singleton pattern, sub-second startup after first load
 - 💾 **Multi-level caching** — LRU caches for MA/VWAP/adjustment factors/history, >95% hit rate
@@ -76,6 +76,8 @@ simtradelab --version
 ```
 
 **Data:** Use [SimTradeData](https://github.com/kay-ou/SimTradeData) to download China A-share and US stock historical data.
+
+**Strategy environment:** Read the [strategy runtime boundaries](docs/STRATEGY_RUNTIME_BOUNDARIES.md) before using files, external datasets, or network libraries in strategy code.
 
 **Run a backtest:**
 
@@ -128,7 +130,7 @@ report = runner.run(config=config)
 
 ## 📚 API Overview
 
-62 backtest/research APIs — 100% stock backtesting coverage.
+See the tested [PTrade backtest API support matrix](docs/PTrade_Backtest_API_Support_Matrix.md) for the current classifications and behavioral evidence.
 
 | Category | APIs |
 |----------|------|

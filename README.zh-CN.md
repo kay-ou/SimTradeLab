@@ -11,7 +11,7 @@
 [![PyPI](https://img.shields.io/pypi/v/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/simtradelab.svg)](https://pypi.org/project/simtradelab/)
 
-> 完整模拟PTrade平台API，策略可无缝迁移。详情参考：[ptradeAPI](https://github.com/kay-ou/ptradeAPI)
+> 本地兼容经过测试的一部分 PTrade 回测 API。策略能否迁移取决于所用 API 和券商行为，请先查看[支持矩阵](docs/PTrade_Backtest_API_Support_Matrix.md)。详情参考：[ptradeAPI](https://github.com/kay-ou/ptradeAPI)
 
 ---
 
@@ -21,13 +21,13 @@
 |---|---|---|
 | 速度 | **快100–160倍** | 基准 |
 | 启动 | 亚秒级（数据常驻内存） | 分钟级 |
-| API覆盖 | 62个回测/研究API | 全平台 |
-| 策略迁移 | 零代码修改 | 零代码修改 |
+| API覆盖 | 查看经过测试的[支持矩阵](docs/PTrade_Backtest_API_Support_Matrix.md) | 全平台 |
+| 策略迁移 | 取决于经过测试的 API 子集 | 原生平台 |
 | 运行环境 | 本地、免费、开源 | 云端、授权 |
 
 **核心能力：**
 
-- ✅ **62个API** — 股票日/分钟线回测场景100%覆盖
+- ✅ **经过测试的 API 分类** — 当前完整、部分、待确认和不支持行为记录在[支持矩阵](docs/PTrade_Backtest_API_Support_Matrix.md)
 - ⚡ **100-160倍性能提升** — 本地回测比PTrade平台快100-160倍
 - 🚀 **数据常驻内存** — 单例模式，首次加载后常驻，二次运行秒级启动
 - 💾 **多级智能缓存** — LRU缓存（MA/VWAP/复权/历史数据），命中率>95%
@@ -76,6 +76,8 @@ simtradelab --version
 ```
 
 **数据获取：** 使用 [SimTradeData](https://github.com/kay-ou/SimTradeData) 获取A股和美股历史数据。
+
+**策略运行环境：** 在策略代码中使用文件、外部数据集或网络库之前，请阅读[策略运行边界](docs/STRATEGY_RUNTIME_BOUNDARIES.md)。
 
 **运行回测：**
 
@@ -128,7 +130,7 @@ report = runner.run(config=config)
 
 ## 📚 API 概览
 
-62个回测/研究API — 股票回测场景100%覆盖。
+当前分类和行为测试依据请查看 [PTrade 回测 API 支持矩阵](docs/PTrade_Backtest_API_Support_Matrix.md)。
 
 | 类别 | API |
 |------|-----|

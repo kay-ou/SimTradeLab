@@ -17,6 +17,7 @@
 
 import pandas as pd
 import atexit
+import weakref
 from ..ptrade.object import LazyDataDict
 from ..utils.config import config as global_config
 from ..i18n import t
@@ -53,11 +54,15 @@ class DataServer:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, required_data=None, frequency='1d', data_path: str = None, market: str = "CN"):
+    def __init__(self, required_data=None, frequency='1d', data_path: str | None = None, market: str = "CN"):
         from pathlib import Path
+
         from ..ptrade.market_profile import get_market_profile
 
         profile = get_market_profile(market)
+        if not hasattr(self, "_data_contexts"):
+            self._data_contexts = weakref.WeakSet()
+            self.data_version = 0
         base_path = str(Path(data_path).expanduser().resolve()) if data_path else global_config.data_path
 
         # 旧版扁平目录自动迁移到 data/cn/
@@ -119,11 +124,23 @@ class DataServer:
 
         # 加载数据
         self._load_data(required_data, frequency)
+        self._publish_data_update()
 
         # 注册清理函数：进程退出时自动关闭文件
         atexit.register(self._cleanup_on_exit)
 
         DataServer._initialized = True
+
+    def register_data_context(self, data_context):
+        """Register a live context for data replacement notifications."""
+        self._data_contexts.add(data_context)
+        data_context._sync_from_data_server(self)
+
+    def _publish_data_update(self):
+        """Propagate replaced data objects and a new cache version."""
+        self.data_version = getattr(self, "data_version", 0) + 1
+        for data_context in getattr(self, "_data_contexts", ()):
+            data_context._sync_from_data_server(self)
 
     def _clear_all_caches(self):
         """清空所有缓存"""
@@ -220,11 +237,13 @@ class DataServer:
             )
 
             # 立即填充 benchmark_data（确保默认基准可用）
-            if self._default_benchmark not in self.benchmark_data:
-                if self._default_benchmark in self._stock_keys_cache:
-                    # 注意：这里不能用 self.stock_data_dict[...]，因为数据还在加载中
-                    # 直接从storage加载，等preload完成后benchmark_data会被更新
-                    self.benchmark_data[self._default_benchmark] = storage.load_stock(self.data_path, self._default_benchmark)
+            if (
+                self._default_benchmark not in self.benchmark_data
+                and self._default_benchmark in self._stock_keys_cache
+            ):
+                # 注意：这里不能用 self.stock_data_dict[...]，因为数据还在加载中
+                # 直接从storage加载，等preload完成后benchmark_data会被更新
+                self.benchmark_data[self._default_benchmark] = storage.load_stock(self.data_path, self._default_benchmark)
         else:
             print(t("data.price_skip"))
             self.stock_data_dict = LazyDataDict(self.data_path, 'stock', [], preload=False)
@@ -400,6 +419,7 @@ class DataServer:
 
         # 更新已加载记录
         self._loaded_data_types.update(missing)
+        self._publish_data_update()
 
     def get_benchmark_data(self, benchmark_code=None) -> pd.DataFrame:
         """获取基准数据,支持动态从stock_data_dict获取

@@ -334,7 +334,7 @@ class PtradeAPI:
         self._fundamentals_cache = LRUCache(maxsize=500)
         self._sorted_index_dates: Optional[list[str]] = None
         self._adj_alignment_cache: dict[tuple[object, ...], bool] = {}
-
+        getattr(self.data_context, "register_api", lambda _: None)(self)
         # 实盘模拟: 订单/成交回调队列
         self._pending_order_callbacks: list[dict] = []
         self._pending_trade_callbacks: list[dict] = []
@@ -2064,7 +2064,7 @@ class PtradeAPI:
             ul_cols = [c for c in final_result.columns if c == "unlimited" or (isinstance(c, tuple) and c[0] == "unlimited")]
             for col in ul_cols:
                 if profile == "shanxi":
-                    final_result[col] = final_result[col].astype("int64", copy=False)
+                    final_result[col] = final_result[col].astype("int64")
                 else:
                     final_result[col] = final_result[col].astype("float64", copy=False)
 
@@ -3737,3 +3737,15 @@ class PtradeAPI:
         cci = talib.CCI(high, low, close, timeperiod=n)
 
         return cci
+
+    def _clear_data_caches(self) -> None:
+        """Clear instance caches derived from the active data source."""
+        self._stock_status_cache.clear()
+        self._stock_date_index.clear()
+        self._prebuilt_index = False
+        self._sorted_status_dates = None
+        self._history_cache.clear()
+        self._history_cache_date = None
+        self._fundamentals_cache.clear()
+        self._sorted_index_dates = None
+        self._adj_alignment_cache.clear()

@@ -7,7 +7,7 @@
 - `partial`：入口可调用，但目前只有接口、生命周期、参数或返回形态覆盖，尚无完整行为证据。
 - `pending`：真实 PTrade 兼容行为或所需外部数据基线尚不能可靠验证。
 - `unsupported`：本地回测明确不支持，调用会抛出 `NotImplementedError`。
-- 机器可检查的分类和测试证据位于 `tests/ptrade_api_contracts.py`。
+- 机器可检查的分类、分类数量和测试证据以 `tests/ptrade_api_contracts.py` 为准；本文档中的总览数量由契约测试校验。
 
 ## 总览
 

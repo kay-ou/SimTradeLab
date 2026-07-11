@@ -250,6 +250,7 @@ class BacktestRunner:
 
         # 使用多进程安全的DataServer
         data_server = DataServer(required_data, frequency, data_path, market=market)
+        self._data_server = data_server
 
         # 绑定到runner实例
         self.stock_data_dict = data_server.stock_data_dict
@@ -275,6 +276,7 @@ class BacktestRunner:
             config: 回测配置
         """
         import sys
+
         from simtradelab.ptrade import strategy_engine as _se
 
         class BacktestDateFilter(logging.Filter):
@@ -360,7 +362,8 @@ class BacktestRunner:
             adj_post_cache=self.adj_post_cache,
             dividend_cache=self.dividend_cache,
             trade_days=self.trade_days,
-            stock_data_dict_1m=self.stock_data_dict_1m
+            stock_data_dict_1m=self.stock_data_dict_1m,
+            data_server=getattr(self, "_data_server", None),
         )
 
         # 创建API

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from simtradelab.ptrade.api import PtradeAPI
+from simtradelab.ptrade.api import PtradeAPI, _normalize_code
 from simtradelab.ptrade.lifecycle_config import API_ALLOWED_PHASES_LOOKUP
 from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
 from simtradelab.ptrade.broker_profile import BROKER_PROFILES
@@ -24,6 +24,10 @@ from tests.ptrade_api_contracts import (
 ROOT = Path(__file__).resolve().parents[2]
 MATRIX = ROOT / "docs/PTrade_Backtest_API_Support_Matrix.md"
 CANONICAL_API_LIST = ROOT / "docs/PTrade_Backtest_Available_APIs.md"
+RUNTIME_BOUNDARIES = ROOT / "docs/STRATEGY_RUNTIME_BOUNDARIES.md"
+STRATEGY_ENGINE = ROOT / "src/simtradelab/ptrade/strategy_engine.py"
+DOC_CONTRACT_WORKFLOW = ROOT / ".github/workflows/documentation-contracts.yml"
+READMES = (ROOT / "README.md", ROOT / "README.zh-CN.md", ROOT / "README.de.md")
 INJECTED_GLOBAL_APIS = {"log"}
 SURFACE_ONLY_APIS = {
     "get_stock_info",
@@ -82,6 +86,24 @@ def _overview_counts() -> dict[str, int]:
         label.replace("`", "").strip(): int(count)
         for label, count in re.findall(r"^\| ([^|]+?) \| (\d+) \|$", text, re.MULTILINE)
     }
+
+
+def _blocked_modules_from_implementation() -> set[str]:
+    module = ast.parse(STRATEGY_ENGINE.read_text(encoding="utf-8"))
+    assignment = next(
+        node
+        for node in module.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "_BLOCKED_MODULES" for target in node.targets)
+    )
+    assert isinstance(assignment.value, ast.Call)
+    return set(ast.literal_eval(assignment.value.args[0]))
+
+
+def _blocked_modules_from_documentation() -> set[str]:
+    text = RUNTIME_BOUNDARIES.read_text(encoding="utf-8")
+    section = text.split("## Blocked top-level modules", 1)[1].split("\n## ", 1)[0]
+    return set(re.findall(r"^- `([^`]+)`$", section, re.MULTILINE))
 
 
 def _test_node_references_api(node_id: str, api_name: str) -> bool:
@@ -164,6 +186,98 @@ def test_markdown_overview_counts_match_classified_sections():
     assert counts["pending"] == len(documented["pending"])
     assert counts["unsupported"] == len(documented["unsupported"])
     assert counts["合计"] == sum(map(len, documented.values())) + counts["特殊项 log"]
+
+
+def test_strategy_runtime_boundaries_match_sandbox_implementation():
+    assert _blocked_modules_from_documentation() == _blocked_modules_from_implementation()
+
+
+def test_strategy_runtime_boundaries_do_not_overstate_security_isolation():
+    text = RUNTIME_BOUNDARIES.read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+    assert "not a complete OS or network security sandbox" in normalized
+    assert "Download external datasets" in normalized
+    assert "before starting the backtest" in normalized
+
+
+def test_strategy_runtime_boundaries_document_security_code_roles():
+    text = RUNTIME_BOUNDARIES.read_text(encoding="utf-8")
+    assert "| `000300.XSHG` | Public PTrade-style security code |" in text
+    assert "| `000300.SH` | Internal market-data security code |" in text
+    assert "| `000300.SS` | Benchmark identifier and normalized index code |" in text
+    assert _normalize_code("000300.XSHG") == "000300.SS"
+    assert _normalize_code("000300.SH") == "000300.SH"
+    assert _normalize_code("000300.SS") == "000300.SS"
+
+
+def test_readmes_link_runtime_boundaries_without_hard_coded_api_counts():
+    count_claim = re.compile(r"\b\d+\s*(?:APIs?|个API|Backtest-/Research-APIs)", re.IGNORECASE)
+    for readme in READMES:
+        text = readme.read_text(encoding="utf-8")
+        assert "docs/STRATEGY_RUNTIME_BOUNDARIES.md" in text, readme.name
+        assert "docs/PTrade_Backtest_API_Support_Matrix.md" in text, readme.name
+        assert count_claim.search(text) is None, readme.name
+
+
+def test_readmes_do_not_claim_complete_or_zero_change_ptrade_compatibility():
+    contradictory_claims = {
+        "README.md": (
+            "Full PTrade API simulation",
+            "strategies transfer seamlessly",
+            "| Strategy Porting | Zero code changes |",
+        ),
+        "README.zh-CN.md": (
+            "完整模拟PTrade平台API",
+            "策略可无缝迁移",
+            "| 策略迁移 | 零代码修改 |",
+        ),
+        "README.de.md": (
+            "Vollständige PTrade-API-Simulation",
+            "Strategien laufen nahtlos",
+            "| Strategieportierung | Keine Codeänderungen |",
+        ),
+    }
+    for readme in READMES:
+        text = readme.read_text(encoding="utf-8")
+        for claim in contradictory_claims[readme.name]:
+            assert claim not in text, f"{readme.name}: {claim}"
+
+
+def test_support_matrix_counts_match_contract_inventory():
+    expected = {
+        support: sum(
+            contract["support"] == support for contract in PTRADE_API_CONTRACTS.values()
+        )
+        for support in ("full", "partial", "pending", "unsupported")
+    }
+    counts = _overview_counts()
+    assert {support: counts[support] for support in expected} == expected
+    assert counts["特殊项 log"] == len(INJECTED_GLOBAL_APIS)
+    assert counts["合计"] == len(PTRADE_API_CONTRACTS) + len(INJECTED_GLOBAL_APIS)
+
+
+def test_documentation_contract_workflow_covers_guarded_files():
+    workflow = DOC_CONTRACT_WORKFLOW.read_text(encoding="utf-8")
+    required_paths = (
+        "README*.md",
+        "docs/STRATEGY_RUNTIME_BOUNDARIES.md",
+        "docs/PTrade_Backtest_API_Support_Matrix.md",
+        "docs/PTrade_Backtest_Available_APIs.md",
+        "tests/ptrade_api_contracts.py",
+        "tests/unit/test_ptrade_support_contracts.py",
+        "tests/conftest.py",
+        "src/simtradelab/ptrade/**",
+    )
+    for path in required_paths:
+        assert f"- '{path}'" in workflow
+    behavior_test_paths = {
+        node_id.split("::", 1)[0]
+        for contract in PTRADE_API_CONTRACTS.values()
+        for node_id in contract["behavior_tests"]
+    }
+    for path in behavior_test_paths:
+        assert f"- '{path}'" in workflow
+    assert "poetry run pytest tests/unit/test_ptrade_support_contracts.py -q" in workflow
 
 
 def test_full_support_references_collected_behavior_tests():

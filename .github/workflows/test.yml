@@ -69,6 +69,12 @@ jobs:
         run: |
           poetry run python -c "import simtradelab; print('SimTradeLab ' + simtradelab.__version__ + ' imported successfully')"
 
+      - name: Run critical Ruff checks
+        run: poetry run ruff check src tests --select E9,F63,F7,F82
+
+      - name: Check Ruff baseline
+        run: poetry run python script/check_ruff_baseline.py
+
       - name: Run unit tests
         run: poetry run pytest tests/unit/ -v --tb=short
 
@@ -91,9 +97,9 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
-          file: ./coverage.xml
+          files: ./coverage.xml
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false

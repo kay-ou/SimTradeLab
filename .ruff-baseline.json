@@ -1,0 +1,1340 @@
+[
+  {
+    "path": "src/simtradelab/__init__.py",
+    "row": 11,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/backtest/backtest_stats.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/backtest/batch.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/backtest/config.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/backtest/config.py",
+    "row": 13,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/backtest/export.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/backtest/export.py",
+    "row": 12,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/backtest/export.py",
+    "row": 80,
+    "column": 27,
+    "code": "B905"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 26,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 36,
+    "column": 1,
+    "code": "UP035"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 442,
+    "column": 43,
+    "code": "UP015"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 506,
+    "column": 17,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 520,
+    "column": 13,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 685,
+    "column": 9,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 783,
+    "column": 35,
+    "code": "F541"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 805,
+    "column": 35,
+    "code": "F541"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 831,
+    "column": 23,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 847,
+    "column": 13,
+    "code": "SIM105"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 941,
+    "column": 33,
+    "code": "UP015"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 945,
+    "column": 39,
+    "code": "UP015"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 964,
+    "column": 32,
+    "code": "UP006"
+  },
+  {
+    "path": "src/simtradelab/backtest/optimizer_framework.py",
+    "row": 1030,
+    "column": 5,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/backtest/run_backtest.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/backtest/run_backtest.py",
+    "row": 21,
+    "column": 1,
+    "code": "E402"
+  },
+  {
+    "path": "src/simtradelab/backtest/run_backtest.py",
+    "row": 21,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/backtest/run_backtest.py",
+    "row": 22,
+    "column": 1,
+    "code": "E402"
+  },
+  {
+    "path": "src/simtradelab/backtest/runner.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/backtest/runner.py",
+    "row": 15,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/backtest/runner.py",
+    "row": 64,
+    "column": 9,
+    "code": "SIM105"
+  },
+  {
+    "path": "src/simtradelab/backtest/runner.py",
+    "row": 101,
+    "column": 13,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/backtest/runner.py",
+    "row": 213,
+    "column": 20,
+    "code": "RUF013"
+  },
+  {
+    "path": "src/simtradelab/backtest/stats.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/backtest/stats.py",
+    "row": 15,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/backtest/stats.py",
+    "row": 33,
+    "column": 33,
+    "code": "UP015"
+  },
+  {
+    "path": "src/simtradelab/backtest/stats.py",
+    "row": 485,
+    "column": 5,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/i18n.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/i18n.py",
+    "row": 47,
+    "column": 25,
+    "code": "UP015"
+  },
+  {
+    "path": "src/simtradelab/ptrade/__init__.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/__init__.py",
+    "row": 16,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/ptrade/__init__.py",
+    "row": 62,
+    "column": 11,
+    "code": "RUF022"
+  },
+  {
+    "path": "src/simtradelab/ptrade/adj_cache.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/adj_cache.py",
+    "row": 15,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/ptrade/adj_cache.py",
+    "row": 138,
+    "column": 37,
+    "code": "B905"
+  },
+  {
+    "path": "src/simtradelab/ptrade/adj_cache.py",
+    "row": 160,
+    "column": 35,
+    "code": "B905"
+  },
+  {
+    "path": "src/simtradelab/ptrade/adj_cache.py",
+    "row": 305,
+    "column": 37,
+    "code": "B905"
+  },
+  {
+    "path": "src/simtradelab/ptrade/adj_cache.py",
+    "row": 327,
+    "column": 35,
+    "code": "B905"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 14,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 36,
+    "column": 28,
+    "code": "F401"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 288,
+    "column": 9,
+    "code": "SIM102"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 500,
+    "column": 9,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 556,
+    "column": 9,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 615,
+    "column": 17,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 696,
+    "column": 26,
+    "code": "RUF012"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 770,
+    "column": 33,
+    "code": "RUF012"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 776,
+    "column": 34,
+    "code": "RUF012"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 842,
+    "column": 9,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 874,
+    "column": 9,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 1801,
+    "column": 17,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 2264,
+    "column": 9,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 2360,
+    "column": 9,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 2966,
+    "column": 13,
+    "code": "SIM102"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 3065,
+    "column": 9,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 3290,
+    "column": 9,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 3614,
+    "column": 13,
+    "code": "B904"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 3646,
+    "column": 13,
+    "code": "B904"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 3686,
+    "column": 13,
+    "code": "B904"
+  },
+  {
+    "path": "src/simtradelab/ptrade/api.py",
+    "row": 3713,
+    "column": 13,
+    "code": "B904"
+  },
+  {
+    "path": "src/simtradelab/ptrade/broker_profile.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/broker_profile.py",
+    "row": 66,
+    "column": 5,
+    "code": "SIM110"
+  },
+  {
+    "path": "src/simtradelab/ptrade/cache_manager.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/cache_manager.py",
+    "row": 16,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/ptrade/config_manager.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/config_manager.py",
+    "row": 16,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/ptrade/context.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/context.py",
+    "row": 15,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/ptrade/data_context.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 49,
+    "column": 14,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 50,
+    "column": 21,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 51,
+    "column": 20,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 52,
+    "column": 27,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 53,
+    "column": 21,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 54,
+    "column": 25,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 55,
+    "column": 28,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 56,
+    "column": 35,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 57,
+    "column": 25,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 58,
+    "column": 32,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 60,
+    "column": 21,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 74,
+    "column": 21,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 75,
+    "column": 24,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 76,
+    "column": 25,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 77,
+    "column": 33,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 78,
+    "column": 23,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 79,
+    "column": 24,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_config.py",
+    "row": 80,
+    "column": 32,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/ptrade/lifecycle_controller.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/market_profile.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/object.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/object.py",
+    "row": 155,
+    "column": 21,
+    "code": "SIM105"
+  },
+  {
+    "path": "src/simtradelab/ptrade/object.py",
+    "row": 190,
+    "column": 13,
+    "code": "B904"
+  },
+  {
+    "path": "src/simtradelab/ptrade/object.py",
+    "row": 239,
+    "column": 9,
+    "code": "SIM102"
+  },
+  {
+    "path": "src/simtradelab/ptrade/order_processor.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/order_processor.py",
+    "row": 15,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/ptrade/order_processor.py",
+    "row": 129,
+    "column": 9,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/ptrade/storage.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/storage.py",
+    "row": 14,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/ptrade/storage.py",
+    "row": 117,
+    "column": 31,
+    "code": "B905"
+  },
+  {
+    "path": "src/simtradelab/ptrade/storage.py",
+    "row": 170,
+    "column": 49,
+    "code": "B905"
+  },
+  {
+    "path": "src/simtradelab/ptrade/storage.py",
+    "row": 180,
+    "column": 33,
+    "code": "B905"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_data_analyzer.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_data_analyzer.py",
+    "row": 15,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_data_analyzer.py",
+    "row": 105,
+    "column": 34,
+    "code": "UP015"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_engine.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_engine.py",
+    "row": 15,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_engine.py",
+    "row": 20,
+    "column": 1,
+    "code": "UP035"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_engine.py",
+    "row": 115,
+    "column": 34,
+    "code": "UP015"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_engine.py",
+    "row": 238,
+    "column": 13,
+    "code": "SIM108"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_engine.py",
+    "row": 274,
+    "column": 9,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_engine.py",
+    "row": 343,
+    "column": 9,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_validator.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_validator.py",
+    "row": 13,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_validator.py",
+    "row": 28,
+    "column": 26,
+    "code": "RUF012"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_validator.py",
+    "row": 52,
+    "column": 41,
+    "code": "RUF010"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_validator.py",
+    "row": 93,
+    "column": 13,
+    "code": "SIM102"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_validator.py",
+    "row": 134,
+    "column": 34,
+    "code": "UP015"
+  },
+  {
+    "path": "src/simtradelab/ptrade/strategy_validator.py",
+    "row": 141,
+    "column": 35,
+    "code": "RUF010"
+  },
+  {
+    "path": "src/simtradelab/service/data_server.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/service/data_server.py",
+    "row": 18,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/utils/config.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/utils/config.py",
+    "row": 12,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/utils/config.py",
+    "row": 23,
+    "column": 34,
+    "code": "UP008"
+  },
+  {
+    "path": "src/simtradelab/utils/fstring_fixer.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/utils/fstring_fixer.py",
+    "row": 95,
+    "column": 29,
+    "code": "UP015"
+  },
+  {
+    "path": "src/simtradelab/utils/paths.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/utils/paths.py",
+    "row": 44,
+    "column": 19,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/utils/paths.py",
+    "row": 49,
+    "column": 19,
+    "code": "RUF005"
+  },
+  {
+    "path": "src/simtradelab/utils/perf.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/utils/perf.py",
+    "row": 11,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "src/simtradelab/utils/performance_config.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/utils/plot.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/utils/py35_compat_checker.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "src/simtradelab/utils/py35_compat_checker.py",
+    "row": 29,
+    "column": 26,
+    "code": "RUF012"
+  },
+  {
+    "path": "src/simtradelab/utils/py35_compat_checker.py",
+    "row": 38,
+    "column": 26,
+    "code": "RUF012"
+  },
+  {
+    "path": "src/simtradelab/utils/py35_compat_checker.py",
+    "row": 45,
+    "column": 26,
+    "code": "RUF012"
+  },
+  {
+    "path": "src/simtradelab/utils/py35_compat_checker.py",
+    "row": 51,
+    "column": 25,
+    "code": "RUF012"
+  },
+  {
+    "path": "src/simtradelab/utils/py35_compat_checker.py",
+    "row": 107,
+    "column": 13,
+    "code": "SIM102"
+  },
+  {
+    "path": "src/simtradelab/utils/py35_compat_checker.py",
+    "row": 168,
+    "column": 13,
+    "code": "SIM102"
+  },
+  {
+    "path": "src/simtradelab/utils/py35_compat_checker.py",
+    "row": 188,
+    "column": 13,
+    "code": "SIM102"
+  },
+  {
+    "path": "src/simtradelab/utils/py35_compat_checker.py",
+    "row": 218,
+    "column": 29,
+    "code": "UP015"
+  },
+  {
+    "path": "tests/__init__.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/conftest.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/ptrade_api_contracts.py",
+    "row": 3,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/test_strategy_data_analyzer.py",
+    "row": 3,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/test_strategy_data_analyzer.py",
+    "row": 132,
+    "column": 9,
+    "code": "F841"
+  },
+  {
+    "path": "tests/test_strategy_data_analyzer.py",
+    "row": 133,
+    "column": 16,
+    "code": "F541"
+  },
+  {
+    "path": "tests/unit/__init__.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_api.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_api_advanced.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_api_advanced.py",
+    "row": 8,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_api_advanced.py",
+    "row": 8,
+    "column": 8,
+    "code": "F401"
+  },
+  {
+    "path": "tests/unit/test_api_advanced.py",
+    "row": 11,
+    "column": 18,
+    "code": "F811"
+  },
+  {
+    "path": "tests/unit/test_api_boundaries.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_api_boundaries.py",
+    "row": 8,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_api_boundaries.py",
+    "row": 51,
+    "column": 9,
+    "code": "E722"
+  },
+  {
+    "path": "tests/unit/test_api_boundaries.py",
+    "row": 52,
+    "column": 13,
+    "code": "F841"
+  },
+  {
+    "path": "tests/unit/test_api_boundaries.py",
+    "row": 57,
+    "column": 9,
+    "code": "E722"
+  },
+  {
+    "path": "tests/unit/test_api_boundaries.py",
+    "row": 58,
+    "column": 13,
+    "code": "F841"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 8,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 331,
+    "column": 1,
+    "code": "E402"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 331,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 332,
+    "column": 1,
+    "code": "E402"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 332,
+    "column": 17,
+    "code": "F811"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 333,
+    "column": 1,
+    "code": "E402"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 333,
+    "column": 18,
+    "code": "F811"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 334,
+    "column": 1,
+    "code": "E402"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 334,
+    "column": 22,
+    "code": "F811"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 336,
+    "column": 1,
+    "code": "E402"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 336,
+    "column": 53,
+    "code": "F811"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 336,
+    "column": 69,
+    "code": "F811"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 640,
+    "column": 16,
+    "code": "SIM101"
+  },
+  {
+    "path": "tests/unit/test_api_complete.py",
+    "row": 656,
+    "column": 16,
+    "code": "SIM101"
+  },
+  {
+    "path": "tests/unit/test_api_extended.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_api_extended.py",
+    "row": 8,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_api_formats.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_api_formats.py",
+    "row": 163,
+    "column": 20,
+    "code": "SIM101"
+  },
+  {
+    "path": "tests/unit/test_api_surface.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_broker_api_signature_guard.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_broker_api_snapshot_guard.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_broker_profile_compat.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_broker_profile_compat.py",
+    "row": 97,
+    "column": 46,
+    "code": "RUF043"
+  },
+  {
+    "path": "tests/unit/test_broker_profile_compat.py",
+    "row": 103,
+    "column": 46,
+    "code": "RUF043"
+  },
+  {
+    "path": "tests/unit/test_cache.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_cache.py",
+    "row": 8,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_data_context.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_lifecycle.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_lifecycle.py",
+    "row": 8,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_market_data_behavior_contracts.py",
+    "row": 1,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_market_data_behavior_contracts.py",
+    "row": 191,
+    "column": 22,
+    "code": "RUF005"
+  },
+  {
+    "path": "tests/unit/test_object.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_object.py",
+    "row": 8,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_object.py",
+    "row": 106,
+    "column": 46,
+    "code": "RUF043"
+  },
+  {
+    "path": "tests/unit/test_object.py",
+    "row": 162,
+    "column": 40,
+    "code": "F401"
+  },
+  {
+    "path": "tests/unit/test_object.py",
+    "row": 178,
+    "column": 40,
+    "code": "F401"
+  },
+  {
+    "path": "tests/unit/test_object.py",
+    "row": 193,
+    "column": 40,
+    "code": "F401"
+  },
+  {
+    "path": "tests/unit/test_object.py",
+    "row": 208,
+    "column": 40,
+    "code": "F401"
+  },
+  {
+    "path": "tests/unit/test_object.py",
+    "row": 249,
+    "column": 30,
+    "code": "F401"
+  },
+  {
+    "path": "tests/unit/test_object_advanced.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_object_advanced.py",
+    "row": 8,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_object_advanced.py",
+    "row": 8,
+    "column": 8,
+    "code": "F401"
+  },
+  {
+    "path": "tests/unit/test_object_advanced.py",
+    "row": 57,
+    "column": 9,
+    "code": "F841"
+  },
+  {
+    "path": "tests/unit/test_order_processor.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_order_processor.py",
+    "row": 8,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_order_processor.py",
+    "row": 11,
+    "column": 22,
+    "code": "F401"
+  },
+  {
+    "path": "tests/unit/test_order_processor.py",
+    "row": 15,
+    "column": 47,
+    "code": "F401"
+  },
+  {
+    "path": "tests/unit/test_order_processor_advanced.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_order_processor_advanced.py",
+    "row": 111,
+    "column": 9,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_order_processor_advanced.py",
+    "row": 146,
+    "column": 9,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_order_system.py",
+    "row": 1,
+    "column": 1,
+    "code": "UP009"
+  },
+  {
+    "path": "tests/unit/test_ptrade_support_contracts.py",
+    "row": 3,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_stats_optimizer_regressions.py",
+    "row": 1,
+    "column": 1,
+    "code": "I001"
+  },
+  {
+    "path": "tests/unit/test_stats_optimizer_regressions.py",
+    "row": 23,
+    "column": 14,
+    "code": "RUF012"
+  }
+]

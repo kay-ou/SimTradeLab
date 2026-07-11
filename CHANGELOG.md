@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.2] - 2026-07-11
+
+### Fixed
+
+- Invalidated live API data-derived caches when `DataServer` incrementally loads or replaces a data source, preventing stale history, security-status, and fundamentals results.
+- Validated local regression baseline JSON roots before schema access, returning a controlled CLI error for malformed files.
+- Removed the pandas integer-conversion deprecation warning while preserving broker-compatible result dtypes.
+
+### Changed
+
+- Added a deterministic Ruff debt baseline that blocks new violations without requiring unrelated historical cleanup.
+- Added a configurable local-only regression harness with correctness fingerprints, reviewed performance ceilings, portable data identities, timeout handling, and private local artifacts.
+- Documented strategy runtime restrictions, security-code formats, and evidence-based PTrade compatibility boundaries.
+- Updated CI actions and added a focused documentation-contract workflow.
+
+### Tests
+
+- Added cache identity, capacity, live data-source replacement, documentation-contract, Ruff-baseline, and local regression utility coverage.
+
 ## [2.13.1] - 2026-07-11
 
 ### Fixed

@@ -12,6 +12,8 @@
 
 from __future__ import annotations
 
+import weakref
+
 import pandas as pd
 
 
@@ -32,7 +34,8 @@ class DataContext:
         adj_post_cache=None,
         dividend_cache=None,
         trade_days=None,
-        stock_data_dict_1m=None
+        stock_data_dict_1m=None,
+        data_server=None,
     ):
         """初始化数据上下文
 
@@ -50,6 +53,7 @@ class DataContext:
             dividend_cache: 分红事件缓存
             trade_days: 交易日历（DatetimeIndex）
             stock_data_dict_1m: 分钟数据字典（LazyDataDict）
+            data_server: 可选的数据服务器，用于同步增量补载和数据源替换
         """
         self.stock_data_dict = stock_data_dict
         self.valuation_dict = valuation_dict
@@ -64,15 +68,27 @@ class DataContext:
         self.dividend_cache = dividend_cache if dividend_cache is not None else {}
         self.trade_days = trade_days
         self.stock_data_dict_1m = stock_data_dict_1m
+        self.data_version = 0
+        self._apis = weakref.WeakSet()
 
+        if data_server is not None:
+            data_server.register_data_context(self)
+
+        self._refresh_metadata_indices()
+
+    def register_api(self, api):
+        """Register a live API for cache invalidation after data replacement."""
+        self._apis.add(api)
+
+    def _refresh_metadata_indices(self):
         # 预解析 stock_metadata 日期列为 Timestamp（优化 get_Ashares 性能）
-        if stock_metadata is not None and not stock_metadata.empty:
-            if 'listed_date' in stock_metadata.columns:
-                self.listed_date_ts = pd.to_datetime(stock_metadata['listed_date'], format='mixed', errors='coerce')
+        if self.stock_metadata is not None and not self.stock_metadata.empty:
+            if 'listed_date' in self.stock_metadata.columns:
+                self.listed_date_ts = pd.to_datetime(self.stock_metadata['listed_date'], format='mixed', errors='coerce')
             else:
                 self.listed_date_ts = None
-            if 'de_listed_date' in stock_metadata.columns:
-                self.de_listed_date_ts = pd.to_datetime(stock_metadata['de_listed_date'], format='mixed', errors='coerce')
+            if 'de_listed_date' in self.stock_metadata.columns:
+                self.de_listed_date_ts = pd.to_datetime(self.stock_metadata['de_listed_date'], format='mixed', errors='coerce')
             else:
                 self.de_listed_date_ts = None
         else:
@@ -81,3 +97,26 @@ class DataContext:
 
         # 预建行业索引（优化 get_industry_stocks 性能）
         self._industry_index = None
+
+    def _sync_from_data_server(self, data_server):
+        """Synchronize data objects replaced by a live DataServer."""
+        for name in (
+            "stock_data_dict",
+            "stock_data_dict_1m",
+            "valuation_dict",
+            "fundamentals_dict",
+            "exrights_dict",
+            "benchmark_data",
+            "stock_metadata",
+            "index_constituents",
+            "stock_status_history",
+            "adj_pre_cache",
+            "adj_post_cache",
+            "dividend_cache",
+            "trade_days",
+        ):
+            setattr(self, name, getattr(data_server, name))
+        self.data_version = data_server.data_version
+        self._refresh_metadata_indices()
+        for api in self._apis:
+            api._clear_data_caches()

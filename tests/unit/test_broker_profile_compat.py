@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -357,11 +359,13 @@ class TestBrokerProfileCompat:
             [0.0] * len(test_dates), dtype=float
         )
 
-        result = ptrade_api.get_history(
-            count=5,
-            field="unlimited",
-            security_list=["600000.SH"],
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            result = ptrade_api.get_history(
+                count=5,
+                field="unlimited",
+                security_list=["600000.SH"],
+            )
         assert isinstance(result, pd.DataFrame)
         # shanxi 多股票返回 MultiIndex(field, code) 列
         assert str(result[("unlimited", "600000.SH")].dtype) == "int64"
