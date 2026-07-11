@@ -121,6 +121,7 @@ def test_minute_backtest_reads_each_bar_and_marks_position_at_close():
     )
     observed_times = []
     observed_prices = []
+    observed_after_times = []
 
     def initialize(strategy_context):
         strategy_context.portfolio._cash -= 500
@@ -130,8 +131,12 @@ def test_minute_backtest_reads_each_bar_and_marks_position_at_close():
         observed_times.append(strategy_context.current_dt)
         observed_prices.append(data[stock].close)
 
+    def after_trading_end(strategy_context, _data):
+        observed_after_times.append(strategy_context.current_dt)
+
     engine.register_initialize(initialize)
     engine.register_handle_data(handle_data)
+    engine.register_after_trading_end(after_trading_end)
 
     assert engine.run_backtest(pd.DatetimeIndex([trade_day])) is True
     assert len(observed_times) == 240
@@ -139,6 +144,7 @@ def test_minute_backtest_reads_each_bar_and_marks_position_at_close():
     assert observed_times[-1] == pd.Timestamp("2024-01-02 15:00")
     assert observed_prices[0] == 10.0
     assert observed_prices[-1] == 20.0
+    assert observed_after_times == [pd.Timestamp("2024-01-02 15:30")]
     assert stats_collector.stats.portfolio_values == [101_500.0]
     assert context.portfolio.positions[stock].last_sale_price == 20.0
 

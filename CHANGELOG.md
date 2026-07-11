@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.1] - 2026-07-11
+
+### Fixed
+
+- Made `set_volume_ratio` and `set_limit_mode` constrain actual daily and minute fills, including buy/sell, lot-size, suspension, missing-bar, and T+1 interactions.
+- Corrected `run_daily` execution around daily phases and the 13:00 minute-session boundary, with order and trade callbacks timestamped at the scheduled time.
+- Corrected order-target odd-lot handling, current-day order/trade queries, cancellation-by-ID behavior, and lifecycle enforcement for order and position APIs.
+- Corrected `get_history` calendar filling, adjustment-factor alignment, cache isolation, positive-count validation, and minute fill semantics.
+- Corrected session-aware `15m`, `30m`, `60m`, and `120m` aggregation, including sparse data, lunch boundaries, multi-day counts, and future-data prevention.
+- Corrected `get_price` pre-adjustment rounding and high/low compatibility, while documenting remaining partial compatibility for date and period-range semantics.
+- Corrected proportional and fixed slippage mode propagation so each public setter affects actual fill prices.
+
+### Changed
+
+- Reclassified documented PTrade backtest APIs by behavioral evidence as full, partial, pending, or unsupported instead of treating callable existence as complete support.
+- Scoped history caching to each API instance and the active trading date, with the configured cache limit instead of a fixed value.
+
+### Tests
+
+- Added a machine-checked PTrade API behavior inventory and end-to-end configuration, trading, scheduling, and market-data contracts.
+- Added production-consumer guards for trading configuration fields and performance-characteristic tests for dense multi-stock history queries.
+
 ## [2.13.0] - 2026-07-10
 
 ### Added

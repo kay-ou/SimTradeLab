@@ -5,15 +5,16 @@
 pytest配置和测试数据准备
 """
 
-import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
 
-from simtradelab.ptrade.object import Portfolio
-from simtradelab.ptrade.context import Context, PTradeMode
 from simtradelab.ptrade.api import PtradeAPI
-from simtradelab.ptrade.lifecycle_controller import LifecycleController
 from simtradelab.ptrade.cache_manager import cache_manager
+from simtradelab.ptrade.config_manager import TradingConfig, config
+from simtradelab.ptrade.context import Context, PTradeMode
+from simtradelab.ptrade.lifecycle_controller import LifecycleController
+from simtradelab.ptrade.object import Portfolio
 
 
 @pytest.fixture(autouse=True)
@@ -22,6 +23,14 @@ def reset_cache():
     cache_manager.clear_all()
     yield
     cache_manager.clear_all()
+
+
+@pytest.fixture(autouse=True)
+def reset_trading_config():
+    """每个测试使用独立的默认交易配置。"""
+    config.trading = TradingConfig()
+    yield
+    config.trading = TradingConfig()
 
 
 @pytest.fixture

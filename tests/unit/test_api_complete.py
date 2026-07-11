@@ -279,8 +279,20 @@ class TestLifecycleStrictness:
 
         ptrade_api.run_daily(ptrade_api.context, func)
 
-        # 验证是否成功设置（run_daily不一定会在handle_data抛错，取决于实现）
-        assert True
+        ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+        with pytest.raises(PTradeLifecycleError):
+            ptrade_api.run_daily(ptrade_api.context, func)
+
+    def test_run_interval_only_in_initialize(self, ptrade_api):
+        ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+
+        def func(ctx):
+            pass
+
+        ptrade_api.run_interval(ptrade_api.context, func, seconds=10)
+        ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+        with pytest.raises(PTradeLifecycleError):
+            ptrade_api.run_interval(ptrade_api.context, func, seconds=10)
 
     def test_cancel_order_in_correct_phases(self, ptrade_api):
         """cancel_order可以在handle_data调用"""
@@ -289,6 +301,26 @@ class TestLifecycleStrictness:
         ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
         result = ptrade_api.cancel_order(None)
         assert result is None
+
+    @pytest.mark.parametrize(
+        ("api_name", "args"),
+        [
+            ("cancel_order", (None,)),
+            ("get_open_orders", ()),
+            ("get_order", ("missing",)),
+            ("get_orders", ()),
+            ("get_trades", ()),
+            ("get_position", ("600000.SH",)),
+            ("get_positions", ()),
+        ],
+    )
+    def test_order_and_position_apis_reject_initialize_phase(
+        self, ptrade_api, api_name, args
+    ):
+        ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+
+        with pytest.raises(PTradeLifecycleError):
+            getattr(ptrade_api, api_name)(*args)
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (c) 2025 Kay
@@ -442,12 +474,12 @@ class TestConfigEnhanced:
         ptrade_api.set_limit_mode(limit_mode='LIMIT')
         # 配置通过config管理,不需要检查context属性
 
-    def test_set_limit_mode_pct_change(self, ptrade_api):
-        """测试PCT_CHANGE模式"""
+    def test_set_limit_mode_rejects_invalid_value(self, ptrade_api):
+        """非文档定义模式不能静默关闭成交量限制。"""
         ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
 
-        ptrade_api.set_limit_mode(limit_mode='PCT_CHANGE')
-        # 配置通过config管理,不需要检查context属性
+        with pytest.raises(ValueError):
+            ptrade_api.set_limit_mode(limit_mode='PCT_CHANGE')
 
     def test_run_interval_different_times(self, ptrade_api):
         """测试不同时间间隔的定时任务"""
@@ -776,6 +808,27 @@ class TestOrderTargetBehavior:
 
 class TestCancelOrderBehavior:
     """测试cancel_order的行为"""
+
+    def test_cancel_order_accepts_order_id_and_updates_open_order_queries(
+        self, ptrade_api
+    ):
+        ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+        ptrade_api.context._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+        ptrade_api.context.current_dt = pd.Timestamp('2024-01-02')
+        order_id, order = ptrade_api.order_processor.create_order(
+            '600000.SH', 100, 10.0
+        )
+        ptrade_api.context.blotter.open_orders.append(order)
+        ptrade_api.context.blotter.all_orders.append(order)
+
+        assert ptrade_api.get_open_orders('600000.SH') == [order]
+        assert ptrade_api.get_order(order_id) == [order]
+
+        assert ptrade_api.cancel_order(order_id) is None
+
+        assert ptrade_api.get_open_orders('600000.SH') == []
+        assert ptrade_api.get_order(order_id) == [order]
+        assert order.status == 'cancelled'
 
     def test_cancel_order_valid_order(self, ptrade_api):
         """测试取消有效订单"""

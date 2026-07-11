@@ -451,9 +451,19 @@ class Blotter:
 
     def cancel_order(self, order):
         """取消订单"""
-        if order in self.open_orders:
-            self.open_orders.remove(order)
-            order.status = 'cancelled'
+        target = order
+        if order not in self.open_orders:
+            target = next(
+                (
+                    open_order
+                    for open_order in self.open_orders
+                    if str(open_order.id) == str(order)
+                ),
+                None,
+            )
+        if target in self.open_orders:
+            self.open_orders.remove(target)
+            target.status = 'cancelled'
             return True
         return False
 
@@ -629,7 +639,14 @@ class Portfolio:
                     stock_df = self._bt_ctx.stock_data_dict.get(stock)
                     if stock_df is not None and isinstance(stock_df, pd.DataFrame) and self._context:
                         date_dict, _ = self._bt_ctx.get_stock_date_index(stock)
-                        idx = date_dict.get(self._context.current_dt.value)
+                        lookup_dt = pd.Timestamp(self._context.current_dt)
+                        if getattr(self._context, 'frequency', '1d') != '1m':
+                            lookup_dt = lookup_dt.normalize()
+                        idx = date_dict.get(lookup_dt.value)
+                        if idx is None and getattr(self._context, 'frequency', '1d') == '1m':
+                            candidate = stock_df.index.searchsorted(lookup_dt, side='right') - 1
+                            if candidate >= 0:
+                                idx = candidate
                         if idx is not None:
                             price = stock_df['close'].values[idx]
                             if not np.isnan(price) and price > 0:

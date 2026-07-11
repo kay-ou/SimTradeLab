@@ -211,7 +211,7 @@ class TestBrokerProfileCompat:
     def test_fill_minute_gaps_skips_lunch_break(self, ptrade_api):
         idx = pd.to_datetime(["2024-01-02 11:30:00", "2024-01-02 13:01:00"])
         df = pd.DataFrame({"close": [10.0, 10.2], "volume": [100.0, 200.0]}, index=idx)
-        out = ptrade_api._fill_minute_gaps(df, 1)
+        out = ptrade_api._fill_minute_gaps(df, 1, "nan")
         assert pd.Timestamp("2024-01-02 12:00:00") not in out.index
 
     def test_get_history_supports_multi_frequency_5m_and_1w(self, ptrade_api, test_dates):

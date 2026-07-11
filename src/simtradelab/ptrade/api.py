@@ -329,9 +329,11 @@ class PtradeAPI:
         self._prebuilt_index: bool = False
         self._sorted_status_dates: Optional[list[str]] = None
         self._daily_tasks: list[tuple[Callable, str]] = []  # (func, time_str)
-        self._history_cache: dict = cache_manager.get_namespace("history")._cache  # 使用LRUCache
+        self._history_cache = LRUCache(maxsize=config.cache.history_cache_size)
+        self._history_cache_date: Optional[pd.Timestamp] = None
         self._fundamentals_cache = LRUCache(maxsize=500)
         self._sorted_index_dates: Optional[list[str]] = None
+        self._adj_alignment_cache: dict[tuple[object, ...], bool] = {}
 
         # 实盘模拟: 订单/成交回调队列
         self._pending_order_callbacks: list[dict] = []
@@ -460,10 +462,28 @@ class PtradeAPI:
         adj_a = adj_factors.loc[common_idx, "adj_a"]
         adj_b = adj_factors.loc[common_idx, "adj_b"]
         price_cols = ["open", "high", "low", "close"]
+        high_low_adjusted = {}
+        if (
+            fq == "pre"
+            and np.all(adj_a.to_numpy() == 1.0)
+            and "high" in adjusted_df.columns
+            and "low" in adjusted_df.columns
+        ):
+            high_low_adjusted["high"], high_low_adjusted["low"] = _compute_hl_adj(
+                adj_b.to_numpy(),
+                adjusted_df.loc[common_idx, "high"].to_numpy(),
+                adjusted_df.loc[common_idx, "low"].to_numpy(),
+            )
 
         # 前/后复权公式相同：adj_a * 未复权价 + adj_b
         for col in price_cols:
-            adjusted_df.loc[common_idx, col] = adj_a * adjusted_df.loc[common_idx, col] + adj_b
+            if col in high_low_adjusted:
+                adjusted_df.loc[common_idx, col] = high_low_adjusted[col]
+                continue
+            adjusted = adj_a * adjusted_df.loc[common_idx, col] + adj_b
+            if fq == "pre":
+                adjusted = _round2(adjusted.to_numpy(dtype=float))
+            adjusted_df.loc[common_idx, col] = adjusted
 
         return adjusted_df
 
@@ -1076,6 +1096,63 @@ class PtradeAPI:
         return out
 
     @staticmethod
+    def _aggregate_intraday_kline(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
+        """Aggregate minute bars independently inside each CN trading session."""
+        agg = {}
+        for col in df.columns:
+            if col == "open":
+                agg[col] = "first"
+            elif col == "high":
+                agg[col] = "max"
+            elif col == "low":
+                agg[col] = "min"
+            elif col in ("close", "price"):
+                agg[col] = "last"
+            elif col in ("volume", "money"):
+                agg[col] = "sum"
+            elif col == "preclose":
+                agg[col] = "first"
+            elif col in ("high_limit", "unlimited", "is_open"):
+                agg[col] = "max"
+            elif col == "low_limit":
+                agg[col] = "min"
+            else:
+                agg[col] = "last"
+
+        pieces = []
+        for day, day_df in df.groupby(df.index.normalize(), sort=True):
+            sessions = (
+                (
+                    day_df.between_time("09:31", "11:30"),
+                    day + pd.Timedelta(hours=9, minutes=31),
+                ),
+                (
+                    day_df.between_time("13:01", "15:00"),
+                    day + pd.Timedelta(hours=13, minutes=1),
+                ),
+            )
+            for session_df, session_start in sessions:
+                if session_df.empty:
+                    continue
+                elapsed_minutes = np.asarray(
+                    (session_df.index - session_start) / pd.Timedelta(minutes=1),
+                    dtype=np.int64,
+                )
+                bucket_ids = elapsed_minutes // minutes
+                grouped = session_df.groupby(bucket_ids).agg(agg)
+                grouped.index = pd.DatetimeIndex(
+                    [
+                        session_start
+                        + pd.Timedelta(minutes=(int(bucket_id) + 1) * minutes - 1)
+                        for bucket_id in grouped.index
+                    ]
+                )
+                pieces.append(grouped)
+        if not pieces:
+            return df.iloc[0:0].copy()
+        return pd.concat(pieces).sort_index()
+
+    @staticmethod
     def _ensure_standard_columns(df: pd.DataFrame) -> pd.DataFrame:
         out = df
         if "money" not in out.columns and "amount" in out.columns:
@@ -1129,7 +1206,9 @@ class PtradeAPI:
                 return None
             df = base[stock]
             if frequency != "1m":
-                df = self._aggregate_kline(df, "%dmin" % _MINUTE_FREQ_MINUTES[frequency])
+                df = self._aggregate_intraday_kline(
+                    df, _MINUTE_FREQ_MINUTES[frequency]
+                )
             return self._ensure_standard_columns(df)
 
         if frequency in _PERIOD_FREQ_RULE:
@@ -1157,7 +1236,7 @@ class PtradeAPI:
         return self._ensure_standard_columns(df)
 
     @staticmethod
-    def _fill_minute_gaps(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
+    def _fill_minute_gaps(df: pd.DataFrame, minutes: int, fill: str) -> pd.DataFrame:
         if df.empty:
             return df
         freq = "%dmin" % minutes
@@ -1170,23 +1249,62 @@ class PtradeAPI:
             lunch_mask = (full_idx.time > pd.Timestamp("11:30").time()) & (full_idx.time < pd.Timestamp("13:00").time())
             full_idx = full_idx[~lunch_mask]
             expanded = day_df.reindex(full_idx)
-            inserted_mask = expanded.index.difference(day_df.index)
-            expanded = expanded.ffill()
-            if "volume" in expanded.columns:
-                if len(inserted_mask) > 0:
-                    expanded.loc[inserted_mask, "volume"] = 0.0
-                expanded["volume"] = expanded["volume"].fillna(0.0)
-            if "money" in expanded.columns:
-                if len(inserted_mask) > 0:
-                    expanded.loc[inserted_mask, "money"] = 0.0
-                expanded["money"] = expanded["money"].fillna(0.0)
-            if "is_open" in expanded.columns:
-                if len(inserted_mask) > 0:
-                    expanded.loc[inserted_mask, "is_open"] = 0
+            if fill == "pre":
+                expanded = expanded.ffill()
             pieces.append(expanded)
         if not pieces:
             return df
         return pd.concat(pieces).sort_index()
+
+    def _minute_target_index(
+        self, current_dt: pd.Timestamp, count: int, minutes: int, include: bool
+    ) -> pd.DatetimeIndex:
+        """Build the logical intraday bar index ending at the effective cutoff."""
+        if self.data_context.trade_days is not None:
+            days = pd.DatetimeIndex(self.data_context.trade_days)
+            days = days[days <= current_dt.normalize()]
+        else:
+            days = pd.DatetimeIndex([current_dt.normalize()])
+        sample_day = current_dt.normalize()
+        sample_morning_start = sample_day + pd.Timedelta(hours=9, minutes=31)
+        sample_afternoon_start = sample_day + pd.Timedelta(hours=13, minutes=1)
+        if minutes > 1:
+            sample_morning_start += pd.Timedelta(minutes=minutes - 1)
+            sample_afternoon_start += pd.Timedelta(minutes=minutes - 1)
+        bars_per_day = len(
+            pd.date_range(
+                sample_morning_start,
+                sample_day + pd.Timedelta(hours=11, minutes=30),
+                freq=f"{minutes}min",
+            )
+        ) + len(
+            pd.date_range(
+                sample_afternoon_start,
+                sample_day + pd.Timedelta(hours=15),
+                freq=f"{minutes}min",
+            )
+        )
+        required_days = (count + bars_per_day - 1) // bars_per_day + 2
+        session_parts = []
+        for day in days[-required_days:]:
+            morning_start = day + pd.Timedelta(hours=9, minutes=31)
+            afternoon_start = day + pd.Timedelta(hours=13, minutes=1)
+            if minutes > 1:
+                morning_start += pd.Timedelta(minutes=minutes - 1)
+                afternoon_start += pd.Timedelta(minutes=minutes - 1)
+            session_parts.extend(
+                [
+                    pd.date_range(morning_start, day + pd.Timedelta(hours=11, minutes=30), freq=f"{minutes}min"),
+                    pd.date_range(afternoon_start, day + pd.Timedelta(hours=15), freq=f"{minutes}min"),
+                ]
+            )
+        if not session_parts:
+            return pd.DatetimeIndex([])
+        target = session_parts[0]
+        for part in session_parts[1:]:
+            target = target.append(part)
+        target = target[target <= current_dt] if include else target[target < current_dt]
+        return target[-count:]
 
     def get_price(
         self,
@@ -1238,7 +1356,7 @@ class PtradeAPI:
         stocks = [security] if is_single_stock else security
 
         if count is not None:
-            end_dt = pd.Timestamp(end_date) if end_date else self.context.current_dt
+            end_dt = pd.Timestamp(end_date) if end_date else pd.Timestamp(self.context.current_dt)
             result = {}
             for stock in stocks:
                 stock_df = self._get_stock_df_by_frequency(stock, frequency, fq=fq, base_dt=end_dt)
@@ -1250,7 +1368,11 @@ class PtradeAPI:
                         # 分钟/周期数据：使用searchsorted查找
                         # 用 DatetimeIndex.searchsorted 避免 datetime64[us] vs ns 单位不匹配
                         idx = stock_df.index.searchsorted(end_dt, side="right") - 1
-                        if idx < 0:
+                        if (
+                            idx < 0
+                            and self.context.frequency == "1d"
+                            and end_dt == end_dt.normalize()
+                        ):
                             end_of_day = end_dt.normalize() + pd.Timedelta(hours=15)
                             idx = stock_df.index.searchsorted(end_of_day, side="right") - 1
                             if idx < 0:
@@ -1528,6 +1650,8 @@ class PtradeAPI:
         is_dict: bool = False,
     ) -> pd.DataFrame | dict | PtradeAPI.PanelLike:
         """模拟通用ptrade的get_history（优化批量处理+缓存）"""
+        if not isinstance(count, (int, np.integer)) or isinstance(count, bool) or count <= 0:
+            raise ValueError("function get_history: count must be greater than 0")
         frequency = self._normalize_frequency(frequency)
         if frequency not in _VALID_PRICE_FREQUENCIES:
             raise ValueError("function get_history: invalid frequency argument, got %s" % frequency)
@@ -1564,12 +1688,31 @@ class PtradeAPI:
         if not stocks:
             return {} if is_dict else pd.DataFrame()
 
-        current_dt = self.context.current_dt
+        current_dt = pd.Timestamp(self.context.current_dt)
+        query_date = current_dt.normalize()
+        if self._history_cache_date is None or self._history_cache_date != query_date:
+            self._history_cache.clear()
+            self._history_cache_date = query_date
 
-        # 缓存键：frozenset 归一化顺序 O(n)，比 tuple(sorted()) O(n log n) 更快
+        # 缓存键保留股票请求顺序，避免不同列顺序共享结果。
         is_single_stock = isinstance(security_list, str)
         field_key = tuple(fields) if len(fields) > 1 else fields[0]
-        cache_key = (is_single_stock, frozenset(stocks), count, field_key, fq, current_dt, include, is_dict, frequency)
+        data_version = getattr(self.data_context, "data_version", None)
+        cache_key = (
+            id(self.data_context),
+            data_version,
+            profile,
+            is_single_stock,
+            tuple(stocks),
+            count,
+            field_key,
+            fq,
+            current_dt,
+            include,
+            fill,
+            is_dict,
+            frequency,
+        )
 
         # 检查缓存
         if cache_key in self._history_cache:
@@ -1593,7 +1736,11 @@ class PtradeAPI:
                     # 分钟/周期数据：使用searchsorted查找
                     # 用 DatetimeIndex.searchsorted 避免 datetime64[us] vs ns 单位不匹配
                     idx = data_source.index.searchsorted(current_dt, side="right") - 1
-                    if idx < 0:
+                    if (
+                        idx < 0
+                        and self.context.frequency == "1d"
+                        and current_dt == current_dt.normalize()
+                    ):
                         # 跨频率场景：日线回测取分钟/周期数据时，
                         # current_dt 是当天 00:00:00，searchsorted 返回 0 导致 idx=-1。
                         # 对齐到当天收盘时间后重试，向前取最近的 bar。
@@ -1618,6 +1765,13 @@ class PtradeAPI:
         needs_adj_dypre = frequency == "1d" and fq == "dypre" and self.data_context.adj_pre_cache
         needs_adj_post = frequency == "1d" and fq == "post" and self.data_context.adj_post_cache
         price_fields = {"open", "high", "low", "close"}
+        daily_target_dates = None
+        calendar = None
+        if frequency == "1d" and self.data_context.trade_days is not None:
+            calendar = pd.DatetimeIndex(self.data_context.trade_days)
+            cutoff = current_dt.normalize()
+            valid_dates = calendar[calendar <= cutoff] if include else calendar[calendar < cutoff]
+            daily_target_dates = valid_dates[-count:]
 
         for stock, (data_source, current_idx) in stock_info.items():
             if include:
@@ -1639,12 +1793,21 @@ class PtradeAPI:
                 adj_factors = self.data_context.adj_post_cache[stock]
 
             if adj_factors is not None:
-                adj_a = adj_factors["adj_a"].values[start_idx:end_idx]
-                adj_b = adj_factors["adj_b"].values[start_idx:end_idx]
+                alignment_key = (stock, fq, data_version)
+                indexes_aligned = self._adj_alignment_cache.get(alignment_key)
+                if indexes_aligned is None:
+                    indexes_aligned = adj_factors.index.equals(data_source.index)
+                    self._adj_alignment_cache[alignment_key] = indexes_aligned
+                if indexes_aligned:
+                    aligned_factors = adj_factors
+                else:
+                    aligned_factors = adj_factors.reindex(data_source.index).ffill()
+                adj_a = aligned_factors["adj_a"].values[start_idx:end_idx]
+                adj_b = aligned_factors["adj_b"].values[start_idx:end_idx]
 
             if needs_adj_dypre and adj_a is not None:
-                adj_a_base = adj_factors["adj_a"].values[current_idx]
-                adj_b_base = adj_factors["adj_b"].values[current_idx]
+                adj_a_base = aligned_factors["adj_a"].values[current_idx]
+                adj_b_base = aligned_factors["adj_b"].values[current_idx]
 
             stock_result = {}
             hl_adj = {}
@@ -1680,11 +1843,64 @@ class PtradeAPI:
                 else:
                     stock_result[field_name] = raw
 
-            if stock_result and fill == "pre" and frequency in _MINUTE_FREQ_MINUTES:
-                day_idx = data_source.index[start_idx:end_idx]
-                if len(day_idx) > 0:
-                    tmp_df = pd.DataFrame(stock_result, index=day_idx)
-                    tmp_df = self._fill_minute_gaps(tmp_df, _MINUTE_FREQ_MINUTES[frequency])
+            if stock_result and daily_target_dates is not None:
+                source_dates = data_source.index[start_idx:end_idx]
+                target_dates = daily_target_dates
+                window_is_dense = (
+                    len(source_dates) == len(target_dates)
+                    and np.array_equal(
+                        _datetime_index_ns(source_dates), _datetime_index_ns(target_dates)
+                    )
+                )
+                if window_is_dense:
+                    result_dates[stock] = source_dates
+                else:
+                    daily_df = pd.DataFrame(stock_result, index=source_dates)
+                    seed_dates = source_dates[source_dates < target_dates[0]] if len(target_dates) else []
+                    if len(seed_dates):
+                        reindex_dates = pd.DatetimeIndex([seed_dates[-1]]).append(target_dates)
+                    else:
+                        reindex_dates = target_dates
+                    daily_df = daily_df.reindex(reindex_dates)
+                    price_fill_fields = {
+                        "open",
+                        "high",
+                        "low",
+                        "close",
+                        "price",
+                        "preclose",
+                        "high_limit",
+                        "low_limit",
+                    }
+                    for field_name in daily_df.columns:
+                        if field_name in price_fill_fields:
+                            daily_df[field_name] = daily_df[field_name].ffill()
+                        elif field_name in {"volume", "money", "amount"}:
+                            daily_df[field_name] = daily_df[field_name].fillna(0.0)
+                    daily_df = daily_df.reindex(target_dates)
+                    stock_result = {c: daily_df[c].values for c in daily_df.columns}
+                    result_dates[stock] = daily_df.index
+            elif stock_result and frequency in _MINUTE_FREQ_MINUTES:
+                source_dates = data_source.index[start_idx:end_idx]
+                logical_current_dt = current_dt
+                if self.context.frequency == "1d" and current_dt == current_dt.normalize():
+                    logical_current_dt = current_dt + pd.Timedelta(hours=15)
+                target_dates = self._minute_target_index(
+                    logical_current_dt, count, _MINUTE_FREQ_MINUTES[frequency], include
+                )
+                tmp_df = pd.DataFrame(stock_result, index=source_dates)
+                seed_dates = source_dates[source_dates < target_dates[0]] if len(target_dates) else []
+                if len(seed_dates):
+                    reindex_dates = pd.DatetimeIndex([seed_dates[-1]]).append(target_dates)
+                else:
+                    reindex_dates = target_dates
+                tmp_df = tmp_df.reindex(reindex_dates)
+                if fill == "pre":
+                    tmp_df = tmp_df.ffill()
+                tmp_df = tmp_df.reindex(target_dates)
+                if tmp_df.empty or tmp_df.isna().all(axis=None):
+                    stock_result = {}
+                else:
                     stock_result = {c: tmp_df[c].values for c in tmp_df.columns}
                     result_dates[stock] = tmp_df.index
             elif stock_result:
@@ -2319,6 +2535,25 @@ class PtradeAPI:
 
     def _submit_order(self, security: str, amount: int, price: float) -> Optional[str]:
         """创建订单→注册blotter→执行→更新状态→收集回调。返回 order_id 或 None。"""
+        bar_volume = self.order_processor._get_current_bar_volume(security)
+        if bar_volume is None:
+            self.log.warning(t("order.no_price", stock=security))
+            return None
+        if bar_volume == 0:
+            self.log.warning(t("order.volume_zero", stock=security))
+            return None
+
+        fill_amount = self.order_processor.limit_fill_amount(
+            security, abs(amount), bar_volume
+        )
+        if fill_amount == 0:
+            return None
+        if amount < 0:
+            fill_amount = self.order_processor.adjust_sell_amount_for_t1(
+                security, fill_amount
+            )
+        amount = fill_amount if amount > 0 else -fill_amount
+
         order_id, order = self.order_processor.create_order(security, amount, price)
         if self.context and self.context.blotter:
             self.context.blotter.all_orders.append(order)
@@ -2387,6 +2622,10 @@ class PtradeAPI:
         """
         if amount == 0:
             return None
+        if amount > 0:
+            amount = (amount // self.lot_size) * self.lot_size
+            if amount == 0:
+                return None
         price = self._get_execution_price(security, limit_price, amount)
         if price is None:
             return None
@@ -2701,15 +2940,28 @@ class PtradeAPI:
         delta = amount - current_amount
         if delta == 0:
             return None
+
+        if delta > 0:
+            delta = (delta // self.lot_size) * self.lot_size
+            if delta == 0:
+                return None
+        else:
+            sell_amount = abs(delta)
+            current_remainder = current_amount % self.lot_size
+            removes_existing_odd_lot = (
+                current_remainder > 0 and amount % self.lot_size == 0
+            )
+            if amount != 0 and not removes_existing_odd_lot:
+                sell_amount = (sell_amount // self.lot_size) * self.lot_size
+                if sell_amount == 0:
+                    return None
+                delta = -sell_amount
+
         price = self._get_execution_price(security, limit_price, delta)
         if price is None:
             return None
         if delta < 0:
             sell_amount = abs(delta)
-            # 非清仓卖出：向上取整到100的整数倍（匹配Ptrade最小交易单位行为）
-            if amount > 0 and sell_amount % 100 != 0:
-                sell_amount = ((sell_amount // 100) + 1) * 100
-                delta = -sell_amount
             # 科创板非清仓卖出必须≥200股
             if self.lot_size == 100 and security.startswith("688"):
                 if sell_amount < 200 and sell_amount < current_amount:
@@ -2822,6 +3074,7 @@ class PtradeAPI:
         # 委托给 order_target 按数量交易
         return self.order_target(security, target_amount, limit_price)
 
+    @validate_lifecycle
     def get_open_orders(self, security: str | None = None) -> list:
         """获取未成交订单"""
         if self.context and self.context.blotter:
@@ -2831,6 +3084,7 @@ class PtradeAPI:
             return [o for o in open_orders if o.symbol == security]
         return []
 
+    @validate_lifecycle
     def get_orders(self, security: str | None = None) -> list:
         """获取当日全部订单
 
@@ -2843,7 +3097,12 @@ class PtradeAPI:
         if not self.context or not self.context.blotter:
             return []
 
-        all_orders = self.context.blotter.all_orders
+        current_date = pd.Timestamp(self.context.current_dt).date()
+        all_orders = [
+            order
+            for order in self.context.blotter.all_orders
+            if order.dt is not None and pd.Timestamp(order.dt).date() == current_date
+        ]
         if security is None:
             return all_orders
         else:
@@ -2855,6 +3114,7 @@ class PtradeAPI:
         _ = security
         self._unsupported_api("get_all_orders", "交易接口")
 
+    @validate_lifecycle
     def get_order(self, order_id: str) -> list[Any]:
         """获取指定订单
 
@@ -2873,11 +3133,20 @@ class PtradeAPI:
         return []
 
     def _iter_filled_orders(self) -> list[Any]:
-        """Return raw filled Order objects for internal accounting/export."""
+        """Return filled Order objects for the current trading day."""
         if not self.context or not self.context.blotter:
             return []
-        return list(getattr(self.context.blotter, "filled_orders", []))
+        orders = list(getattr(self.context.blotter, "filled_orders", []))
+        if self.context.current_dt is None:
+            return orders
+        current_date = pd.Timestamp(self.context.current_dt).date()
+        return [
+            order
+            for order in orders
+            if order.dt is not None and pd.Timestamp(order.dt).date() == current_date
+        ]
 
+    @validate_lifecycle
     def get_trades(self) -> dict[str, list[list[Any]]]:
         """获取当日成交订单
 
@@ -2904,6 +3173,7 @@ class PtradeAPI:
             )
         return trades
 
+    @validate_lifecycle
     def get_position(self, security: str) -> Position:
         """获取持仓信息
 
@@ -2920,6 +3190,7 @@ class PtradeAPI:
             return Position(security, 0, 0.0, t_plus_1=self.context.t_plus_1)
         return Position(security, 0, 0.0)
 
+    @validate_lifecycle
     def get_positions(self, security: str | list[str] | None = None) -> dict[str, Position]:
         """获取多支股票持仓信息
 
@@ -2938,6 +3209,7 @@ class PtradeAPI:
         security_list = [security] if isinstance(security, str) else security
         return {s: positions[s] for s in security_list if s in positions}
 
+    @validate_lifecycle
     def cancel_order(self, order_param: Any) -> None:
         """取消订单"""
         if self.context and self.context.blotter:
@@ -3030,17 +3302,25 @@ class PtradeAPI:
     def set_slippage(self, slippage: float = 0.001) -> None:
         """设置滑点"""
         if slippage is not None:
-            config.update_trading_config(slippage=slippage)
+            config.update_trading_config(
+                slippage=slippage,
+                fixed_slippage=0.0,
+            )
 
     @validate_lifecycle
     def set_fixed_slippage(self, fixedslippage: float = 0.0) -> None:
         """设置固定滑点"""
         if fixedslippage is not None:
-            config.update_trading_config(fixed_slippage=fixedslippage)
+            config.update_trading_config(
+                fixed_slippage=fixedslippage,
+                slippage=0.0,
+            )
 
     @validate_lifecycle
     def set_limit_mode(self, limit_mode: str = "LIMIT") -> None:
         """设置下单限制模式"""
+        if limit_mode not in {"LIMIT", "UNLIMITED"}:
+            raise ValueError("limit_mode must be 'LIMIT' or 'UNLIMITED'")
         config.update_trading_config(limit_mode=limit_mode)
 
     @validate_lifecycle

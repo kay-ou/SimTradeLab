@@ -89,9 +89,10 @@ class OrderProcessor:
                 else:
                     # 日线数据：使用date_dict查找
                     date_dict, _ = self.get_stock_date_index(stock)
-                    idx = date_dict.get(current_dt.value)
+                    normalized_dt = pd.Timestamp(current_dt).normalize()
+                    idx = date_dict.get(normalized_dt.value)
                     if idx is None:
-                        idx = stock_df.index.get_loc(current_dt)
+                        idx = stock_df.index.get_loc(normalized_dt)
 
                 # 成交量检查：volume=0 表示停牌，Ptrade会拒绝订单
                 volume = stock_df['volume'].values[idx]
@@ -133,6 +134,64 @@ class OrderProcessor:
             final_price = base_price - slippage_amount
 
         return final_price
+
+    def _get_current_bar_volume(self, stock: str) -> Optional[int]:
+        """Return current-bar volume, or None when no current bar exists."""
+        try:
+            frequency = getattr(self.context, "frequency", "1d")
+            if frequency == "1m" and self.data_context.stock_data_dict_1m is not None:
+                data_source = self.data_context.stock_data_dict_1m
+            else:
+                data_source = self.data_context.stock_data_dict
+
+            stock_df = data_source[stock]
+            if not isinstance(stock_df, pd.DataFrame) or "volume" not in stock_df:
+                return None
+            if frequency == "1m":
+                idx = stock_df.index.searchsorted(self.context.current_dt, side="right") - 1
+                if idx < 0:
+                    return None
+            else:
+                date_dict, _ = self.get_stock_date_index(stock)
+                normalized_dt = pd.Timestamp(self.context.current_dt).normalize()
+                idx = date_dict.get(normalized_dt.value)
+                if idx is None:
+                    idx = stock_df.index.get_loc(normalized_dt)
+            return int(stock_df["volume"].values[idx])
+        except (KeyError, IndexError, TypeError, ValueError):
+            return None
+
+    def limit_fill_amount(
+        self,
+        stock: str,
+        requested_amount: int,
+        bar_volume: Optional[int] = None,
+    ) -> int:
+        """Apply the configured per-order volume cap to a positive share amount."""
+        if bar_volume is None:
+            bar_volume = self._get_current_bar_volume(stock)
+        if bar_volume is None:
+            return 0
+        if config.trading.limit_mode != "LIMIT":
+            return requested_amount
+
+        capacity = int(bar_volume * config.trading.volume_ratio)
+        capacity = (capacity // self.lot_size) * self.lot_size
+        return min(requested_amount, max(capacity, 0))
+
+    def adjust_sell_amount_for_t1(self, stock: str, amount: int) -> int:
+        """Apply a positive T+1 sellable-quantity cap before order creation."""
+        if not self.context.t_plus_1:
+            return amount
+        position = self.context.portfolio.positions.get(stock)
+        if position is None or position.enable_amount <= 0 or amount <= position.enable_amount:
+            return amount
+
+        available = (position.enable_amount // self.lot_size) * self.lot_size
+        if available <= 0:
+            available = position.enable_amount
+        self.log.info(t("order.t1_truncate", stock=stock, amount=amount, available=available))
+        return available
 
     def create_order(self, stock: str, amount: int, price: float) -> tuple[str, object]:
         """创建订单对象
@@ -331,7 +390,10 @@ class OrderProcessor:
             return True  # 无需交易
 
         # 3. 执行交易
+        fill_amount = self.limit_fill_amount(stock, abs(delta))
+        if fill_amount == 0:
+            return False
         if delta > 0:
-            return self.execute_buy(stock, delta, price)
+            return self.execute_buy(stock, fill_amount, price)
         else:
-            return self.execute_sell(stock, abs(delta), price)
+            return self.execute_sell(stock, fill_amount, price)

@@ -315,9 +315,6 @@ class StrategyExecutionEngine:
             if not self._execute_lifecycle(data):
                 return False
 
-            # 执行 run_daily 注册的任务（日频固定在15:00执行）
-            self._execute_daily_tasks()
-
             # 收集交易金额（从OrderProcessor累计的gross金额）
             self.stats_collector.collect_trading_amounts(self.context)
 
@@ -397,7 +394,19 @@ class StrategyExecutionEngine:
             minute_bars = self._get_minute_bars(current_date)
             daily_task_times = self._get_daily_task_time_set()
             for minute_dt in minute_bars:
+                if (
+                    minute_dt.hour == 13
+                    and minute_dt.minute == 1
+                    and '13:00' in daily_task_times
+                ):
+                    task_dt = minute_dt.replace(minute=0)
+                    self.context.current_dt = task_dt
+                    self.context.blotter.current_dt = task_dt
+                    self.lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+                    self._execute_daily_tasks_for_time('13:00')
+                    self._fire_callbacks()
                 self.context.current_dt = minute_dt
+                self.context.blotter.current_dt = minute_dt
                 _current_backtest_date = minute_dt.strftime('%Y-%m-%d %H:%M')
                 data = Data(minute_dt, self.context.portfolio._bt_ctx)
                 if not self._safe_call('handle_data', LifecyclePhase.HANDLE_DATA, data):
@@ -407,10 +416,13 @@ class StrategyExecutionEngine:
                 # 在匹配的分钟bar执行run_daily任务
                 hhmm = f'{minute_dt.hour:02d}:{minute_dt.minute:02d}'
                 if hhmm in daily_task_times:
+                    self.lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
                     self._execute_daily_tasks_for_time(hhmm)
+                    self._fire_callbacks()
 
             # 3. after_trading_end（每日一次，收盘后）
-            self.context.current_dt = current_date.replace(hour=15, minute=0, second=0)
+            self.context.current_dt = current_date.replace(hour=15, minute=30, second=0)
+            self.context.blotter.current_dt = self.context.current_dt
             data = Data(self.context.current_dt, self.context.portfolio._bt_ctx)
             self._safe_call('after_trading_end', LifecyclePhase.AFTER_TRADING_END, data, allow_fail=True)
 
@@ -510,6 +522,7 @@ class StrategyExecutionEngine:
             是否成功执行
         """
         from simtradelab.ptrade.lifecycle_controller import LifecyclePhase
+        from simtradelab.ptrade.object import Data
 
         # before_trading_start
         if not self._safe_call('before_trading_start', LifecyclePhase.BEFORE_TRADING_START, data):
@@ -522,8 +535,25 @@ class StrategyExecutionEngine:
         # 触发订单/成交回调（实盘模拟）
         self._fire_callbacks()
 
+        # run_daily 日频任务固定在15:00执行，早于15:30的 after_trading_end。
+        task_dt = self.context.current_dt.normalize().replace(hour=15, minute=0)
+        self.context.current_dt = task_dt
+        self.context.blotter.current_dt = task_dt
+        self.lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+        self._execute_daily_tasks()
+        self._fire_callbacks()
+
         # after_trading_end（允许失败）
-        self._safe_call('after_trading_end', LifecyclePhase.AFTER_TRADING_END, data, allow_fail=True)
+        after_dt = task_dt.replace(hour=15, minute=30)
+        self.context.current_dt = after_dt
+        self.context.blotter.current_dt = after_dt
+        after_data = Data(after_dt, self.context.portfolio._bt_ctx)
+        self._safe_call(
+            'after_trading_end',
+            LifecyclePhase.AFTER_TRADING_END,
+            after_data,
+            allow_fail=True,
+        )
 
         return True
 
