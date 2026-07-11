@@ -53,6 +53,7 @@ all        = ["ta-lib", "optuna"]
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
 pytest-cov = "^5.0.0"
+ruff = "^0.15.8"
 
 
 [tool.ruff]
