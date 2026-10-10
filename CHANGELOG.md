@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.4] - 2026-10-10
+
+### Fixed
+
+- Bounded `pyarrow` to `<26`. pyarrow 26 dropped numpy 1.x support at runtime while its metadata no longer declares a numpy dependency, so a fresh install could silently resolve to an unusable pair and lose every parquet read.
+
 ## [2.13.3] - 2026-09-10
 
 ### Fixed

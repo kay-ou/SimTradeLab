@@ -1,7 +1,7 @@
 # Poetry configuration
 [tool.poetry]
 name = "simtradelab"
-version = "2.13.3"
+version = "2.13.4"
 description = "Lightweight quantitative backtesting framework with PTrade API simulation | 轻量级量化回测框架"
 authors = ["kay <kayou@duck.com>"]
 license = "AGPL-3.0-or-later"
@@ -35,7 +35,9 @@ simtradelab = "simtradelab.cli:main"
 [tool.poetry.dependencies]
 python = "^3.9"
 pandas = ">=1.5.0"
-pyarrow = ">=10.0.0"
+# pyarrow 26 起运行时强制 numpy>=2，而它的元数据不再声明 numpy 依赖，
+# pip 会解析出与 numpy<2 冲突的组合并在 import 时炸掉全部 parquet 读取
+pyarrow = ">=10.0.0,<26"
 numpy = ">=1.20.0,<2.0"
 cachetools = "^5.0.0"
 joblib = "^1.0.0"
