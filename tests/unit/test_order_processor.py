@@ -24,7 +24,7 @@ class TestOrderProcessor:
         def mock_get_stock_date_index(stock):
             if stock in data_context.stock_data_dict:
                 df = data_context.stock_data_dict[stock]
-                date_dict = {date: i for i, date in enumerate(df.index)}
+                date_dict = {df.index[i].value: i for i in range(len(df.index))}  # 生产契约：纳秒 int64 键
                 return date_dict, list(df.index)
             return {}, []
 
@@ -186,7 +186,7 @@ class TestOrderProcessor:
         buy_price = order_processor.get_execution_price('600000.SH', limit_price=10.0, is_buy=True)
         sell_price = order_processor.get_execution_price('600000.SH', limit_price=10.0, is_buy=False)
 
-        # 买入价应该更高，卖出价应该更低(有滑点时)
+        # 标准限价撮合：买入不高于限价、卖出不低于限价（市价优于限价时按市价）
         if buy_price is not None and sell_price is not None:
-            assert buy_price >= 10.0  # 买入向上滑点
-            assert sell_price <= 10.0  # 卖出向下滑点
+            assert buy_price <= 10.0  # 买入取 min(限价, 市价) + 向上滑点
+            assert sell_price >= 10.0  # 卖出取 max(限价, 市价) - 向下滑点

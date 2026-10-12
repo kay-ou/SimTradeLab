@@ -313,7 +313,9 @@ def test_set_fixed_slippage_alone_controls_fill_price_and_cash(trading_api):
 
     assert api.order(stock, 100, limit_price=10.0) is not None
 
-    expected_price = 10.1
+    # 标准限价撮合：限价 10.0、市价 10.0、滑点后市价 10.1
+    # 买入取 min(限价, 滑点后市价) = 10.0
+    expected_price = 10.0
     expected_commission = 100 * expected_price * (0.001 + 0.0000487)
     order = api.get_orders(stock)[0]
     trade = next(iter(api.get_trades().values()))[0]
@@ -349,14 +351,14 @@ def test_set_slippage_zero_disables_previous_fixed_slippage(trading_api):
 
 
 @pytest.mark.parametrize(
-    ("price", "expected_broker_fee"),
+    "price",
     [
-        (10.0, 2.0),
-        (100.0, 10.0),
+        10.0,   # 限价 = 市价：按 10.0 成交
+        100.0,  # 限价远高于市价：标准撮合按市价 10.0 成交（验证取优）
     ],
 )
 def test_set_commission_controls_cash_cost_basis_and_trade_commission(
-    trading_api, price, expected_broker_fee
+    trading_api, price
 ):
     api, stock = trading_api
     api.set_slippage(0.0)
@@ -365,8 +367,11 @@ def test_set_commission_controls_cash_cost_basis_and_trade_commission(
 
     assert api.order(stock, 100, limit_price=price) is not None
 
-    value = 100 * price
-    expected_commission = expected_broker_fee + value * 0.0000487
+    # 标准限价撮合：市价 10.0，限价 100 时按市价成交（10.0），限价 10 时同为 10.0
+    fill_price = min(price, 10.0)
+    value = 100 * fill_price
+    # 佣金 = max(成交额×费率, 最低佣金) + 过户费；成交价统一 10.0 → 最低佣金 2.0 生效
+    expected_commission = max(value * 0.001, 2.0) + value * 0.0000487
     position = api.context.portfolio.positions[stock]
     assert api.context.total_commission == pytest.approx(expected_commission)
     assert api.context.portfolio.cash == pytest.approx(
@@ -374,7 +379,7 @@ def test_set_commission_controls_cash_cost_basis_and_trade_commission(
     )
     assert position.amount == 100
     assert position.cost_basis == pytest.approx(
-        price + expected_commission / 100
+        fill_price + expected_commission / 100
     )
     assert api.stats_collector.stats.trades[0][6] == pytest.approx(value)
     assert api.stats_collector.stats.trades[0][7] == pytest.approx(
@@ -391,8 +396,10 @@ def test_set_slippage_controls_buy_and_sell_prices_and_cash(trading_api):
     assert api.order(stock, 100, limit_price=10.0) is not None
     assert api.order(stock, -100, limit_price=10.0) is not None
 
-    buy_price = 10.1
-    sell_price = 9.9
+    # 标准限价撮合：买 min(限价 10, 滑点后市价 10.1) = 10.0；
+    # 卖 max(限价 10, 滑点后市价 9.9) = 10.0
+    buy_price = 10.0
+    sell_price = 10.0
     buy_value = 100 * buy_price
     sell_value = 100 * sell_price
     buy_commission = max(buy_value * 0.001, 1.0) + buy_value * 0.0000487

@@ -875,6 +875,15 @@ class PtradeAPI:
             query_ts = self.context.current_dt
         else:
             query_ts = pd.Timestamp(date)
+        # ptrade 语义：估值数据返回查询日前一交易日（当日估值盘后才生成）。
+        # searchsorted(side="left") 取严格早于查询日的最近交易日，查询日为
+        # 非交易日（如研究模式传周末）时也正确回退到其前一交易日。
+        if table == "valuation" and self.data_context.trade_days is not None:
+            pos = self.data_context.trade_days.searchsorted(
+                pd.Timestamp(query_ts).normalize(), side="left"
+            )
+            if pos >= 1:
+                query_ts = self.data_context.trade_days[pos - 1]
         cache_key = (table, query_ts)
 
         # 获取或创建日期索引缓存（LRUCache 自动淘汰）

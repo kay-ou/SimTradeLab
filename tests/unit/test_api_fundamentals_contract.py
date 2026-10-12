@@ -73,9 +73,12 @@ def test_get_fundamentals_valuation_total_value_uses_query_date_close(ptrade_api
         date="2024-01-02",
     )
 
+    # ptrade 语义：估值回退到查询日前一交易日（2024-01-01），
+    # 用回退日收盘价与股本计算市值
     assert result.loc["600000.SH", "trading_day"] == pd.Timestamp("2024-01-01")
-    assert result.loc["600000.SH", "total_value"] == 12_000.0
-    assert result.loc["600000.SH", "float_value"] == 4_800.0
+    prev_close = float(stock_df.loc[pd.Timestamp("2024-01-01"), "close"])
+    assert result.loc["600000.SH", "total_value"] == pytest.approx(prev_close * 1000.0)
+    assert result.loc["600000.SH", "float_value"] == pytest.approx(prev_close * 400.0)
 
 
 def test_get_fundamentals_valuation_datetime_index_uses_nanosecond_search(ptrade_api, data_context):

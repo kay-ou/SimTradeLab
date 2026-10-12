@@ -131,7 +131,8 @@ class TestFundamentalsAdvanced:
 
         result = ptrade_api.get_fundamentals('600000.SH', 'valuation', date='2024-01-02')
 
-        assert result.loc['600000.SH', 'trading_day'] == pd.Timestamp('2024-01-02')
+        # ptrade 语义：date 指查询日，估值返回其前一交易日的数据
+        assert result.loc['600000.SH', 'trading_day'] == pd.Timestamp('2024-01-01')
 
     def test_get_fundamentals_default_end_date_from_index(self, ptrade_api, data_context):
         """storage加载后date进入索引时，默认财务字段仍返回end_date"""

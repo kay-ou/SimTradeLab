@@ -50,8 +50,56 @@ class OrderProcessor:
         self.stats_collector = stats_collector
         self.lot_size = 100
 
+    def _resolve_bar(self, stock: str, is_buy: bool = True) -> Optional[tuple[pd.DataFrame, int]]:
+        """解析当前 bar 的 (stock_df, idx)，失败返回 None。
+
+        数据源按 frequency 选择；1m 用 index.searchsorted，日线用 date_dict
+        查找。卖出退市持仓（current_dt 超出数据最后交易日）回退最后一根
+        bar 平仓；买入不适用该回退。
+        """
+        frequency = getattr(self.context, "frequency", "1d")
+        if frequency == "1m" and self.data_context.stock_data_dict_1m is not None:
+            data_source = self.data_context.stock_data_dict_1m
+        else:
+            data_source = self.data_context.stock_data_dict
+        if stock not in data_source:
+            return None
+        stock_df = data_source[stock]
+        if not isinstance(stock_df, pd.DataFrame):
+            return None
+        try:
+            current_dt = self.context.current_dt
+            if frequency == "1m":
+                # 分钟数据：用 DatetimeIndex.searchsorted 避免 datetime64[us] vs ns 精度不匹配
+                idx = stock_df.index.searchsorted(current_dt, side="right") - 1
+                if idx < 0:
+                    return None
+            else:
+                # 日线数据：使用date_dict查找
+                date_dict, _ = self.get_stock_date_index(stock)
+                normalized_dt = pd.Timestamp(current_dt).normalize()
+                idx = date_dict.get(normalized_dt.value)
+                if idx is None:
+                    try:
+                        idx = stock_df.index.get_loc(normalized_dt)
+                    except KeyError:
+                        # 卖出退市持仓：current_dt 已超出该股数据最后交易日，
+                        # 回退最后收盘价平仓；买入保持原语义返回 None。
+                        if not is_buy and normalized_dt > stock_df.index[-1]:
+                            idx = len(stock_df) - 1
+                        else:
+                            raise
+            return stock_df, idx
+        except Exception as e:
+            self.log.warning(t("order.price_error", stock=stock, error=e))
+            return None
+
     def get_execution_price(self, stock: str, limit_price: Optional[float] = None, is_buy: bool = True) -> Optional[float]:
         """获取交易执行价格（含滑点）
+
+        市价 = 当日收盘价。限价单按标准撮合取优：买入取 min(限价, 滑点后市价)、
+        卖出取 max(限价, 滑点后市价)（ptrade 平台行为：15:00 收盘竞价，
+        限价优于收盘价时按收盘价成交）。
 
         Args:
             stock: 股票代码
@@ -61,108 +109,50 @@ class OrderProcessor:
         Returns:
             执行价格，失败返回None
         """
-        if limit_price is not None:
-            base_price = limit_price
-        else:
-            # 根据frequency选择数据源
-            frequency = getattr(self.context, 'frequency', '1d')
-            if frequency == '1m' and self.data_context.stock_data_dict_1m is not None:
-                data_source = self.data_context.stock_data_dict_1m
-            else:
-                data_source = self.data_context.stock_data_dict
-
-            if stock not in data_source:
+        resolved = self._resolve_bar(stock, is_buy)
+        if resolved is None:
+            if limit_price is None:
                 self.log.warning(t("order.price_no_data", stock=stock))
                 return None
+            # 无行情数据时保持限价单直接按限价成交的旧语义
+            return limit_price
+        stock_df, idx = resolved
 
-            stock_df = data_source[stock]
-            if not isinstance(stock_df, pd.DataFrame):
+        try:
+            # 成交量检查：volume=0 表示停牌，Ptrade会拒绝订单
+            if stock_df["volume"].values[idx] == 0:
+                self.log.warning(t("order.volume_zero", stock=stock))
                 return None
+            market_price = float(stock_df["close"].values[idx])
+        except Exception as e:
+            self.log.warning(t("order.price_error", stock=stock, error=e))
+            return None
+        if pd.isna(market_price) or market_price <= 0:
+            self.log.warning(t("order.price_abnormal", stock=stock, price=market_price))
+            return None
 
-            try:
-                current_dt = self.context.current_dt
-                if frequency == '1m':
-                    # 分钟数据：用 DatetimeIndex.searchsorted 避免 datetime64[us] vs ns 精度不匹配
-                    idx = stock_df.index.searchsorted(current_dt, side='right') - 1
-                    if idx < 0:
-                        return None
-                else:
-                    # 日线数据：使用date_dict查找
-                    date_dict, _ = self.get_stock_date_index(stock)
-                    normalized_dt = pd.Timestamp(current_dt).normalize()
-                    idx = date_dict.get(normalized_dt.value)
-                    if idx is None:
-                        try:
-                            idx = stock_df.index.get_loc(normalized_dt)
-                        except KeyError:
-                            # 卖出退市持仓：current_dt 已超出该股数据最后交易日，回退最后收盘价平仓；
-                            # 买入（含未知日期）保持原语义返回 None。
-                            if not is_buy and normalized_dt > stock_df.index[-1]:
-                                idx = len(stock_df) - 1
-                            else:
-                                raise
-
-                # 成交量检查：volume=0 表示停牌，Ptrade会拒绝订单
-                volume = stock_df['volume'].values[idx]
-                if volume == 0:
-                    self.log.warning(t("order.volume_zero", stock=stock))
-                    return None
-
-                price = stock_df['close'].values[idx]
-                base_price = float(price)
-
-                if pd.isna(base_price) or base_price <= 0:
-                    self.log.warning(t("order.price_abnormal", stock=stock, price=base_price))
-                    return None
-            except Exception as e:
-                self.log.warning(t("order.price_error", stock=stock, error=e))
-                return None
-
-        # 获取滑点配置
+        # 滑点作用于市价侧
         slippage = config.trading.slippage
         fixed_slippage = config.trading.fixed_slippage
-
-        # 计算滑点金额
         if slippage > 0:
-            # 比例滑点：滑点金额 = 委托价格 * slippage / 2
-            slippage_amount = base_price * slippage / 2
+            slip = market_price * slippage / 2
         elif fixed_slippage > 0:
-            # 固定滑点：滑点金额 = fixed_slippage / 2（单位：元）
-            slippage_amount = fixed_slippage / 2
+            slip = fixed_slippage / 2
         else:
-            # 无滑点
-            slippage_amount = 0
+            slip = 0.0
+        market_slipped = market_price + slip if is_buy else market_price - slip
 
-        # 最终成交价格 = 委托价格 ± 滑点金额（买入向上、卖出向下）
-        final_price = base_price + slippage_amount if is_buy else base_price - slippage_amount
-
-        return final_price
+        if limit_price is None:
+            return market_slipped
+        return min(limit_price, market_slipped) if is_buy else max(limit_price, market_slipped)
 
     def _get_current_bar_volume(self, stock: str) -> Optional[int]:
         """Return current-bar volume, or None when no current bar exists."""
-        try:
-            frequency = getattr(self.context, "frequency", "1d")
-            if frequency == "1m" and self.data_context.stock_data_dict_1m is not None:
-                data_source = self.data_context.stock_data_dict_1m
-            else:
-                data_source = self.data_context.stock_data_dict
-
-            stock_df = data_source[stock]
-            if not isinstance(stock_df, pd.DataFrame) or "volume" not in stock_df:
-                return None
-            if frequency == "1m":
-                idx = stock_df.index.searchsorted(self.context.current_dt, side="right") - 1
-                if idx < 0:
-                    return None
-            else:
-                date_dict, _ = self.get_stock_date_index(stock)
-                normalized_dt = pd.Timestamp(self.context.current_dt).normalize()
-                idx = date_dict.get(normalized_dt.value)
-                if idx is None:
-                    idx = stock_df.index.get_loc(normalized_dt)
-            return int(stock_df["volume"].values[idx])
-        except (KeyError, IndexError, TypeError, ValueError):
+        resolved = self._resolve_bar(stock, is_buy=True)
+        if resolved is None:
             return None
+        stock_df, idx = resolved
+        return int(stock_df["volume"].values[idx])
 
     def limit_fill_amount(
         self,

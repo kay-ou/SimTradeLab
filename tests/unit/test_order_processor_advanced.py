@@ -48,7 +48,7 @@ class TestOrderProcessorEdgeCases:
         def mock_get_index(stock):
             if stock in data_context.stock_data_dict:
                 df = data_context.stock_data_dict[stock]
-                date_dict = {date: i for i, date in enumerate(df.index)}
+                date_dict = {df.index[i].value: i for i in range(len(df.index))}  # 生产契约：纳秒 int64 键
                 return date_dict, list(df.index)
             return {}, []
 
@@ -83,7 +83,7 @@ class TestOrderProcessorEdgeCases:
         def mock_get_index(stock):
             if stock in data_context.stock_data_dict:
                 df = data_context.stock_data_dict[stock]
-                date_dict = {date: i for i, date in enumerate(df.index)}
+                date_dict = {df.index[i].value: i for i in range(len(df.index))}  # 生产契约：纳秒 int64 键
                 return date_dict, list(df.index)
             return {}, []
 
@@ -121,7 +121,7 @@ class TestOrderProcessorEdgeCases:
         def mock_get_index(stock):
             if stock in data_context.stock_data_dict:
                 df = data_context.stock_data_dict[stock]
-                date_dict = {date: i for i, date in enumerate(df.index)}
+                date_dict = {df.index[i].value: i for i in range(len(df.index))}  # 生产契约：纳秒 int64 键
                 return date_dict, list(df.index)
             return {}, []
 
@@ -136,9 +136,9 @@ class TestOrderProcessorEdgeCases:
             "600000.SH", limit_price=base_price, is_buy=False
         )
 
-        # 无滑点时买卖价格应该相等
-        assert buy_price == base_price
-        assert sell_price == base_price
+        # 无滑点时限价撮合取优：买入不高于限价、卖出不低于限价
+        assert buy_price <= base_price
+        assert sell_price >= base_price
 
 
     def test_calculate_commission_minimum_rate(self, context, data_context, simple_log):
