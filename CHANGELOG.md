@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.6] - 2026-10-12
+
+### Fixed
+
+- `get_fundamentals` valuation queries now resolve to the trading day strictly before the query date, matching the ptrade platform's "previous trading day" semantics (same-day valuation rows only exist after market close and must not leak into backtests).
+- Limit orders now fill at the better of the limit price and the slipped market price (buy `min`, sell `max`), matching the platform's 15:00 closing-auction behavior. Previously the limit price itself was used as the fill price, inflating costs by the 1.5% buffer on every trade.
+- Deduplicated bar resolution between `get_execution_price` and `_get_current_bar_volume` into a shared `_resolve_bar` helper.
+
 ## [2.13.4] - 2026-10-10
 
 ### Fixed

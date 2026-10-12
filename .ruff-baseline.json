@@ -349,61 +349,61 @@
   },
   {
     "path": "src/simtradelab/ptrade/api.py",
-    "row": 1801,
+    "row": 1810,
     "column": 17,
     "code": "SIM108"
   },
   {
     "path": "src/simtradelab/ptrade/api.py",
-    "row": 2264,
+    "row": 2273,
     "column": 9,
     "code": "SIM108"
   },
   {
     "path": "src/simtradelab/ptrade/api.py",
-    "row": 2360,
+    "row": 2369,
     "column": 9,
     "code": "SIM108"
   },
   {
     "path": "src/simtradelab/ptrade/api.py",
-    "row": 2966,
+    "row": 2975,
     "column": 13,
     "code": "SIM102"
   },
   {
     "path": "src/simtradelab/ptrade/api.py",
-    "row": 3065,
+    "row": 3074,
     "column": 9,
     "code": "SIM108"
   },
   {
     "path": "src/simtradelab/ptrade/api.py",
-    "row": 3290,
+    "row": 3299,
     "column": 9,
     "code": "SIM108"
   },
   {
     "path": "src/simtradelab/ptrade/api.py",
-    "row": 3614,
+    "row": 3623,
     "column": 13,
     "code": "B904"
   },
   {
     "path": "src/simtradelab/ptrade/api.py",
-    "row": 3646,
+    "row": 3655,
     "column": 13,
     "code": "B904"
   },
   {
     "path": "src/simtradelab/ptrade/api.py",
-    "row": 3686,
+    "row": 3695,
     "column": 13,
     "code": "B904"
   },
   {
     "path": "src/simtradelab/ptrade/api.py",
-    "row": 3713,
+    "row": 3722,
     "column": 13,
     "code": "B904"
   },
@@ -622,12 +622,6 @@
     "row": 15,
     "column": 1,
     "code": "I001"
-  },
-  {
-    "path": "src/simtradelab/ptrade/order_processor.py",
-    "row": 129,
-    "column": 9,
-    "code": "SIM108"
   },
   {
     "path": "src/simtradelab/ptrade/storage.py",
