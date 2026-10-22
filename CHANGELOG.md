@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.7] - 2026-10-22
+
+### Fixed
+
+- `get_fundamentals` valuation queries return same-day rows again. ptrade backtests run after market close, when the same-day valuation snapshot is already available; the 2.13.6 "previous trading day" shift skewed selection rankings by one day.
+- `float_value`/`total_value` now prefer the platform-stored value and only fall back to live computation (close × shares) when the stored value is missing. The two calculations use different conventions, and mixing them shifted float-market-cap rankings away from the platform.
+
 ## [2.13.6] - 2026-10-12
 
 ### Fixed
