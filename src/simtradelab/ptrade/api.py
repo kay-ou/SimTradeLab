@@ -875,15 +875,6 @@ class PtradeAPI:
             query_ts = self.context.current_dt
         else:
             query_ts = pd.Timestamp(date)
-        # ptrade 语义：估值数据返回查询日前一交易日（当日估值盘后才生成）。
-        # searchsorted(side="left") 取严格早于查询日的最近交易日，查询日为
-        # 非交易日（如研究模式传周末）时也正确回退到其前一交易日。
-        if table == "valuation" and self.data_context.trade_days is not None:
-            pos = self.data_context.trade_days.searchsorted(
-                pd.Timestamp(query_ts).normalize(), side="left"
-            )
-            if pos >= 1:
-                query_ts = self.data_context.trade_days[pos - 1]
         cache_key = (table, query_ts)
 
         # 获取或创建日期索引缓存（LRUCache 自动淘汰）
@@ -977,17 +968,19 @@ class PtradeAPI:
                     if field == "total_value" and need_realtime_total_value:
                         col_idx = df.columns.get_loc("total_shares") if "total_shares" in df.columns else -1
                         total_shares = df.iat[idx, col_idx] if col_idx >= 0 else None
-                        if total_shares is not None and not pd.isna(total_shares) and stock in close_prices:
-                            stock_data[field] = close_prices[stock] * total_shares
-                        elif field in df.columns:
+                        if field in df.columns and not pd.isna(df[field].values[idx]):
+                            # 文件存储值优先（平台口径）；仅缺失时实时计算兜底
                             stock_data[field] = df[field].values[idx]
+                        elif total_shares is not None and not pd.isna(total_shares) and stock in close_prices:
+                            stock_data[field] = close_prices[stock] * total_shares
                     elif field == "float_value" and need_realtime_float_value:
                         col_idx = df.columns.get_loc("a_floats") if "a_floats" in df.columns else -1
                         a_floats = df.iat[idx, col_idx] if col_idx >= 0 else None
-                        if a_floats is not None and not pd.isna(a_floats) and stock in close_prices:
-                            stock_data[field] = close_prices[stock] * a_floats
-                        elif field in df.columns:
+                        if field in df.columns and not pd.isna(df[field].values[idx]):
+                            # 文件存储值优先（平台口径）；仅缺失时实时计算兜底
                             stock_data[field] = df[field].values[idx]
+                        elif a_floats is not None and not pd.isna(a_floats) and stock in close_prices:
+                            stock_data[field] = close_prices[stock] * a_floats
                     elif field == "secu_code":
                         stock_data[field] = stock
                     elif field == "secu_abbr":
