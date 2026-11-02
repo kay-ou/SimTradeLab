@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.8] - 2026-11-02
+
+### Changed
+
+- `get_history` now caches per-DataFrame numpy views of price columns instead of rebuilding a pandas Series for every requested field and stock, and reuses the already-built int64 date index for window alignment. Multi-stock history queries run substantially faster with identical results.
+- Column aliases (`money`/`price`) are normalized once when daily or minute data is loaded, instead of copying the source frame inside `get_history` on every call. The alias rule now lives in a single `storage.ensure_alias_columns` helper.
+- Date columns that are already datetime-typed skip the redundant `pd.to_datetime` pass during data loading, shortening startup for large datasets.
+
+### Fixed
+
+- Cached column views are keyed by DataFrame identity and guarded by a weak reference plus the data version, so recycled object ids or replaced data sources can no longer return values from a previous frame.
+
+### Tests
+
+- Added regression coverage for recycled DataFrame ids and for eviction of cached views when the source frame is collected.
+
 ## [2.13.7] - 2026-10-22
 
 ### Fixed
