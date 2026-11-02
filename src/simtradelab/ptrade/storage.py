@@ -23,6 +23,30 @@ def _ensure_datetime(series: pd.Series) -> pd.Series:
     return series
 
 
+def _set_datetime_index(df: pd.DataFrame, column: str) -> None:
+    """把日期列设为索引；已是 datetime 列时跳过 to_datetime，省掉全表逐元素校验。"""
+    df[column] = _ensure_datetime(df[column])
+    df.set_index(column, inplace=True)
+
+
+_COLUMN_ALIASES = {"money": "amount", "price": "close"}
+
+
+def ensure_alias_columns(df: pd.DataFrame, *, copy: bool = True) -> pd.DataFrame:
+    """补齐 money/price 别名列。
+
+    copy=True 时仅在需要补列时复制（适合多次分发的数据）；
+    copy=False 时就地补列（适合刚加载、不再共享的 DataFrame）。
+    """
+    out = None
+    for name, source in _COLUMN_ALIASES.items():
+        if name not in df.columns and source in df.columns:
+            if out is None:
+                out = df.copy() if copy else df
+            out[name] = out[source]
+    return df if out is None else out
+
+
 def _date_to_int(dt_series: pd.Series) -> pd.Series:
     """向量化将datetime转为YYYYMMDD整数"""
     dt_series = _ensure_datetime(dt_series)
@@ -48,10 +72,12 @@ def load_stock(data_dir, symbol):
     parquet_file = Path(data_dir) / 'stocks' / f'{symbol}.parquet'
     if parquet_file.exists():
         df = pd.read_parquet(parquet_file)
-        if not df.empty and 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'])
-            df.set_index('date', inplace=True)
-        return df
+        if df.empty:
+            return df
+        if 'date' in df.columns:
+            _set_datetime_index(df, 'date')
+        # 加载时补齐别名，避免 get_history 每次为每只股票复制整段历史来补列。
+        return ensure_alias_columns(df, copy=False)
     return pd.DataFrame()
 
 
@@ -61,8 +87,7 @@ def load_valuation(data_dir, symbol):
     if parquet_file.exists():
         df = pd.read_parquet(parquet_file)
         if not df.empty and 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'])
-            df.set_index('date', inplace=True)
+            _set_datetime_index(df, 'date')
         return df
     return pd.DataFrame()
 
@@ -73,8 +98,7 @@ def load_fundamentals(data_dir, symbol):
     if parquet_file.exists():
         df = pd.read_parquet(parquet_file)
         if not df.empty and 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'])
-            df.set_index('date', inplace=True)
+            _set_datetime_index(df, 'date')
         return df
     return pd.DataFrame()
 
@@ -225,11 +249,10 @@ def load_stock_1m(data_dir, symbol):
         df = pd.read_parquet(parquet_file)
         if not df.empty:
             if 'datetime' in df.columns:
-                df['datetime'] = pd.to_datetime(df['datetime'])
-                df.set_index('datetime', inplace=True)
+                _set_datetime_index(df, 'datetime')
             elif 'date' in df.columns:
-                df['date'] = pd.to_datetime(df['date'])
-                df.set_index('date', inplace=True)
+                _set_datetime_index(df, 'date')
+            df = ensure_alias_columns(df, copy=False)
         return df
     return pd.DataFrame()
 

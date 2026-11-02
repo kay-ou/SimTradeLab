@@ -8,7 +8,9 @@
 
 from __future__ import annotations
 
+import gc
 import warnings
+import weakref
 
 import numpy as np
 import pandas as pd
@@ -392,3 +394,31 @@ def test_trade_day_helpers_follow_documented_bounds(data_context, simple_log):
     api.context.current_dt = pd.Timestamp("2024-01-05 14:30")
     assert api.get_trading_day(0) == pd.Timestamp("2024-01-05").date()
     assert api.get_trading_day_by_date("2024-01-05", -2) == pd.Timestamp("2024-01-03").date()
+
+
+def test_cached_values_reject_recycled_dataframe_id(data_context, simple_log):
+    api = _make_api(data_context, simple_log)
+    version = getattr(api.data_context, "data_version", None)
+    alive = pd.DataFrame({"a": [5.0]})
+    stale = pd.DataFrame({"a": [9.0]})
+    stale_ref = weakref.ref(stale)
+    api._values_cache[(id(alive), version)] = (stale_ref, {"a": np.array([9.0])})
+
+    del stale
+    gc.collect()
+
+    np.testing.assert_array_equal(api._cached_values(alive, "a", version), np.array([5.0]))
+
+
+def test_cached_values_drop_entry_when_dataframe_is_collected(data_context, simple_log):
+    api = _make_api(data_context, simple_log)
+    frame = pd.DataFrame({"a": [1.0]})
+    api._cached_values(frame, "a", getattr(api.data_context, "data_version", None))
+    assert len(api._values_cache) == 1
+
+    frame_ref = weakref.ref(frame)
+    del frame
+    gc.collect()
+
+    assert frame_ref() is None
+    assert api._values_cache == {}

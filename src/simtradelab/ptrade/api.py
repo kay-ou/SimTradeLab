@@ -17,6 +17,7 @@ import bisect
 import calendar
 import json
 import traceback
+import weakref
 from collections import OrderedDict
 from collections.abc import Callable
 from datetime import date as datetime_date
@@ -33,6 +34,7 @@ from simtradelab.ptrade.object import Position
 from simtradelab.utils.perf import timer
 
 from ..utils.paths import get_strategies_path
+from . import storage
 from .cache_manager import cache_manager
 from .broker_profile import (
     is_api_supported_for_broker,
@@ -334,6 +336,9 @@ class PtradeAPI:
         self._fundamentals_cache = LRUCache(maxsize=500)
         self._sorted_index_dates: Optional[list[str]] = None
         self._adj_alignment_cache: dict[tuple[object, ...], bool] = {}
+        # DataFrame 列的 numpy 视图缓存：pandas 每次 df[col] 都要构造 Series，
+        # 多股票循环里这是主要开销之一。每个 DataFrame 一个条目，附弱引用防止 id 复用读错数据。
+        self._values_cache: dict[tuple[int, object], tuple[weakref.ReferenceType, dict[str, np.ndarray]]] = {}
         getattr(self.data_context, "register_api", lambda _: None)(self)
         # 实盘模拟: 订单/成交回调队列
         self._pending_order_callbacks: list[dict] = []
@@ -1154,17 +1159,27 @@ class PtradeAPI:
             return df.iloc[0:0].copy()
         return pd.concat(pieces).sort_index()
 
-    @staticmethod
-    def _ensure_standard_columns(df: pd.DataFrame) -> pd.DataFrame:
-        out = df
-        if "money" not in out.columns and "amount" in out.columns:
-            out = out.copy()
-            out["money"] = out["amount"]
-        if "price" not in out.columns and "close" in out.columns:
-            if out is df:
-                out = out.copy()
-            out["price"] = out["close"]
-        return out
+    def _cached_values(self, df: pd.DataFrame, column: str, data_version: object) -> np.ndarray:
+        """返回列的 numpy 视图，按 DataFrame 对象缓存（视图不复制数据）。
+
+        每个 DataFrame 一个条目，命中前校验弱引用仍指向同一个对象：临时对象
+        回收后 id 可能复用，仅凭 id 取缓存会读到上一个对象的数据。
+        """
+        key = (id(df), data_version)
+        entry = self._values_cache.get(key)
+        if entry is None or entry[0]() is not df:
+            cache = self._values_cache
+            entry = (
+                weakref.ref(df, lambda _ref, _key=key, _cache=cache: _cache.pop(_key, None)),
+                {},
+            )
+            cache[key] = entry
+        values = entry[1]
+        array = values.get(column)
+        if array is None:
+            array = df[column].to_numpy(copy=False)
+            values[column] = array
+        return array
 
     def _apply_dypre_to_daily(
         self, stock_df: pd.DataFrame, stock: str, base_dt: pd.Timestamp | None = None
@@ -1211,7 +1226,7 @@ class PtradeAPI:
                 df = self._aggregate_intraday_kline(
                     df, _MINUTE_FREQ_MINUTES[frequency]
                 )
-            return self._ensure_standard_columns(df)
+            return storage.ensure_alias_columns(df)
 
         if frequency in _PERIOD_FREQ_RULE:
             base = self.data_context.stock_data_dict
@@ -1226,7 +1241,7 @@ class PtradeAPI:
             elif fq == "dypre":
                 daily_df = self._apply_dypre_to_daily(daily_df, stock, base_dt)
             df = self._aggregate_kline(daily_df, _PERIOD_FREQ_RULE[frequency])
-            return self._ensure_standard_columns(df)
+            return storage.ensure_alias_columns(df)
 
         base = self.data_context.stock_data_dict
         if stock in base:
@@ -1235,7 +1250,7 @@ class PtradeAPI:
             df = self.data_context.benchmark_data[stock]
         else:
             return None
-        return self._ensure_standard_columns(df)
+        return storage.ensure_alias_columns(df)
 
     @staticmethod
     def _fill_minute_gaps(df: pd.DataFrame, minutes: int, fill: str) -> pd.DataFrame:
@@ -1768,12 +1783,14 @@ class PtradeAPI:
         needs_adj_post = frequency == "1d" and fq == "post" and self.data_context.adj_post_cache
         price_fields = {"open", "high", "low", "close"}
         daily_target_dates = None
+        target_ns = None
         calendar = None
         if frequency == "1d" and self.data_context.trade_days is not None:
             calendar = pd.DatetimeIndex(self.data_context.trade_days)
             cutoff = current_dt.normalize()
             valid_dates = calendar[calendar <= cutoff] if include else calendar[calendar < cutoff]
             daily_target_dates = valid_dates[-count:]
+            target_ns = _datetime_index_ns(daily_target_dates)
 
         for stock, (data_source, current_idx) in stock_info.items():
             if include:
@@ -1788,6 +1805,7 @@ class PtradeAPI:
 
             adj_factors = None
             adj_a = adj_b = None
+            adj_a_full = adj_b_full = None
 
             if (needs_adj_pre or needs_adj_dypre) and stock in self.data_context.adj_pre_cache:
                 adj_factors = self.data_context.adj_pre_cache[stock]
@@ -1801,15 +1819,19 @@ class PtradeAPI:
                     indexes_aligned = adj_factors.index.equals(data_source.index)
                     self._adj_alignment_cache[alignment_key] = indexes_aligned
                 if indexes_aligned:
-                    aligned_factors = adj_factors
+                    adj_a_full = self._cached_values(adj_factors, "adj_a", data_version)
+                    adj_b_full = self._cached_values(adj_factors, "adj_b", data_version)
                 else:
+                    # reindex 分支的 DataFrame 是一次性临时对象，缓存没有收益，直接取值。
                     aligned_factors = adj_factors.reindex(data_source.index).ffill()
-                adj_a = aligned_factors["adj_a"].values[start_idx:end_idx]
-                adj_b = aligned_factors["adj_b"].values[start_idx:end_idx]
+                    adj_a_full = aligned_factors["adj_a"].values
+                    adj_b_full = aligned_factors["adj_b"].values
+                adj_a = adj_a_full[start_idx:end_idx]
+                adj_b = adj_b_full[start_idx:end_idx]
 
             if needs_adj_dypre and adj_a is not None:
-                adj_a_base = aligned_factors["adj_a"].values[current_idx]
-                adj_b_base = aligned_factors["adj_b"].values[current_idx]
+                adj_a_base = adj_a_full[current_idx]
+                adj_b_base = adj_b_full[current_idx]
 
             stock_result = {}
             hl_adj = {}
@@ -1824,14 +1846,14 @@ class PtradeAPI:
             ):
                 hl_adj["high"], hl_adj["low"] = _compute_hl_adj(
                     adj_b,
-                    data_source["high"].values[start_idx:end_idx],
-                    data_source["low"].values[start_idx:end_idx],
+                    self._cached_values(data_source, "high", data_version)[start_idx:end_idx],
+                    self._cached_values(data_source, "low", data_version)[start_idx:end_idx],
                 )
 
             for field_name in fields:
                 if field_name not in data_source.columns:
                     continue
-                raw = data_source[field_name].values[start_idx:end_idx]
+                raw = self._cached_values(data_source, field_name, data_version)[start_idx:end_idx]
 
                 if adj_a is not None and field_name in price_fields:
                     if needs_adj_post:
@@ -1848,11 +1870,11 @@ class PtradeAPI:
             if stock_result and daily_target_dates is not None:
                 source_dates = data_source.index[start_idx:end_idx]
                 target_dates = daily_target_dates
+                # 日期索引在 _resolve_daily_index 里已按 int64 ns 建好，直接复用。
+                index_ns = self.get_stock_date_index(stock)[1]
                 window_is_dense = (
                     len(source_dates) == len(target_dates)
-                    and np.array_equal(
-                        _datetime_index_ns(source_dates), _datetime_index_ns(target_dates)
-                    )
+                    and np.array_equal(index_ns[start_idx:end_idx], target_ns)
                 )
                 if window_is_dense:
                     result_dates[stock] = source_dates
@@ -3751,3 +3773,4 @@ class PtradeAPI:
         self._fundamentals_cache.clear()
         self._sorted_index_dates = None
         self._adj_alignment_cache.clear()
+        self._values_cache.clear()
