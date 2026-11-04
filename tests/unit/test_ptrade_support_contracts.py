@@ -277,7 +277,7 @@ def test_documentation_contract_workflow_covers_guarded_files():
     }
     for path in behavior_test_paths:
         assert f"- '{path}'" in workflow
-    assert "poetry run pytest tests/unit/test_ptrade_support_contracts.py -q" in workflow
+    assert "uv run pytest tests/unit/test_ptrade_support_contracts.py -q" in workflow
 
 
 def test_full_support_references_collected_behavior_tests():

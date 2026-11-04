@@ -23,6 +23,11 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # The explicit sync installs --all-extras; keep uv run from re-syncing
+      # without those extras.
+      UV_NO_SYNC: "1"
+      UV_LOCKED: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -36,12 +41,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+          version: "0.13.0"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install system dependencies
         run: |
@@ -51,39 +56,28 @@ jobs:
           cd ta-lib && ./configure --prefix=/usr && make && sudo make install
           cd .. && rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
 
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v5
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction --all-extras
+        run: uv sync --all-extras --python ${{ matrix.python-version }}
 
       - name: Run basic import test
         run: |
-          poetry run python -c "import simtradelab; print('SimTradeLab ' + simtradelab.__version__ + ' imported successfully')"
+          uv run python -c "import simtradelab; print('SimTradeLab ' + simtradelab.__version__ + ' imported successfully')"
 
       - name: Run critical Ruff checks
-        run: poetry run ruff check src tests --select E9,F63,F7,F82
+        run: uv run ruff check src tests --select E9,F63,F7,F82
 
       - name: Check Ruff baseline
-        run: poetry run python script/check_ruff_baseline.py
+        run: uv run python script/check_ruff_baseline.py
 
       - name: Run unit tests
-        run: poetry run pytest tests/unit/ -v --tb=short
+        run: uv run pytest tests/unit/ -v --tb=short
 
       - name: Run integration tests
-        run: poetry run pytest tests/integration/ -v --tb=short
+        run: uv run pytest tests/integration/ -v --tb=short
 
       - name: Test package build and install
         run: |
-          poetry build
+          uv build
           python -m venv test_env
           source test_env/bin/activate
           WHEEL_FILE=$(find dist -name "simtradelab-*.whl" | head -1)
@@ -93,7 +87,7 @@ jobs:
 
       - name: Generate coverage report
         if: matrix.python-version == '3.11'
-        run: poetry run pytest tests/ --cov=simtradelab --cov-report=xml --cov-report=html
+        run: uv run pytest tests/ --cov=simtradelab --cov-report=xml --cov-report=html
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11'

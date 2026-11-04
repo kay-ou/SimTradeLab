@@ -109,8 +109,8 @@ def test_collect_ruff_findings_accepts_exit_one_with_json(monkeypatch, tmp_path)
     assert calls == [
         (
             [
-                "poetry",
-                "run",
+                checker.sys.executable,
+                "-m",
                 "ruff",
                 "check",
                 "src",

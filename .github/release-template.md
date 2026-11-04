@@ -32,9 +32,9 @@
 pip install simtradelab=={{version}}
 ```
 
-### 通过Poetry安装
+### 通过 uv 安装
 ```bash
-poetry add simtradelab@{{version}}
+uv add simtradelab=={{version}}
 ```
 
 ### 从源码安装
@@ -42,7 +42,7 @@ poetry add simtradelab@{{version}}
 git clone https://github.com/kay-ou/SimTradeLab.git
 cd SimTradeLab
 git checkout {{tag_name}}
-poetry install
+uv sync
 ```
 
 ## 🔗 相关链接

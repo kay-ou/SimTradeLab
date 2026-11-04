@@ -10,8 +10,8 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASELINE = REPOSITORY_ROOT / ".ruff-baseline.json"
 RUFF_COMMAND = [
-    "poetry",
-    "run",
+    sys.executable,
+    "-m",
     "ruff",
     "check",
     "src",

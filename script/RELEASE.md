@@ -23,11 +23,11 @@
 git status --short
 
 # 2) 测试必须通过
-poetry run pytest -q
+uv run pytest -q
 
 # 3) 严重 Ruff 问题和 Ruff 基线检查必须通过
-poetry run ruff check src tests --select E9,F63,F7,F82
-poetry run python script/check_ruff_baseline.py
+uv run ruff check src tests --select E9,F63,F7,F82
+uv run python script/check_ruff_baseline.py
 
 # 4) CHANGELOG 需包含目标版本段落（例如 2.10.2）
 rg -n "^## \\[2\\.10\\.2\\]" CHANGELOG.md
@@ -41,8 +41,8 @@ CI 允许删除已有问题，但不允许增加或替换为新的问题身份�
 仅在有意清理历史问题后刷新基线：
 
 ```bash
-poetry run python script/check_ruff_baseline.py --update
-poetry run python script/check_ruff_baseline.py
+uv run python script/check_ruff_baseline.py --update
+uv run python script/check_ruff_baseline.py
 ```
 
 刷新时必须审查变更，确认基线条目数量没有增长；不得用刷新基线绕过新问题。
@@ -52,7 +52,7 @@ poetry run python script/check_ruff_baseline.py
 修改 PTrade API、行情数据、订单执行、组合核算或缓存逻辑后，在本地运行：
 
 ```bash
-poetry run python script/local_strategy_regression.py \
+uv run python script/local_strategy_regression.py \
   --config .simtradelab-strategy-regression.json --all
 ```
 
@@ -103,9 +103,9 @@ poetry run python script/local_strategy_regression.py \
 只有在确认策略、固定配置或数据版本发生预期变化后，才能更新基线：
 
 ```bash
-poetry run python script/local_strategy_regression.py \
+uv run python script/local_strategy_regression.py \
   --config .simtradelab-strategy-regression.json --all --update-baseline
-poetry run python script/local_strategy_regression.py \
+uv run python script/local_strategy_regression.py \
   --config .simtradelab-strategy-regression.json --all
 ```
 

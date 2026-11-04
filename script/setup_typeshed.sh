@@ -9,7 +9,7 @@ BUILTINS="$PROJECT_ROOT/.venv/lib/python3.12/site-packages/pyright/dist/dist/typ
 
 if [ ! -f "$BUILTINS" ]; then
     echo "ERROR: pyright builtins.pyi not found at $BUILTINS"
-    echo "Run: poetry install"
+    echo "Run: uv sync"
     exit 1
 fi
 

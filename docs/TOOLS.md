@@ -108,8 +108,8 @@ SimTradeLab 提供基于 Optuna 的智能参数优化框架，支持贝叶斯优
 # PyPI安装
 pip install simtradelab[optimizer]
 
-# Poetry安装
-poetry install -E optimizer
+# uv 安装
+uv sync --extra optimizer
 ```
 
 #### 2. 编写优化脚本
@@ -146,7 +146,7 @@ print(f"最优参数: {best_params}")
 #### 3. 运行优化
 
 ```bash
-poetry run python strategies/my_strategy/optimization/optimize_params.py
+uv run python strategies/my_strategy/optimization/optimize_params.py
 ```
 
 ### 参数类型

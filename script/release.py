@@ -46,13 +46,15 @@ def update_version_in_files(version):
     pyproject = Path("pyproject.toml")
     content = pyproject.read_text(encoding="utf-8")
     content = re.sub(
-        r'(\[tool\.poetry\].*?^name\s*=\s*"[^"]+"\s*^version\s*=\s*")[^"]+(")',
+        r'(\[project\].*?^name\s*=\s*"[^"]+"\s*^version\s*=\s*")[^"]+(")',
         r'\g<1>{}\g<2>'.format(version),
         content,
         flags=re.MULTILINE | re.DOTALL,
     )
     pyproject.write_text(content, encoding="utf-8")
     print("  ✓ pyproject.toml")
+    run_command("uv lock")
+    print("  ✓ uv.lock")
 
     for readme_name in ["README.md", "README.zh-CN.md", "README.de.md"]:
         readme = Path(readme_name)
@@ -83,14 +85,14 @@ def update_version_in_files(version):
 
 
 def commit_version_update(version):
-    run_command("git add pyproject.toml README.md README.zh-CN.md README.de.md")
+    run_command("git add pyproject.toml uv.lock README.md README.zh-CN.md README.de.md")
     run_command('git commit -m "chore: bump version to {}"'.format(version))
 
 
 def run_tests():
     print("运行测试...")
     try:
-        run_command("poetry run pytest tests/ -q")
+        run_command("uv run --locked pytest tests/ -q")
         print("测试通过")
     except subprocess.CalledProcessError:
         print("测试失败，终止发布")

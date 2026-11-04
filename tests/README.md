@@ -29,26 +29,26 @@
 ### 安装依赖
 
 ```bash
-poetry install
+uv sync
 ```
 
 ### 运行测试
 
 ```bash
 # 单元测试
-poetry run pytest tests/unit -q
+uv run pytest tests/unit -q
 
 # 集成测试
-poetry run pytest tests/integration -q
+uv run pytest tests/integration -q
 
 # 完整测试集
-poetry run pytest tests -q
+uv run pytest tests -q
 
 # 带覆盖率
-poetry run pytest tests --cov=simtradelab --cov-report=term-missing
+uv run pytest tests --cov=simtradelab --cov-report=term-missing
 
 # HTML覆盖率报告
-poetry run pytest tests --cov=simtradelab --cov-report=html
+uv run pytest tests --cov=simtradelab --cov-report=html
 # Linux: xdg-open htmlcov/index.html
 # macOS: open htmlcov/index.html
 # Windows: start htmlcov/index.html
@@ -58,29 +58,29 @@ poetry run pytest tests --cov=simtradelab --cov-report=html
 
 ```bash
 # 单个文件
-poetry run pytest tests/unit/test_api.py -v
+uv run pytest tests/unit/test_api.py -v
 
 # 单个测试类
-poetry run pytest tests/unit/test_api.py::TestOrderAPI -v
+uv run pytest tests/unit/test_api.py::TestOrderAPI -v
 
 # 单个测试用例
-poetry run pytest tests/unit/test_api.py::TestOrderAPI::test_order_in_handle_data -v
+uv run pytest tests/unit/test_api.py::TestOrderAPI::test_order_in_handle_data -v
 ```
 
 ### 调试测试
 
 ```bash
 # 显示print输出
-poetry run pytest tests/unit -v -s
+uv run pytest tests/unit -v -s
 
 # 详细错误信息
-poetry run pytest tests/unit -vv
+uv run pytest tests/unit -vv
 
 # 只运行失败的测试
-poetry run pytest tests/unit --lf
+uv run pytest tests/unit --lf
 
 # 第一个失败时停止
-poetry run pytest tests/unit -x
+uv run pytest tests/unit -x
 ```
 
 ---
@@ -132,7 +132,7 @@ tests/
 覆盖率会随测试集持续变化，以 CI 生成的 XML/HTML 报告为准：
 
 ```bash
-poetry run pytest tests --cov=simtradelab --cov-report=term-missing --cov-report=html
+uv run pytest tests --cov=simtradelab --cov-report=term-missing --cov-report=html
 ```
 
 ---
@@ -182,13 +182,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: poetry install
+        run: uv sync
       - name: Run unit tests
-        run: poetry run pytest tests/unit
+        run: uv run pytest tests/unit
       - name: Run integration tests
-        run: poetry run pytest tests/integration
+        run: uv run pytest tests/integration
       - name: Run coverage
-        run: poetry run pytest tests --cov=simtradelab
+        run: uv run pytest tests --cov=simtradelab
 ```
 
 ---
@@ -219,5 +219,5 @@ jobs:
 **每次修改代码前后都要运行测试！**
 
 ```bash
-poetry run pytest tests -v
+uv run pytest tests -v
 ```

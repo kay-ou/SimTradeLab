@@ -19,7 +19,7 @@
 2. 复制模板创建optimize_params.py
 3. 修改ParameterSpace类中的参数空间定义
 4. 修改ScoringStrategy类中的评分策略
-5. 运行: poetry run python strategies/{strategy_name}/optimization/optimize_params.py
+5. 运行: uv run python strategies/{strategy_name}/optimization/optimize_params.py
 """
 
 

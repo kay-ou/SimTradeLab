@@ -90,13 +90,17 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          version: latest
+          version: "0.13.0"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Build release distributions
-        run: poetry build
+        run: |
+          uv lock --check
+          uv build
 
       - name: Upload distributions
         uses: actions/upload-artifact@v6
