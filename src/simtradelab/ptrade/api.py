@@ -2589,8 +2589,8 @@ class PtradeAPI:
             self.log.info(t("api.order_sell", order_id=order_id, stock=security, amount=abs(amount)))
             success = self.order_processor.execute_sell(security, abs(amount), price)
 
+        order.status = "8" if success else "9"
         if success:
-            order.status = "8"
             order.filled = amount
             if self.context and self.context.blotter:
                 self.context.blotter.filled_orders.append(order)

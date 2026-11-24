@@ -74,6 +74,8 @@ class OrderProcessor:
                 idx = stock_df.index.searchsorted(current_dt, side="right") - 1
                 if idx < 0:
                     return None
+                if stock_df.index[idx].date() != pd.Timestamp(current_dt).date():
+                    return None
             else:
                 # 日线数据：使用date_dict查找
                 date_dict, _ = self.get_stock_date_index(stock)

@@ -26,6 +26,101 @@ def _price_frame(dates: pd.DatetimeIndex, close: float = 10.0) -> pd.DataFrame:
     )
 
 
+@pytest.mark.parametrize("amount", [100, -100])
+@pytest.mark.parametrize("limit_price", [None, 10.0])
+def test_previous_day_minute_bar_cannot_fill_order(simple_log, amount, limit_price):
+    trade_date = pd.Timestamp("2024-01-03")
+    stock = "600000.SH"
+    previous_bar = pd.Timestamp("2024-01-02 15:00")
+    context, api, collector, _engine, _benchmark = _build_daily_engine(
+        simple_log,
+        pd.DatetimeIndex([trade_date]),
+        [stock],
+        frequency="1m",
+        minute_data={stock: _price_frame(pd.DatetimeIndex([previous_bar]))},
+    )
+    context.current_dt = trade_date.replace(hour=10)
+    context.portfolio.add_position(stock, 100, 10.0, previous_bar)
+    context.portfolio.positions[stock].enable_amount = 100
+    context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+    context._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+
+    assert api.order_processor._get_current_bar_volume(stock) is None
+    assert api.order(stock, amount, limit_price=limit_price) is None
+    assert context.portfolio.cash == 100_000.0
+    assert context.portfolio.positions[stock].amount == 100
+    assert context.blotter.all_orders == []
+    assert collector.stats.trades == []
+    assert api.flush_order_callbacks() == []
+    assert api.flush_trade_callbacks() == []
+
+
+def test_same_day_previous_minute_bar_can_fill_order(simple_log):
+    trade_date = pd.Timestamp("2024-01-03")
+    stock = "600000.SH"
+    previous_bar = trade_date.replace(hour=9, minute=31)
+    context, api, collector, _engine, _benchmark = _build_daily_engine(
+        simple_log,
+        pd.DatetimeIndex([trade_date]),
+        [stock],
+        frequency="1m",
+        minute_data={stock: _price_frame(pd.DatetimeIndex([previous_bar]))},
+    )
+    context.current_dt = trade_date.replace(hour=10)
+    context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+    context._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+
+    assert api.order(stock, 100) is not None
+    assert context.portfolio.positions[stock].amount == 100
+    assert len(collector.stats.trades) == 1
+
+
+def test_failed_sell_status_matches_order_callback(simple_log):
+    trade_date = pd.Timestamp("2024-01-02")
+    stock = "600000.SH"
+    context, api, collector, _engine, _benchmark = _build_daily_engine(
+        simple_log, pd.DatetimeIndex([trade_date]), [stock]
+    )
+    context.portfolio.add_position(stock, 100, 10.0, trade_date)
+    context._lifecycle_controller.set_phase(LifecyclePhase.INITIALIZE)
+    context._lifecycle_controller.set_phase(LifecyclePhase.HANDLE_DATA)
+
+    assert api.order(stock, -100) is None
+    order = api.get_orders(stock)[0]
+    callback = api.flush_order_callbacks()[0]
+    assert order.status == callback["status"] == "9"
+    assert api.get_order(order.id)[0].status == "9"
+    assert order.filled == 0
+    assert context.portfolio.positions[stock].amount == 100
+    assert context.portfolio.cash == 100_000.0
+    assert context.blotter.filled_orders == []
+    assert collector.stats.trades == []
+    assert api.flush_trade_callbacks() == []
+
+
+def test_partial_sell_deducts_fifo_lots_and_dividends(portfolio):
+    stock = "600000.SH"
+    portfolio.add_position(stock, 100, 10.0, pd.Timestamp("2024-01-01"))
+    portfolio.add_position(stock, 200, 12.0, pd.Timestamp("2024-01-02"))
+    portfolio.positions[stock].enable_amount = 300
+    portfolio.add_dividend(stock, 1.0)
+
+    assert portfolio.remove_position(stock, 150, pd.Timestamp("2024-01-03")) == 0.0
+    lots = portfolio._position_lots[stock]
+    assert len(lots) == 1
+    assert lots[0]["date"] == pd.Timestamp("2024-01-02")
+    assert lots[0]["amount"] == portfolio.positions[stock].amount == 150
+    assert lots[0]["dividends"] == [150.0]
+    assert lots[0]["dividends_total"] == 150.0
+
+    portfolio.add_dividend(stock, 2.0)
+    assert lots[0]["dividends"] == [150.0, 300.0]
+    assert lots[0]["dividends_total"] == 450.0
+    portfolio.remove_position(stock, 150, pd.Timestamp("2024-01-04"))
+    assert stock not in portfolio.positions
+    assert stock not in portfolio._position_lots
+
+
 def _build_daily_engine(
     simple_log,
     dates: pd.DatetimeIndex,

@@ -557,6 +557,20 @@ class Portfolio:
             position.amount -= amount
             position.enable_amount -= amount
             position.market_value = position.amount * position.cost_basis
+            remaining = amount
+            retained_lots = []
+            for lot in self._position_lots.get(stock, []):
+                if remaining >= lot['amount']:
+                    remaining -= lot['amount']
+                    continue
+                if remaining > 0:
+                    ratio = (lot['amount'] - remaining) / lot['amount']
+                    lot['amount'] -= remaining
+                    lot['dividends'] = [dividend * ratio for dividend in lot['dividends']]
+                    lot['dividends_total'] = sum(lot['dividends'])
+                    remaining = 0
+                retained_lots.append(lot)
+            self._position_lots[stock] = retained_lots
 
         self._invalidate_cache()
         return tax_adjustment
