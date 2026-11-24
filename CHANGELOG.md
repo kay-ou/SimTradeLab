@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.9] - 2026-11-24
+
+### Fixed
+
+- Minute orders no longer use a previous trading day's bar for execution prices or volume checks when current-day minute data is missing.
+- Failed orders now retain status `9`, matching their order response callbacks and keeping order queries consistent.
+- Partial sells now deduct position lots in FIFO order and proportionally reduce dividend records for the remaining shares.
+
+### Tests
+
+- Added seven regression cases covering stale minute bars for buy/sell and market/limit orders, same-day minute fallback, failed order status, and FIFO lot/dividend accounting.
+- All 506 tests pass, including unit and integration coverage. Critical Ruff checks and the Ruff baseline check pass.
+- Three user-run strategy backtests produced unchanged results.
+
 ## [2.13.8] - 2026-11-02
 
 ### Changed

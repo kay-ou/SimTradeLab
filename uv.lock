@@ -2451,7 +2451,7 @@ wheels = [
 
 [[package]]
 name = "simtradelab"
-version = "2.13.8"
+version = "2.13.9"
 source = { editable = "." }
 dependencies = [
     { name = "cachetools" },

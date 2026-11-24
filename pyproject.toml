@@ -1,6 +1,6 @@
 [project]
 name = "simtradelab"
-version = "2.13.8"
+version = "2.13.9"
 description = "Lightweight quantitative backtesting framework with PTrade API simulation | 轻量级量化回测框架"
 authors = [{ name = "kay", email = "kayou@duck.com" }]
 license = "AGPL-3.0-or-later"
